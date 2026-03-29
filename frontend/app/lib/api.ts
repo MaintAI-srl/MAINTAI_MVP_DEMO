@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = "https://maintai-v3.onrender.com";
 
 type RequestOptions = Omit<RequestInit, "method" | "body">;
 
