@@ -1,0 +1,82 @@
+from sqlalchemy.orm import Session
+from backend.db.modelli import Tecnico
+from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate
+
+
+class TecnicoRepository:
+
+    def _to_dict(self, tecnico: Tecnico) -> dict:
+        return {
+            "id": tecnico.id,
+            "nome": tecnico.nome,
+            "cognome": tecnico.cognome or "",
+            "skill": tecnico.competenze or "",
+            "ore_giornaliere": tecnico.ore_giornaliere or 8,
+            "stato": tecnico.stato or "in servizio",
+            "orario_inizio": tecnico.orario_inizio or "08:00",
+            "orario_fine": tecnico.orario_fine or "17:00",
+            "limitazioni_orarie": tecnico.limitazioni_orarie or "",
+            "utente_id": tecnico.utente_id,
+        }
+
+    def get_all(self, db: Session) -> list[dict]:
+        return [self._to_dict(t) for t in db.query(Tecnico).all()]
+
+    def get_disponibili(self, db: Session) -> list[dict]:
+        """Solo tecnici in servizio."""
+        return [self._to_dict(t) for t in db.query(Tecnico).filter(Tecnico.stato == "in servizio").all()]
+
+    def get_by_id(self, db: Session, tecnico_id: int) -> dict | None:
+        t = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
+        return self._to_dict(t) if t else None
+
+    def create(self, db: Session, data: TecnicoCreate) -> dict:
+        tecnico = Tecnico(
+            nome=data.nome,
+            cognome=data.cognome,
+            competenze=data.skill,
+            ore_giornaliere=data.ore_giornaliere,
+            stato=data.stato or "in servizio",
+            orario_inizio=data.orario_inizio or "08:00",
+            orario_fine=data.orario_fine or "17:00",
+            limitazioni_orarie=data.limitazioni_orarie,
+        )
+        db.add(tecnico)
+        db.commit()
+        db.refresh(tecnico)
+        return self._to_dict(tecnico)
+
+    def update(self, db: Session, tecnico_id: int, data: TecnicoUpdate) -> dict | None:
+        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
+        if not tecnico:
+            return None
+        if data.nome is not None:
+            tecnico.nome = data.nome
+        if data.cognome is not None:
+            tecnico.cognome = data.cognome
+        if data.skill is not None:
+            tecnico.competenze = data.skill
+        if data.ore_giornaliere is not None:
+            tecnico.ore_giornaliere = data.ore_giornaliere
+        if data.stato is not None:
+            tecnico.stato = data.stato
+        if data.orario_inizio is not None:
+            tecnico.orario_inizio = data.orario_inizio
+        if data.orario_fine is not None:
+            tecnico.orario_fine = data.orario_fine
+        if data.limitazioni_orarie is not None:
+            tecnico.limitazioni_orarie = data.limitazioni_orarie
+        db.commit()
+        db.refresh(tecnico)
+        return self._to_dict(tecnico)
+
+    def delete(self, db: Session, tecnico_id: int) -> bool:
+        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
+        if not tecnico:
+            return False
+        db.delete(tecnico)
+        db.commit()
+        return True
+
+
+tecnico_repository = TecnicoRepository()

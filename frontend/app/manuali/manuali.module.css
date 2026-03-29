@@ -1,0 +1,286 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 800;
+  color: white;
+}
+
+.subtitle {
+  margin-top: 10px;
+  color: #cbd5e1;
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+.heroStats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.heroStat {
+  min-width: 160px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.heroStatLabel {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.heroStatValue {
+  font-size: 30px;
+  color: white;
+}
+
+.heroStatText {
+  font-size: 14px;
+  color: white;
+}
+
+.notice {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(56,189,248,0.10);
+  border: 1px solid rgba(56,189,248,0.18);
+  color: #dff7ff;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 20px;
+}
+
+.card {
+  padding: 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(15,23,42,0.86), rgba(15,23,42,0.72));
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.cardHead {
+  margin-bottom: 16px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: white;
+}
+
+.cardSubtitle {
+  margin-top: 8px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #dbeafe;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: #020617;
+  color: white;
+  outline: none;
+}
+
+.input[type="file"] {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.textarea {
+  min-height: 120px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  resize: vertical;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: rgba(56,189,248,0.45);
+  box-shadow: 0 0 0 4px rgba(56,189,248,0.12);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 0;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+}
+
+.secondaryButton {
+  background: linear-gradient(135deg, #334155, #475569);
+}
+
+.dbGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dbCard {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.dbName {
+  font-weight: 800;
+  color: white;
+}
+
+.dbMeta {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.dbFooter {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dbPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(56,189,248,0.10);
+  border: 1px solid rgba(56,189,248,0.18);
+  color: #dff7ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.answer {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(99,102,241,0.10);
+  border: 1px solid rgba(99,102,241,0.18);
+  color: #eef2ff;
+  line-height: 1.6;
+}
+
+.resultList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.resultCard {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.resultTitle {
+  font-weight: 800;
+  color: white;
+}
+
+.resultBody {
+  margin-top: 8px;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.resultScore {
+  margin-top: 10px;
+  color: #93c5fd;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 18px;
+  border-radius: 16px;
+  text-align: center;
+  color: #64748b;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed rgba(255,255,255,0.08);
+}
+
+@media (max-width: 1180px) {
+  .grid,
+  .dbGrid {
+    grid-template-columns: 1fr;
+  }
+}

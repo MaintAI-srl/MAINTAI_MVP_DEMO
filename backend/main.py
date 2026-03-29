@@ -1,0 +1,90 @@
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from backend.api.routes.assets import router as assets_router
+from backend.api.routes.auth import router as auth_router
+from backend.api.routes.dashboard import router as dashboard_router
+from backend.api.routes.db_routes import router as db_router
+from backend.api.routes.diagnostic import router as diagnostic_router
+from backend.api.routes.health import router as health_router
+from backend.api.routes.impianti import router as impianti_router
+from backend.api.routes.manuali import router as manuali_router
+from backend.api.routes.piani import router as piani_router
+from backend.api.routes.problem_analysis import router as problem_analysis_router
+from backend.api.routes.scheduler import router as scheduler_router
+from backend.api.routes.tecnici import router as tecnici_router
+from backend.api.routes.tickets import router as tickets_router
+from backend.api.routes.scadenze import router as scadenze_router
+from backend.api.routes.logs import router as logs_router
+from backend.core.config import init_backend
+from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
+from backend.core.init_db import init_db
+from backend.core.logging_config import setup_logging
+
+_DEFAULT_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://192.168.1.222:3000",
+    "http://192.168.1.222:3001",
+]
+
+
+def _load_origins() -> list[str]:
+    """Legge CORS_ORIGINS dal .env (comma-separated), con fallback ai default dev."""
+    raw = os.getenv("CORS_ORIGINS", "")
+    if raw.strip():
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return _DEFAULT_ORIGINS
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_logging()
+    init_backend()
+    init_db()  # crea tabelle e seed al primo avvio
+
+    # Crea cartella uploads solo in locale (su Render il filesystem è effimero
+    # e i file vengono serviti da Supabase Storage)
+    if not os.getenv("SUPABASE_URL"):
+        os.makedirs("uploads", exist_ok=True)
+    yield
+
+app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
+
+app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(Exception, generic_error_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(health_router)
+app.include_router(auth_router)
+app.include_router(dashboard_router)
+app.include_router(db_router)
+app.include_router(assets_router)
+app.include_router(tecnici_router)
+app.include_router(tickets_router)
+app.include_router(scadenze_router)
+app.include_router(logs_router)
+app.include_router(scheduler_router)
+app.include_router(manuali_router)
+app.include_router(diagnostic_router)
+app.include_router(piani_router)
+app.include_router(impianti_router)
+app.include_router(problem_analysis_router)
+
+# Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
+if not os.getenv("SUPABASE_URL"):
+    os.makedirs("uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

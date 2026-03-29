@@ -1,0 +1,119 @@
+MaintAI v3 — Struttura Progetto
+Aggiornata al: 2026-03-29
+============================================================
+
+maintai_v3/
+│
+├── maintai.db                          # Database SQLite principale (PROD)
+├── roadmap.md                          # Roadmap del progetto
+├── avvia_backend.bat                   # Script avvio rapido backend Windows
+├── force_setup.py                      # Setup forzato DB + seed iniziale
+├── seed_demo_data.py                   # Seed dati demo (non usare in PROD)
+├── alembic.ini                         # Configurazione Alembic migrations
+├── CLAUDE.md                           # Istruzioni per l'agente AI
+│
+├── docs/                               # Documentazione interna
+│
+├── uploads/                            # File caricati dagli utenti (foto, PDF)
+│   ├── *.jpg                           # Foto allegate ai ticket
+│   └── firma_*.png                     # Immagini firme digitali tecnici
+│
+│
+├── backend/                            # Server FastAPI (Python 3.11+)
+│   ├── main.py                         # Entry point FastAPI — router + CORS + lifespan
+│   ├── requirements.txt                # Dipendenze Python
+│   ├── maintai.db                      # DB secondario (legacy, non usato in PROD)
+│   ├── .env                            # Variabili d'ambiente (API keys, DB URL)
+│   ├── .env.example                    # Template .env per i nuovi deploy
+│   │
+│   ├── api/
+│   │   └── routes/
+│   │       ├── auth.py                 # POST /login, POST /logout — JWT
+│   │       ├── assets.py               # CRUD asset + GET /assets/{id}/analytics
+│   │       ├── impianti.py             # CRUD impianti (contenitori di asset)
+│   │       ├── tecnici.py              # CRUD tecnici + assenze + statistiche ore
+│   │       ├── tickets.py              # CRUD ticket + upload allegati + firma digitale
+│   │       ├── scheduler.py            # GET /scheduler/gantt + POST /ricalcola
+│   │       ├── piani.py                # CRUD piano manutenzione + genera-ticket + export CSV
+│   │       ├── manuali.py              # Upload PDF manuali + estrazione AI attività
+│   │       ├── dashboard.py            # KPI aggregati (stato, OEE, MTBF, conteggi)
+│   │       ├── scadenze.py             # GET /scadenze — notifiche imminenti (PM)
+│   │       ├── diagnostic.py           # Sessione diagnostica AI (RCA interattiva)
+│   │       ├── problem_analysis.py     # Analisi problemi AI (GPT-4.1)
+│   │       ├── logs.py                 # GET /logs — visualizzazione log di sistema
+│   │       ├── health.py               # GET /health — heartbeat server
+│   │       └── db_routes.py            # Utility DB admin
+│   │
+│   ├── core/
+│   │   ├── config.py                   # Configurazione applicazione e init
+│   │   ├── database.py                 # Sessione SQLAlchemy + engine
+│   │   ├── dependencies.py             # Dependency injection (get_db, auth)
+│   │   ├── exceptions.py               # Gestione errori HTTP custom
+│   │   ├── init_db.py                  # Creazione tabelle + migrazioni SQL manuali
+│   │   ├── logging_config.py           # Configurazione logging sistema
+│   │   └── logger.py                   # Utility log_info / log_error
+│   │
+│   ├── db/
+│   │   ├── modelli.py                  # Modelli SQLAlchemy (ORM)
+│   │   └── modelli_backup.py           # Backup modelli precedenti
+│   │
+│   ├── repositories/
+│   │   ├── asset_repository.py         # Query asset + get_analytics (MTBF/MTTR)
+│   │   ├── tecnico_repository.py       # Query tecnici e disponibilità
+│   │   └── ticket_repository.py        # Query ticket (non usato direttamente)
+│   │
+│   ├── schemas/
+│   │   └── schemas.py                  # Pydantic schemas (request/response)
+│   │
+│   ├── services/
+│   │   ├── scheduler_service.py        # Algoritmo pianificazione multi-day
+│   │   ├── manual_parser_service.py    # Parsing PDF manuali → attività PM
+│   │   ├── weather_service.py          # Integrazione meteo Open-Meteo API
+│   │   └── diagnostic_service.py       # Logica sessione diagnostica AI
+│   │
+│   ├── models/                         # Modelli Pydantic API (legacy)
+│   ├── utils/                          # Utility varie
+│   ├── data/                           # File dati statici
+│   └── tests/                          # Test unitari backend
+│
+│
+└── frontend/                           # Applicazione Next.js 15 (React + TypeScript)
+    ├── package.json                    # Dipendenze Node.js
+    ├── next.config.ts                  # Configurazione Next.js
+    ├── tsconfig.json                   # Configurazione TypeScript
+    │
+    ├── public/
+    │   ├── manifest.json               # PWA manifest (installabile come app)
+    │   ├── sw.js                       # Service Worker PWA
+    │   └── logo.png                    # Logo MaintAI
+    │
+    └── app/
+        ├── layout.tsx                  # Layout globale: sidebar + topbar + notifiche
+        ├── globals.css                 # Design system: variabili CSS, componenti base
+        ├── page.tsx                    # Redirect / → /dashboard
+        ├── error.tsx                   # Error boundary globale React
+        ├── loading.tsx                 # Skeleton loading globale
+        │
+        ├── lib/
+        │   ├── api.ts                  # Client HTTP (fetch wrapper con timeout 30s)
+        │   └── auth.tsx                # Context autenticazione (AuthProvider, useAuth)
+        │
+        ├── components/
+        │   ├── WeatherWidget.tsx        # Widget meteo live (topbar, geocoding automatico)
+        │   ├── NotificationPanel.tsx   # Campanellina notifiche scadenze PM (topbar)
+        │   ├── AssetAnalyticsModal.tsx # Modale analytics asset (MTBF/MTTR, grafici SVG)
+        │   ├── SignaturePad.tsx        # Canvas firma digitale per chiusura ticket
+        │   ├── UploadAllegati.tsx      # Upload foto/PDF con anteprima da campo
+        │   └── AssenzeModal.tsx        # Modale gestione ferie/malattie tecnici
+        │
+        ├── login/                      # Pagina login con autenticazione JWT
+        ├── dashboard/                  # Dashboard KPI con grafici e statistiche
+        ├── ticket/                     # Gestione ticket (creazione, filtri, stati)
+        ├── scheduler/                  # Gantt interattivo (giorno/settimana)
+        ├── assets/                     # Anagrafica asset + Analytics MTBF
+        ├── impianti/                   # Anagrafica impianti
+        ├── tecnici/                    # Anagrafica tecnici + ore uomo + assenze
+        ├── manuali/                    # Upload PDF + estrazione piano manutenzione AI
+        ├── piani/                      # Piano manutenzione (filtri, edit, genera ticket, CSV)
+        └── mobile/                     # Interfaccia ottimizzata tecnici in campo (PWA)
+            └── page.tsx               # Scanner ticket, foto, firma digitale

@@ -1,0 +1,56 @@
+.page { display: flex; flex-direction: column; gap: 24px; }
+.hero {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+  padding: 28px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(135deg, rgba(15,23,42,0.82) 0%, rgba(10,15,30,0.72) 100%);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.eyebrow { font-size: .72rem; text-transform: uppercase; letter-spacing: .14em; color: var(--text-muted); margin-bottom: 10px; }
+.title { margin: 0; font-size: clamp(2rem, 3vw, 2.8rem); line-height: 1.05; letter-spacing: -.04em; font-weight: 800; color: #f8fbff; }
+.subtitle { margin: 12px 0 0; max-width: 760px; font-size: 1rem; line-height: 1.6; color: var(--text-soft); }
+.heroBadge { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: .92rem; font-weight: 700; color: #e0fdf4; background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.18); }
+.heroBadgeDot { width: 9px; height: 9px; border-radius: 999px; background: #22c55e; box-shadow: 0 0 14px rgba(34,197,94,.55); }
+.alertDanger { padding: 16px 18px; border-radius: 18px; font-size: .95rem; font-weight: 600; color: #ffe4e6; background: rgba(244,63,94,.12); border: 1px solid rgba(244,63,94,.2); }
+.kpiGrid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 18px; }
+.kpiCard, .panel {
+  padding: 22px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(15,23,42,.8) 0%, rgba(10,15,30,.72) 100%);
+  box-shadow: 0 18px 34px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.03);
+}
+.kpiTop { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.kpiLabel { font-size: .92rem; font-weight: 700; color: var(--text-soft); }
+.kpiAccent { width: 44px; height: 10px; border-radius: 999px; flex-shrink: 0; }
+.kpiValue { margin-top: 18px; font-size: clamp(2rem,2.8vw,2.6rem); line-height: 1; font-weight: 800; letter-spacing: -.04em; color: #fff; }
+.kpiFoot { margin-top: 12px; font-size: .82rem; line-height: 1.45; color: var(--text-muted); }
+.panelGrid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:18px; }
+.panelHeader { margin-bottom: 18px; }
+.panelTitle { margin:0; font-size:1.2rem; font-weight:800; letter-spacing:-.02em; color:#f8fbff; }
+.panelSubtitle { margin:8px 0 0; font-size:.9rem; line-height:1.5; color:var(--text-soft); }
+.chartList { display:flex; flex-direction:column; gap:16px; }
+.chartRow { display:flex; flex-direction:column; gap:8px; }
+.chartRowTop { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.chartLabel { font-size:.95rem; color:#e5eefb; font-weight:600; }
+.chartValue { font-size:.95rem; color:#fff; }
+.chartTrack { height:12px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.07); box-shadow: inset 0 1px 2px rgba(0,0,0,.22); }
+.chartFill { height:100%; border-radius:999px; transition: width .35s ease; }
+.emptyState { padding:18px; border-radius:16px; text-align:center; color:var(--text-soft); background:rgba(255,255,255,.04); border:1px dashed rgba(255,255,255,.08); }
+.loadingGrid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:18px; }
+.skeleton {
+  border-radius:24px;
+  background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+  border: 1px solid rgba(255,255,255,.05);
+}
+.skeletonKpi { min-height: 148px; }
+.skeletonPanel { min-height: 260px; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (max-width: 1200px) {
+  .kpiGrid, .loadingGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .panelGrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 780px) {
+  .hero { flex-direction: column; align-items:flex-start; padding: 22px; }
+  .kpiGrid, .loadingGrid { grid-template-columns: 1fr; }
+  .panel { padding: 18px; }
+}

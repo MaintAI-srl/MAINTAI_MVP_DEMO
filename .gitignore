@@ -1,0 +1,30 @@
+# Secrets — mai nel repo
+.env
+backend/.env
+*.db
+*.sqlite3
+
+# File uploads locali
+uploads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/.env.local
+frontend/.env.production
+
+# Build scripts temporanei
+docs/_build_*.py
+
+# OS
+.DS_Store
+Thumbs.db
