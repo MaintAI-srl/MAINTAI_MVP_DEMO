@@ -17,6 +17,10 @@ if ENV_PATH.exists():
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
+# Versioning
+VERSION = "1.0.0"
+BUILD_DATE = "2026-03-29"
+
 
 def init_backend() -> None:
     """

@@ -1,6 +1,15 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
 
 type User = {
   username: string;
@@ -37,12 +46,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedUserId = localStorage.getItem("maintai_userid");
 
     if (savedToken && savedUsername && savedRuolo) {
-      setUser({ 
-        token: savedToken, 
-        username: savedUsername, 
-        ruolo: savedRuolo, 
-        userid: savedUserId ? parseInt(savedUserId) : undefined 
-      });
+      if (isTokenExpired(savedToken)) {
+        // Token scaduto: pulisce storage senza redirect esplicito
+        localStorage.removeItem("maintai_jwt");
+        localStorage.removeItem("maintai_username");
+        localStorage.removeItem("maintai_ruolo");
+        localStorage.removeItem("maintai_userid");
+      } else {
+        setUser({
+          token: savedToken,
+          username: savedUsername,
+          ruolo: savedRuolo,
+          userid: savedUserId ? parseInt(savedUserId) : undefined,
+        });
+      }
     }
     setLoading(false);
   }, []);
@@ -55,13 +72,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ token, username, ruolo, userid });
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("maintai_jwt");
     localStorage.removeItem("maintai_username");
     localStorage.removeItem("maintai_ruolo");
     localStorage.removeItem("maintai_userid");
     setUser(null);
-  };
+  }, []);
+
+  // Ascolta eventi 401 lanciati da api.ts
+  useEffect(() => {
+    window.addEventListener("maintai:unauthorized", logout);
+    return () => window.removeEventListener("maintai:unauthorized", logout);
+  }, [logout]);
 
   if (loading) return null; // Avoid flicker
 

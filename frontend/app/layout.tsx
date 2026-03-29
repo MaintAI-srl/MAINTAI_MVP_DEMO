@@ -7,6 +7,7 @@ import "./globals.css";
 import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
+import { VERSION } from "./lib/version";
 
 const NAV = [
   {
@@ -127,6 +128,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <div className="sidebar-logo-text">
                 <span className="sidebar-logo-name">MAINTAI</span>
                 <span className="sidebar-logo-sub">Manutenzione</span>
+                <span style={{ fontSize: "9px", color: "var(--text-secondary)", opacity: 0.5, letterSpacing: "0.5px" }}>v{VERSION}</span>
               </div>
             </div>
 

@@ -1,4 +1,5 @@
-export const API_BASE = "https://maintai-v3.onrender.com";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
 
 type RequestOptions = Omit<RequestInit, "method" | "body">;
 
@@ -33,6 +34,11 @@ async function request<T>(
     clearTimeout(id);
 
     if (!res.ok) {
+      if (res.status === 401) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("maintai:unauthorized"));
+        }
+      }
       let message = `HTTP ${res.status}: ${res.statusText}`;
       try {
         const err = await res.json();
