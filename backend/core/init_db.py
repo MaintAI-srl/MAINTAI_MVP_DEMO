@@ -87,13 +87,15 @@ def _apply_migrations():
         "ALTER TABLE asset ADD COLUMN criticita TEXT DEFAULT 'media'",
         "ALTER TABLE asset ADD COLUMN posizione_fisica TEXT",
     ]
-    with engine.connect() as conn:
-        for stmt in migrations:
-            try:
+    # Ogni statement usa la propria transazione isolata.
+    # Se una colonna esiste già l'errore viene ignorato senza
+    # compromettere i commit successivi (fix SQLAlchemy 2.x).
+    for stmt in migrations:
+        try:
+            with engine.begin() as conn:
                 conn.execute(text(stmt))
-                conn.commit()
-            except Exception:
-                pass  # colonna/tabella già presente
+        except Exception:
+            pass  # colonna/tabella già presente
 
 
 def init_db():

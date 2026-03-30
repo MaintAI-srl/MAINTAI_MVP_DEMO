@@ -1,11 +1,30 @@
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from backend.core.dependencies import get_db
+from backend.core.database import engine
 from backend.db.modelli import Asset, Manuale
 
 router = APIRouter()
+
+
+@router.get("/db/schema/{table_name}")
+def get_table_schema(table_name: str):
+    """Diagnostica: mostra le colonne di una tabella."""
+    with engine.connect() as conn:
+        result = conn.execute(text(f"PRAGMA table_info({table_name})"))
+        cols = [{"name": r[1], "type": r[2]} for r in result]
+    return {"table": table_name, "columns": cols}
+
+
+@router.post("/db/migrate-now")
+def force_migrate():
+    """Forza l'esecuzione delle migrazioni. Usa solo in emergenza."""
+    from backend.core.init_db import _apply_migrations
+    _apply_migrations()
+    return {"status": "ok", "message": "Migrazioni eseguite"}
 
 @router.post("/db/asset")
 def crea_asset_db(nome: str, area: str, db: Session = Depends(get_db)):
