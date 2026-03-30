@@ -240,6 +240,29 @@ class AssetRepository:
         ]
         return base
 
+    def genera_multipli(self, db: Session, data) -> list[dict]:
+        created = []
+        for i in range(1, data.quantita + 1):
+            nome = f"{data.prefisso_nome} {str(i).zfill(2)}"
+            source = nome
+            codice_val = _generate_codice(db, source)
+            asset = Asset(
+                nome=nome,
+                area=data.area,
+                impianto_id=data.impianto_id,
+                criticita=data.criticita or "media",
+                marca=data.marca,
+                modello=data.modello,
+                stato="service",
+                note="",
+                codice=codice_val,
+            )
+            db.add(asset)
+            db.flush()
+            created.append(asset.id)
+        db.commit()
+        return [self.get_by_id(db, aid) for aid in created]
+
     def get_analytics(self, db: Session, asset_id: int) -> dict:
         from collections import Counter
         from datetime import timedelta

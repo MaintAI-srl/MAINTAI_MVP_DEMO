@@ -149,6 +149,16 @@ class TecnicoResponse(BaseModel):
 
 # ── Problem Analysis ───────────────────────────────────────────────────────
 
+class GeneraAssetMultipliRequest(BaseModel):
+    impianto_id: int
+    prefisso_nome: str = Field(..., min_length=1)
+    quantita: int = Field(..., ge=1, le=99)
+    area: str = "Generale"
+    criticita: str = "media"
+    marca: Optional[str] = None
+    modello: Optional[str] = None
+
+
 class ProblemAnalysisRequest(BaseModel):
     symptoms: str = Field(..., min_length=1)
     method: str = "all"

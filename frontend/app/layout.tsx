@@ -119,18 +119,18 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
             {/* Logo */}
-            <div className="sidebar-logo">
-              <img 
-                src="/logo.png" 
-                alt="Logo MaintAI" 
-                style={{ width: "32px", height: "32px", objectFit: "contain", marginRight: "12px" }} 
+            <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: "none", cursor: "pointer" }} onClick={() => setSidebarOpen(false)}>
+              <img
+                src="/logo.png"
+                alt="Logo MaintAI"
+                style={{ width: "32px", height: "32px", objectFit: "contain", marginRight: "12px" }}
               />
               <div className="sidebar-logo-text">
                 <span className="sidebar-logo-name">MAINTAI</span>
                 <span className="sidebar-logo-sub">Manutenzione</span>
                 <span style={{ fontSize: "9px", color: "var(--text-secondary)", opacity: 0.5, letterSpacing: "0.5px" }}>v{VERSION}</span>
               </div>
-            </div>
+            </Link>
 
             {/* Navigation */}
             {filteredNav.map((group) => (

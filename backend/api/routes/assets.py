@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.repositories.asset_repository import asset_repository
-from backend.schemas.schemas import AssetCreate, AssetUpdate
+from backend.schemas.schemas import AssetCreate, AssetUpdate, GeneraAssetMultipliRequest
 
 router = APIRouter()
 
@@ -10,6 +10,12 @@ router = APIRouter()
 @router.get("/assets")
 def get_assets(db: Session = Depends(get_db)):
     return asset_repository.get_all(db)
+
+
+@router.post("/assets/genera-multipli", status_code=201)
+def genera_asset_multipli(data: GeneraAssetMultipliRequest, db: Session = Depends(get_db)):
+    """Genera N asset con nome progressivo: PrefissoNome 01, 02, 03..."""
+    return asset_repository.genera_multipli(db, data)
 
 
 @router.get("/assets/codice-preview")
