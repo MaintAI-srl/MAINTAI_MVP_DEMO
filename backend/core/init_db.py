@@ -3,8 +3,9 @@ from backend.core.database import engine, Base
 
 # Import all models so SQLAlchemy registers them before create_all
 from backend.db.modelli import (  # noqa: F401
-    Impianto, Asset, Tecnico, Ticket,
-    Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession, Utente
+    Sito, Impianto, Asset, Tecnico, Ticket,
+    Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
+    Utente, TecnicoAssenza, TicketAllegato
 )
 
 
@@ -61,7 +62,30 @@ def _apply_migrations():
         # --- v8: allegati ticket ---
         "CREATE TABLE IF NOT EXISTS ticket_allegati (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER REFERENCES ticket(id) NOT NULL, nome_file TEXT NOT NULL, percorso TEXT NOT NULL, tipo_mime TEXT, dimensione_bytes INTEGER, creato_il DATETIME)",
         # --- v9: firma digitale ---
-        "ALTER TABLE ticket ADD COLUMN firma_percorso TEXT"
+        "ALTER TABLE ticket ADD COLUMN firma_percorso TEXT",
+        # --- v10: siti ---
+        "CREATE TABLE IF NOT EXISTS siti (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, descrizione TEXT, ubicazione TEXT, citta TEXT, paese TEXT DEFAULT 'Italia', responsabile TEXT, telefono_responsabile TEXT, email_responsabile TEXT, note TEXT, created_at DATETIME, updated_at DATETIME)",
+        # --- v10: impianti nuovi campi ---
+        "ALTER TABLE impianti ADD COLUMN sito_id INTEGER REFERENCES siti(id)",
+        "ALTER TABLE impianti ADD COLUMN tipologia TEXT",
+        "ALTER TABLE impianti ADD COLUMN note TEXT",
+        "ALTER TABLE impianti ADD COLUMN latitude REAL",
+        "ALTER TABLE impianti ADD COLUMN longitude REAL",
+        # --- v10: asset nuovi campi anagrafica ---
+        "ALTER TABLE asset ADD COLUMN anno_installazione INTEGER",
+        "ALTER TABLE asset ADD COLUMN anno_produzione INTEGER",
+        "ALTER TABLE asset ADD COLUMN marca TEXT",
+        "ALTER TABLE asset ADD COLUMN modello TEXT",
+        "ALTER TABLE asset ADD COLUMN matricola TEXT",
+        "ALTER TABLE asset ADD COLUMN numero_serie TEXT",
+        "ALTER TABLE asset ADD COLUMN fornitore TEXT",
+        "ALTER TABLE asset ADD COLUMN data_acquisto DATE",
+        "ALTER TABLE asset ADD COLUMN data_scadenza_garanzia DATE",
+        "ALTER TABLE asset ADD COLUMN vincoli_operativi TEXT",
+        "ALTER TABLE asset ADD COLUMN vincoli_manutenzione TEXT",
+        "ALTER TABLE asset ADD COLUMN note_tecniche TEXT",
+        "ALTER TABLE asset ADD COLUMN criticita TEXT DEFAULT 'media'",
+        "ALTER TABLE asset ADD COLUMN posizione_fisica TEXT",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

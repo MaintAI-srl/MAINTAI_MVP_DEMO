@@ -100,10 +100,10 @@ type SelectionType = "sito" | "impianto" | "asset" | null;
 
 function CriticitaChip({ valore }: { valore: string }) {
   const map: Record<string, string> = {
-    bassa: "var(--success)",
-    media: "var(--warning, #f59e0b)",
-    alta: "#f97316",
-    critica: "var(--danger)",
+    bassa: "var(--green)",
+    media: "var(--amber)",
+    alta: "#f97316",   // orange-500 — non ha variabile nel design system
+    critica: "var(--red)",
   };
   const color = map[valore] || "var(--text-secondary)";
   return (
@@ -125,9 +125,9 @@ function CriticitaChip({ valore }: { valore: string }) {
 
 function StatoChip({ stato }: { stato: string }) {
   const map: Record<string, string> = {
-    service: "var(--success)",
-    "out of service": "var(--danger)",
-    stopped: "var(--warning, #f59e0b)",
+    service: "var(--green)",
+    "out of service": "var(--red)",
+    stopped: "var(--amber)",
   };
   const color = map[stato] || "var(--text-secondary)";
   return (
@@ -158,14 +158,14 @@ function DetailRow({ label, value }: { label: string; value?: string | number | 
 function StatBox({ label, value, color }: { label: string; value: number | string; color?: string }) {
   return (
     <div style={{
-      background: "var(--surface-2)",
+      background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
       borderRadius: "8px",
       padding: "12px 16px",
       textAlign: "center",
       minWidth: "90px",
     }}>
-      <div style={{ fontSize: "22px", fontWeight: 700, color: color || "var(--accent)" }}>{value}</div>
+      <div style={{ fontSize: "22px", fontWeight: 700, color: color || "var(--blue)" }}>{value}</div>
       <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>{label}</div>
     </div>
   );
@@ -184,7 +184,7 @@ function ModalOverlay({ onClose, children }: { onClose: () => void; children: Re
     >
       <div
         style={{
-          background: "var(--surface)", border: "1px solid var(--border-strong)",
+          background: "var(--bg-surface)", border: "1px solid var(--border-strong)",
           borderRadius: "12px", padding: "28px", minWidth: "480px", maxWidth: "600px", width: "90%",
           maxHeight: "85vh", overflowY: "auto",
         }}
@@ -215,13 +215,13 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
 }
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "8px 12px", background: "var(--surface-2)",
+  width: "100%", padding: "8px 12px", background: "var(--bg-elevated)",
   border: "1px solid var(--border-strong)", borderRadius: "6px",
   color: "var(--text-primary)", fontSize: "13px", boxSizing: "border-box",
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: "var(--accent)", color: "#fff", border: "none",
+  background: "var(--blue)", color: "#fff", border: "none",
   borderRadius: "6px", padding: "9px 18px", cursor: "pointer",
   fontSize: "13px", fontWeight: 600,
 };
@@ -445,10 +445,10 @@ function ModalGeneraMultipli({ sitoId, onClose, onCreated }: {
               onChange={e => setQuantita(Math.min(99, Math.max(1, Number(e.target.value))))} />
           </FormField>
           {prefisso && quantita > 0 && (
-            <div style={{ background: "var(--surface-2)", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", border: "1px solid var(--border)" }}>
+            <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", border: "1px solid var(--border)" }}>
               <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>Anteprima nomi</div>
               {preview.slice(0, 5).map((n) => (
-                <div key={n} style={{ fontSize: "13px", padding: "2px 0", color: "var(--accent)" }}>→ {n}</div>
+                <div key={n} style={{ fontSize: "13px", padding: "2px 0", color: "var(--blue)" }}>→ {n}</div>
               ))}
               {preview.length > 5 && <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>... e altri {preview.length - 5}</div>}
             </div>
@@ -462,7 +462,7 @@ function ModalGeneraMultipli({ sitoId, onClose, onCreated }: {
 
       {step === 2 && (
         <>
-          <div style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
+          <div style={{ background: "var(--blue-glow)", border: "1px solid var(--blue-border)", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
             Questi dati verranno ereditati da tutti gli {quantita} impianti generati. Potrai modificarli singolarmente dopo.
           </div>
           <FormField label="Descrizione comune">
@@ -561,16 +561,16 @@ function PanelSito({ sito, onModifica, onAddImpianto, onGeneraMultipli, onSelect
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
         <StatBox label="Impianti" value={sito.n_impianti} />
         <StatBox label="Asset totali" value={sito.n_asset_totali} />
-        <StatBox label="Ticket aperti" value={sito.ticket_aperti} color={sito.ticket_aperti > 0 ? "var(--warning, #f59e0b)" : "var(--success)"} />
-        <StatBox label="Asset critici" value={sito.asset_critici} color={sito.asset_critici > 0 ? "var(--danger)" : "var(--success)"} />
+        <StatBox label="Ticket aperti" value={sito.ticket_aperti} color={sito.ticket_aperti > 0 ? "var(--amber)" : "var(--green)"} />
+        <StatBox label="Asset critici" value={sito.asset_critici} color={sito.asset_critici > 0 ? "var(--red)" : "var(--green)"} />
       </div>
 
       {(sito.responsabile || sito.email_responsabile) && (
-        <div style={{ background: "var(--surface-2)", borderRadius: "8px", padding: "14px 16px", marginBottom: "20px", border: "1px solid var(--border)" }}>
+        <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "14px 16px", marginBottom: "20px", border: "1px solid var(--border)" }}>
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>Responsabile</div>
           {sito.responsabile && <div style={{ fontSize: "14px", fontWeight: 600 }}>{sito.responsabile}</div>}
           {sito.telefono_responsabile && <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{sito.telefono_responsabile}</div>}
-          {sito.email_responsabile && <div style={{ fontSize: "12px", color: "var(--accent)" }}>{sito.email_responsabile}</div>}
+          {sito.email_responsabile && <div style={{ fontSize: "12px", color: "var(--blue)" }}>{sito.email_responsabile}</div>}
         </div>
       )}
 
@@ -589,12 +589,12 @@ function PanelSito({ sito, onModifica, onAddImpianto, onGeneraMultipli, onSelect
           <div key={imp.id}
             onClick={() => onSelectImpianto(imp)}
             style={{
-              background: "var(--surface-2)", border: "1px solid var(--border)",
+              background: "var(--bg-elevated)", border: "1px solid var(--border)",
               borderRadius: "8px", padding: "12px 16px", cursor: "pointer",
               display: "flex", justifyContent: "space-between", alignItems: "center",
               transition: "border-color 0.15s",
             }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--accent)")}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--blue)")}
             onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border)")}
           >
             <div>
@@ -604,7 +604,7 @@ function PanelSito({ sito, onModifica, onAddImpianto, onGeneraMultipli, onSelect
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{imp.n_asset} asset</span>
               {imp.ticket_aperti > 0 && (
-                <span style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b", borderRadius: "999px", padding: "2px 8px", fontSize: "11px" }}>{imp.ticket_aperti} ticket</span>
+                <span style={{ background: "var(--amber-dim)", color: "var(--amber)", borderRadius: "999px", padding: "2px 8px", fontSize: "11px" }}>{imp.ticket_aperti} ticket</span>
               )}
             </div>
           </div>
@@ -612,7 +612,7 @@ function PanelSito({ sito, onModifica, onAddImpianto, onGeneraMultipli, onSelect
         {sito.impianti.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun impianto. Clicca "+ Impianto" per aggiungerne uno.</div>}
       </div>
 
-      {sito.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--surface-2)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {sito.note}</div>}
+      {sito.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {sito.note}</div>}
     </div>
   );
 }
@@ -630,7 +630,7 @@ function PanelImpianto({ impianto, onModifica, onAddAsset, onSelectSito }: {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "4px" }}>
-            <span style={{ cursor: "pointer", color: "var(--accent)" }} onClick={onSelectSito}>{impianto.sito_nome}</span>
+            <span style={{ cursor: "pointer", color: "var(--blue)" }} onClick={onSelectSito}>{impianto.sito_nome}</span>
             <span style={{ margin: "0 6px" }}>›</span>
             <span>Impianto</span>
           </div>
@@ -642,7 +642,7 @@ function PanelImpianto({ impianto, onModifica, onAddAsset, onSelectSito }: {
 
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
         <StatBox label="Asset" value={impianto.n_asset} />
-        <StatBox label="Ticket aperti" value={impianto.ticket_aperti} color={impianto.ticket_aperti > 0 ? "var(--warning, #f59e0b)" : "var(--success)"} />
+        <StatBox label="Ticket aperti" value={impianto.ticket_aperti} color={impianto.ticket_aperti > 0 ? "var(--amber)" : "var(--green)"} />
       </div>
 
       {impianto.descrizione && <div style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>{impianto.descrizione}</div>}
@@ -655,7 +655,7 @@ function PanelImpianto({ impianto, onModifica, onAddAsset, onSelectSito }: {
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {impianto.assets.map(a => (
           <div key={a.id} style={{
-            background: "var(--surface-2)", border: "1px solid var(--border)",
+            background: "var(--bg-elevated)", border: "1px solid var(--border)",
             borderRadius: "8px", padding: "12px 16px",
             display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
@@ -672,7 +672,7 @@ function PanelImpianto({ impianto, onModifica, onAddAsset, onSelectSito }: {
         {impianto.assets.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun asset. Clicca "+ Asset" per aggiungerne uno.</div>}
       </div>
 
-      {impianto.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--surface-2)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {impianto.note}</div>}
+      {impianto.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {impianto.note}</div>}
     </div>
   );
 }
@@ -733,15 +733,15 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, allSiti }: {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "4px" }}>
-            {detail.sito_nome && <><span style={{ cursor: "pointer", color: "var(--accent)" }} onClick={onSelectSito}>{detail.sito_nome}</span><span style={{ margin: "0 6px" }}>›</span></>}
-            {detail.impianto_nome && <><span style={{ cursor: "pointer", color: "var(--accent)" }} onClick={onSelectImpianto}>{detail.impianto_nome}</span><span style={{ margin: "0 6px" }}>›</span></>}
+            {detail.sito_nome && <><span style={{ cursor: "pointer", color: "var(--blue)" }} onClick={onSelectSito}>{detail.sito_nome}</span><span style={{ margin: "0 6px" }}>›</span></>}
+            {detail.impianto_nome && <><span style={{ cursor: "pointer", color: "var(--blue)" }} onClick={onSelectImpianto}>{detail.impianto_nome}</span><span style={{ margin: "0 6px" }}>›</span></>}
             <span>Asset</span>
           </div>
           <h2 style={{ margin: "0 0 6px", fontSize: "20px", fontWeight: 700 }}>🔧 {detail.nome}</h2>
           <div style={{ display: "flex", gap: "8px" }}>
             <CriticitaChip valore={detail.criticita} />
             <StatoChip stato={detail.stato} />
-            {detail.codice && <span style={{ fontSize: "11px", color: "var(--text-secondary)", padding: "2px 8px", background: "var(--surface-2)", borderRadius: "4px", border: "1px solid var(--border)" }}>{detail.codice}</span>}
+            {detail.codice && <span style={{ fontSize: "11px", color: "var(--text-secondary)", padding: "2px 8px", background: "var(--bg-elevated)", borderRadius: "4px", border: "1px solid var(--border)" }}>{detail.codice}</span>}
           </div>
         </div>
         {!editing
@@ -760,8 +760,8 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, allSiti }: {
             style={{
               background: "transparent", border: "none", cursor: "pointer",
               padding: "8px 14px", fontSize: "13px", fontWeight: tab === t.id ? 700 : 400,
-              color: tab === t.id ? "var(--accent)" : "var(--text-secondary)",
-              borderBottom: tab === t.id ? "2px solid var(--accent)" : "2px solid transparent",
+              color: tab === t.id ? "var(--blue)" : "var(--text-secondary)",
+              borderBottom: tab === t.id ? "2px solid var(--blue)" : "2px solid transparent",
               marginBottom: "-1px",
             }}>
             {t.label}
@@ -830,21 +830,21 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, allSiti }: {
             <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "6px", textTransform: "uppercase" }}>Vincoli operativi</div>
             {editing
               ? <textarea style={{ ...inputStyle, resize: "vertical", minHeight: "100px" }} value={editForm.vincoli_operativi || ""} onChange={upd("vincoli_operativi")} />
-              : <div style={{ background: "var(--surface-2)", borderRadius: "6px", padding: "12px", fontSize: "13px", color: "var(--text-primary)", minHeight: "60px" }}>{detail.vincoli_operativi || <span style={{ color: "var(--text-secondary)" }}>Nessun vincolo operativo</span>}</div>
+              : <div style={{ background: "var(--bg-elevated)", borderRadius: "6px", padding: "12px", fontSize: "13px", color: "var(--text-primary)", minHeight: "60px" }}>{detail.vincoli_operativi || <span style={{ color: "var(--text-secondary)" }}>Nessun vincolo operativo</span>}</div>
             }
           </div>
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "6px", textTransform: "uppercase" }}>Vincoli manutenzione</div>
             {editing
               ? <textarea style={{ ...inputStyle, resize: "vertical", minHeight: "100px" }} value={editForm.vincoli_manutenzione || ""} onChange={upd("vincoli_manutenzione")} />
-              : <div style={{ background: "var(--surface-2)", borderRadius: "6px", padding: "12px", fontSize: "13px", color: "var(--text-primary)", minHeight: "60px" }}>{detail.vincoli_manutenzione || <span style={{ color: "var(--text-secondary)" }}>Nessun vincolo di manutenzione</span>}</div>
+              : <div style={{ background: "var(--bg-elevated)", borderRadius: "6px", padding: "12px", fontSize: "13px", color: "var(--text-primary)", minHeight: "60px" }}>{detail.vincoli_manutenzione || <span style={{ color: "var(--text-secondary)" }}>Nessun vincolo di manutenzione</span>}</div>
             }
           </div>
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "6px", textTransform: "uppercase" }}>Note tecniche</div>
             {editing
               ? <textarea style={{ ...inputStyle, resize: "vertical", minHeight: "100px" }} value={editForm.note_tecniche || ""} onChange={upd("note_tecniche")} />
-              : <div style={{ background: "var(--surface-2)", borderRadius: "6px", padding: "12px", fontSize: "13px", color: "var(--text-primary)", minHeight: "60px" }}>{detail.note_tecniche || <span style={{ color: "var(--text-secondary)" }}>Nessuna nota tecnica</span>}</div>
+              : <div style={{ background: "var(--bg-elevated)", borderRadius: "6px", padding: "12px", fontSize: "13px", color: "var(--text-primary)", minHeight: "60px" }}>{detail.note_tecniche || <span style={{ color: "var(--text-secondary)" }}>Nessuna nota tecnica</span>}</div>
             }
           </div>
         </div>
@@ -858,7 +858,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, allSiti }: {
           </div>
           {detail.piani_manutenzione && detail.piani_manutenzione.length > 0
             ? detail.piani_manutenzione.map(p => (
-                <div key={p.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px", padding: "14px", marginBottom: "10px" }}>
+                <div key={p.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "14px", marginBottom: "10px" }}>
                   <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>{p.descrizione}</div>
                   <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
                     <span>Ogni {p.frequenza_giorni} giorni</span>
@@ -895,14 +895,14 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, allSiti }: {
           </div>
           {detail.tickets && detail.tickets.length > 0
             ? detail.tickets.map(t => (
-                <div key={t.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div key={t.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: "13px" }}>{t.titolo}</div>
                     <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>#{t.id} · {t.tipo} · {t.created_at?.split("T")[0]}</div>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <span style={{ fontSize: "11px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{t.stato}</span>
-                    <span style={{ fontSize: "11px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{t.priorita}</span>
+                    <span style={{ fontSize: "11px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{t.stato}</span>
+                    <span style={{ fontSize: "11px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{t.priorita}</span>
                   </div>
                 </div>
               ))
@@ -993,7 +993,7 @@ export default function AssetPage() {
       {/* ── LEFT: Tree ── */}
       <div style={{
         width: "320px", minWidth: "280px", flexShrink: 0,
-        background: "var(--surface)", borderRight: "1px solid var(--border-strong)",
+        background: "var(--bg-surface)", borderRight: "1px solid var(--border-strong)",
         display: "flex", flexDirection: "column",
         overflowY: "auto",
       }}>
@@ -1021,8 +1021,8 @@ export default function AssetPage() {
                 style={{
                   display: "flex", alignItems: "center", gap: "6px",
                   padding: "8px 12px", cursor: "pointer",
-                  background: selType === "sito" && selSito?.id === sito.id ? "rgba(59,130,246,0.12)" : "transparent",
-                  borderLeft: selType === "sito" && selSito?.id === sito.id ? "3px solid var(--accent)" : "3px solid transparent",
+                  background: selType === "sito" && selSito?.id === sito.id ? "var(--blue-glow)" : "transparent",
+                  borderLeft: selType === "sito" && selSito?.id === sito.id ? "3px solid var(--blue)" : "3px solid transparent",
                   userSelect: "none",
                 }}
               >
@@ -1032,7 +1032,7 @@ export default function AssetPage() {
                 <span
                   title="Aggiungi impianto"
                   onClick={e => { e.stopPropagation(); setModalNuovoImpianto({ sitoId: sito.id, sitoNome: sito.nome }); }}
-                  style={{ fontSize: "14px", color: "var(--accent)", cursor: "pointer", padding: "0 2px", opacity: 0.7 }}
+                  style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.7 }}
                 >+</span>
               </div>
 
@@ -1044,8 +1044,8 @@ export default function AssetPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: "6px",
                       padding: "6px 12px 6px 28px", cursor: "pointer",
-                      background: selType === "impianto" && selImpianto?.id === imp.id ? "rgba(59,130,246,0.08)" : "transparent",
-                      borderLeft: selType === "impianto" && selImpianto?.id === imp.id ? "3px solid var(--accent)" : "3px solid transparent",
+                      background: selType === "impianto" && selImpianto?.id === imp.id ? "var(--blue-glow)" : "transparent",
+                      borderLeft: selType === "impianto" && selImpianto?.id === imp.id ? "3px solid var(--blue)" : "3px solid transparent",
                       userSelect: "none",
                     }}
                   >
@@ -1055,12 +1055,12 @@ export default function AssetPage() {
                     <span
                       title="Genera impianti multipli"
                       onClick={e => { e.stopPropagation(); setModalGeneraMultipli(sito.id); }}
-                      style={{ fontSize: "11px", color: "#f59e0b", cursor: "pointer", padding: "0 3px", opacity: 0.8 }}
+                      style={{ fontSize: "11px", color: "var(--amber)", cursor: "pointer", padding: "0 3px", opacity: 0.8 }}
                     >⚡</span>
                     <span
                       title="Aggiungi asset"
                       onClick={e => { e.stopPropagation(); setModalNuovoAsset({ impiantoId: imp.id, impiantoNome: imp.nome }); }}
-                      style={{ fontSize: "14px", color: "var(--accent)", cursor: "pointer", padding: "0 2px", opacity: 0.7 }}
+                      style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.7 }}
                     >+</span>
                   </div>
 
@@ -1072,14 +1072,14 @@ export default function AssetPage() {
                       style={{
                         display: "flex", alignItems: "center", gap: "6px",
                         padding: "5px 12px 5px 48px", cursor: "pointer",
-                        background: selType === "asset" && selAssetId === a.id ? "rgba(59,130,246,0.1)" : "transparent",
-                        borderLeft: selType === "asset" && selAssetId === a.id ? "3px solid var(--accent)" : "3px solid transparent",
+                        background: selType === "asset" && selAssetId === a.id ? "var(--blue-glow)" : "transparent",
+                        borderLeft: selType === "asset" && selAssetId === a.id ? "3px solid var(--blue)" : "3px solid transparent",
                         userSelect: "none",
                       }}
                     >
                       <span style={{ fontSize: "12px" }}>🔧</span>
                       <span style={{ fontSize: "12px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nome}</span>
-                      <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "999px", background: a.criticita === "critica" ? "rgba(239,68,68,0.2)" : a.criticita === "alta" ? "rgba(249,115,22,0.2)" : "transparent", color: a.criticita === "critica" ? "#ef4444" : a.criticita === "alta" ? "#f97316" : "transparent" }}>
+                      <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "999px", background: a.criticita === "critica" ? "var(--red-dim)" : a.criticita === "alta" ? "rgba(249,115,22,0.2)" : "transparent", color: a.criticita === "critica" ? "var(--red)" : a.criticita === "alta" ? "#f97316" : "transparent" }}>
                         {a.criticita === "critica" || a.criticita === "alta" ? a.criticita : ""}
                       </span>
                     </div>
@@ -1092,7 +1092,7 @@ export default function AssetPage() {
       </div>
 
       {/* ── RIGHT: Detail Panel ── */}
-      <div style={{ flex: 1, background: "var(--surface-2)", overflowY: "auto" }}>
+      <div style={{ flex: 1, background: "var(--bg-elevated)", overflowY: "auto" }}>
         {!selType && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-secondary)" }}>
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>🏭</div>
