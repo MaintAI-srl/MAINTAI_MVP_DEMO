@@ -26,24 +26,24 @@ const NAV = [
   {
     section: "IMPOSTAZIONI",
     items: [
-      { href: "/impianti",  label: "Impianti",    icon: "◬" },
-      { href: "/assets",    label: "Asset",       icon: "◈" },
-      { href: "/tecnici",   label: "Tecnici",     icon: "◎" },
-      { href: "/manuali",   label: "Manuali",     icon: "◧" },
-      { href: "/piani",     label: "Piani Base",  icon: "◩" },
+      { href: "/asset",     label: "Siti & Asset", icon: "◬" },
+      { href: "/tecnici",   label: "Tecnici",      icon: "◎" },
+      { href: "/manuali",   label: "Manuali",      icon: "◧" },
+      { href: "/piani",     label: "Piani Base",   icon: "◩" },
     ],
   },
 ];
 
 const PAGE_LABELS: Record<string, string> = {
-  "/dashboard":       "Dashboard",
-  "/impianti":        "Impianti",
-  "/assets":          "Asset",
-  "/tecnici":         "Tecnici",
-  "/scheduler":       "Pianificazione",
-  "/ticket":          "Ticket",
-  "/manuali":         "Manuali",
-  "/piani":           "Piano di Manutenzione",
+  "/dashboard":  "Dashboard",
+  "/asset":      "Siti & Asset",
+  "/assets":     "Asset",
+  "/impianti":   "Impianti",
+  "/tecnici":    "Tecnici",
+  "/scheduler":  "Pianificazione",
+  "/ticket":     "Ticket",
+  "/manuali":    "Manuali",
+  "/piani":      "Piano di Manutenzione",
 };
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -62,7 +62,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     items: section.items.filter(item => {
       if (!isTecnico) return true;
       // Per i tecnici, mostriamo solo le voci operative
-      const visibleForTecnico = ["/ticket", "/assets", "/manuali"];
+      const visibleForTecnico = ["/ticket", "/asset", "/manuali"];
       return visibleForTecnico.includes(item.href);
     })
   })).filter(section => section.items.length > 0);

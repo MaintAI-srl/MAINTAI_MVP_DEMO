@@ -1,6 +1,6 @@
 import json
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, event
+from datetime import datetime, timezone, date
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, event
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -19,8 +19,28 @@ class Utente(Base):
     is_active = Column(Boolean, default=True)
 
 
+class Sito(Base):
+    """Sito produttivo - livello gerarchico sopra l'Impianto."""
+    __tablename__ = "siti"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, nullable=False)
+    descrizione = Column(String, nullable=True)
+    ubicazione = Column(String, nullable=True)
+    citta = Column(String, nullable=True)
+    paese = Column(String, default="Italia")
+    responsabile = Column(String, nullable=True)
+    telefono_responsabile = Column(String, nullable=True)
+    email_responsabile = Column(String, nullable=True)
+    note = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    impianti = relationship("Impianto", back_populates="sito")
+
+
 class Impianto(Base):
-    """Impianto (plant/facility) — contenitore di asset."""
+    """Impianto (plant/facility) - contenitore di asset."""
     __tablename__ = "impianti"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -28,38 +48,58 @@ class Impianto(Base):
     descrizione = Column(Text, nullable=True)
 
     assets = relationship("Asset", back_populates="impianto")
-    
-    # Nuovi campi per localizzazione meteo
+
+    # Localizzazione meteo
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
 
+    # Collegamento al sito
+    sito_id = Column(Integer, ForeignKey("siti.id"), nullable=True)
+    sito = relationship("Sito", back_populates="impianti")
+    tipologia = Column(String, nullable=True)   # es. "Cabina MT", "Pompe", "HVAC"
+    note = Column(String, nullable=True)
 
 
 class Asset(Base):
     __tablename__ = "asset"
 
     id = Column(Integer, primary_key=True, index=True)
-    # campi originali mantenuti per retrocompatibilità
+    # campi originali mantenuti per retrocompatibilita
     nome = Column(String)
     area = Column(String)
     vincolo_orario = Column(String, nullable=True)
     note = Column(Text)
-    # nuovi campi
-    codice = Column(String, nullable=True, index=True)       # ID human-readable opzionale
-    descrizione = Column(Text, nullable=True)                 # descrizione estesa
-    anno = Column(Integer, nullable=True)                     # anno installazione
+    # campi estesi precedenti
+    codice = Column(String, nullable=True, index=True)
+    descrizione = Column(Text, nullable=True)
+    anno = Column(Integer, nullable=True)
     impianto_id = Column(Integer, ForeignKey("impianti.id"), nullable=True)
-    limitazioni = Column(Text, nullable=True)                 # vincoli liberi (testo)
-    stato = Column(String, default="service")                 # service | out of service | stopped
-    stato_changed_at = Column(DateTime, nullable=True)        # when stato last changed
-    
-    # Nuovi vincoli per Scheduler Meteo
+    limitazioni = Column(Text, nullable=True)
+    stato = Column(String, default="service")           # service | out of service | stopped
+    stato_changed_at = Column(DateTime, nullable=True)
+
+    # Vincoli meteo
     weather_sunny_required = Column(Boolean, default=False)
     weather_max_wind_kmh = Column(Float, nullable=True)
     weather_max_rain_mm = Column(Float, nullable=True)
 
-    created_at = Column(DateTime, default=_utcnow)
+    # Nuovi campi anagrafica
+    anno_installazione = Column(Integer, nullable=True)
+    anno_produzione = Column(Integer, nullable=True)
+    marca = Column(String, nullable=True)
+    modello = Column(String, nullable=True)
+    matricola = Column(String, nullable=True)
+    numero_serie = Column(String, nullable=True)
+    fornitore = Column(String, nullable=True)
+    data_acquisto = Column(Date, nullable=True)
+    data_scadenza_garanzia = Column(Date, nullable=True)
+    vincoli_operativi = Column(Text, nullable=True)
+    vincoli_manutenzione = Column(Text, nullable=True)
+    note_tecniche = Column(Text, nullable=True)
+    criticita = Column(String, default="media")         # bassa, media, alta, critica
+    posizione_fisica = Column(String, nullable=True)
 
+    created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     impianto = relationship("Impianto", back_populates="assets")
@@ -69,14 +109,12 @@ class Tecnico(Base):
     __tablename__ = "tecnici"
 
     id = Column(Integer, primary_key=True, index=True)
-    utente_id = Column(Integer, ForeignKey("utenti.id"), nullable=True) # Linked user account
-    # campi originali
+    utente_id = Column(Integer, ForeignKey("utenti.id"), nullable=True)
     nome = Column(String)
-    competenze = Column(String)        # skill list CSV
+    competenze = Column(String)
     ore_giornaliere = Column(Integer)
-    # nuovi campi
     cognome = Column(String, nullable=True)
-    stato = Column(String, default="in servizio")   # in servizio | ferie | malattia | corso
+    stato = Column(String, default="in servizio")
     orario_inizio = Column(String, nullable=True, default="08:00")
     orario_fine = Column(String, nullable=True, default="17:00")
     limitazioni_orarie = Column(Text, nullable=True)
@@ -84,28 +122,27 @@ class Tecnico(Base):
     utente = relationship("Utente")
     assenze = relationship("TecnicoAssenza", back_populates="tecnico", cascade="all, delete-orphan")
 
+
 class Ticket(Base):
     __tablename__ = "ticket"
 
     id = Column(Integer, primary_key=True, index=True)
     titolo = Column(String)
     asset_id = Column(Integer, ForeignKey("asset.id"))
-    tipo = Column(String, default="CM")  # PM, CM, BD, ISP
+    tipo = Column(String, default="CM")
     priorita = Column(String)
     stato = Column(String)
-    durata_stimata_ore = Column(Float)  # Float per supportare durate non intere (es. 1.5h)
+    durata_stimata_ore = Column(Float)
     fascia_oraria = Column(String)
     descrizione = Column(Text)
     attivita_manutenzione_id = Column(Integer, ForeignKey("attivita_manutenzione.id"), nullable=True)
     tecnico_id = Column(Integer, ForeignKey("tecnici.id"), nullable=True)
-    # nuovi campi date/ora
     planned_start = Column(DateTime, nullable=True)
     planned_finish = Column(DateTime, nullable=True)
     execution_start = Column(DateTime, nullable=True)
     execution_finish = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
-    # v3.4 — interdipendenza ticket
     parent_id = Column(Integer, ForeignKey("ticket.id"), nullable=True)
     diagnosi_eseguita = Column(Boolean, default=False)
     firma_percorso = Column(String, nullable=True)
@@ -135,13 +172,11 @@ class AttivitaManutenzione(Base):
     id = Column(Integer, primary_key=True, index=True)
     asset_id = Column(Integer, ForeignKey("asset.id"))
     manuale_id = Column(Integer, ForeignKey("manuali.id"))
-
     descrizione = Column(Text)
     frequenza_giorni = Column(Integer)
     durata_ore = Column(Float)
     priorita = Column(String)
     origine = Column(String)
-    # tracciamento esecuzioni per aggiornamento scadenze
     ultima_esecuzione = Column(DateTime, nullable=True)
     prossima_scadenza = Column(DateTime, nullable=True)
 
@@ -151,7 +186,6 @@ class AnalisiGuasto(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(Integer, ForeignKey("ticket.id"))
-
     metodo = Column(String)
     sintomi = Column(Text)
     analisi_json = Column(Text)
@@ -178,6 +212,7 @@ def receive_set(target, value, oldvalue, initiator):
     if value != oldvalue:
         target.stato_changed_at = datetime.now(timezone.utc)
 
+
 class TecnicoAssenza(Base):
     __tablename__ = "tecnici_assenze"
 
@@ -185,10 +220,11 @@ class TecnicoAssenza(Base):
     tecnico_id = Column(Integer, ForeignKey("tecnici.id"), nullable=False, index=True)
     data_inizio = Column(DateTime, nullable=False)
     data_fine = Column(DateTime, nullable=False)
-    tipo_assenza = Column(String, default="Ferie")  # Ferie, Malattia, Corso, Altro
+    tipo_assenza = Column(String, default="Ferie")
     note = Column(Text, nullable=True)
 
     tecnico = relationship("Tecnico", back_populates="assenze")
+
 
 class TicketAllegato(Base):
     __tablename__ = "ticket_allegati"

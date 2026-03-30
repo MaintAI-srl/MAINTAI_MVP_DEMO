@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 
 
@@ -8,24 +8,35 @@ from datetime import datetime
 
 class AssetCreate(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome asset")
-    # alias retrocompatibilità: 'name' accettato come alias
-    name: Optional[str] = None
+    name: Optional[str] = None             # retrocompatibilita
     area: str = Field(..., min_length=1)
     vincolo_orario: Optional[str] = None
     note: Optional[str] = None
-    # nuovi campi
-    codice: Optional[str] = None           # ID human-readable; se assente viene generato
+    codice: Optional[str] = None
     descrizione: Optional[str] = None
     anno: Optional[int] = Field(None, ge=1900, le=2100)
     impianto_id: Optional[int] = None
     limitazioni: Optional[str] = None
-    stato: Optional[str] = "service"       # service | out of service | stopped
-    
-    # Nuovi vincoli Meteo
+    stato: Optional[str] = "service"
+    # Vincoli meteo
     weather_sunny_required: bool = False
     weather_max_wind_kmh: Optional[float] = None
     weather_max_rain_mm: Optional[float] = None
-
+    # Nuovi campi anagrafica
+    anno_installazione: Optional[int] = None
+    anno_produzione: Optional[int] = None
+    marca: Optional[str] = None
+    modello: Optional[str] = None
+    matricola: Optional[str] = None
+    numero_serie: Optional[str] = None
+    fornitore: Optional[str] = None
+    data_acquisto: Optional[date] = None
+    data_scadenza_garanzia: Optional[date] = None
+    vincoli_operativi: Optional[str] = None
+    vincoli_manutenzione: Optional[str] = None
+    note_tecniche: Optional[str] = None
+    criticita: Optional[str] = "media"
+    posizione_fisica: Optional[str] = None
 
     def effective_nome(self) -> str:
         return self.nome or self.name or ""
@@ -33,7 +44,7 @@ class AssetCreate(BaseModel):
 
 class AssetUpdate(BaseModel):
     nome: Optional[str] = None
-    name: Optional[str] = None             # retrocompatibilità
+    name: Optional[str] = None
     area: Optional[str] = None
     vincolo_orario: Optional[str] = None
     note: Optional[str] = None
@@ -46,7 +57,21 @@ class AssetUpdate(BaseModel):
     weather_sunny_required: Optional[bool] = None
     weather_max_wind_kmh: Optional[float] = None
     weather_max_rain_mm: Optional[float] = None
-
+    # Nuovi campi anagrafica
+    anno_installazione: Optional[int] = None
+    anno_produzione: Optional[int] = None
+    marca: Optional[str] = None
+    modello: Optional[str] = None
+    matricola: Optional[str] = None
+    numero_serie: Optional[str] = None
+    fornitore: Optional[str] = None
+    data_acquisto: Optional[date] = None
+    data_scadenza_garanzia: Optional[date] = None
+    vincoli_operativi: Optional[str] = None
+    vincoli_manutenzione: Optional[str] = None
+    note_tecniche: Optional[str] = None
+    criticita: Optional[str] = None
+    posizione_fisica: Optional[str] = None
 
 
 class AssetResponse(BaseModel):
@@ -61,11 +86,28 @@ class AssetResponse(BaseModel):
     anno: Optional[int] = None
     impianto_id: Optional[int] = None
     impianto_nome: Optional[str] = None
+    sito_id: Optional[int] = None
+    sito_nome: Optional[str] = None
     limitazioni: Optional[str] = None
     stato: str = "service"
     weather_sunny_required: bool = False
     weather_max_wind_kmh: Optional[float] = None
     weather_max_rain_mm: Optional[float] = None
+    # Nuovi campi anagrafica
+    anno_installazione: Optional[int] = None
+    anno_produzione: Optional[int] = None
+    marca: Optional[str] = None
+    modello: Optional[str] = None
+    matricola: Optional[str] = None
+    numero_serie: Optional[str] = None
+    fornitore: Optional[str] = None
+    data_acquisto: Optional[date] = None
+    data_scadenza_garanzia: Optional[date] = None
+    vincoli_operativi: Optional[str] = None
+    vincoli_manutenzione: Optional[str] = None
+    note_tecniche: Optional[str] = None
+    criticita: Optional[str] = "media"
+    posizione_fisica: Optional[str] = None
 
 
 

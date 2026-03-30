@@ -12,6 +12,7 @@ from backend.api.routes.db_routes import router as db_router
 from backend.api.routes.diagnostic import router as diagnostic_router
 from backend.api.routes.health import router as health_router
 from backend.api.routes.impianti import router as impianti_router
+from backend.api.routes.siti import router as siti_router
 from backend.api.routes.manuali import router as manuali_router
 from backend.api.routes.piani import router as piani_router
 from backend.api.routes.problem_analysis import router as problem_analysis_router
@@ -82,6 +83,7 @@ app.include_router(manuali_router)
 app.include_router(diagnostic_router)
 app.include_router(piani_router)
 app.include_router(impianti_router)
+app.include_router(siti_router)
 app.include_router(problem_analysis_router)
 
 # Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)

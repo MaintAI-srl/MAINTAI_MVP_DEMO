@@ -1,14 +1,19 @@
 import re
 from datetime import datetime, timezone
-from sqlalchemy.orm import Session
-from backend.db.modelli import Asset, Impianto
+from sqlalchemy.orm import Session, joinedload
+from backend.db.modelli import Asset, Impianto, Ticket, AttivitaManutenzione
 from backend.schemas.schemas import AssetCreate, AssetUpdate
 
 
 def _to_dict(asset: Asset) -> dict:
     impianto_nome = None
+    sito_id = None
+    sito_nome = None
     if asset.impianto:
         impianto_nome = asset.impianto.nome
+        if asset.impianto.sito:
+            sito_id = asset.impianto.sito.id
+            sito_nome = asset.impianto.sito.nome
     stato_changed_at = None
     if asset.stato_changed_at:
         stato_changed_at = asset.stato_changed_at.isoformat()
@@ -24,18 +29,33 @@ def _to_dict(asset: Asset) -> dict:
         "anno": asset.anno,
         "impianto_id": asset.impianto_id,
         "impianto_nome": impianto_nome,
+        "sito_id": sito_id,
+        "sito_nome": sito_nome,
         "limitazioni": asset.limitazioni or "",
         "stato": asset.stato or "service",
         "stato_changed_at": stato_changed_at,
         "weather_sunny_required": asset.weather_sunny_required or False,
         "weather_max_wind_kmh": asset.weather_max_wind_kmh,
         "weather_max_rain_mm": asset.weather_max_rain_mm,
+        # Nuovi campi anagrafica
+        "anno_installazione": asset.anno_installazione,
+        "anno_produzione": asset.anno_produzione,
+        "marca": asset.marca,
+        "modello": asset.modello,
+        "matricola": asset.matricola,
+        "numero_serie": asset.numero_serie,
+        "fornitore": asset.fornitore,
+        "data_acquisto": asset.data_acquisto.isoformat() if asset.data_acquisto else None,
+        "data_scadenza_garanzia": asset.data_scadenza_garanzia.isoformat() if asset.data_scadenza_garanzia else None,
+        "vincoli_operativi": asset.vincoli_operativi,
+        "vincoli_manutenzione": asset.vincoli_manutenzione,
+        "note_tecniche": asset.note_tecniche,
+        "criticita": asset.criticita or "media",
+        "posizione_fisica": asset.posizione_fisica,
     }
 
 
-
 def _generate_codice(db: Session, descrizione: str) -> str:
-    """Genera codice automatico: prima_parola_descrizione + numero_progressivo."""
     if not descrizione or not descrizione.strip():
         first_word = "asset"
     else:
@@ -46,20 +66,34 @@ def _generate_codice(db: Session, descrizione: str) -> str:
     return f"{first_word}{existing + 1}"
 
 
+_NEW_ANAGRAFICA_FIELDS = [
+    "anno_installazione", "anno_produzione", "marca", "modello",
+    "matricola", "numero_serie", "fornitore", "data_acquisto",
+    "data_scadenza_garanzia", "vincoli_operativi", "vincoli_manutenzione",
+    "note_tecniche", "criticita", "posizione_fisica",
+]
+
+
 class AssetRepository:
 
     def get_all(self, db: Session) -> list[dict]:
-        from sqlalchemy.orm import joinedload
-        assets = db.query(Asset).options(joinedload(Asset.impianto)).all()
+        assets = (
+            db.query(Asset)
+            .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+            .all()
+        )
         return [_to_dict(a) for a in assets]
 
     def get_by_id(self, db: Session, asset_id: int) -> dict | None:
-        from sqlalchemy.orm import joinedload
-        asset = db.query(Asset).options(joinedload(Asset.impianto)).filter(Asset.id == asset_id).first()
+        asset = (
+            db.query(Asset)
+            .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+            .filter(Asset.id == asset_id)
+            .first()
+        )
         return _to_dict(asset) if asset else None
 
     def generate_codice_preview(self, db: Session, descrizione: str) -> str:
-        """Restituisce l'anteprima del codice che verrà generato automaticamente."""
         return _generate_codice(db, descrizione)
 
     def create(self, db: Session, data: AssetCreate) -> dict:
@@ -67,7 +101,6 @@ class AssetRepository:
         codice_val = data.codice or None
         auto_generated = False
         if not codice_val:
-            # descrizione usata per generare codice; fallback su nome
             source = data.descrizione or nome_val
             codice_val = _generate_codice(db, source)
             auto_generated = True
@@ -86,6 +119,20 @@ class AssetRepository:
             weather_sunny_required=data.weather_sunny_required or False,
             weather_max_wind_kmh=data.weather_max_wind_kmh,
             weather_max_rain_mm=data.weather_max_rain_mm,
+            anno_installazione=data.anno_installazione,
+            anno_produzione=data.anno_produzione,
+            marca=data.marca,
+            modello=data.modello,
+            matricola=data.matricola,
+            numero_serie=data.numero_serie,
+            fornitore=data.fornitore,
+            data_acquisto=data.data_acquisto,
+            data_scadenza_garanzia=data.data_scadenza_garanzia,
+            vincoli_operativi=data.vincoli_operativi,
+            vincoli_manutenzione=data.vincoli_manutenzione,
+            note_tecniche=data.note_tecniche,
+            criticita=data.criticita or "media",
+            posizione_fisica=data.posizione_fisica,
         )
 
         db.add(asset)
@@ -124,16 +171,18 @@ class AssetRepository:
             asset.stato_changed_at = datetime.now(timezone.utc)
         elif data.stato is not None:
             asset.stato = data.stato
-            
         if data.weather_sunny_required is not None:
             asset.weather_sunny_required = data.weather_sunny_required
         if data.weather_max_wind_kmh is not None:
             asset.weather_max_wind_kmh = data.weather_max_wind_kmh
         if data.weather_max_rain_mm is not None:
             asset.weather_max_rain_mm = data.weather_max_rain_mm
-
+        # Nuovi campi anagrafica
+        for field in _NEW_ANAGRAFICA_FIELDS:
+            val = getattr(data, field, None)
+            if val is not None:
+                setattr(asset, field, val)
         db.commit()
-
         db.refresh(asset)
         return self.get_by_id(db, asset_id)
 
@@ -145,39 +194,77 @@ class AssetRepository:
         db.commit()
         return True
 
+    def get_dettaglio_completo(self, db: Session, asset_id: int) -> dict | None:
+        asset = (
+            db.query(Asset)
+            .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+            .filter(Asset.id == asset_id)
+            .first()
+        )
+        if not asset:
+            return None
+        base = _to_dict(asset)
+        # Piani manutenzione
+        piani = db.query(AttivitaManutenzione).filter(
+            AttivitaManutenzione.asset_id == asset_id
+        ).all()
+        base["piani_manutenzione"] = [
+            {
+                "id": p.id,
+                "descrizione": p.descrizione,
+                "frequenza_giorni": p.frequenza_giorni,
+                "durata_ore": p.durata_ore,
+                "priorita": p.priorita,
+                "prossima_scadenza": p.prossima_scadenza.isoformat() if p.prossima_scadenza else None,
+            }
+            for p in piani
+        ]
+        # Ultimi 10 ticket
+        tickets = (
+            db.query(Ticket)
+            .filter(Ticket.asset_id == asset_id)
+            .order_by(Ticket.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        base["tickets"] = [
+            {
+                "id": t.id,
+                "titolo": t.titolo,
+                "stato": t.stato,
+                "priorita": t.priorita,
+                "tipo": t.tipo,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+            }
+            for t in tickets
+        ]
+        return base
+
     def get_analytics(self, db: Session, asset_id: int) -> dict:
-        from backend.db.modelli import Ticket
         from collections import Counter
         from datetime import timedelta
 
-        # Carica tutti i ticket chiusi per quell'asset
         tickets = db.query(Ticket).filter(
-            Ticket.asset_id == asset_id, 
+            Ticket.asset_id == asset_id,
             Ticket.stato == "Chiuso"
         ).order_by(Ticket.execution_finish.asc()).all()
 
         bd_tickets = [t for t in tickets if t.tipo == "BD" and t.execution_finish and t.execution_start]
-        
-        # 1. MTTR (Mean Time To Repair) - Ore medie di fermo per riparazione
+
         mttr_hours = 0
         if bd_tickets:
             durations = [(t.execution_finish - t.execution_start).total_seconds() / 3600 for t in bd_tickets]
             mttr_hours = sum(durations) / len(durations)
 
-        # 2. MTBF (Mean Time Between Failures) - Giorni medi tra la fine di un guasto e l'inizio del successivo
         mtbf_days = 0
         if len(bd_tickets) > 1:
             intervals = []
             for i in range(len(bd_tickets) - 1):
-                # Intervallo tra fine guasto i e inizio guasto i+1
                 delta = bd_tickets[i+1].execution_start - bd_tickets[i].execution_finish
-                intervals.append(max(0, delta.total_seconds() / 86400)) # in giorni
+                intervals.append(max(0, delta.total_seconds() / 86400))
             mtbf_days = sum(intervals) / len(intervals)
 
-        # 3. Distribuzione Tipi
         tipi_counts = Counter([t.tipo for t in tickets])
-
-        # 4. Failure Trend (ultimi 6 mesi)
         now = datetime.now(timezone.utc)
         trend = []
         for i in range(5, -1, -1):
@@ -198,7 +285,7 @@ class AssetRepository:
                 "inspections": tipi_counts.get("ISP", 0)
             },
             "failure_trend": trend,
-            "availability_score": 100 - (min(100, (len(bd_tickets) * 1.5))) # Semplificato per demo
+            "availability_score": 100 - (min(100, (len(bd_tickets) * 1.5)))
         }
 
 

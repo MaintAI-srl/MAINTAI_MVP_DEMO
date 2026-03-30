@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.repositories.impianto_repository import impianto_repository
-from backend.schemas.impianti import ImpiantoCreate, ImpiantoUpdate
+from backend.schemas.impianti import ImpiantoCreate, ImpiantoUpdate, GeneraImpiantiMultipliRequest
 
 router = APIRouter()
 
@@ -15,6 +15,36 @@ def get_impianti(db: Session = Depends(get_db)):
 @router.post("/impianti", status_code=201)
 def create_impianto(data: ImpiantoCreate, db: Session = Depends(get_db)):
     return impianto_repository.create(db, data)
+
+
+@router.post("/impianti/genera-multipli", status_code=201)
+def genera_impianti_multipli(data: GeneraImpiantiMultipliRequest, db: Session = Depends(get_db)):
+    """Genera N impianti con nome progressivo: PrefissoNome 01, 02, 03..."""
+    return impianto_repository.genera_multipli(
+        db,
+        sito_id=data.sito_id,
+        tipologia=data.tipologia,
+        prefisso_nome=data.prefisso_nome,
+        quantita=data.quantita,
+        dati_comuni=data.dati_comuni,
+    )
+
+
+@router.get("/impianti/{imp_id}/tree")
+def get_impianto_tree(imp_id: int, db: Session = Depends(get_db)):
+    """Ritorna impianto + suoi asset + statistiche ticket."""
+    result = impianto_repository.get_tree(db, imp_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Impianto non trovato")
+    return result
+
+
+@router.get("/impianti/{imp_id}")
+def get_impianto(imp_id: int, db: Session = Depends(get_db)):
+    result = impianto_repository.get_by_id(db, imp_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Impianto non trovato")
+    return result
 
 
 @router.put("/impianti/{imp_id}")
