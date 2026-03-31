@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { API_BASE } from "../lib/api";
+import { API_BASE, apiGet, apiUpload } from "../lib/api";
 
 type Allegato = {
   id: number;
@@ -27,10 +27,8 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
 
   async function loadAllegati() {
     try {
-      const res = await fetch(`${API_BASE}/tickets/${ticketId}/allegati`);
-      if (res.ok) {
-        setAllegati(await res.json());
-      }
+      const data = await apiGet<Allegato[]>(`/tickets/${ticketId}/allegati`);
+      setAllegati(data);
     } catch (e) {
       console.error("Errore nel caricamento allegati", e);
     }
@@ -47,20 +45,11 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${API_BASE}/tickets/${ticketId}/allegati`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        await loadAllegati();
-        if (onUploadSuccess) onUploadSuccess();
-      } else {
-        const data = await res.json();
-        setError(data.detail || "Errore nel caricamento");
-      }
+      await apiUpload(`/tickets/${ticketId}/allegati`, formData);
+      await loadAllegati();
+      if (onUploadSuccess) onUploadSuccess();
     } catch (err) {
-      setError("Errore di rete");
+      setError(err instanceof Error ? err.message : "Errore nel caricamento");
     } finally {
       setUploading(false);
       // Reset input

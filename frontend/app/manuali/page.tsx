@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import styles from "./manuali.module.css";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPatch, apiUpload } from "../lib/api";
 
 type Asset = { id: number; name: string; categoria: string };
 
@@ -104,9 +104,8 @@ export default function ManualiPage() {
   async function loadManuali() {
     setLoadingList(true);
     try {
-      const res = await fetch(`${API_BASE}/manuali`);
-      if (!res.ok) throw new Error();
-      setManuali(await res.json());
+      const data = await apiGet<Manuale[]>("/manuali");
+      setManuali(data);
     } catch {
       setError("Impossibile caricare l'elenco manuali.");
     } finally {
@@ -115,9 +114,8 @@ export default function ManualiPage() {
   }
 
   useEffect(() => {
-    fetch(`${API_BASE}/assets`)
-      .then((r) => r.json())
-      .then((data: Asset[]) => {
+    apiGet<Asset[]>("/assets")
+      .then((data) => {
         setAssets(data);
         if (data.length > 0) setSelectedAssetId(data[0].id);
       })
@@ -149,22 +147,12 @@ export default function ManualiPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/manuali/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.detail?.message || body?.detail || "Errore upload");
-      }
-
-      const data: UploadResult = await res.json();
+      const data = await apiUpload<UploadResult>("/manuali/upload", formData);
       setUploadResult(data);
       setUploadFile(null);
       // Ricarica assets (potrebbe essere stato creato uno nuovo) e manuali
       const [ar] = await Promise.all([
-        fetch(`${API_BASE}/assets`).then((r) => r.json()),
+        apiGet<Asset[]>("/assets"),
         loadManuali(),
       ]);
       setAssets(ar);
@@ -182,12 +170,7 @@ export default function ManualiPage() {
 
   async function handlePatchStato(manualeId: number, nuovoStato: string) {
     try {
-      const res = await fetch(`${API_BASE}/manuali/${manualeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stato: nuovoStato }),
-      });
-      if (!res.ok) throw new Error();
+      await apiPatch(`/manuali/${manualeId}`, { stato: nuovoStato });
       setManuali(prev => prev.map(m => m.id === manualeId ? { ...m, stato: nuovoStato } : m));
     } catch {
       setError("Errore aggiornamento stato manuale.");
@@ -198,9 +181,8 @@ export default function ManualiPage() {
     if (selectedManuale?.id_manuale === manualeId) { setSelectedManuale(null); return; }
     setLoadingPiano(true);
     try {
-      const res = await fetch(`${API_BASE}/manuali/${manualeId}/piano`);
-      if (!res.ok) throw new Error();
-      setSelectedManuale(await res.json());
+      const data = await apiGet<PianoManuale>(`/manuali/${manualeId}/piano`);
+      setSelectedManuale(data);
     } catch {
       setError("Impossibile caricare il piano manutenzione.");
     } finally {

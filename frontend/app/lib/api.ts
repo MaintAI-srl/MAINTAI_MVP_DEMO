@@ -3,6 +3,11 @@ export const API_BASE =
 
 type RequestOptions = Omit<RequestInit, "method" | "body">;
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("maintai_jwt");
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -10,15 +15,20 @@ async function request<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
-  
-  // Timeout di 30 secondi per default, specialmente importante per AI
+
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), 30000);
+
+  const token = getToken();
+  const authHeader: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
 
   const init: RequestInit = {
     method,
     headers: {
       "Content-Type": "application/json",
+      ...authHeader,
       ...options.headers,
     },
     signal: controller.signal,
@@ -52,10 +62,10 @@ async function request<T>(
 
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
-    
+
   } catch (error: any) {
     clearTimeout(id);
-    if (error.name === 'AbortError') {
+    if (error.name === "AbortError") {
       throw new Error("Il server ha impiegato troppo tempo a rispondere (Timeout 30s). Riprova tra poco.");
     }
     throw error;
@@ -80,4 +90,38 @@ export function apiPut<T>(path: string, body?: unknown, options?: RequestOptions
 
 export function apiDelete<T>(path: string, options?: RequestOptions): Promise<T> {
   return request<T>("DELETE", path, undefined, options);
+}
+
+/** Helper per upload multipart (no Content-Type automatico, il browser lo imposta) */
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 120000); // 2 min per PDF grossi
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+
+    if (!res.ok) {
+      if (res.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("maintai:unauthorized"));
+      }
+      let message = `HTTP ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err?.detail) message = String(err.detail);
+      } catch {}
+      throw new Error(message);
+    }
+    return res.json() as Promise<T>;
+  } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === "AbortError") throw new Error("Upload timeout. Riprova.");
+    throw error;
+  }
 }
