@@ -32,6 +32,12 @@ const NAV = [
       { href: "/piani",     label: "Piani Base",   icon: "◩" },
     ],
   },
+  {
+    section: "ADMIN",
+    items: [
+      { href: "/admin/tenants", label: "Clienti", icon: "◈", superadminOnly: true },
+    ],
+  },
 ];
 
 const PAGE_LABELS: Record<string, string> = {
@@ -43,7 +49,8 @@ const PAGE_LABELS: Record<string, string> = {
   "/scheduler":  "Pianificazione",
   "/ticket":     "Ticket",
   "/manuali":    "Manuali",
-  "/piani":      "Piano di Manutenzione",
+  "/piani":          "Piano di Manutenzione",
+  "/admin/tenants":  "Gestione Clienti",
 };
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -55,13 +62,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isTecnico = user?.ruolo === "tecnico";
+  const isSuperadmin = user?.ruolo === "superadmin";
 
   // Filtra la navigazione in base al ruolo
   const filteredNav = NAV.map(section => ({
     ...section,
-    items: section.items.filter(item => {
+    items: section.items.filter((item: any) => {
+      if (item.superadminOnly && !isSuperadmin) return false;
       if (!isTecnico) return true;
-      // Per i tecnici, mostriamo solo le voci operative
       const visibleForTecnico = ["/ticket", "/asset", "/manuali"];
       return visibleForTecnico.includes(item.href);
     })
@@ -156,9 +164,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             ))}
 
             <div className="sidebar-footer">
+              {user?.tenant_nome && (
+                <div style={{ fontSize: "10px", color: "var(--text-secondary)", opacity: 0.7, marginBottom: "6px", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                  ◈ {user.tenant_nome}
+                </div>
+              )}
               <div className="system-status">
                 <span className="status-pulse" />
-                <span className="status-text">{isTecnico ? "MODALITÀ CAMPO" : "SISTEMA OK"}</span>
+                <span className="status-text">{isSuperadmin ? "SUPERADMIN" : isTecnico ? "MODALITÀ CAMPO" : "SISTEMA OK"}</span>
               </div>
             </div>
 

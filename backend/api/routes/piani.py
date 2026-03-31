@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.core.dependencies import get_db
+from backend.core.security import get_current_tenant_id
 from backend.db.modelli import AttivitaManutenzione, Asset, Ticket
-from backend.api.routes.scheduler import run_scheduler_and_persist
 
 router = APIRouter()
 
@@ -46,26 +46,20 @@ def list_piani(
     page: int = Query(1, ge=1),
     limit: int = Query(25, ge=1, le=200),
     db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
-    query = db.query(AttivitaManutenzione)
+    query = db.query(AttivitaManutenzione).filter(AttivitaManutenzione.tenant_id == tenant_id)
     if asset_id is not None:
         query = query.filter(AttivitaManutenzione.asset_id == asset_id)
     if priorita:
         query = query.filter(AttivitaManutenzione.priorita == priorita)
 
     total = query.count()
-    attivita = (
-        query.order_by(AttivitaManutenzione.id.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-        .all()
-    )
+    attivita = query.order_by(AttivitaManutenzione.id.desc()).offset((page - 1) * limit).limit(limit).all()
 
-    # Build asset name map
     asset_ids = {a.asset_id for a in attivita if a.asset_id}
     assets_map = {a.id: a.nome for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()}
 
-    # Build map: attivita_id → ticket_id
     att_ids = [a.id for a in attivita]
     tickets_rows = (
         db.query(Ticket.attivita_manutenzione_id, Ticket.id)
@@ -83,8 +77,11 @@ def list_piani(
 
 
 @router.put("/piani/{attivita_id}")
-def update_attivita(attivita_id: int, data: AttivitaUpdate, db: Session = Depends(get_db)):
-    att = db.query(AttivitaManutenzione).filter(AttivitaManutenzione.id == attivita_id).first()
+def update_attivita(attivita_id: int, data: AttivitaUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    att = db.query(AttivitaManutenzione).filter(
+        AttivitaManutenzione.id == attivita_id,
+        AttivitaManutenzione.tenant_id == tenant_id,
+    ).first()
     if not att:
         raise HTTPException(status_code=404, detail="Attività non trovata")
 
@@ -112,25 +109,26 @@ def update_attivita(attivita_id: int, data: AttivitaUpdate, db: Session = Depend
 
 
 @router.post("/piani/genera-ticket")
-def genera_ticket(data: GeneraTicketRequest, db: Session = Depends(get_db)):
-    """Genera ticket per le attività indicate, saltando quelle già convertite."""
+async def genera_ticket(data: GeneraTicketRequest, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    from backend.api.routes.scheduler import run_scheduler_and_persist
     created = []
     skipped = []
 
     for att_id in data.attivita_ids:
-        # skip if ticket already exists for this activity
         existing = db.query(Ticket).filter(Ticket.attivita_manutenzione_id == att_id).first()
         if existing:
             skipped.append(att_id)
             continue
 
-        att = db.query(AttivitaManutenzione).filter(AttivitaManutenzione.id == att_id).first()
+        att = db.query(AttivitaManutenzione).filter(
+            AttivitaManutenzione.id == att_id,
+            AttivitaManutenzione.tenant_id == tenant_id,
+        ).first()
         if not att:
             skipped.append(att_id)
             continue
 
         durata = float(att.durata_ore) if att.durata_ore else 1.0
-        
         ore_rimanenti = durata
         chunk_idx = 1
         num_chunks = int(ore_rimanenti // 8) + (1 if ore_rimanenti % 8 > 0 else 0)
@@ -138,10 +136,7 @@ def genera_ticket(data: GeneraTicketRequest, db: Session = Depends(get_db)):
         while ore_rimanenti > 0:
             durata_chunk = min(8.0, ore_rimanenti)
             titolo_base = att.descrizione[:120] if att.descrizione else f"Attività #{att_id}"
-            if num_chunks > 1:
-                titolo = f"{titolo_base} (Parte {chunk_idx}/{num_chunks})"
-            else:
-                titolo = titolo_base
+            titolo = f"{titolo_base} (Parte {chunk_idx}/{num_chunks})" if num_chunks > 1 else titolo_base
 
             ticket = Ticket(
                 titolo=titolo,
@@ -153,61 +148,51 @@ def genera_ticket(data: GeneraTicketRequest, db: Session = Depends(get_db)):
                 fascia_oraria="diurna",
                 descrizione=att.descrizione or "",
                 attivita_manutenzione_id=att_id,
+                tenant_id=tenant_id,
             )
             db.add(ticket)
             db.flush()
-            
+
             if chunk_idx == 1:
                 created.append({"attivita_id": att_id, "ticket_id": ticket.id, "titolo": ticket.titolo})
-                
+
             ore_rimanenti -= durata_chunk
             chunk_idx += 1
 
     db.commit()
 
-    # Auto-pianificazione: esegui scheduler e persisti planned_start/planned_finish
     if created:
         try:
-            run_scheduler_and_persist(db)
+            await run_scheduler_and_persist(db, tenant_id=tenant_id)
         except Exception as exc:
-            # Non bloccare la risposta se lo scheduler fallisce
             print(f">>> SCHEDULER AUTO ERROR: {exc}")
 
-    return {
-        "created": len(created),
-        "skipped": len(skipped),
-        "tickets": created,
-    }
+    return {"created": len(created), "skipped": len(skipped), "tickets": created}
+
 
 import io
 import csv
 from fastapi.responses import StreamingResponse
 
 @router.get("/piani/export")
-def export_piani(db: Session = Depends(get_db)):
-    attivita = db.query(AttivitaManutenzione).join(Asset).all()
-    
+def export_piani(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    attivita = db.query(AttivitaManutenzione).filter(
+        AttivitaManutenzione.tenant_id == tenant_id
+    ).join(Asset).all()
+
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
-    
-    # Header
     writer.writerow(["ID", "Descrizione", "Asset", "Frequenza (gg)", "Durata (h)", "Priorita", "Origine"])
-    
-    # Righe
     for a in attivita:
         writer.writerow([
-            a.id,
-            a.descrizione,
+            a.id, a.descrizione,
             a.asset.nome if a.asset else "N/A",
-            a.frequenza_giorni,
-            a.durata_ore,
-            a.priorita,
-            a.origine or "Manuale"
+            a.frequenza_giorni, a.durata_ore, a.priorita, a.origine or "Manuale",
         ])
-    
+
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=piano_manutenzione_maintai.csv"}
+        headers={"Content-Disposition": "attachment; filename=piano_manutenzione_maintai.csv"},
     )

@@ -17,20 +17,26 @@ class TecnicoRepository:
             "orario_fine": tecnico.orario_fine or "17:00",
             "limitazioni_orarie": tecnico.limitazioni_orarie or "",
             "utente_id": tecnico.utente_id,
+            "tenant_id": tecnico.tenant_id,
         }
 
-    def get_all(self, db: Session) -> list[dict]:
-        return [self._to_dict(t) for t in db.query(Tecnico).all()]
+    def get_all(self, db: Session, tenant_id: int) -> list[dict]:
+        return [self._to_dict(t) for t in db.query(Tecnico).filter(Tecnico.tenant_id == tenant_id).all()]
 
-    def get_disponibili(self, db: Session) -> list[dict]:
-        """Solo tecnici in servizio."""
-        return [self._to_dict(t) for t in db.query(Tecnico).filter(Tecnico.stato == "in servizio").all()]
+    def get_disponibili(self, db: Session, tenant_id: int) -> list[dict]:
+        return [
+            self._to_dict(t)
+            for t in db.query(Tecnico).filter(
+                Tecnico.tenant_id == tenant_id,
+                Tecnico.stato == "in servizio",
+            ).all()
+        ]
 
-    def get_by_id(self, db: Session, tecnico_id: int) -> dict | None:
-        t = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
+    def get_by_id(self, db: Session, tecnico_id: int, tenant_id: int) -> dict | None:
+        t = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
         return self._to_dict(t) if t else None
 
-    def create(self, db: Session, data: TecnicoCreate) -> dict:
+    def create(self, db: Session, data: TecnicoCreate, tenant_id: int) -> dict:
         tecnico = Tecnico(
             nome=data.nome,
             cognome=data.cognome,
@@ -40,14 +46,15 @@ class TecnicoRepository:
             orario_inizio=data.orario_inizio or "08:00",
             orario_fine=data.orario_fine or "17:00",
             limitazioni_orarie=data.limitazioni_orarie,
+            tenant_id=tenant_id,
         )
         db.add(tecnico)
         db.commit()
         db.refresh(tecnico)
         return self._to_dict(tecnico)
 
-    def update(self, db: Session, tecnico_id: int, data: TecnicoUpdate) -> dict | None:
-        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
+    def update(self, db: Session, tecnico_id: int, data: TecnicoUpdate, tenant_id: int) -> dict | None:
+        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
         if not tecnico:
             return None
         if data.nome is not None:
@@ -70,8 +77,8 @@ class TecnicoRepository:
         db.refresh(tecnico)
         return self._to_dict(tecnico)
 
-    def delete(self, db: Session, tecnico_id: int) -> bool:
-        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
+    def delete(self, db: Session, tecnico_id: int, tenant_id: int) -> bool:
+        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
         if not tecnico:
             return False
         db.delete(tecnico)

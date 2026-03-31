@@ -3,7 +3,7 @@ from backend.core.database import engine, Base
 
 # Import all models so SQLAlchemy registers them before create_all
 from backend.db.modelli import (  # noqa: F401
-    Sito, Impianto, Asset, Tecnico, Ticket,
+    Tenant, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
     Utente, TecnicoAssenza, TicketAllegato
 )
@@ -86,10 +86,17 @@ def _apply_migrations():
         "ALTER TABLE asset ADD COLUMN note_tecniche TEXT",
         "ALTER TABLE asset ADD COLUMN criticita TEXT DEFAULT 'media'",
         "ALTER TABLE asset ADD COLUMN posizione_fisica TEXT",
+        # --- v11: multi-tenancy ---
+        "CREATE TABLE IF NOT EXISTS tenants (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, is_active BOOLEAN DEFAULT 1, created_at DATETIME)",
+        "ALTER TABLE utenti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE siti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE impianti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE asset ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE tecnici ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE ticket ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE manuali ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE attivita_manutenzione ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
     ]
-    # Ogni statement usa la propria transazione isolata.
-    # Se una colonna esiste già l'errore viene ignorato senza
-    # compromettere i commit successivi (fix SQLAlchemy 2.x).
     for stmt in migrations:
         try:
             with engine.begin() as conn:
@@ -98,26 +105,74 @@ def _apply_migrations():
             pass  # colonna/tabella già presente
 
 
+def _seed_tenant_and_migrate_data():
+    """Crea il tenant Demo (id=1) e assegna i dati esistenti ad esso."""
+    from backend.core.database import SessionLocal
+    with SessionLocal() as db:
+        # Crea tenant Demo se non esiste
+        existing = db.execute(text("SELECT id FROM tenants WHERE slug='demo'")).fetchone()
+        if not existing:
+            db.execute(text(
+                "INSERT INTO tenants (nome, slug, is_active, created_at) VALUES ('Demo', 'demo', 1, datetime('now'))"
+            ))
+            db.commit()
+
+        tenant_row = db.execute(text("SELECT id FROM tenants WHERE slug='demo'")).fetchone()
+        tenant_id = tenant_row[0]
+
+        # Assegna tutti i dati esistenti senza tenant al tenant Demo
+        for table in ["utenti", "siti", "impianti", "asset", "tecnici", "ticket", "manuali", "attivita_manutenzione"]:
+            try:
+                db.execute(text(f"UPDATE {table} SET tenant_id={tenant_id} WHERE tenant_id IS NULL"))
+            except Exception:
+                pass
+        db.commit()
+
+        # Promuovi admin a superadmin
+        db.execute(text("UPDATE utenti SET ruolo='superadmin' WHERE username='admin'"))
+        db.commit()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     _apply_migrations()
+    _seed_tenant_and_migrate_data()
 
     # Seed default users
     from backend.core.database import SessionLocal
     from backend.core.security import get_password_hash
     with SessionLocal() as db:
+        # Recupera tenant Demo
+        tenant_row = db.execute(text("SELECT id FROM tenants WHERE slug='demo'")).fetchone()
+        tenant_id = tenant_row[0] if tenant_row else 1
+
         admin = db.query(Utente).filter(Utente.username == "admin").first()
         if not admin:
-            db.add(Utente(username="admin", password_hash=get_password_hash("admin"), ruolo="responsabile"))
-        
+            db.add(Utente(
+                username="admin",
+                password_hash=get_password_hash("admin"),
+                ruolo="superadmin",
+                tenant_id=tenant_id,
+            ))
+
         tecnico_user = db.query(Utente).filter(Utente.username == "tecnico").first()
         if not tecnico_user:
-            tecnico_user = Utente(username="tecnico", password_hash=get_password_hash("tecnico"), ruolo="tecnico")
+            tecnico_user = Utente(
+                username="tecnico",
+                password_hash=get_password_hash("tecnico"),
+                ruolo="tecnico",
+                tenant_id=tenant_id,
+            )
             db.add(tecnico_user)
+            db.commit()
+        elif not tecnico_user.tenant_id:
+            tecnico_user.tenant_id = tenant_id
             db.commit()
 
         # Link tecnico user to the first tecnico record if exists
         tecnico_worker = db.query(Tecnico).filter(Tecnico.id == 1).first()
         if tecnico_worker and not tecnico_worker.utente_id:
-            tecnico_worker.utente_id = tecnico_user.id
-            db.commit()
+            tecnico_user_now = db.query(Utente).filter(Utente.username == "tecnico").first()
+            if tecnico_user_now:
+                tecnico_worker.utente_id = tecnico_user_now.id
+                db.commit()

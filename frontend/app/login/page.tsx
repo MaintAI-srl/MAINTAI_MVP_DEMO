@@ -35,8 +35,8 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-      auth.login(data.access_token, data.username, data.ruolo, data.userid);
-      
+      auth.login(data.access_token, data.username, data.ruolo, data.userid, data.tenant_id, data.tenant_nome);
+
       if (data.ruolo === "tecnico") {
         router.push("/mobile");
       } else {

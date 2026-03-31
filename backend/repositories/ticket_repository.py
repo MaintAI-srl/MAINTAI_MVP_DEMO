@@ -25,6 +25,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "execution_finish": t.execution_finish.isoformat() if t.execution_finish else None,
         "parent_id": t.parent_id,
         "diagnosi_eseguita": t.diagnosi_eseguita or False,
+        "tenant_id": t.tenant_id,
     }
 
 
@@ -33,12 +34,13 @@ class TicketRepository:
     def get_paginated(
         self,
         db: Session,
+        tenant_id: int,
         page: int = 1,
         limit: int = 25,
         stati: list[str] | None = None,
         tecnico_id: int | None = None,
     ) -> dict:
-        query = db.query(Ticket).options(joinedload(Ticket.asset))
+        query = db.query(Ticket).options(joinedload(Ticket.asset)).filter(Ticket.tenant_id == tenant_id)
         if stati:
             query = query.filter(Ticket.stato.in_(stati))
         if tecnico_id:
@@ -52,17 +54,16 @@ class TicketRepository:
             "pages": max(1, math.ceil(total / limit)),
         }
 
-    def get_by_id(self, db: Session, ticket_id: int):
-        return (
-            db.query(Ticket)
-            .options(joinedload(Ticket.asset))
-            .filter(Ticket.id == ticket_id)
-            .first()
-        )
+    def get_by_id(self, db: Session, ticket_id: int, tenant_id: int | None = None):
+        query = db.query(Ticket).options(joinedload(Ticket.asset)).filter(Ticket.id == ticket_id)
+        if tenant_id is not None:
+            query = query.filter(Ticket.tenant_id == tenant_id)
+        return query.first()
 
-    def create(self, db: Session, data: TicketCreate):
+    def create(self, db: Session, data: TicketCreate, tenant_id: int):
         durata_totale = data.durata_stimata_ore or 1.0
         dump = data.model_dump(exclude={"asset_stato"})
+        dump["tenant_id"] = tenant_id
 
         if getattr(data, "asset_stato", None) is not None:
             asset = db.query(Asset).filter(Asset.id == data.asset_id).first()
@@ -76,7 +77,6 @@ class TicketRepository:
             db.refresh(ticket)
             return ticket
 
-        # Spacchettamento
         ore_rimanenti = durata_totale
         chunk_idx = 1
         num_chunks = math.ceil(durata_totale / 8.0)
@@ -100,12 +100,11 @@ class TicketRepository:
         db.refresh(primo_ticket)
         return primo_ticket
 
-
-    def update(self, db: Session, ticket_id: int, data: TicketUpdate):
+    def update(self, db: Session, ticket_id: int, data: TicketUpdate, tenant_id: int):
         ticket = (
             db.query(Ticket)
             .options(joinedload(Ticket.asset))
-            .filter(Ticket.id == ticket_id)
+            .filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id)
             .first()
         )
         if not ticket:
@@ -118,7 +117,7 @@ class TicketRepository:
             ticket.priorita = data.priorita
         if getattr(data, "asset_stato", None) is not None:
             if ticket.asset:
-               ticket.asset.stato = data.asset_stato
+                ticket.asset.stato = data.asset_stato
         if data.fascia_oraria is not None:
             ticket.fascia_oraria = data.fascia_oraria
         if data.durata_stimata_ore is not None:

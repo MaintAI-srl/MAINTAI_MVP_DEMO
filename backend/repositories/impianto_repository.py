@@ -15,20 +15,32 @@ def _to_dict(imp: Impianto) -> dict:
         "sito_nome": sito_nome,
         "tipologia": imp.tipologia,
         "note": imp.note,
+        "tenant_id": imp.tenant_id,
     }
 
 
 class ImpiantoRepository:
 
-    def get_all(self, db: Session) -> list[dict]:
-        impianti = db.query(Impianto).options(joinedload(Impianto.sito)).order_by(Impianto.nome).all()
+    def get_all(self, db: Session, tenant_id: int) -> list[dict]:
+        impianti = (
+            db.query(Impianto)
+            .options(joinedload(Impianto.sito))
+            .filter(Impianto.tenant_id == tenant_id)
+            .order_by(Impianto.nome)
+            .all()
+        )
         return [_to_dict(i) for i in impianti]
 
-    def get_by_id(self, db: Session, imp_id: int) -> dict | None:
-        imp = db.query(Impianto).options(joinedload(Impianto.sito)).filter(Impianto.id == imp_id).first()
+    def get_by_id(self, db: Session, imp_id: int, tenant_id: int) -> dict | None:
+        imp = (
+            db.query(Impianto)
+            .options(joinedload(Impianto.sito))
+            .filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id)
+            .first()
+        )
         return _to_dict(imp) if imp else None
 
-    def create(self, db: Session, data: ImpiantoCreate) -> dict:
+    def create(self, db: Session, data: ImpiantoCreate, tenant_id: int) -> dict:
         imp = Impianto(
             nome=data.nome,
             descrizione=data.descrizione,
@@ -37,14 +49,15 @@ class ImpiantoRepository:
             sito_id=data.sito_id,
             tipologia=data.tipologia,
             note=data.note,
+            tenant_id=tenant_id,
         )
         db.add(imp)
         db.commit()
         db.refresh(imp)
-        return self.get_by_id(db, imp.id) or _to_dict(imp)
+        return self.get_by_id(db, imp.id, tenant_id) or _to_dict(imp)
 
-    def update(self, db: Session, imp_id: int, data: ImpiantoUpdate) -> dict | None:
-        imp = db.query(Impianto).filter(Impianto.id == imp_id).first()
+    def update(self, db: Session, imp_id: int, data: ImpiantoUpdate, tenant_id: int) -> dict | None:
+        imp = db.query(Impianto).filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id).first()
         if not imp:
             return None
         for field in ["nome", "descrizione", "latitude", "longitude", "sito_id", "tipologia", "note"]:
@@ -53,21 +66,21 @@ class ImpiantoRepository:
                 setattr(imp, field, val)
         db.commit()
         db.refresh(imp)
-        return self.get_by_id(db, imp_id)
+        return self.get_by_id(db, imp_id, tenant_id)
 
-    def delete(self, db: Session, imp_id: int) -> bool:
-        imp = db.query(Impianto).filter(Impianto.id == imp_id).first()
+    def delete(self, db: Session, imp_id: int, tenant_id: int) -> bool:
+        imp = db.query(Impianto).filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id).first()
         if not imp:
             return False
         db.delete(imp)
         db.commit()
         return True
 
-    def get_tree(self, db: Session, imp_id: int) -> dict | None:
+    def get_tree(self, db: Session, imp_id: int, tenant_id: int) -> dict | None:
         imp = (
             db.query(Impianto)
             .options(joinedload(Impianto.sito), joinedload(Impianto.assets))
-            .filter(Impianto.id == imp_id)
+            .filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id)
             .first()
         )
         if not imp:
@@ -77,13 +90,13 @@ class ImpiantoRepository:
             db.query(Ticket)
             .join(Asset, Ticket.asset_id == Asset.id)
             .filter(Asset.impianto_id == imp_id)
+            .filter(Ticket.tenant_id == tenant_id)
             .filter(Ticket.stato.notin_(["Chiuso", "Eliminato"]))
             .count()
         )
 
-        assets_list = []
-        for a in imp.assets:
-            assets_list.append({
+        assets_list = [
+            {
                 "id": a.id,
                 "nome": a.nome,
                 "codice": a.codice,
@@ -92,7 +105,9 @@ class ImpiantoRepository:
                 "area": a.area,
                 "marca": a.marca,
                 "modello": a.modello,
-            })
+            }
+            for a in imp.assets
+        ]
 
         return {
             **_to_dict(imp),
@@ -103,7 +118,7 @@ class ImpiantoRepository:
 
     def genera_multipli(self, db: Session, sito_id: int, tipologia: str,
                         prefisso_nome: str, quantita: int,
-                        dati_comuni: dict | None) -> list[dict]:
+                        dati_comuni: dict | None, tenant_id: int) -> list[dict]:
         dati_comuni = dati_comuni or {}
         created = []
         for i in range(1, quantita + 1):
@@ -114,14 +129,15 @@ class ImpiantoRepository:
                 tipologia=tipologia,
                 descrizione=dati_comuni.get("descrizione"),
                 note=dati_comuni.get("note"),
+                tenant_id=tenant_id,
             )
             db.add(imp)
-            db.flush()  # ottieni id senza commit
+            db.flush()
             created.append(imp)
         db.commit()
         for imp in created:
             db.refresh(imp)
-        return [self.get_by_id(db, imp.id) for imp in created]
+        return [self.get_by_id(db, imp.id, tenant_id) for imp in created]
 
 
 impianto_repository = ImpiantoRepository()

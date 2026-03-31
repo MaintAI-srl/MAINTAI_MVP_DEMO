@@ -37,7 +37,6 @@ def _to_dict(asset: Asset) -> dict:
         "weather_sunny_required": asset.weather_sunny_required or False,
         "weather_max_wind_kmh": asset.weather_max_wind_kmh,
         "weather_max_rain_mm": asset.weather_max_rain_mm,
-        # Nuovi campi anagrafica
         "anno_installazione": asset.anno_installazione,
         "anno_produzione": asset.anno_produzione,
         "marca": asset.marca,
@@ -52,17 +51,21 @@ def _to_dict(asset: Asset) -> dict:
         "note_tecniche": asset.note_tecniche,
         "criticita": asset.criticita or "media",
         "posizione_fisica": asset.posizione_fisica,
+        "tenant_id": asset.tenant_id,
     }
 
 
-def _generate_codice(db: Session, descrizione: str) -> str:
+def _generate_codice(db: Session, descrizione: str, tenant_id: int) -> str:
     if not descrizione or not descrizione.strip():
         first_word = "asset"
     else:
         first_word = re.sub(r"[^a-zA-Z0-9]", "", descrizione.split()[0]).lower()
         if not first_word:
             first_word = "asset"
-    existing = db.query(Asset).filter(Asset.codice.like(f"{first_word}%")).count()
+    existing = db.query(Asset).filter(
+        Asset.codice.like(f"{first_word}%"),
+        Asset.tenant_id == tenant_id,
+    ).count()
     return f"{first_word}{existing + 1}"
 
 
@@ -76,33 +79,34 @@ _NEW_ANAGRAFICA_FIELDS = [
 
 class AssetRepository:
 
-    def get_all(self, db: Session) -> list[dict]:
+    def get_all(self, db: Session, tenant_id: int) -> list[dict]:
         assets = (
             db.query(Asset)
             .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+            .filter(Asset.tenant_id == tenant_id)
             .all()
         )
         return [_to_dict(a) for a in assets]
 
-    def get_by_id(self, db: Session, asset_id: int) -> dict | None:
+    def get_by_id(self, db: Session, asset_id: int, tenant_id: int) -> dict | None:
         asset = (
             db.query(Asset)
             .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
-            .filter(Asset.id == asset_id)
+            .filter(Asset.id == asset_id, Asset.tenant_id == tenant_id)
             .first()
         )
         return _to_dict(asset) if asset else None
 
-    def generate_codice_preview(self, db: Session, descrizione: str) -> str:
-        return _generate_codice(db, descrizione)
+    def generate_codice_preview(self, db: Session, descrizione: str, tenant_id: int) -> str:
+        return _generate_codice(db, descrizione, tenant_id)
 
-    def create(self, db: Session, data: AssetCreate) -> dict:
+    def create(self, db: Session, data: AssetCreate, tenant_id: int) -> dict:
         nome_val = data.nome or data.name or ""
         codice_val = data.codice or None
         auto_generated = False
         if not codice_val:
             source = data.descrizione or nome_val
-            codice_val = _generate_codice(db, source)
+            codice_val = _generate_codice(db, source, tenant_id)
             auto_generated = True
 
         asset = Asset(
@@ -133,18 +137,19 @@ class AssetRepository:
             note_tecniche=data.note_tecniche,
             criticita=data.criticita or "media",
             posizione_fisica=data.posizione_fisica,
+            tenant_id=tenant_id,
         )
 
         db.add(asset)
         db.commit()
         db.refresh(asset)
-        result = self.get_by_id(db, asset.id)
+        result = self.get_by_id(db, asset.id, tenant_id)
         if result:
             result["codice_auto_generated"] = auto_generated
         return result or _to_dict(asset)
 
-    def update(self, db: Session, asset_id: int, data: AssetUpdate) -> dict | None:
-        asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    def update(self, db: Session, asset_id: int, data: AssetUpdate, tenant_id: int) -> dict | None:
+        asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
         if not asset:
             return None
         nome_val = data.nome or data.name
@@ -177,34 +182,32 @@ class AssetRepository:
             asset.weather_max_wind_kmh = data.weather_max_wind_kmh
         if data.weather_max_rain_mm is not None:
             asset.weather_max_rain_mm = data.weather_max_rain_mm
-        # Nuovi campi anagrafica
         for field in _NEW_ANAGRAFICA_FIELDS:
             val = getattr(data, field, None)
             if val is not None:
                 setattr(asset, field, val)
         db.commit()
         db.refresh(asset)
-        return self.get_by_id(db, asset_id)
+        return self.get_by_id(db, asset_id, tenant_id)
 
-    def delete(self, db: Session, asset_id: int) -> bool:
-        asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    def delete(self, db: Session, asset_id: int, tenant_id: int) -> bool:
+        asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
         if not asset:
             return False
         db.delete(asset)
         db.commit()
         return True
 
-    def get_dettaglio_completo(self, db: Session, asset_id: int) -> dict | None:
+    def get_dettaglio_completo(self, db: Session, asset_id: int, tenant_id: int) -> dict | None:
         asset = (
             db.query(Asset)
             .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
-            .filter(Asset.id == asset_id)
+            .filter(Asset.id == asset_id, Asset.tenant_id == tenant_id)
             .first()
         )
         if not asset:
             return None
         base = _to_dict(asset)
-        # Piani manutenzione
         piani = db.query(AttivitaManutenzione).filter(
             AttivitaManutenzione.asset_id == asset_id
         ).all()
@@ -219,10 +222,9 @@ class AssetRepository:
             }
             for p in piani
         ]
-        # Ultimi 10 ticket
         tickets = (
             db.query(Ticket)
-            .filter(Ticket.asset_id == asset_id)
+            .filter(Ticket.asset_id == asset_id, Ticket.tenant_id == tenant_id)
             .order_by(Ticket.created_at.desc())
             .limit(10)
             .all()
@@ -240,12 +242,11 @@ class AssetRepository:
         ]
         return base
 
-    def genera_multipli(self, db: Session, data) -> list[dict]:
+    def genera_multipli(self, db: Session, data, tenant_id: int) -> list[dict]:
         created = []
         for i in range(1, data.quantita + 1):
             nome = f"{data.prefisso_nome} {str(i).zfill(2)}"
-            source = nome
-            codice_val = _generate_codice(db, source)
+            codice_val = _generate_codice(db, nome, tenant_id)
             asset = Asset(
                 nome=nome,
                 area=data.area,
@@ -256,20 +257,22 @@ class AssetRepository:
                 stato="service",
                 note="",
                 codice=codice_val,
+                tenant_id=tenant_id,
             )
             db.add(asset)
             db.flush()
             created.append(asset.id)
         db.commit()
-        return [self.get_by_id(db, aid) for aid in created]
+        return [self.get_by_id(db, aid, tenant_id) for aid in created]
 
-    def get_analytics(self, db: Session, asset_id: int) -> dict:
+    def get_analytics(self, db: Session, asset_id: int, tenant_id: int) -> dict:
         from collections import Counter
         from datetime import timedelta
 
         tickets = db.query(Ticket).filter(
             Ticket.asset_id == asset_id,
-            Ticket.stato == "Chiuso"
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato == "Chiuso",
         ).order_by(Ticket.execution_finish.asc()).all()
 
         bd_tickets = [t for t in tickets if t.tipo == "BD" and t.execution_finish and t.execution_start]
@@ -283,7 +286,7 @@ class AssetRepository:
         if len(bd_tickets) > 1:
             intervals = []
             for i in range(len(bd_tickets) - 1):
-                delta = bd_tickets[i+1].execution_start - bd_tickets[i].execution_finish
+                delta = bd_tickets[i + 1].execution_start - bd_tickets[i].execution_finish
                 intervals.append(max(0, delta.total_seconds() / 86400))
             mtbf_days = sum(intervals) / len(intervals)
 
@@ -291,7 +294,7 @@ class AssetRepository:
         now = datetime.now(timezone.utc)
         trend = []
         for i in range(5, -1, -1):
-            m_start = (now - timedelta(days=i*30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            m_start = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             m_end = (m_start + timedelta(days=32)).replace(day=1)
             count = len([t for t in bd_tickets if m_start <= t.execution_finish.replace(tzinfo=timezone.utc) < m_end])
             trend.append({"mese": m_start.strftime("%b"), "guasti": count})
@@ -305,10 +308,10 @@ class AssetRepository:
                 "breakdowns": len(bd_tickets),
                 "preventive": tipi_counts.get("PM", 0),
                 "corrective": tipi_counts.get("CM", 0),
-                "inspections": tipi_counts.get("ISP", 0)
+                "inspections": tipi_counts.get("ISP", 0),
             },
             "failure_trend": trend,
-            "availability_score": 100 - (min(100, (len(bd_tickets) * 1.5)))
+            "availability_score": 100 - (min(100, (len(bd_tickets) * 1.5))),
         }
 
 

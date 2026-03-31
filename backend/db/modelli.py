@@ -9,14 +9,32 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class Tenant(Base):
+    """Tenant (cliente/azienda) - isolamento dati multi-utente."""
+    __tablename__ = "tenants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False, index=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    utenti = relationship("Utente", back_populates="tenant")
+    siti = relationship("Sito", back_populates="tenant")
+    tecnici = relationship("Tecnico", back_populates="tenant")
+
+
 class Utente(Base):
     __tablename__ = "utenti"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    ruolo = Column(String, default="tecnico")  # "responsabile" o "tecnico"
+    ruolo = Column(String, default="tecnico")  # "superadmin" | "responsabile" | "tecnico"
     is_active = Column(Boolean, default=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+
+    tenant = relationship("Tenant", back_populates="utenti")
 
 
 class Sito(Base):
@@ -35,8 +53,10 @@ class Sito(Base):
     note = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     impianti = relationship("Impianto", back_populates="sito")
+    tenant = relationship("Tenant", back_populates="siti")
 
 
 class Impianto(Base):
@@ -56,26 +76,25 @@ class Impianto(Base):
     # Collegamento al sito
     sito_id = Column(Integer, ForeignKey("siti.id"), nullable=True)
     sito = relationship("Sito", back_populates="impianti")
-    tipologia = Column(String, nullable=True)   # es. "Cabina MT", "Pompe", "HVAC"
+    tipologia = Column(String, nullable=True)
     note = Column(String, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
 
 class Asset(Base):
     __tablename__ = "asset"
 
     id = Column(Integer, primary_key=True, index=True)
-    # campi originali mantenuti per retrocompatibilita
     nome = Column(String)
     area = Column(String)
     vincolo_orario = Column(String, nullable=True)
     note = Column(Text)
-    # campi estesi precedenti
     codice = Column(String, nullable=True, index=True)
     descrizione = Column(Text, nullable=True)
     anno = Column(Integer, nullable=True)
     impianto_id = Column(Integer, ForeignKey("impianti.id"), nullable=True)
     limitazioni = Column(Text, nullable=True)
-    stato = Column(String, default="service")           # service | out of service | stopped
+    stato = Column(String, default="service")
     stato_changed_at = Column(DateTime, nullable=True)
 
     # Vincoli meteo
@@ -96,11 +115,12 @@ class Asset(Base):
     vincoli_operativi = Column(Text, nullable=True)
     vincoli_manutenzione = Column(Text, nullable=True)
     note_tecniche = Column(Text, nullable=True)
-    criticita = Column(String, default="media")         # bassa, media, alta, critica
+    criticita = Column(String, default="media")
     posizione_fisica = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     impianto = relationship("Impianto", back_populates="assets")
 
@@ -118,9 +138,11 @@ class Tecnico(Base):
     orario_inizio = Column(String, nullable=True, default="08:00")
     orario_fine = Column(String, nullable=True, default="17:00")
     limitazioni_orarie = Column(Text, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     utente = relationship("Utente")
     assenze = relationship("TecnicoAssenza", back_populates="tecnico", cascade="all, delete-orphan")
+    tenant = relationship("Tenant", back_populates="tecnici")
 
 
 class Ticket(Base):
@@ -146,6 +168,7 @@ class Ticket(Base):
     parent_id = Column(Integer, ForeignKey("ticket.id"), nullable=True)
     diagnosi_eseguita = Column(Boolean, default=False)
     firma_percorso = Column(String, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     asset = relationship("Asset")
     tecnico = relationship("Tecnico")
@@ -164,6 +187,7 @@ class Manuale(Base):
     json_estratto = Column(Text)
     version = Column(Integer, default=1)
     stato = Column(String, default="attivo")
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
 
 class AttivitaManutenzione(Base):
@@ -179,6 +203,7 @@ class AttivitaManutenzione(Base):
     origine = Column(String)
     ultima_esecuzione = Column(DateTime, nullable=True)
     prossima_scadenza = Column(DateTime, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
 
 class AnalisiGuasto(Base):

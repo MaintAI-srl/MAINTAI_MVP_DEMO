@@ -5,6 +5,7 @@ from pydantic import BaseModel as PydanticModel
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
+from backend.core.security import get_current_tenant_id
 from backend.core.exceptions import AppError
 from backend.core.logging_config import get_logger
 from backend.db.modelli import Manuale, AttivitaManutenzione, Asset
@@ -20,25 +21,19 @@ async def upload_manuale(
     file: UploadFile = File(...),
     asset_id: int | None = Form(None),
     new_asset_name: str | None = Form(None),
-    
     new_asset_area: str | None = Form(None),
     db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """
-    Flusso completo: PDF → testo → AI parsing → Manuale + AttivitaManutenzione nel DB.
-    asset_id: ID asset esistente selezionato dal frontend.
-    new_asset_name: se fornito, crea un nuovo asset prima del parsing.
-    """
-    # 1. Risolvi asset: crea nuovo se richiesto, altrimenti usa ID fornito
     resolved_asset_id: int | None = asset_id
 
     if new_asset_name and new_asset_name.strip():
         nuovo = Asset(
             nome=new_asset_name.strip(),
-            
             area=new_asset_area or "",
             vincolo_orario="",
             note="",
+            tenant_id=tenant_id,
         )
         db.add(nuovo)
         db.commit()
@@ -67,6 +62,7 @@ async def upload_manuale(
         metodo_lettura=result.get("method", ""),
         testo_raw=text,
         json_estratto=parsed_json_str,
+        tenant_id=tenant_id,
     )
 
     logger.debug("AI raw response (%d chars): %s", len(parsed_json_str), parsed_json_str[:500])
@@ -75,7 +71,6 @@ async def upload_manuale(
         parsed = json.loads(parsed_json_str)
     except Exception as exc:
         logger.error(f"JSON parsing fallito per manuale {manuale.id}: {exc}")
-        logger.error(f"Raw AI output: {parsed_json_str[:2000]}")
         return {
             "id_manuale": manuale.id,
             "filename": file.filename,
@@ -85,19 +80,13 @@ async def upload_manuale(
             "warning": f"AI ha risposto ma il JSON non è valido: {exc}",
         }
 
-    # Supporta sia il nuovo schema {plans, diagnostics} che il vecchio {tasks}
     plans = parsed.get("plans", [])
-    logger.info("Piani trovati: %d, diagnostics: %d", len(plans), len(parsed.get("diagnostics", [])))
-    for i, p in enumerate(plans):
-        logger.debug("Piano[%d] title=%s tasks=%d freq=%s", i, p.get("title"), len(p.get("tasks", [])), p.get("frequency"))
     asset_name_ai = parsed.get("asset", "") or parsed.get("asset_name", "")
-    categoria_ai = ""
 
     _priority_map = {"high": "Alta", "medium": "Media", "low": "Bassa",
                      "alta": "Alta", "media": "Media", "bassa": "Bassa"}
 
     def _freq_days(freq: dict) -> int | None:
-        """Converte l'oggetto frequency del nuovo schema in giorni interi."""
         if not freq:
             return None
         value = freq.get("value")
@@ -107,21 +96,18 @@ async def upload_manuale(
         multipliers = {"days": 1, "weeks": 7, "months": 30, "years": 365}
         return int(value * multipliers.get(unit, 1))
 
-    # Se nessun asset fornito dal frontend, tenta match AI
-    if resolved_asset_id is None:
-        asset = None
-        
-        if not asset and asset_name_ai:
-            asset = db.query(Asset).filter(Asset.nome.ilike(f"%{asset_name_ai}%")).first()
+    if resolved_asset_id is None and asset_name_ai:
+        asset = db.query(Asset).filter(
+            Asset.nome.ilike(f"%{asset_name_ai}%"),
+            Asset.tenant_id == tenant_id,
+        ).first()
         resolved_asset_id = asset.id if asset else None
 
     asset_id = resolved_asset_id
-
     saved_tasks = []
     seen_descriptions: set[str] = set()
 
     if plans:
-        # Nuovo schema: appiattisce plans[].tasks in righe individuali
         for plan in plans:
             freq_days = _freq_days(plan.get("frequency", {}))
             durata = plan.get("estimated_duration_hours")
@@ -131,10 +117,8 @@ async def upload_manuale(
                 descrizione = task_str.strip()
                 if not descrizione:
                     continue
-                # Deduplicazione: salta task con descrizione già vista in questo upload
                 key = descrizione.lower()
                 if key in seen_descriptions:
-                    logger.debug("Skip duplicato: %s", descrizione[:80])
                     continue
                 seen_descriptions.add(key)
                 att = AttivitaManutenzione(
@@ -145,6 +129,7 @@ async def upload_manuale(
                     durata_ore=durata,
                     priorita=priorita,
                     origine="manuale",
+                    tenant_id=tenant_id,
                 )
                 db.add(att)
                 saved_tasks.append({
@@ -154,7 +139,6 @@ async def upload_manuale(
                     "priorita": att.priorita,
                 })
     else:
-        # Vecchio schema di fallback: lista piatta tasks[]
         for task in parsed.get("tasks", []):
             att = AttivitaManutenzione(
                 asset_id=asset_id,
@@ -164,6 +148,7 @@ async def upload_manuale(
                 durata_ore=task.get("durata_ore"),
                 priorita=_priority_map.get((task.get("priorita") or "media").lower(), "Media"),
                 origine="manuale",
+                tenant_id=tenant_id,
             )
             db.add(att)
             saved_tasks.append({
@@ -174,10 +159,7 @@ async def upload_manuale(
             })
 
     db.commit()
-
-    logger.info(
-        f"Manuale {manuale.id} salvato — {len(saved_tasks)} attività create, asset_id={asset_id}"
-    )
+    logger.info(f"Manuale {manuale.id} salvato — {len(saved_tasks)} attività create, asset_id={asset_id}")
 
     return {
         "id_manuale": manuale.id,
@@ -197,8 +179,8 @@ class ManualePatch(PydanticModel):
 
 
 @router.get("/manuali")
-def list_manuali(db: Session = Depends(get_db)):
-    manuali = db.query(Manuale).order_by(Manuale.id.desc()).all()
+def list_manuali(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    manuali = db.query(Manuale).filter(Manuale.tenant_id == tenant_id).order_by(Manuale.id.desc()).all()
     return [
         {
             "id": m.id,
@@ -216,8 +198,8 @@ def list_manuali(db: Session = Depends(get_db)):
 
 
 @router.patch("/manuali/{manuale_id}")
-def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get_db)):
-    manuale = db.query(Manuale).filter(Manuale.id == manuale_id).first()
+def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    manuale = db.query(Manuale).filter(Manuale.id == manuale_id, Manuale.tenant_id == tenant_id).first()
     if not manuale:
         raise AppError(status_code=404, message=f"Manuale {manuale_id} non trovato")
     if data.stato is not None:
@@ -226,17 +208,12 @@ def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get
         manuale.version = data.version
     db.commit()
     db.refresh(manuale)
-    return {
-        "id": manuale.id,
-        "nome": manuale.nome_file,
-        "version": manuale.version or 1,
-        "stato": manuale.stato or "attivo",
-    }
+    return {"id": manuale.id, "nome": manuale.nome_file, "version": manuale.version or 1, "stato": manuale.stato or "attivo"}
 
 
 @router.get("/manuali/{manuale_id}/piano")
-def get_piano_manuale(manuale_id: int, db: Session = Depends(get_db)):
-    manuale = db.query(Manuale).filter(Manuale.id == manuale_id).first()
+def get_piano_manuale(manuale_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    manuale = db.query(Manuale).filter(Manuale.id == manuale_id, Manuale.tenant_id == tenant_id).first()
     if not manuale:
         raise AppError(status_code=404, message=f"Manuale {manuale_id} non trovato")
 

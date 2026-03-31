@@ -15,6 +15,7 @@ def _to_dict(sito: Sito) -> dict:
         "telefono_responsabile": sito.telefono_responsabile,
         "email_responsabile": sito.email_responsabile,
         "note": sito.note,
+        "tenant_id": sito.tenant_id,
         "created_at": sito.created_at.isoformat() if sito.created_at else None,
         "updated_at": sito.updated_at.isoformat() if sito.updated_at else None,
     }
@@ -22,14 +23,14 @@ def _to_dict(sito: Sito) -> dict:
 
 class SitoRepository:
 
-    def get_all(self, db: Session) -> list[dict]:
-        return [_to_dict(s) for s in db.query(Sito).order_by(Sito.nome).all()]
+    def get_all(self, db: Session, tenant_id: int) -> list[dict]:
+        return [_to_dict(s) for s in db.query(Sito).filter(Sito.tenant_id == tenant_id).order_by(Sito.nome).all()]
 
-    def get_by_id(self, db: Session, sito_id: int) -> dict | None:
-        sito = db.query(Sito).filter(Sito.id == sito_id).first()
+    def get_by_id(self, db: Session, sito_id: int, tenant_id: int) -> dict | None:
+        sito = db.query(Sito).filter(Sito.id == sito_id, Sito.tenant_id == tenant_id).first()
         return _to_dict(sito) if sito else None
 
-    def create(self, db: Session, data: SitoCreate) -> dict:
+    def create(self, db: Session, data: SitoCreate, tenant_id: int) -> dict:
         sito = Sito(
             nome=data.nome,
             descrizione=data.descrizione,
@@ -40,14 +41,15 @@ class SitoRepository:
             telefono_responsabile=data.telefono_responsabile,
             email_responsabile=data.email_responsabile,
             note=data.note,
+            tenant_id=tenant_id,
         )
         db.add(sito)
         db.commit()
         db.refresh(sito)
         return _to_dict(sito)
 
-    def update(self, db: Session, sito_id: int, data: SitoUpdate) -> dict | None:
-        sito = db.query(Sito).filter(Sito.id == sito_id).first()
+    def update(self, db: Session, sito_id: int, data: SitoUpdate, tenant_id: int) -> dict | None:
+        sito = db.query(Sito).filter(Sito.id == sito_id, Sito.tenant_id == tenant_id).first()
         if not sito:
             return None
         for field in ["nome", "descrizione", "ubicazione", "citta", "paese",
@@ -59,30 +61,30 @@ class SitoRepository:
         db.refresh(sito)
         return _to_dict(sito)
 
-    def delete(self, db: Session, sito_id: int) -> bool:
-        sito = db.query(Sito).filter(Sito.id == sito_id).first()
+    def delete(self, db: Session, sito_id: int, tenant_id: int) -> bool:
+        sito = db.query(Sito).filter(Sito.id == sito_id, Sito.tenant_id == tenant_id).first()
         if not sito:
             return False
         db.delete(sito)
         db.commit()
         return True
 
-    def get_tree(self, db: Session, sito_id: int) -> dict | None:
+    def get_tree(self, db: Session, sito_id: int, tenant_id: int) -> dict | None:
         sito = (
             db.query(Sito)
             .options(joinedload(Sito.impianti).joinedload(Impianto.assets))
-            .filter(Sito.id == sito_id)
+            .filter(Sito.id == sito_id, Sito.tenant_id == tenant_id)
             .first()
         )
         if not sito:
             return None
 
-        # Conta ticket aperti per sito
         ticket_aperti = (
             db.query(Ticket)
             .join(Asset, Ticket.asset_id == Asset.id)
             .join(Impianto, Asset.impianto_id == Impianto.id)
             .filter(Impianto.sito_id == sito_id)
+            .filter(Ticket.tenant_id == tenant_id)
             .filter(Ticket.stato.notin_(["Chiuso", "Eliminato"]))
             .count()
         )
@@ -108,11 +110,11 @@ class SitoRepository:
                     asset_critici += 1
                 total_assets += 1
 
-            # Ticket aperti per impianto
             imp_ticket_aperti = (
                 db.query(Ticket)
                 .join(Asset, Ticket.asset_id == Asset.id)
                 .filter(Asset.impianto_id == imp.id)
+                .filter(Ticket.tenant_id == tenant_id)
                 .filter(Ticket.stato.notin_(["Chiuso", "Eliminato"]))
                 .count()
             )
@@ -136,11 +138,11 @@ class SitoRepository:
             "asset_critici": asset_critici,
         }
 
-    def get_all_tree(self, db: Session) -> list[dict]:
-        siti = db.query(Sito).order_by(Sito.nome).all()
+    def get_all_tree(self, db: Session, tenant_id: int) -> list[dict]:
+        siti = db.query(Sito).filter(Sito.tenant_id == tenant_id).order_by(Sito.nome).all()
         result = []
         for sito in siti:
-            tree = self.get_tree(db, sito.id)
+            tree = self.get_tree(db, sito.id, tenant_id)
             if tree:
                 result.append(tree)
         return result

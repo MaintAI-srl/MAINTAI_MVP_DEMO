@@ -37,6 +37,24 @@ def decode_access_token(token: str):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
 
-# Dependency per estrarre il payload dal token
 def get_current_user_payload(token: str = Depends(oauth2_scheme)):
     return decode_access_token(token)
+
+def get_current_tenant_id(payload: dict = Depends(get_current_user_payload)) -> int:
+    """Estrae il tenant_id dal token JWT. Obbligatorio per tutti gli endpoint dati."""
+    tid = payload.get("tenant_id")
+    if not tid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant non configurato per questo utente. Contattare l'amministratore.",
+        )
+    return int(tid)
+
+def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dict:
+    """Verifica che l'utente sia superadmin. Usato per la gestione tenant."""
+    if payload.get("ruolo") != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accesso riservato al superadmin.",
+        )
+    return payload

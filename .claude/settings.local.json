@@ -44,7 +44,10 @@
       "Bash(cd:*)",
       "Bash(pip show:*)",
       "Bash(.venv/Scripts/python.exe -m pytest backend/tests/test_health.py backend/tests/test_auth.py -v)",
-      "Bash(.venv/Scripts/python.exe -m pytest backend/tests/ -v)"
+      "Bash(.venv/Scripts/python.exe -m pytest backend/tests/ -v)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

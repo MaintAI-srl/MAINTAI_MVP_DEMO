@@ -16,18 +16,20 @@ type User = {
   ruolo: string;
   token: string;
   userid?: number;
+  tenant_id?: number;
+  tenant_nome?: string;
 };
 
 interface AuthContextType {
   user: User | null;
-  login: (token: string, username: string, ruolo: string, userid?: number) => void;
+  login: (token: string, username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: (t, u, r, id) => {},
+  login: () => {},
   logout: () => {},
   isAuthenticated: false,
 });
@@ -39,37 +41,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check localStorage on mount
     const savedToken = localStorage.getItem("maintai_jwt");
     const savedUsername = localStorage.getItem("maintai_username");
     const savedRuolo = localStorage.getItem("maintai_ruolo");
     const savedUserId = localStorage.getItem("maintai_userid");
+    const savedTenantId = localStorage.getItem("maintai_tenant_id");
+    const savedTenantNome = localStorage.getItem("maintai_tenant_nome");
 
     if (savedToken && savedUsername && savedRuolo) {
       if (isTokenExpired(savedToken)) {
-        // Token scaduto: pulisce storage senza redirect esplicito
         localStorage.removeItem("maintai_jwt");
         localStorage.removeItem("maintai_username");
         localStorage.removeItem("maintai_ruolo");
         localStorage.removeItem("maintai_userid");
+        localStorage.removeItem("maintai_tenant_id");
+        localStorage.removeItem("maintai_tenant_nome");
       } else {
         setUser({
           token: savedToken,
           username: savedUsername,
           ruolo: savedRuolo,
           userid: savedUserId ? parseInt(savedUserId) : undefined,
+          tenant_id: savedTenantId ? parseInt(savedTenantId) : undefined,
+          tenant_nome: savedTenantNome || undefined,
         });
       }
     }
     setLoading(false);
   }, []);
 
-  const login = (token: string, username: string, ruolo: string, userid?: number) => {
+  const login = (token: string, username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string) => {
     localStorage.setItem("maintai_jwt", token);
     localStorage.setItem("maintai_username", username);
     localStorage.setItem("maintai_ruolo", ruolo);
     if (userid) localStorage.setItem("maintai_userid", String(userid));
-    setUser({ token, username, ruolo, userid });
+    if (tenant_id) localStorage.setItem("maintai_tenant_id", String(tenant_id));
+    if (tenant_nome) localStorage.setItem("maintai_tenant_nome", tenant_nome);
+    setUser({ token, username, ruolo, userid, tenant_id, tenant_nome });
   };
 
   const logout = useCallback(() => {
@@ -77,16 +85,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("maintai_username");
     localStorage.removeItem("maintai_ruolo");
     localStorage.removeItem("maintai_userid");
+    localStorage.removeItem("maintai_tenant_id");
+    localStorage.removeItem("maintai_tenant_nome");
     setUser(null);
   }, []);
 
-  // Ascolta eventi 401 lanciati da api.ts
   useEffect(() => {
     window.addEventListener("maintai:unauthorized", logout);
     return () => window.removeEventListener("maintai:unauthorized", logout);
   }, [logout]);
 
-  if (loading) return null; // Avoid flicker
+  if (loading) return null;
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
