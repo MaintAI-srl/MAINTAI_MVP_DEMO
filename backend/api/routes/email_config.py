@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
+
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, encrypt_data, decrypt_data
 from backend.db.modelli import EmailConfig
-import imap_tools
 
 router = APIRouter(prefix="/email-config", tags=["EmailConfig"])
+
 
 class EmailConfigBase(BaseModel):
     imap_server: str
@@ -17,35 +18,97 @@ class EmailConfigBase(BaseModel):
     active: bool = True
     default_asset_id: Optional[int] = None
 
-class EmailConfigOut(EmailConfigBase):
+
+class EmailConfigOut(BaseModel):
     id: int
-    tenant_id: Optional[int]
+    imap_server: str
+    imap_port: int
+    email_address: str
+    active: bool
+    default_asset_id: Optional[int] = None
+    tenant_id: Optional[int] = None
 
     class Config:
         from_attributes = True
 
+
+def _test_imap(server: str, port: int, email: str, password: str, timeout: int = 15) -> None:
+    """
+    Testa la connessione IMAP con timeout.
+    Solleva HTTPException 400 con messaggio leggibile in caso di errore.
+    """
+    import socket
+    try:
+        import imap_tools
+        with imap_tools.MailBox(server, port=port, timeout=timeout).login(email, password):
+            pass
+    except imap_tools.MailboxLoginError:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Credenziali non valide. "
+                "Se usi Gmail con verifica in 2 passaggi, devi generare una 'App Password' "
+                "(Account Google → Sicurezza → Password per le app). "
+                "Se usi Outlook/O365, usa outlook.office365.com porta 993."
+            ),
+        )
+    except (socket.timeout, TimeoutError, OSError) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Impossibile raggiungere il server IMAP ({server}:{port}). "
+                "Verifica che server e porta siano corretti e che il firewall non blocchi la connessione."
+            ),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Errore IMAP: {str(e)}")
+
+
 @router.get("/", response_model=List[EmailConfigOut])
-def get_configs(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def get_configs(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
     return db.query(EmailConfig).filter(EmailConfig.tenant_id == tenant_id).all()
 
-@router.post("/", response_model=EmailConfigOut)
-def create_config(data: EmailConfigBase, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    # Test connection prima di salvare
-    try:
-        with imap_tools.MailBox(data.imap_server, port=data.imap_port).login(data.email_address, data.password):
-            pass # Login OK
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Connessione IMAP fallita: {str(e)}")
 
-    new_conf = EmailConfig(**data.model_dump(), tenant_id=tenant_id)
+@router.post("/", response_model=EmailConfigOut)
+def create_config(
+    data: EmailConfigBase,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    # Test connessione con password in chiaro (prima di cifrare)
+    _test_imap(data.imap_server, data.imap_port, data.email_address, data.password)
+
+    # Cifra la password prima di persistere
+    encrypted_pw = encrypt_data(data.password)
+
+    new_conf = EmailConfig(
+        imap_server=data.imap_server,
+        imap_port=data.imap_port,
+        email_address=data.email_address,
+        password=encrypted_pw,
+        is_encrypted=True,
+        active=data.active,
+        default_asset_id=data.default_asset_id,
+        tenant_id=tenant_id,
+    )
     db.add(new_conf)
     db.commit()
     db.refresh(new_conf)
     return new_conf
 
-@router.delete("/{id}")
-def delete_config(id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    conf = db.query(EmailConfig).filter(EmailConfig.id == id, EmailConfig.tenant_id == tenant_id).first()
+
+@router.delete("/{config_id}")
+def delete_config(
+    config_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    conf = db.query(EmailConfig).filter(
+        EmailConfig.id == config_id, EmailConfig.tenant_id == tenant_id
+    ).first()
     if not conf:
         raise HTTPException(status_code=404, detail="Configurazione non trovata")
     db.delete(conf)
