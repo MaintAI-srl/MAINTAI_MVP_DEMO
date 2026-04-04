@@ -13,32 +13,43 @@ PLANNED_ORE_MESE = 176.0
 
 
 def _calcola_kpi_asset(db: Session, asset: Asset, tenant_id: int) -> dict:
-    correttivi = (
-        db.query(Ticket)
-        .filter(
-            Ticket.asset_id == asset.id,
-            Ticket.tenant_id == tenant_id,
-            Ticket.attivita_manutenzione_id.is_(None),
-        )
-        .all()
+    # MTBF: Mean Time Between Failures
+    # Consideriamo "Guasti" i ticket di tipo CM (Corrective Maintenance) o BD (Breakdown)
+    guasti_query = db.query(Ticket).filter(
+        Ticket.asset_id == asset.id,
+        Ticket.tenant_id == tenant_id,
+        Ticket.tipo.in_(["CM", "BD"])
     )
-    n_guasti = len(correttivi)
+    n_guasti = guasti_query.count()
 
-    if asset.anno:
-        anni = max(1, date.today().year - asset.anno)
-        total_days = anni * 365
+    # Calcolo tempo totale operativo base (giorni)
+    if asset.created_at:
+        start_date = asset.created_at.date()
+    elif asset.anno:
+        start_date = date(asset.anno, 1, 1)
     else:
-        total_days = 365
-
+        start_date = date.today() - timedelta(days=365)
+    
+    total_days = max(1, (date.today() - start_date).days)
     mtbf_giorni = total_days / max(n_guasti, 1)
 
-    cutoff = datetime.now() - timedelta(days=FINESTRA_GIORNI)
+    # OEE / Availability (ultimo mese)
+    # Disponibilità = (Tempo Programmato - Tempo Fermo) / Tempo Programmato
+    # Assumiamo Tempo Programmato = 30gg * 24h = 720h (H24) o 176h (Business)
+    # Usiamo 720h per un calcolo industriale standard H24
+    TEMPO_PROGRAMMATO_H = 720.0 
+    cutoff = datetime.now() - timedelta(days=30)
+    
+    # Downtime dai ticket chiusi negli ultimi 30gg
     downtime_ore = sum(
-        (t.durata_stimata_ore or 0)
-        for t in correttivi
-        if t.stato == "Chiuso" and t.execution_finish and t.execution_finish >= cutoff
+        (t.durata_stimata_ore or 1.0) # Assumiamo almeno 1h se non specificato
+        for t in guasti_query.filter(
+            Ticket.stato == "Chiuso",
+            Ticket.execution_finish >= cutoff
+        ).all()
     )
-    availability = max(0.0, min(1.0, (PLANNED_ORE_MESE - downtime_ore) / PLANNED_ORE_MESE))
+    
+    availability = max(0.0, min(1.0, (TEMPO_PROGRAMMATO_H - downtime_ore) / TEMPO_PROGRAMMATO_H))
     oee = round(availability * 100, 1)
 
     return {
@@ -78,10 +89,30 @@ def dashboard(db: Session = Depends(get_db), tenant_id: int = Depends(get_curren
 
 
 @router.get("/dashboard/kpi-asset")
-def dashboard_kpi_asset(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def dashboard_kpi_asset(
+    page: int = 1,
+    limit: int = 10,
+    area: str | None = None,
+    search: str | None = None,
+    stato: str | None = None,
+    db: Session = Depends(get_db), 
+    tenant_id: int = Depends(get_current_tenant_id)
+):
     from datetime import timezone
     now = datetime.now(timezone.utc)
-    assets = db.query(Asset).filter(Asset.tenant_id == tenant_id).all()
+    
+    query = db.query(Asset).filter(Asset.tenant_id == tenant_id)
+    
+    if area:
+        query = query.filter(Asset.area == area)
+    if search:
+        query = query.filter((Asset.nome.ilike(f"%{search}%")) | (Asset.codice.ilike(f"%{search}%")))
+    if stato:
+        query = query.filter(Asset.stato == stato)
+        
+    total = query.count()
+    assets = query.order_by(Asset.nome).offset((page - 1) * limit).limit(limit).all()
+    
     kpi_list = []
     for a in assets:
         k = _calcola_kpi_asset(db, a, tenant_id)
@@ -99,20 +130,27 @@ def dashboard_kpi_asset(db: Session = Depends(get_db), tenant_id: int = Depends(
             "asset_id": a.id,
             "asset_nome": a.nome,
             "asset_codice": a.codice or "",
+            "asset_area": a.area or "",
             "stato": a.stato or "service",
             "stato_changed_at": stato_changed_at,
             "downtime_seconds": downtime_seconds,
             **k,
         })
 
-    if kpi_list:
-        avg_mtbf = sum(k["mtbf_giorni"] for k in kpi_list) / len(kpi_list)
-        avg_oee = sum(k["oee_pct"] for k in kpi_list) / len(kpi_list)
+    # Aggregati calcolati su TUTTI gli asset filtrati (non solo la pagina corrente)
+    all_filtered_assets = query.all()
+    if all_filtered_assets:
+        all_kpis = [_calcola_kpi_asset(db, a, tenant_id) for a in all_filtered_assets]
+        avg_mtbf = sum(k["mtbf_giorni"] for k in all_kpis) / len(all_kpis)
+        avg_oee = sum(k["oee_pct"] for k in all_kpis) / len(all_kpis)
     else:
         avg_mtbf = avg_oee = 0.0
 
     return {
         "assets": kpi_list,
+        "total": total,
+        "page": page,
+        "pages": (total + limit - 1) // limit,
         "aggregati": {
             "avg_mtbf_giorni": round(avg_mtbf, 1),
             "avg_oee_pct": round(avg_oee, 1),

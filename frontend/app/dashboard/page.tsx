@@ -31,7 +31,7 @@ type DashboardCharts = {
 };
 type TrendData = { labels: string[]; values: number[]; total: number };
 type KpiAssetItem = {
-  asset_id: number; asset_nome: string; asset_codice: string;
+  asset_id: number; asset_nome: string; asset_codice: string; asset_area: string;
   stato: string; mtbf_giorni: number; oee_pct: number;
   n_guasti: number; downtime_ore_30gg: number;
   stato_changed_at?: string | null;
@@ -103,10 +103,17 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
   const [trend, setTrend] = useState<TrendData | null>(null);
-  const [kpiAsset, setKpiAsset] = useState<KpiAsset | null>(null);
+  const [kpiAsset, setKpiAsset] = useState<(KpiAsset & { total: number; page: number; pages: number }) | null>(null);
   const [error, setError] = useState("");
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [, setTick] = useState(0);
+
+  // Filtri e Paginazione
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [selectedArea, setSelectedArea] = useState("");
+  const [selectedStato, setSelectedStato] = useState("");
+  const [areas, setAreas] = useState<string[]>([]);
 
   // Helper per risolvere i colori delle variabili CSS a runtime per Chart.js
   const getThemeColor = (varName: string, fallback: string) => {
@@ -115,6 +122,7 @@ export default function DashboardPage() {
     return val || fallback;
   };
 
+  const textPrimary = getThemeColor('--text-primary', '#f8fafc');
   const textMuted = getThemeColor('--text-muted', '#94a3b8');
   const textSecondary = getThemeColor('--text-secondary', '#cbd5e1');
   const chartGrid = getThemeColor('--chart-grid', 'rgba(255,255,255,0.06)');
@@ -142,49 +150,53 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
+  async function loadKPIs() {
+    try {
+      const q = new URLSearchParams({
+        page: String(page),
+        limit: "10",
+        ...(search && { search }),
+        ...(selectedArea && { area: selectedArea }),
+        ...(selectedStato && { stato: selectedStato }),
+      });
+      const data = await apiGet<any>(`/dashboard/kpi-asset?${q.toString()}`);
+      setKpiAsset(data);
+    } catch (err) {
+      console.error("Asset KPI Load Error:", err);
+    }
+  }
+
   useEffect(() => {
-    async function loadAll() {
+    async function loadInitial() {
       try {
-        const [dashboardData, chartsData, trendData, kpiData] = await Promise.all([
+        const [dashboardData, chartsData, trendData] = await Promise.all([
           apiGet<DashboardData>("/dashboard"),
           apiGet<DashboardCharts>("/dashboard/charts"),
           apiGet<TrendData>("/dashboard/trends").catch(() => null),
-          apiGet<KpiAsset>("/dashboard/kpi-asset").catch(() => null),
         ]);
         if (dashboardData) setDashboard(dashboardData);
         if (chartsData) setCharts(chartsData);
         if (trendData) setTrend(trendData);
-        if (kpiData) setKpiAsset(kpiData);
         setLastUpdate(new Date());
         setError("");
+
+        // Carica aree per il filtro
+        const allAssets = await apiGet<any>("/dashboard/kpi-asset?limit=1000");
+        if (allAssets && allAssets.assets) {
+          const uniqueAreas = Array.from(new Set(allAssets.assets.map((a: any) => a.asset_area).filter(Boolean))) as string[];
+          setAreas(uniqueAreas.sort());
+        }
       } catch (err: any) { 
         console.error("Dashboard Load Error:", err);
         setError("Errore di connessione al backend."); 
       }
     }
-    loadAll();
-    // dashboard summary and charts refresh every 30s, KPI (MTBF/OEE) every 30min
-    const quickId = setInterval(async () => {
-      try {
-        const [d, c, t] = await Promise.all([
-          apiGet<DashboardData>("/dashboard"),
-          apiGet<DashboardCharts>("/dashboard/charts"),
-          apiGet<TrendData>("/dashboard/trends"),
-        ]);
-        setDashboard(d);
-        setCharts(c);
-        setTrend(t);
-        setLastUpdate(new Date());
-      } catch {}
-    }, 30000);
-    const kpiId = setInterval(async () => {
-      try {
-        const r = await apiGet<KpiAsset>("/dashboard/kpi-asset");
-        setKpiAsset(r);
-      } catch {}
-    }, 30 * 60 * 1000); // refresh MTBF/OEE every 30 minutes
-    return () => { clearInterval(quickId); clearInterval(kpiId); };
+    loadInitial();
   }, []);
+
+  useEffect(() => {
+    loadKPIs();
+  }, [page, search, selectedArea, selectedStato]);
 
   const priorityData = charts ? {
     labels: charts.ticket_by_priority.map(i => i.name),
@@ -211,18 +223,18 @@ export default function DashboardPage() {
     datasets: [{ label: "Ticket attivi", data: trend.values, fill: true, backgroundColor: "rgba(59,130,246,0.12)", borderColor: "var(--blue)", borderWidth: 2, pointBackgroundColor: "var(--blue)", pointRadius: 3, tension: 0.4 }],
   } : null;
 
-  const mtbfData = kpiAsset ? {
+  const mtbfData = kpiAsset?.assets?.length ? {
     labels: kpiAsset.assets.map(a => a.asset_codice || a.asset_nome),
     datasets: [{ label: "MTBF (giorni)", data: kpiAsset.assets.map(a => a.mtbf_giorni), backgroundColor: "rgba(129,140,248,.6)", borderColor: "#818cf8", borderWidth: 1, borderRadius: 4 }],
   } : null;
 
-  const oeeData = kpiAsset ? {
+  const oeeData = kpiAsset?.assets?.length ? {
     labels: kpiAsset.assets.map(a => a.asset_codice || a.asset_nome),
     datasets: [{ label: "OEE (%)", data: kpiAsset.assets.map(a => a.oee_pct), backgroundColor: "rgba(52,211,153,.6)", borderColor: "#34d399", borderWidth: 1, borderRadius: 4 }],
   } : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
@@ -253,8 +265,8 @@ export default function DashboardPage() {
       {/* KPI MTBF / OEE aggregati */}
       {kpiAsset && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <KpiCard label="MTBF medio" value={`${kpiAsset.aggregati.avg_mtbf_giorni}gg`} accent="#818cf8" sub="Mean Time Between Failures (giorni)" />
-          <KpiCard label="OEE medio" value={`${kpiAsset.aggregati.avg_oee_pct}%`} accent="#34d399" sub="Overall Equipment Effectiveness (30gg)" />
+          <KpiCard label="MTBF medio (filtro)" value={`${kpiAsset.aggregati.avg_mtbf_giorni}gg`} accent="#818cf8" sub="Mean Time Between Failures" />
+          <KpiCard label="OEE medio (filtro)" value={`${kpiAsset.aggregati.avg_oee_pct}%`} accent="#34d399" sub="Overall Equipment Effectiveness (30gg)" />
         </div>
       )}
 
@@ -262,83 +274,138 @@ export default function DashboardPage() {
       {charts && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <ChartCard title="Ticket per Priorità">
-            {priorityData && <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><Doughnut data={priorityData} options={doughnutOptions} /></div>}
+            {priorityData && <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><Doughnut data={priorityData} options={{ ...doughnutOptions, plugins: { ...doughnutOptions.plugins, legend: { ...doughnutOptions.plugins.legend, labels: { ...doughnutOptions.plugins.legend.labels, color: textSecondary } } } }} /></div>}
           </ChartCard>
           <ChartCard title="Asset per Stato operativo">
             {assetStatoData
-              ? <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><Doughnut data={assetStatoData} options={doughnutOptions} /></div>
+              ? <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><Doughnut data={assetStatoData} options={{ ...doughnutOptions, plugins: { ...doughnutOptions.plugins, legend: { ...doughnutOptions.plugins.legend, labels: { ...doughnutOptions.plugins.legend.labels, color: textSecondary } } } }} /></div>
               : <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 40 }}>Nessun dato asset.</div>}
           </ChartCard>
         </div>
       )}
 
-      {/* Grafici riga 2: MTBF + OEE per asset */}
+      {/* Grafici riga 2: MTBF + OEE per asset (Pagina Corrente) */}
       {kpiAsset && kpiAsset.assets.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <ChartCard title="MTBF per Asset (giorni)">
-            {mtbfData && <div style={{ height: 200 }}><Bar data={mtbfData} options={{ ...barOptions, scales: { ...barOptions.scales, x: { ...barOptions.scales.x, max: Math.max(...kpiAsset.assets.map(a => a.mtbf_giorni)) * 1.2 } } }} /></div>}
+          <ChartCard title="MTBF per Asset (Pagina)">
+            {mtbfData && <div style={{ height: 200 }}><Bar data={mtbfData} options={{ ...barOptions, scales: { ...barOptions.scales, x: { ...barOptions.scales.x, max: Math.max(...kpiAsset.assets.map(a => a.mtbf_giorni), 1) * 1.2 } } }} /></div>}
           </ChartCard>
-          <ChartCard title="OEE per Asset (%)">
+          <ChartCard title="OEE per Asset (Pagina)">
             {oeeData && <div style={{ height: 200 }}><Bar data={oeeData} options={{ ...barOptions, scales: { ...barOptions.scales, x: { ...barOptions.scales.x, max: 100 } } }} /></div>}
           </ChartCard>
         </div>
       )}
 
-      {/* Grafici riga 3: trend + categoria */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {trendChartData && (
-          <ChartCard title="Trend Ticket (7 giorni)">
-            <div style={{ height: 180 }}><Line data={trendChartData} options={lineOptions} /></div>
-          </ChartCard>
-        )}
-        {tipoData && (
-          <ChartCard title="Carico per Tipo Intervento">
-            <div style={{ height: 180 }}><Bar data={tipoData} options={barOptions} /></div>
-          </ChartCard>
-        )}
-      </div>
-
-      {/* Tabella KPI per asset */}
-      {kpiAsset && kpiAsset.assets.length > 0 && (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "24px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 20 }}>Dettaglio KPI per Asset</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--table-border)" }}>
-                  {["Codice", "Asset", "Stato", "MTBF (gg)", "OEE (%)", "Guasti totali", "Downtime 30gg (h)", "⏱ Downtime in corso"].map(h => (
-                    <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-muted)" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {kpiAsset.assets.map(a => (
-                  <tr key={a.asset_id} style={{ borderBottom: "1px solid var(--table-border)", transition: "background 0.2s" }} className="hover-row">
-                    <td style={{ padding: "14px 16px", fontFamily: "var(--font-mono)", color: "var(--blue)" }}>{a.asset_codice || "—"}</td>
-                    <td style={{ padding: "14px 16px", fontWeight: 700, color: "var(--text-primary)" }}>{a.asset_nome}</td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <span style={{ color: STATO_ASSET_COLORS[a.stato] || "var(--text-secondary)", background: "var(--bg-overlay)", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{a.stato}</span>
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "var(--purple)", fontWeight: 800 }}>{a.mtbf_giorni}</td>
-                    <td style={{ padding: "14px 16px", color: a.oee_pct >= 85 ? "var(--green)" : a.oee_pct >= 65 ? "var(--amber)" : "var(--red)", fontWeight: 800 }}>{a.oee_pct}%</td>
-                    <td style={{ padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>{a.n_guasti}</td>
-                    <td style={{ padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>{a.downtime_ore_30gg}h</td>
-                    <td style={{ padding: "14px 16px" }}>
-                      {a.stato === "out of service" && a.stato_changed_at ? (
-                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--red)", fontWeight: 700, background: "var(--red-dim)", padding: "4px 10px", borderRadius: 6 }}>
-                          🔴 {formatDowntime(a.downtime_seconds, a.stato_changed_at)}
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--text-disabled)", fontSize: 12 }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Tabella KPI per asset con Filtri e Paginazione */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "24px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Dettaglio KPI per Asset</div>
+          
+          {/* Barra Filtri */}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <input 
+              type="text" 
+              className="input"
+              placeholder="Cerca asset/codice..."
+              style={{ width: 200, fontSize: 13 }}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+            <select 
+              className="input" 
+              style={{ width: 160, fontSize: 13 }}
+              value={selectedArea}
+              onChange={(e) => { setSelectedArea(e.target.value); setPage(1); }}
+            >
+              <option value="">Tutte le Famiglie</option>
+              {areas.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select 
+              className="input" 
+              style={{ width: 160, fontSize: 13 }}
+              value={selectedStato}
+              onChange={(e) => { setSelectedStato(e.target.value); setPage(1); }}
+            >
+              <option value="">Tutti gli Stati</option>
+              <option value="service">In Servizio</option>
+              <option value="stopped">Fermo</option>
+              <option value="out of service">In Guasto</option>
+            </select>
           </div>
         </div>
-      )}
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--table-border)" }}>
+                {["Codice", "Asset", "Famiglia", "Stato", "MTBF (gg)", "OEE (%)", "Guasti (tot)", "Downtime (h)", "⏱ In Corso"].map(h => (
+                  <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-muted)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {kpiAsset && kpiAsset.assets.map(a => (
+                <tr key={a.asset_id} style={{ borderBottom: "1px solid var(--table-border)", transition: "background 0.2s" }} className="hover-row">
+                  <td style={{ padding: "14px 16px", fontFamily: "var(--font-mono)", color: "var(--blue)" }}>{a.asset_codice || "—"}</td>
+                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "var(--text-primary)" }}>{a.asset_nome}</td>
+                  <td style={{ padding: "14px 16px", color: "var(--text-secondary)" }}>{a.asset_area || "—"}</td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <span style={{ color: STATO_ASSET_COLORS[a.stato] || "var(--text-secondary)", background: "var(--bg-overlay)", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{a.stato}</span>
+                  </td>
+                  <td style={{ padding: "14px 16px", color: "var(--purple)", fontWeight: 800 }}>{a.mtbf_giorni}</td>
+                  <td style={{ padding: "14px 16px", color: a.oee_pct >= 85 ? "var(--green)" : a.oee_pct >= 65 ? "var(--amber)" : "var(--red)", fontWeight: 800 }}>{a.oee_pct}%</td>
+                  <td style={{ padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>{a.n_guasti}</td>
+                  <td style={{ padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>{a.downtime_ore_30gg}h</td>
+                  <td style={{ padding: "14px 16px" }}>
+                    {a.stato === "out of service" && a.stato_changed_at ? (
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--red)", fontWeight: 700, background: "var(--red-dim)", padding: "4px 10px", borderRadius: 6 }}>
+                        🔴 {formatDowntime(a.downtime_seconds, a.stato_changed_at)}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--text-disabled)", fontSize: 12 }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {(!kpiAsset || kpiAsset.assets.length === 0) && (
+                <tr>
+                   <td colSpan={9} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>Nessun asset trovato con i filtri selezionati.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Paginazione */}
+        {kpiAsset && kpiAsset.pages > 1 && (
+          <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              Mostrando {kpiAsset.assets.length} di {kpiAsset.total} asset
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: "6px 14px", fontSize: 13 }}
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                Precedente
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 600, color: "var(--text-primary)", padding: "0 10px" }}>
+                Pagina {page} di {kpiAsset.pages}
+              </div>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: "6px 14px", fontSize: 13 }}
+                disabled={page === kpiAsset.pages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                Successiva
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
