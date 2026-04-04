@@ -1,23 +1,33 @@
+import os
 from logging.config import fileConfig
+from pathlib import Path
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from dotenv import load_dotenv
 
 from alembic import context
+
+# Carica .env da backend/ (utile quando si esegue alembic da CLI)
+load_dotenv(Path(__file__).resolve().parent.parent / "backend" / ".env")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
+# Override sqlalchemy.url con DATABASE_URL dall'ambiente (sovrascrive alembic.ini)
+_db_url = os.getenv("DATABASE_URL")
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
+
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import models so autogenerate can detect schema
+# Import ALL models so autogenerate can detect the full schema
 from backend.core.database import Base  # noqa: E402
 from backend.db.modelli import (  # noqa: E402, F401
-    Impianto, Asset, Tecnico, Ticket,
+    Tenant, Utente, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
+    TecnicoAssenza, TicketAllegato, EmailConfig,
 )
 
 target_metadata = Base.metadata
@@ -53,31 +63,18 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    # Usa direttamente l'engine del progetto se sqlalchemy.url non è nel .ini
+    """Run migrations in 'online' mode."""
     from backend.core.database import engine as project_engine  # noqa: E402
-    url_override = config.get_main_option("sqlalchemy.url")
-    if url_override and not url_override.startswith("driver://"):
-        connectable = engine_from_config(
-            config.get_section(config.config_ini_section, {}),
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-        )
-    else:
-        connectable = project_engine
+
+    connectable = project_engine
 
     with connectable.connect() as connection:
         is_sqlite = str(connectable.url).startswith("sqlite")
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=is_sqlite,     # True solo per SQLite (ALTER TABLE emulation)
-            compare_type=True,             # rileva cambi di tipo colonna
+            render_as_batch=is_sqlite,  # True solo per SQLite (ALTER TABLE emulation)
+            compare_type=True,          # rileva cambi di tipo colonna
         )
 
         with context.begin_transaction():

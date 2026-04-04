@@ -59,11 +59,27 @@ def _load_origins() -> list[str]:
     return _DEFAULT_ORIGINS
 
 
+def _run_alembic_upgrade() -> None:
+    """Applica tutte le migrazioni Alembic pendenti (idempotente)."""
+    import logging
+    from alembic.config import Config
+    from alembic import command
+
+    logger = logging.getLogger(__name__)
+    try:
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Alembic: migrazioni aggiornate a head")
+    except Exception as exc:
+        logger.warning("Alembic upgrade fallito (continuo con init_db): %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
     init_backend()
-    init_db()  # crea tabelle e seed al primo avvio
+    _run_alembic_upgrade()  # applica migrazioni pendenti
+    init_db()               # crea tabelle mancanti + seed
 
     # Crea cartella uploads solo in locale (su Render il filesystem è effimero
     # e i file vengono serviti da Supabase Storage)
