@@ -21,6 +21,7 @@ type DashboardData = {
   ticket_pianificati: number;
   ticket_in_corso: number;
   ticket_chiusi: number;
+  areas: string[];
 };
 type DashboardCharts = {
   ticket_by_priority: ChartItem[];
@@ -170,26 +171,24 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadInitial() {
       try {
-        const [dashboardData, chartsData, trendData] = await Promise.all([
+        const [dashboardData, chartsData, trendData, kpiData] = await Promise.all([
           apiGet<DashboardData>("/dashboard"),
           apiGet<DashboardCharts>("/dashboard/charts"),
           apiGet<TrendData>("/dashboard/trends").catch(() => null),
+          apiGet<any>("/dashboard/kpi-asset?page=1&limit=10"),
         ]);
-        if (dashboardData) setDashboard(dashboardData);
+        if (dashboardData) {
+          setDashboard(dashboardData);
+          if (dashboardData.areas) setAreas(dashboardData.areas);
+        }
         if (chartsData) setCharts(chartsData);
         if (trendData) setTrend(trendData);
+        if (kpiData) setKpiAsset(kpiData);
         setLastUpdate(new Date());
         setError("");
-
-        // Carica aree per il filtro
-        const allAssets = await apiGet<any>("/dashboard/kpi-asset?limit=1000");
-        if (allAssets && allAssets.assets) {
-          const uniqueAreas = Array.from(new Set(allAssets.assets.map((a: any) => a.asset_area).filter(Boolean))) as string[];
-          setAreas(uniqueAreas.sort());
-        }
-      } catch (err: any) { 
+      } catch (err: any) {
         console.error("Dashboard Load Error:", err);
-        setError("Errore di connessione al backend."); 
+        setError("Errore di connessione al backend.");
       }
     }
     loadInitial();

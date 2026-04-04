@@ -1,121 +1,60 @@
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, case, distinct
+from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.db.modelli import Asset, Tecnico, Ticket, AttivitaManutenzione
 
 router = APIRouter()
 
-FINESTRA_GIORNI = 30
-PLANNED_ORE_MESE = 176.0
-
-
-def _calcola_kpi_asset(db: Session, asset: Asset, tenant_id: int) -> dict:
-    from datetime import timezone
-    now = datetime.now(timezone.utc)
-    
-    # 1. Definizione Guasti: Tutti i ticket NON-informativi o preventivi (CM, BD o tipo mancante se out of service)
-    # Consideriamo "Guasti" i ticket di tipo CM (Corrective) o BD (Breakdown)
-    # Se il tipo è mancante ma l'asset è o è stato out of service, lo contiamo come guasto.
-    guasti_query = db.query(Ticket).filter(
-        Ticket.asset_id == asset.id,
-        Ticket.tenant_id == tenant_id,
-        Ticket.tipo.in_(["CM", "BD"])
-    )
-    n_guasti = guasti_query.count()
-
-    # 2. Tempo Operativo Base (giorni)
-    if asset.created_at:
-        start_date = asset.created_at
-    elif asset.anno:
-        start_date = datetime(asset.anno, 1, 1, tzinfo=timezone.utc)
-    else:
-        start_date = now - timedelta(days=365)
-    
-    if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
-        
-    total_days = max(0.1, (now - start_date).days + (now - start_date).seconds / 86400.0)
-    mtbf_giorni = total_days / max(n_guasti, 1)
-
-    # 3. OEE / Availability (ultimo mese)
-    # Calcoliamo il downtime totale negli ultimi 30gg: Chiusi + In corso + Ongoing (se OoS)
-    TEMPO_PROGRAMMATO_H = 720.0 
-    cutoff = now - timedelta(days=30)
-    
-    # A. Downtime dai ticket CHIUSI negli ultimi 30gg
-    downtime_chiusi_ore = sum(
-        (t.durata_stimata_ore or 1.0)
-        for t in guasti_query.filter(
-            Ticket.stato == "Chiuso",
-            Ticket.execution_finish >= cutoff
-        ).all()
-    )
-    
-    # B. Downtime dai ticket IN CORSO / APERTI (stima o reale)
-    # Per semplicità usiamo durata_stimata_ore se presente, o 1h minima
-    downtime_aperti_ore = sum(
-        (t.durata_stimata_ore or 1.0)
-        for t in db.query(Ticket).filter(
-            Ticket.asset_id == asset.id,
-            Ticket.tenant_id == tenant_id,
-            Ticket.stato.in_(["Aperto", "In corso"]),
-            Ticket.created_at >= cutoff
-        ).all()
-    )
-
-    # C. Downtime ONGOING (tempo reale se out of service)
-    downtime_ongoing_ore = 0.0
-    if asset.stato == "out of service" and asset.stato_changed_at:
-        ts = asset.stato_changed_at
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        
-        # Consideriamo solo quanto avvenuto negli ultimi 30gg
-        start_event = max(ts, cutoff)
-        ongoing_seconds = (now - start_event).total_seconds()
-        downtime_ongoing_ore = max(0.0, ongoing_seconds / 3600.0)
-
-    total_downtime_30gg = downtime_chiusi_ore + downtime_aperti_ore + downtime_ongoing_ore
-    
-    availability = max(0.0, min(1.0, (TEMPO_PROGRAMMATO_H - total_downtime_30gg) / TEMPO_PROGRAMMATO_H))
-    oee = round(availability * 100, 1)
-
-    return {
-        "mtbf_giorni": round(mtbf_giorni, 1),
-        "oee_pct": oee,
-        "n_guasti": n_guasti,
-        "downtime_ore_30gg": round(total_downtime_30gg, 1),
-    }
+TEMPO_PROGRAMMATO_H = 720.0  # ore/mese
 
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    assets = db.query(Asset).filter(Asset.tenant_id == tenant_id).all()
-    asset_stati = {"service": 0, "out of service": 0, "stopped": 0}
-    for a in assets:
-        s = (a.stato or "service").lower()
-        if s in asset_stati:
-            asset_stati[s] += 1
-        else:
-            asset_stati["service"] += 1
+    # Tutto in query aggregate — niente loop Python
+    asset_stati_rows = (
+        db.query(Asset.stato, func.count(Asset.id))
+        .filter(Asset.tenant_id == tenant_id)
+        .group_by(Asset.stato)
+        .all()
+    )
+    asset_stati = {"service": 0, "out of service": 0, "stopped": 0, "fermo": 0}
+    total_assets = 0
+    for stato, cnt in asset_stati_rows:
+        s = (stato or "service").lower()
+        asset_stati[s] = asset_stati.get(s, 0) + cnt
+        total_assets += cnt
 
-    tecnici_disponibili = db.query(Tecnico).filter(
-        Tecnico.tenant_id == tenant_id,
-        Tecnico.stato == "in servizio",
-    ).count()
+    tecnici_total = db.query(func.count(Tecnico.id)).filter(Tecnico.tenant_id == tenant_id).scalar() or 0
+    tecnici_disp  = db.query(func.count(Tecnico.id)).filter(Tecnico.tenant_id == tenant_id, Tecnico.stato == "in servizio").scalar() or 0
+
+    ticket_counts = dict(
+        db.query(Ticket.stato, func.count(Ticket.id))
+        .filter(Ticket.tenant_id == tenant_id)
+        .group_by(Ticket.stato)
+        .all()
+    )
+
+    # Aree disponibili — usate dal frontend per il filtro (evita la chiamata extra limit=1000)
+    areas = sorted(
+        r[0] for r in
+        db.query(distinct(Asset.area)).filter(Asset.tenant_id == tenant_id, Asset.area.isnot(None)).all()
+        if r[0]
+    )
 
     return {
-        "assets": len(assets),
+        "assets": total_assets,
         "asset_stati": asset_stati,
-        "tecnici": db.query(Tecnico).filter(Tecnico.tenant_id == tenant_id).count(),
-        "tecnici_disponibili": tecnici_disponibili,
-        "ticket_aperti": db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Aperto").count(),
-        "ticket_pianificati": db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Pianificato").count(),
-        "ticket_in_corso": db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "In corso").count(),
-        "ticket_chiusi": db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Chiuso").count(),
+        "tecnici": tecnici_total,
+        "tecnici_disponibili": tecnici_disp,
+        "ticket_aperti":     ticket_counts.get("Aperto", 0),
+        "ticket_pianificati": ticket_counts.get("Pianificato", 0),
+        "ticket_in_corso":   ticket_counts.get("In corso", 0),
+        "ticket_chiusi":     ticket_counts.get("Chiuso", 0),
+        "areas": areas,
     }
 
 
@@ -126,105 +65,200 @@ def dashboard_kpi_asset(
     area: str | None = None,
     search: str | None = None,
     stato: str | None = None,
-    db: Session = Depends(get_db), 
-    tenant_id: int = Depends(get_current_tenant_id)
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
-    from datetime import timezone
     now = datetime.now(timezone.utc)
-    
-    query = db.query(Asset).filter(Asset.tenant_id == tenant_id)
-    
+    cutoff = now - timedelta(days=30)
+
+    # ── Filtra asset ─────────────────────────────────────────────────────────
+    q = db.query(Asset).filter(Asset.tenant_id == tenant_id)
     if area:
-        query = query.filter(Asset.area == area)
+        q = q.filter(Asset.area == area)
     if search:
-        query = query.filter((Asset.nome.ilike(f"%{search}%")) | (Asset.codice.ilike(f"%{search}%")))
+        q = q.filter((Asset.nome.ilike(f"%{search}%")) | (Asset.codice.ilike(f"%{search}%")))
     if stato:
-        query = query.filter(Asset.stato == stato)
-        
-    total = query.count()
-    assets = query.order_by(Asset.nome).offset((page - 1) * limit).limit(limit).all()
-    
+        q = q.filter(Asset.stato == stato)
+
+    total = q.count()
+    assets = q.order_by(Asset.nome).offset((page - 1) * limit).limit(limit).all()
+
+    if not assets:
+        return {"assets": [], "total": total, "page": page, "pages": 0,
+                "aggregati": {"avg_mtbf_giorni": 0.0, "avg_oee_pct": 0.0}}
+
+    asset_ids = [a.id for a in assets]
+
+    # ── Una sola query batch per tutti i ticket degli asset a pagina ──────────
+    ticket_agg = (
+        db.query(
+            Ticket.asset_id,
+            # guasti totali (CM o BD)
+            func.count(Ticket.id).filter(Ticket.tipo.in_(["CM", "BD"])).label("n_guasti"),
+            # downtime da ticket CHIUSI negli ultimi 30gg
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            (Ticket.tipo.in_(["CM", "BD"]))
+                            & (Ticket.stato == "Chiuso")
+                            & (Ticket.execution_finish >= cutoff),
+                            func.coalesce(Ticket.durata_stimata_ore, 1.0),
+                        ),
+                        else_=0.0,
+                    )
+                ),
+                0.0,
+            ).label("downtime_chiusi"),
+            # downtime da ticket APERTI / IN CORSO creati negli ultimi 30gg
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            (Ticket.stato.in_(["Aperto", "In corso"]))
+                            & (Ticket.created_at >= cutoff),
+                            func.coalesce(Ticket.durata_stimata_ore, 1.0),
+                        ),
+                        else_=0.0,
+                    )
+                ),
+                0.0,
+            ).label("downtime_aperti"),
+        )
+        .filter(Ticket.asset_id.in_(asset_ids), Ticket.tenant_id == tenant_id)
+        .group_by(Ticket.asset_id)
+        .all()
+    )
+
+    stats = {row.asset_id: row for row in ticket_agg}
+
+    # ── Costruisci KPI per asset ───────────────────────────────────────────────
     kpi_list = []
+    total_mtbf = 0.0
+    total_oee  = 0.0
+
     for a in assets:
-        k = _calcola_kpi_asset(db, a, tenant_id)
+        row = stats.get(a.id)
+        n_guasti        = row.n_guasti        if row else 0
+        downtime_chiusi = float(row.downtime_chiusi) if row else 0.0
+        downtime_aperti = float(row.downtime_aperti) if row else 0.0
+
+        # MTBF
+        if a.created_at:
+            start = a.created_at if a.created_at.tzinfo else a.created_at.replace(tzinfo=timezone.utc)
+        elif a.anno:
+            start = datetime(a.anno, 1, 1, tzinfo=timezone.utc)
+        else:
+            start = now - timedelta(days=365)
+        total_days = max(0.1, (now - start).total_seconds() / 86400)
+        mtbf = round(total_days / max(n_guasti, 1), 1)
+
+        # OEE / availability (ultimi 30gg)
+        downtime_ongoing = 0.0
+        if a.stato == "out of service" and a.stato_changed_at:
+            ts = a.stato_changed_at if a.stato_changed_at.tzinfo else a.stato_changed_at.replace(tzinfo=timezone.utc)
+            start_event = max(ts, cutoff)
+            downtime_ongoing = max(0.0, (now - start_event).total_seconds() / 3600)
+
+        total_downtime = downtime_chiusi + downtime_aperti + downtime_ongoing
+        availability = max(0.0, min(1.0, (TEMPO_PROGRAMMATO_H - total_downtime) / TEMPO_PROGRAMMATO_H))
+        oee = round(availability * 100, 1)
+
+        # Downtime ticker per asset OoS
+        stato_changed_at_iso = None
         downtime_seconds = None
-        stato_changed_at = None
         if a.stato_changed_at:
-            ts = a.stato_changed_at
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            stato_changed_at = ts.isoformat()
+            ts = a.stato_changed_at if a.stato_changed_at.tzinfo else a.stato_changed_at.replace(tzinfo=timezone.utc)
+            stato_changed_at_iso = ts.isoformat()
             if a.stato == "out of service":
                 downtime_seconds = int((now - ts).total_seconds())
 
         kpi_list.append({
-            "asset_id": a.id,
-            "asset_nome": a.nome,
-            "asset_codice": a.codice or "",
-            "asset_area": a.area or "",
-            "stato": a.stato or "service",
-            "stato_changed_at": stato_changed_at,
+            "asset_id":        a.id,
+            "asset_nome":      a.nome,
+            "asset_codice":    a.codice or "",
+            "asset_area":      a.area or "",
+            "stato":           a.stato or "service",
+            "stato_changed_at": stato_changed_at_iso,
             "downtime_seconds": downtime_seconds,
-            **k,
+            "mtbf_giorni":     mtbf,
+            "oee_pct":         oee,
+            "n_guasti":        n_guasti,
+            "downtime_ore_30gg": round(total_downtime, 1),
         })
 
-    # Aggregati calcolati su TUTTI gli asset filtrati (non solo la pagina corrente)
-    all_filtered_assets = query.all()
-    if all_filtered_assets:
-        all_kpis = [_calcola_kpi_asset(db, a, tenant_id) for a in all_filtered_assets]
-        avg_mtbf = sum(k["mtbf_giorni"] for k in all_kpis) / len(all_kpis)
-        avg_oee = sum(k["oee_pct"] for k in all_kpis) / len(all_kpis)
-    else:
-        avg_mtbf = avg_oee = 0.0
+        total_mtbf += mtbf
+        total_oee  += oee
 
+    n = len(kpi_list)
     return {
         "assets": kpi_list,
-        "total": total,
-        "page": page,
-        "pages": (total + limit - 1) // limit,
+        "total":  total,
+        "page":   page,
+        "pages":  max(1, (total + limit - 1) // limit),
         "aggregati": {
-            "avg_mtbf_giorni": round(avg_mtbf, 1),
-            "avg_oee_pct": round(avg_oee, 1),
+            "avg_mtbf_giorni": round(total_mtbf / n, 1) if n else 0.0,
+            "avg_oee_pct":     round(total_oee  / n, 1) if n else 0.0,
         },
     }
 
 
 @router.get("/dashboard/charts")
 def dashboard_charts(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    tickets = db.query(Ticket).options(joinedload(Ticket.asset)).filter(Ticket.tenant_id == tenant_id).all()
+    # Tutto via GROUP BY — niente caricamento in memoria
+    def to_map(rows):
+        return dict(rows)
 
-    def count_by(field, value):
-        return sum(1 for t in tickets if getattr(t, field, None) == value)
-
-    assets = db.query(Asset).filter(Asset.tenant_id == tenant_id).all()
-    stati_asset = {}
-    for a in assets:
-        s = a.stato or "service"
-        stati_asset[s] = stati_asset.get(s, 0) + 1
+    by_priority = to_map(
+        db.query(Ticket.priorita, func.count(Ticket.id))
+        .filter(Ticket.tenant_id == tenant_id)
+        .group_by(Ticket.priorita).all()
+    )
+    by_status = to_map(
+        db.query(Ticket.stato, func.count(Ticket.id))
+        .filter(Ticket.tenant_id == tenant_id)
+        .group_by(Ticket.stato).all()
+    )
+    by_fascia = to_map(
+        db.query(Ticket.fascia_oraria, func.count(Ticket.id))
+        .filter(Ticket.tenant_id == tenant_id)
+        .group_by(Ticket.fascia_oraria).all()
+    )
+    by_tipo = to_map(
+        db.query(Ticket.tipo, func.count(Ticket.id))
+        .filter(Ticket.tenant_id == tenant_id)
+        .group_by(Ticket.tipo).all()
+    )
+    by_stato_asset = to_map(
+        db.query(Asset.stato, func.count(Asset.id))
+        .filter(Asset.tenant_id == tenant_id)
+        .group_by(Asset.stato).all()
+    )
 
     return {
         "ticket_by_priority": [
-            {"name": "Alta",  "value": count_by("priorita", "Alta")},
-            {"name": "Media", "value": count_by("priorita", "Media")},
-            {"name": "Bassa", "value": count_by("priorita", "Bassa")},
+            {"name": "Alta",  "value": by_priority.get("alta",  by_priority.get("Alta",  0))},
+            {"name": "Media", "value": by_priority.get("media", by_priority.get("Media", 0))},
+            {"name": "Bassa", "value": by_priority.get("bassa", by_priority.get("Bassa", 0))},
         ],
         "ticket_by_status": [
-            {"name": "Aperto",      "value": count_by("stato", "Aperto")},
-            {"name": "Pianificato", "value": count_by("stato", "Pianificato")},
-            {"name": "In corso",    "value": count_by("stato", "In corso")},
-            {"name": "Chiuso",      "value": count_by("stato", "Chiuso")},
+            {"name": "Aperto",      "value": by_status.get("Aperto", 0)},
+            {"name": "Pianificato", "value": by_status.get("Pianificato", 0)},
+            {"name": "In corso",    "value": by_status.get("In corso", 0)},
+            {"name": "Chiuso",      "value": by_status.get("Chiuso", 0)},
         ],
         "ticket_by_fascia": [
-            {"name": "Diurna",   "value": count_by("fascia_oraria", "diurna")},
-            {"name": "Notturna", "value": count_by("fascia_oraria", "notturna")},
+            {"name": "Mattina",    "value": by_fascia.get("mattina",    by_fascia.get("Mattina",    0))},
+            {"name": "Pomeriggio", "value": by_fascia.get("pomeriggio", by_fascia.get("Pomeriggio", 0))},
+            {"name": "Notturna",   "value": by_fascia.get("notturna",   by_fascia.get("Notturna",   0))},
         ],
         "ticket_by_tipo": [
-            {"name": "PM", "value": count_by("tipo", "PM")},
-            {"name": "CM", "value": count_by("tipo", "CM")},
-            {"name": "BD", "value": count_by("tipo", "BD")},
-            {"name": "ISP", "value": count_by("tipo", "ISP")},
+            {"name": "PM",  "value": by_tipo.get("PM",  0)},
+            {"name": "CM",  "value": by_tipo.get("CM",  0)},
+            {"name": "BD",  "value": by_tipo.get("BD",  0)},
+            {"name": "ISP", "value": by_tipo.get("ISP", 0)},
         ],
-        "asset_by_stato": [{"name": k, "value": v} for k, v in stati_asset.items()],
+        "asset_by_stato": [{"name": k or "service", "value": v} for k, v in by_stato_asset.items()],
     }
 
 
@@ -232,7 +266,8 @@ def dashboard_charts(db: Session = Depends(get_db), tenant_id: int = Depends(get
 def dashboard_trends(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     today = date.today()
     labels = [(today - timedelta(days=i)).strftime("%d/%m") for i in range(6, -1, -1)]
-    tickets = db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato != "Eliminato").all()
-    n = len(tickets)
-    per_day = [max(0, n // 7 + (1 if i < n % 7 else 0)) for i in range(7)]
-    return {"labels": labels, "values": per_day, "total": n}
+    tickets = db.query(func.count(Ticket.id)).filter(
+        Ticket.tenant_id == tenant_id, Ticket.stato != "Eliminato"
+    ).scalar() or 0
+    per_day = [max(0, tickets // 7 + (1 if i < tickets % 7 else 0)) for i in range(7)]
+    return {"labels": labels, "values": per_day, "total": tickets}
