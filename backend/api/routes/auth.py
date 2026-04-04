@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.db.modelli import Utente
-from backend.core.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user_payload
+from backend.core.security import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user_payload
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -73,3 +73,26 @@ def get_me(payload: dict = Depends(get_current_user_payload), db: Session = Depe
         "tenant_nome": user.tenant.nome if user.tenant else None,
         "is_active": user.is_active,
     }
+
+
+class PasswordChange(PydanticModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+def change_password(
+    data: PasswordChange,
+    payload: dict = Depends(get_current_user_payload),
+    db: Session = Depends(get_db)
+):
+    user = db.query(Utente).filter(Utente.username == payload.get("sub")).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Password attuale errata")
+
+    user.password_hash = get_password_hash(data.new_password)
+    db.commit()
+    return {"message": "Password aggiornata con successo"}

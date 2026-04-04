@@ -11,6 +11,7 @@ from backend.core.logging_config import get_logger
 from backend.db.modelli import Manuale, AttivitaManutenzione, Asset
 from backend.services.pdf_service import smart_read_pdf
 from backend.services.ai.manuals_ai_service import salva_manuale_db, parse_manual_with_ai
+from backend.core.security import check_tenant_ownership
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -25,8 +26,6 @@ async def upload_manuale(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    resolved_asset_id: int | None = asset_id
-
     if new_asset_name and new_asset_name.strip():
         nuovo = Asset(
             nome=new_asset_name.strip(),
@@ -40,6 +39,10 @@ async def upload_manuale(
         db.refresh(nuovo)
         resolved_asset_id = nuovo.id
         logger.info(f"Nuovo asset creato automaticamente: id={nuovo.id} nome='{nuovo.nome}'")
+    else:
+        resolved_asset_id = asset_id
+        if resolved_asset_id:
+            check_tenant_ownership(db, Asset, resolved_asset_id, tenant_id)
 
     content = await file.read()
     result = smart_read_pdf(content)

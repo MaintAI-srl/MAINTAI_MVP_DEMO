@@ -1,5 +1,5 @@
 # Roadmap MaintAI
-*Versione: 1.2.1 — Aggiornata al: 2026-04-04*
+*Versione: 1.3.0 — Aggiornata al: 2026-04-04*
 
 ---
 
@@ -50,21 +50,21 @@
 
 ---
 
-## ✅ v1.2.1 — Stabilità e Logging (Completato)
+## ✅ v1.3 — Cloud & PostgreSQL (Completato)
 
-- [x] Sistema di logging centralizzato (logs/maintai.log)
-- [x] Endpoint GET /logs per debug remoto
-- [x] Fix bug CSS React paginazione ticket (borderColor → border)
-- [x] Fix valore di ritorno endpoint genera-ticket (falso errore)
-- [x] Formattazione durate orarie a 1 cifra decimale in tutta l'applicazione
-- [x] Reset credenziali utenti con password note (admin, filippo)
+- [x] **Migrazione PostgreSQL** — Sostituito SQLite con PostgreSQL per stabilità cloud (Render)
+- [x] **Backend Deployment** — Hosting live su Render (FastAPI + Gunicorn)
+- [x] **Frontend Deployment** — Hosting live su Vercel (Next.js 15)
+- [x] **Auth Global Fix** — Refactoring helper API per gestione iniettata di JWT e Tenant-Id
+- [x] **Database Idempotency** — Refactoring `init_db.py` per inizializzazione sicura su PostgreSQL
+- [x] **Export Fix** — Download Excel/CSV protetti da autenticazione JWT
 
 ---
 
-## 🔵 v1.3 — Breve Termine (Prossime settimane)
+## 🔵 v1.4 — Breve Termine (Prossime settimane)
 
 - [ ] Pagina /admin/logs — visualizzazione log di sistema nell'interfaccia web
-- [ ] Export ticket in CSV (simile a export piani)
+- [ ] Export ticket in Excel (generazione server-side completata, manca pulizia UI)
 - [ ] Badge contatore notifiche sul campanellino (numero scadenze attive)
 - [ ] Aggiornamento automatico prossima_scadenza dopo chiusura ticket PM
 - [ ] Pagina /profilo per cambio password e impostazioni utente
@@ -74,6 +74,7 @@
 
 ## 🟡 v2.0 — Enterprise Readiness (Medio termine, 1-3 mesi)
 
+- [ ] **Multi-tenancy reale** — Isolamento dati a livello database per aziende diverse
 - [ ] Report storico asset in PDF (MTBF rolling, grafici trend, raccomandazioni)
 - [ ] QR Code per asset: scansione → apertura ticket istantanea da mobile
 - [ ] Commenti e note tecniche sui ticket (thread conversazione)
@@ -86,7 +87,6 @@
 ## 🔴 v2.1 — Scalabilità Cloud (Lungo termine, 3-6 mesi)
 
 ### ☁️ Infrastruttura
-- [ ] **Migrazione PostgreSQL** — Multi-utenza reale e stabilità cloud (Azure SQL / AWS RDS)
 - [ ] **Containerizzazione Docker** — Deploy one-click con Docker Compose
 - [ ] **Audit Log System** — Tracciabilità completa per conformità ISO 9001
 - [ ] **SSO Integration** — Login Azure AD / Google Workspace
@@ -109,10 +109,11 @@
 | Componente    | Tecnologia                         |
 |---------------|------------------------------------|
 | Frontend      | Next.js 15, React 18, TypeScript   |
-| Backend       | FastAPI, Python 3.11+, Uvicorn     |
-| Database      | SQLite 3 (→ PostgreSQL in v2.0)    |
+| Backend       | FastAPI, Python 3.11+, Uvicorn/Gunicorn |
+| Database      | **PostgreSQL** (Hosted on Render)  |
 | AI Engine     | OpenAI GPT-4.1 / GPT-4.1-mini     |
 | Meteo         | Open-Meteo API (gratuita)          |
 | Auth          | JWT + bcrypt                       |
-| Rete Remota   | Tailscale VPN                      |
+| Rete Remota   | Tailscale VPN (Development)        |
+| Hosting       | Vercel (Frontend) + Render (Backend) |
 | Mobile        | PWA (Manifest + Service Worker)    |

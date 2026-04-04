@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, check_tenant_ownership
 from backend.db.modelli import AttivitaManutenzione, Asset, Ticket
 
 router = APIRouter()
@@ -94,6 +94,8 @@ def update_attivita(attivita_id: int, data: AttivitaUpdate, db: Session = Depend
     if data.priorita is not None:
         att.priorita = data.priorita
     if data.asset_id is not None:
+        if data.asset_id:
+            check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
         att.asset_id = data.asset_id
 
     db.commit()

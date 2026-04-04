@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session, joinedload
 from backend.db.modelli import Asset, Impianto, Ticket, AttivitaManutenzione
 from backend.schemas.schemas import AssetCreate, AssetUpdate
+from backend.core.security import check_tenant_ownership
 
 
 def _to_dict(asset: Asset) -> dict:
@@ -106,11 +107,14 @@ class AssetRepository:
             codice_val = _generate_codice(db, source, tenant_id)
             auto_generated = True
 
+        if data.impianto_id:
+            check_tenant_ownership(db, Impianto, data.impianto_id, tenant_id)
+        
         asset = Asset(
             nome=nome_val,
             area=data.area,
             vincolo_orario=data.vincolo_orario or "",
-            note=data.note or "",
+            note=note_val,
             codice=codice_val,
             descrizione=data.descrizione or "",
             anno=data.anno,
@@ -168,6 +172,8 @@ class AssetRepository:
         if data.anno is not None:
             asset.anno = data.anno
         if "impianto_id" in data.model_fields_set:
+            if data.impianto_id:
+                check_tenant_ownership(db, Impianto, data.impianto_id, tenant_id)
             asset.impianto_id = data.impianto_id
         if data.limitazioni is not None:
             asset.limitazioni = data.limitazioni

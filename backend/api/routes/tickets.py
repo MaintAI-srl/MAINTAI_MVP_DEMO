@@ -139,6 +139,7 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
         percorso=url,
         tipo_mime=file.content_type,
         dimensione_bytes=len(content),
+        tenant_id=tenant_id,
     )
     db.add(allegato)
     db.commit()
@@ -151,7 +152,10 @@ def get_ticket_allegati(ticket_id: int, db: Session = Depends(get_db), tenant_id
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket non trovato")
-    allegati = db.query(TicketAllegato).filter(TicketAllegato.ticket_id == ticket_id).all()
+    allegati = db.query(TicketAllegato).filter(
+        TicketAllegato.ticket_id == ticket_id,
+        TicketAllegato.tenant_id == tenant_id
+    ).all()
     return [
         {"id": a.id, "nome_file": a.nome_file, "url": a.percorso, "tipo_mime": a.tipo_mime,
          "creato_il": a.creato_il.isoformat() if a.creato_il else None}

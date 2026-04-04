@@ -74,3 +74,19 @@ def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dic
             detail="Accesso riservato al superadmin.",
         )
     return payload
+
+def check_tenant_ownership(db, model, object_id: int, tenant_id: int):
+    """
+    Verifica che un oggetto di un dato modello esista e appartenga al tenant corrente.
+    Se non esiste o appartiene a un altro tenant, solleva un 404 (Security by Obscurity).
+    """
+    if tenant_id is None:
+        return # Skip check for superadmin if they are ignoring tenant
+    
+    obj = db.query(model).filter(model.id == object_id, model.tenant_id == tenant_id).first()
+    if not obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{model.__name__} non trovato o accesso non autorizzato."
+        )
+    return obj

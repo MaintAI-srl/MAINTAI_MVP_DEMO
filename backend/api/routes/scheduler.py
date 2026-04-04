@@ -90,8 +90,11 @@ def _load_assets(db: Session, tenant_id: int) -> dict[int, dict]:
     }
 
 
-async def _get_forecast(db: Session) -> dict:
-    impianto = db.query(Impianto).filter(Impianto.latitude.isnot(None)).first()
+async def _get_forecast(db: Session, tenant_id: int) -> dict:
+    impianto = db.query(Impianto).filter(
+        Impianto.latitude.isnot(None),
+        Impianto.tenant_id == tenant_id
+    ).first()
     if impianto:
         lat, lon = impianto.latitude, impianto.longitude
     else:
@@ -105,7 +108,7 @@ async def scheduler_gantt(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    forecast = await _get_forecast(db)
+    forecast = await _get_forecast(db, tenant_id)
     assets_meta = _load_assets(db, tenant_id)
     result = generate_plan(
         _load_tickets(db, tenant_id),
@@ -166,8 +169,7 @@ async def run_scheduler_and_persist(db: Session, start: date | None = None, tena
     if tenant_id:
         _split_long_tickets(db, tenant_id)
 
-    forecast = await _get_forecast(db)
-    assets_meta = _load_assets(db, tenant_id) if tenant_id else {}
+    forecast = await _get_forecast(db, tenant_id) if tenant_id else {"error": "no tenant"}
     result = generate_plan(
         _load_tickets(db, tenant_id) if tenant_id else [],
         _load_tecnici(db, tenant_id) if tenant_id else [],

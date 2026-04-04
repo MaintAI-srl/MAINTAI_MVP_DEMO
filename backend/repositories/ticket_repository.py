@@ -1,7 +1,8 @@
 import math
 from sqlalchemy.orm import Session, joinedload
-from backend.db.modelli import Ticket, Asset
+from backend.db.modelli import Ticket, Asset, Tecnico
 from backend.schemas.ticket import TicketCreate, TicketUpdate
+from backend.core.security import check_tenant_ownership
 
 
 def _ticket_to_dict(t: Ticket) -> dict:
@@ -67,8 +68,14 @@ class TicketRepository:
         dump = data.model_dump(exclude={"asset_stato"})
         dump["tenant_id"] = tenant_id
 
+        # Validazione tenant per Asset e Tecnico
+        if data.asset_id:
+            check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
+        if data.tecnico_id:
+            check_tenant_ownership(db, Tecnico, data.tecnico_id, tenant_id)
+
         if getattr(data, "asset_stato", None) is not None:
-            asset = db.query(Asset).filter(Asset.id == data.asset_id).first()
+            asset = db.query(Asset).filter(Asset.id == data.asset_id, Asset.tenant_id == tenant_id).first()
             if asset:
                 asset.stato = data.asset_stato
 
@@ -118,12 +125,15 @@ class TicketRepository:
             ticket.priorita = data.priorita
         if getattr(data, "asset_stato", None) is not None:
             if ticket.asset:
+                # L'asset del ticket è già implicitamente validato (ticket.tenant_id == asset.tenant_id)
                 ticket.asset.stato = data.asset_stato
         if data.fascia_oraria is not None:
             ticket.fascia_oraria = data.fascia_oraria
         if data.durata_stimata_ore is not None:
             ticket.durata_stimata_ore = data.durata_stimata_ore
         if "tecnico_id" in data.model_fields_set:
+            if data.tecnico_id:
+                check_tenant_ownership(db, Tecnico, data.tecnico_id, tenant_id)
             ticket.tecnico_id = data.tecnico_id
         if "planned_start" in data.model_fields_set:
             ticket.planned_start = data.planned_start

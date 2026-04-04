@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session, joinedload
-from backend.db.modelli import Impianto, Asset, Ticket
+from backend.db.modelli import Impianto, Asset, Ticket, Sito
 from backend.schemas.impianti import ImpiantoCreate, ImpiantoUpdate
+from backend.core.security import check_tenant_ownership
 
 
 def _to_dict(imp: Impianto) -> dict:
@@ -37,6 +37,9 @@ class ImpiantoRepository:
         return _to_dict(imp) if imp else None
 
     def create(self, db: Session, data: ImpiantoCreate, tenant_id: int) -> dict:
+        if data.sito_id:
+            check_tenant_ownership(db, Sito, data.sito_id, tenant_id)
+            
         imp = Impianto(
             nome=data.nome,
             descrizione=data.descrizione,
@@ -62,6 +65,8 @@ class ImpiantoRepository:
         for field in ["nome", "descrizione", "latitude", "longitude", "sito_id", "tipologia", "note"]:
             val = getattr(data, field, None)
             if val is not None:
+                if field == "sito_id" and val:
+                    check_tenant_ownership(db, Sito, val, tenant_id)
                 setattr(imp, field, val)
         db.commit()
         db.refresh(imp)

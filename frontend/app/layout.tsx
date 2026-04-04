@@ -21,6 +21,7 @@ const NAV = [
     items: [
       { href: "/scheduler", label: "Pianificazione", icon: "◫" },
       { href: "/ticket",    label: "Ticket",      icon: "◷" },
+      { href: "/profilo",   label: "Mio Profilo",  icon: "👤" },
     ],
   },
   {
@@ -36,6 +37,7 @@ const NAV = [
     section: "ADMIN",
     items: [
       { href: "/admin/tenants", label: "Clienti", icon: "◈", superadminOnly: true },
+      { href: "/admin/logs",    label: "Log Sistema", icon: "📋", adminOnly: true },
     ],
   },
 ];
@@ -51,6 +53,8 @@ const PAGE_LABELS: Record<string, string> = {
   "/manuali":    "Manuali",
   "/piani":          "Piano di Manutenzione",
   "/admin/tenants":  "Gestione Clienti",
+  "/admin/logs":     "Log di Sistema",
+  "/profilo":       "Mio Profilo",
 };
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -69,8 +73,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     ...section,
     items: section.items.filter((item: any) => {
       if (item.superadminOnly && !isSuperadmin) return false;
+      if (item.adminOnly && user?.ruolo !== "responsabile" && !isSuperadmin) return false;
       if (!isTecnico) return true;
-      const visibleForTecnico = ["/ticket", "/asset", "/manuali"];
+      const visibleForTecnico = ["/ticket", "/asset", "/manuali", "/profilo"];
       return visibleForTecnico.includes(item.href);
     })
   })).filter(section => section.items.length > 0);
