@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.core.dependencies import get_db
-from backend.core.database import engine
+from backend.core.database import engine, Base
 from backend.db.modelli import Asset, Manuale
+from backend.core.security import require_superadmin
 
 router = APIRouter()
 
@@ -26,19 +27,34 @@ def force_migrate():
     _apply_migrations()
     return {"status": "ok", "message": "Migrazioni eseguite"}
 
+
+@router.post("/db/reset")
+def reset_database(_payload: dict = Depends(require_superadmin)):
+    """
+    DISTRUTTIVO — solo superadmin.
+    Droppa tutte le tabelle e le ricrea vuote con seed di default
+    (tenant Demo, admin/admin superadmin, tecnico/tecnico).
+    """
+    from backend.core.init_db import init_db
+
+    # Drop tutte le tabelle (ordine inverso per rispettare FK)
+    Base.metadata.drop_all(bind=engine)
+
+    # Ricrea schema + seed
+    init_db()
+
+    return {
+        "status": "ok",
+        "message": "Database resettato. Utenti seed: admin/admin (superadmin), tecnico/tecnico."
+    }
+
+
 @router.post("/db/asset")
 def crea_asset_db(nome: str, area: str, db: Session = Depends(get_db)):
-    nuovo_asset = Asset(
-        nome=nome,
-        
-        area=area,
-        note=""
-    )
-
+    nuovo_asset = Asset(nome=nome, area=area, note="")
     db.add(nuovo_asset)
     db.commit()
     db.refresh(nuovo_asset)
-
     return nuovo_asset
 
 @router.get("/db/asset")
@@ -58,5 +74,3 @@ def lista_manuali_db(db: Session = Depends(get_db)):
         }
         for m in manuali
     ]
-
-
