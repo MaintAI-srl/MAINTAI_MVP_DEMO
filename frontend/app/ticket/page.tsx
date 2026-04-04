@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import UploadAllegati from "../components/UploadAllegati";
 
 type Ticket = {
@@ -143,14 +143,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       if (executionFinish) body.execution_finish = new Date(executionFinish).toISOString();
       else                 body.execution_finish = null;
 
-      const r = await fetch(`${API_BASE}/tickets/${ticket.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) { setErr("Errore nel salvataggio."); return; }
+      await apiPut(`/tickets/${ticket.id}`, body);
       onSaved();
       onClose();
+    } catch { 
+      setErr("Errore nel salvataggio."); 
     } finally { setSaving(false); }
   }
 
@@ -365,8 +362,7 @@ export default function TicketPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/assets`)
-      .then(r => r.json())
+    apiGet<Asset[]>("/assets")
       .then(d => { if (Array.isArray(d)) { setAssets(d); if (d.length > 0) setAssetId(d[0].id); } })
       .catch(() => {});
   }, []);
@@ -382,15 +378,15 @@ export default function TicketPage() {
 
   async function loadAttivi(p: number) {
     try {
-      const r = await fetch(`${API_BASE}/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ATTIVI.join(",")}`);
-      if (r.ok) setResult(await r.json());
+      const d = await apiGet<PagedResult>(`/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ATTIVI.join(",")}`);
+      setResult(d);
     } catch { setError("Errore caricamento ticket."); }
   }
 
   async function loadArchivio(p: number) {
     try {
-      const r = await fetch(`${API_BASE}/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ARCHIVIO.join(",")}`);
-      if (r.ok) setArchivio(await r.json());
+      const d = await apiGet<PagedResult>(`/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ARCHIVIO.join(",")}`);
+      setArchivio(d);
     } catch {}
   }
 
@@ -400,17 +396,12 @@ export default function TicketPage() {
     if (!assetId || assetId === 0) { setError("Seleziona un asset valido."); return; }
     if (durataOre <= 0) { setError("La durata deve essere maggiore di zero."); return; }
     try {
-      const r = await fetch(`${API_BASE}/tickets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          titolo, asset_id: Number(assetId), priorita, stato, tipo, asset_stato: assetStato || null,
-          durata_stimata_ore: Number(durataOre), fascia_oraria: fascia,
-          planned_start: plannedStart || null,
-          planned_finish: plannedFinish || null,
-        }),
+      await apiPost("/tickets", {
+        titolo, asset_id: Number(assetId), priorita, stato, tipo, asset_stato: assetStato || null,
+        durata_stimata_ore: Number(durataOre), fascia_oraria: fascia,
+        planned_start: plannedStart || null,
+        planned_finish: plannedFinish || null,
       });
-      if (!r.ok) throw new Error();
       setTitolo(""); setPriorita("Media"); setTipo("CM"); setAssetStato(""); setStato("Aperto"); setDurataOre(2); setFascia("diurna");
       setPlannedStart(""); setPlannedFinish(""); setError("");
       loadAttivi(1); setPage(1);
@@ -420,12 +411,7 @@ export default function TicketPage() {
   async function handleStatoChange(ticketId: number, nuovoStato: string) {
     setUpdatingId(ticketId);
     try {
-      const r = await fetch(`${API_BASE}/tickets/${ticketId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stato: nuovoStato }),
-      });
-      if (!r.ok) throw new Error();
+      await apiPut(`/tickets/${ticketId}`, { stato: nuovoStato });
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { setError("Errore aggiornamento stato."); }
     finally { setUpdatingId(null); }
@@ -434,12 +420,7 @@ export default function TicketPage() {
   async function bulkUpdateStatus(nuovoStato: string) {
     if (selectedIds.size === 0) return;
     try {
-      const r = await fetch(`${API_BASE}/tickets/bulk-status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds), stato: nuovoStato }),
-      });
-      if (!r.ok) throw new Error();
+      await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: nuovoStato });
       setSelectedIds(new Set());
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { setError("Errore aggiornamento bulk."); }
@@ -580,7 +561,12 @@ export default function TicketPage() {
           <h2 style={{ marginTop: 0, marginBottom: 0 }}>Nuovo ticket</h2>
           <button 
             type="button" 
-            onClick={() => window.open(`${API_BASE}/export/tickets`, "_blank")}
+            onClick={() => {
+              const token = localStorage.getItem("maintai_jwt");
+              const url = new URL(`${window.location.origin === "http://localhost:3000" ? "http://localhost:8000" : "https://maintai-v3.onrender.com"}/export/tickets`);
+              if (token) url.searchParams.append("token", token);
+              window.open(url.toString(), "_blank");
+            }}
             style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.4)", color: "#10b981", fontWeight: 600, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}
           >
             <span>📊</span> Esporta Excel

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiPut } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import Link from "next/link";
 import UploadAllegati from "../components/UploadAllegati";
@@ -34,17 +34,11 @@ export default function MobileHomePage() {
     async function loadProfile() {
       if (!user?.userid || !mounted) return;
       try {
-        const res = await fetch(`${API_BASE}/tecnici/me?utente_id=${user.userid}`);
-        if (res.ok) {
-          const data = await res.json();
-          setTecnicoId(data.id);
-        } else {
-          setError("Impossibile caricare il profilo tecnico.");
-          setLoading(false);
-        }
+        const d = await apiGet<any>(`/tecnici/me?utente_id=${user.userid}`);
+        setTecnicoId(d.id);
       } catch (err) { 
         console.error(err);
-        setError("Errore di connessione al server.");
+        setError("Impossibile caricare il profilo tecnico.");
         setLoading(false);
       }
     }
@@ -55,17 +49,12 @@ export default function MobileHomePage() {
     async function loadTickets() {
       if (!tecnicoId || !mounted) return;
       try {
-        const res = await fetch(`${API_BASE}/tickets?tecnico_id=${tecnicoId}&limit=50`);
-        if (res.ok) {
-          const data = await res.json();
-          setTickets(data.items);
-          setError(null);
-        } else {
-          setError("Errore nel caricamento degli interventi.");
-        }
+        const d = await apiGet<any>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
+        setTickets(d.items);
+        setError(null);
       } catch (err) { 
         console.error(err);
-        setError("Errore di rete.");
+        setError("Errore nel caricamento degli interventi.");
       }
       setLoading(false);
     }
@@ -74,14 +63,8 @@ export default function MobileHomePage() {
 
   const updateStatus = async (tid: number, newStato: string) => {
     try {
-      const res = await fetch(`${API_BASE}/tickets/${tid}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stato: newStato }),
-      });
-      if (res.ok) {
-        setTickets(prev => prev.map(t => t.id === tid ? { ...t, stato: newStato } : t));
-      }
+      await apiPut(`/tickets/${tid}`, { stato: newStato });
+      setTickets(prev => prev.map(t => t.id === tid ? { ...t, stato: newStato } : t));
     } catch (err) { console.error(err); }
   };
 
@@ -186,15 +169,11 @@ export default function MobileHomePage() {
             <SignaturePad 
               onCancel={() => setSigningTicketId(null)}
               onSave={async (base64) => {
-                const res = await fetch(`${API_BASE}/tickets/${signingTicketId}/firma`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ image: base64 })
-                });
-                if (res.ok) {
+                try {
+                  await apiPost(`/tickets/${signingTicketId}/firma`, { image: base64 });
                   await updateStatus(signingTicketId, "Chiuso");
                   setSigningTicketId(null);
-                }
+                } catch (err) { console.error(err); }
               }}
             />
           </div>

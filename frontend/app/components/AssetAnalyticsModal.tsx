@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet } from "../lib/api";
 
 type AnalyticsData = {
   asset_id: number;
@@ -28,8 +28,7 @@ export default function AssetAnalyticsModal({ asset, onClose }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/assets/${asset.id}/analytics`)
-      .then(r => r.json())
+    apiGet<AnalyticsData>(`/assets/${asset.id}/analytics`)
       .then(setData)
       .finally(() => setLoading(false));
   }, [asset.id]);

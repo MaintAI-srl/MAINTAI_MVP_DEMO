@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { API_BASE, apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
 
 type Impianto = { 
   id: number; 
@@ -26,14 +26,9 @@ export default function ImpiantiPage() {
 
   async function load() {
     try {
-      const r = await fetch(`${API_BASE}/impianti`);
-      if (r.ok) {
-        const d = await r.json();
-        setImpianti(Array.isArray(d) ? d : []);
-        setBackendOk(true);
-      } else {
-        setBackendOk(false);
-      }
+      const d = await apiGet<Impianto[]>("/impianti");
+      setImpianti(Array.isArray(d) ? d : []);
+      setBackendOk(true);
     } catch {
       setBackendOk(false);
     }
@@ -60,33 +55,33 @@ export default function ImpiantiPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!nome.trim()) { setError("Il nome impianto è obbligatorio."); return; }
-    setSaving(true);
     try {
-      const url = editId !== null ? `${API_BASE}/impianti/${editId}` : `${API_BASE}/impianti`;
-      const method = editId !== null ? "PUT" : "POST";
-      const r = await fetch(url, {
-        method, headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          nome, 
-          descrizione,
-          latitude: latitude ? Number(latitude) : null,
-          longitude: longitude ? Number(longitude) : null
-        }),
-      });
-      if (!r.ok) {
-        let msg = "Errore salvataggio.";
-        try { const d = await r.json(); msg = d.detail === "Not Found" ? "Backend non raggiungibile — riavvia il server." : (d.detail || msg); } catch { /* ignore */ }
-        setError(msg); return;
+      const path = editId !== null ? `/impianti/${editId}` : `/impianti`;
+      const payload = { 
+        nome, 
+        descrizione,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null
+      };
+
+      if (editId !== null) {
+        await apiPut(path, payload);
+      } else {
+        await apiPost(path, payload);
       }
       await load();
       cancelEdit();
+    } catch (err: any) {
+      setError(err.message || "Errore salvataggio.");
     } finally { setSaving(false); }
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Eliminare questo impianto?")) return;
-    await fetch(`${API_BASE}/impianti/${id}`, { method: "DELETE" });
-    await load();
+    try {
+      await apiDelete(`/impianti/${id}`);
+      await load();
+    } catch {}
   }
 
   const cardStyle: React.CSSProperties = { background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" };

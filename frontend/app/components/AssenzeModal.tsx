@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiDelete } from "../lib/api";
 
 type Assenza = {
   id: number;
@@ -36,8 +36,10 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
   async function loadAssenze() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/tecnici/${tecnico.id}/assenze`);
-      if (res.ok) setAssenze(await res.json());
+      const d = await apiGet<Assenza[]>(`/tecnici/${tecnico.id}/assenze`);
+      setAssenze(d);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }
@@ -53,35 +55,26 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
     if (di > df) return alert("Inizio deve essere precedente a Fine");
 
     try {
-      const res = await fetch(`${API_BASE}/tecnici/${tecnico.id}/assenze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data_inizio: new Date(dataInizio).toISOString(),
-          data_fine: new Date(dataFine).toISOString(),
-          tipo_assenza: tipo,
-          note
-        })
+      await apiPost(`/tecnici/${tecnico.id}/assenze`, {
+        data_inizio: new Date(dataInizio).toISOString(),
+        data_fine: new Date(dataFine).toISOString(),
+        tipo_assenza: tipo,
+        note
       });
-      if (res.ok) {
-        setDataInizio("");
-        setDataFine("");
-        setNote("");
-        loadAssenze();
-      } else {
-        const error = await res.json();
-        alert(error.detail || "Errore");
-      }
-    } catch (e) {
-      alert("Errore di rete");
+      setDataInizio("");
+      setDataFine("");
+      setNote("");
+      loadAssenze();
+    } catch (err: any) {
+      alert(err.message || "Errore");
     }
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Rimuovere questa assenza?")) return;
     try {
-      const res = await fetch(`${API_BASE}/tecnici/assenze/${id}`, { method: "DELETE" });
-      if (res.ok) loadAssenze();
+      await apiDelete(`/tecnici/assenze/${id}`);
+      loadAssenze();
     } catch {
       alert("Errore di rete");
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet } from "../lib/api";
 
 type Scadenza = {
   id: number;
@@ -19,8 +19,8 @@ export default function NotificationPanel() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${API_BASE}/scadenze/imminenti?days=15`);
-        if (res.ok) setScadenze(await res.json());
+        const d = await apiGet<Scadenza[]>("/scadenze/imminenti?days=15");
+        setScadenze(d);
       } catch (e) {
         console.error("Errore notifiche", e);
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiPut } from "../lib/api";
 import styles from "./assets.module.css";
 import AssetAnalyticsModal from "../components/AssetAnalyticsModal";
 
@@ -100,8 +100,7 @@ export default function AssetsPage() {
 
   useEffect(() => {
     loadAssets();
-    fetch(`${API_BASE}/impianti`)
-      .then(r => r.json())
+    apiGet<Impianto[]>("/impianti")
       .then(d => { if (Array.isArray(d)) setImpianti(d); })
       .catch(() => {});
   }, []);
@@ -110,16 +109,18 @@ export default function AssetsPage() {
     if (codice.trim() || !descrizione.trim()) { setCodicePreview(""); return; }
     const timer = setTimeout(async () => {
       try {
-        const r = await fetch(`${API_BASE}/assets/codice-preview?descrizione=${encodeURIComponent(descrizione)}`);
-        if (r.ok) { const d = await r.json(); setCodicePreview(d.codice); }
+        const d = await apiGet<{codice: string}>(`/assets/codice-preview?descrizione=${encodeURIComponent(descrizione)}`);
+        if (d) setCodicePreview(d.codice);
       } catch { /* ignore */ }
     }, 400);
     return () => clearTimeout(timer);
   }, [descrizione, codice]);
 
   async function loadAssets() {
-    const r = await fetch(`${API_BASE}/assets`);
-    if (r.ok) setAssets(await r.json());
+    try {
+      const d = await apiGet<Asset[]>("/assets");
+      setAssets(d);
+    } catch {}
   }
 
   function resetForm() {
@@ -180,20 +181,11 @@ export default function AssetsPage() {
         weather_max_rain_mm: weatherMaxRainMm ? Number(weatherMaxRainMm) : undefined,
       };
 
-      const url = editingId !== null ? `${API_BASE}/assets/${editingId}` : `${API_BASE}/assets`;
-      const method = editingId !== null ? "PUT" : "POST";
+      const path = editingId !== null ? `/assets/${editingId}` : `/assets`;
+      const saved = editingId !== null 
+        ? await apiPut<Asset>(path, payload)
+        : await apiPost<Asset>(path, payload);
 
-      const r = await fetch(url, {
-        method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-      });
-
-      if (!r.ok) {
-        const d = await r.json();
-        setError(d.detail || "Errore nel salvataggio.");
-        return;
-      }
-
-      const saved = await r.json();
       if (editingId !== null) {
         setAssets(prev => prev.map(a => a.id === editingId ? saved : a));
         cancelEdit();
@@ -201,6 +193,8 @@ export default function AssetsPage() {
         setAssets(prev => [...prev, saved]);
         resetForm();
       }
+    } catch (err: any) {
+      setError(err.message || "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
 

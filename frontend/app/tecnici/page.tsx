@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiPut } from "../lib/api";
 import styles from "./tecnici.module.css";
 import AssenzeModal from "../components/AssenzeModal";
 
@@ -110,13 +110,17 @@ export default function TecniciPage() {
   }, []);
 
   async function loadTecnici() {
-    const r = await fetch(`${API_BASE}/tecnici`);
-    if (r.ok) setTecnici(await r.json());
+    try {
+      const d = await apiGet<Tecnico[]>("/tecnici");
+      setTecnici(d);
+    } catch {}
   }
 
   async function loadStats() {
-    const r = await fetch(`${API_BASE}/tecnici/statistiche`);
-    if (r.ok) setStats(await r.json());
+    try {
+      const d = await apiGet<OreStats>("/tecnici/statistiche");
+      setStats(d);
+    } catch {}
   }
 
   function resetForm() {
@@ -145,17 +149,16 @@ export default function TecniciPage() {
         stato: statoCampo, orario_inizio: orarioInizio,
         orario_fine: orarioFine, limitazioni_orarie: limitazioniOrarie,
       };
-      const url = editId !== null ? `${API_BASE}/tecnici/${editId}` : `${API_BASE}/tecnici`;
-      const method = editId !== null ? "PUT" : "POST";
-      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!r.ok) {
-        const d = await r.json();
-        setError(d.detail || "Errore nel salvataggio.");
-        return;
-      }
+      const path = editId !== null ? `/tecnici/${editId}` : `/tecnici`;
+      const saved = editId !== null 
+        ? await apiPut<Tecnico>(path, payload)
+        : await apiPost<Tecnico>(path, payload);
+
       await loadTecnici();
       await loadStats();
       if (editId !== null) cancelEdit(); else resetForm();
+    } catch (err: any) {
+      setError(err.message || "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
 

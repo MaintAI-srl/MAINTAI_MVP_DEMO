@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import {
   Chart as ChartJS, ArcElement, Tooltip, Legend,
@@ -145,40 +145,42 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [dRes, cRes, tRes, kRes] = await Promise.all([
-          fetch(`${API_BASE}/dashboard`),
-          fetch(`${API_BASE}/dashboard/charts`),
-          fetch(`${API_BASE}/dashboard/trends`),
-          fetch(`${API_BASE}/dashboard/kpi-asset`),
+        const [dashboardData, chartsData, trendData, kpiData] = await Promise.all([
+          apiGet<DashboardData>("/dashboard"),
+          apiGet<DashboardCharts>("/dashboard/charts"),
+          apiGet<TrendData>("/dashboard/trends").catch(() => null),
+          apiGet<KpiAsset>("/dashboard/kpi-asset").catch(() => null),
         ]);
-        if (!dRes.ok || !cRes.ok) throw new Error();
-        setDashboard(await dRes.json());
-        setCharts(await cRes.json());
-        if (tRes.ok) setTrend(await tRes.json());
-        if (kRes.ok) setKpiAsset(await kRes.json());
+        if (dashboardData) setDashboard(dashboardData);
+        if (chartsData) setCharts(chartsData);
+        if (trendData) setTrend(trendData);
+        if (kpiData) setKpiAsset(kpiData);
         setLastUpdate(new Date());
         setError("");
-      } catch { setError("Errore di connessione al backend."); }
+      } catch (err: any) { 
+        console.error("Dashboard Load Error:", err);
+        setError("Errore di connessione al backend."); 
+      }
     }
     loadAll();
     // dashboard summary and charts refresh every 30s, KPI (MTBF/OEE) every 30min
     const quickId = setInterval(async () => {
       try {
-        const [dRes, cRes, tRes] = await Promise.all([
-          fetch(`${API_BASE}/dashboard`),
-          fetch(`${API_BASE}/dashboard/charts`),
-          fetch(`${API_BASE}/dashboard/trends`),
+        const [d, c, t] = await Promise.all([
+          apiGet<DashboardData>("/dashboard"),
+          apiGet<DashboardCharts>("/dashboard/charts"),
+          apiGet<TrendData>("/dashboard/trends"),
         ]);
-        if (dRes.ok) setDashboard(await dRes.json());
-        if (cRes.ok) setCharts(await cRes.json());
-        if (tRes.ok) setTrend(await tRes.json());
+        setDashboard(d);
+        setCharts(c);
+        setTrend(t);
         setLastUpdate(new Date());
       } catch {}
     }, 30000);
     const kpiId = setInterval(async () => {
       try {
-        const r = await fetch(`${API_BASE}/dashboard/kpi-asset`);
-        if (r.ok) setKpiAsset(await r.json());
+        const r = await apiGet<KpiAsset>("/dashboard/kpi-asset");
+        setKpiAsset(r);
       } catch {}
     }, 30 * 60 * 1000); // refresh MTBF/OEE every 30 minutes
     return () => { clearInterval(quickId); clearInterval(kpiId); };

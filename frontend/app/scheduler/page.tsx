@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiPut } from "../lib/api";
 import styles from "./scheduler.module.css";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -323,8 +323,7 @@ export default function SchedulerPage() {
   }, [scheduleBase]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/tecnici`)
-      .then((r) => r.json())
+    apiGet<TecnicoOption[]>("/tecnici")
       .then((d) => setTecniciList(d))
       .catch(() => {});
   }, []);
@@ -334,11 +333,10 @@ export default function SchedulerPage() {
   const loadPlan = useCallback(async (startDate: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/scheduler/gantt?start_date=${startDate}`);
-      if (res.ok) {
-        const json = (await res.json()) as SchedulerData;
-        setData(json);
-      }
+      const d = await apiGet<SchedulerData>(`/scheduler/gantt?start_date=${startDate}`);
+      setData(d);
+    } catch {
+      // ignore or show error
     } finally {
       setLoading(false);
     }
@@ -348,18 +346,13 @@ export default function SchedulerPage() {
     setLoading(true);
     setRicalcolaMsg("");
     try {
-      const res = await fetch(`${API_BASE}/scheduler/ricalcola`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ start_date: scheduleBase }),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as SchedulerData;
-        const msg = `Piano ricalcolato: ${json.items.length} allocate, ${json.non_allocati.length} non allocate.`;
-        setRicalcolaMsg(msg);
-        // Ricarica dal DB per avere il campo locked aggiornato correttamente
-        await loadPlan(scheduleBase);
-      }
+      const d = await apiPost<SchedulerData>("/scheduler/ricalcola", { start_date: scheduleBase });
+      const msg = `Piano ricalcolato: ${d.items.length} allocate, ${d.non_allocati.length} non allocate.`;
+      setRicalcolaMsg(msg);
+      // Ricarica dal DB per avere il campo locked aggiornato correttamente
+      await loadPlan(scheduleBase);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }
@@ -376,11 +369,7 @@ export default function SchedulerPage() {
 
   async function unlockItem(id: number) {
     try {
-      await fetch(`${API_BASE}/tickets/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planned_start: null, planned_finish: null }),
-      });
+      await apiPut(`/tickets/${id}`, { planned_start: null, planned_finish: null });
       await loadPlan(scheduleBase);
     } catch { /* ignore */ }
   }
@@ -410,24 +399,18 @@ export default function SchedulerPage() {
         }
       }
 
-
       const body: Record<string, unknown> = {
         fascia_oraria: editFascia,
         durata_stimata_ore: editDurata,
         tecnico_id: editTecnicoId,
-        // Se l'utente ha inserito una data/ora, blocchiamo il ticket, altrimenti si sblocca e l'AI decide.
         planned_start,
         planned_finish,
       };
-      const res = await fetch(`${API_BASE}/tickets/${editingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        setEditingId(null);
-        await loadPlan(scheduleBase);
-      }
+      await apiPut(`/tickets/${editingId}`, body);
+      setEditingId(null);
+      await loadPlan(scheduleBase);
+    } catch {
+      // ignore
     } finally {
       setSaving(false);
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { API_BASE } from "../lib/api";
+import { apiGet, apiPost, apiPut } from "../lib/api";
 
 type Asset = { id: number; name: string; categoria: string };
 
@@ -98,8 +98,7 @@ export default function PianiPage() {
   const [generatingId, setGeneratingId] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/assets`)
-      .then((r) => r.json())
+    apiGet<Asset[]>("/assets")
       .then(setAssets)
       .catch(() => {});
   }, []);
@@ -114,9 +113,8 @@ export default function PianiPage() {
       const params = new URLSearchParams({ page: String(p), limit: String(PAGE_LIMIT) });
       if (filterAsset) params.set("asset_id", filterAsset);
       if (filterPriorita) params.set("priorita", filterPriorita);
-      const res = await fetch(`${API_BASE}/piani?${params}`);
-      if (!res.ok) throw new Error();
-      setResult(await res.json());
+      const d = await apiGet<PagedPiani>(`/piani?${params}`);
+      setResult(d);
     } catch {
       setError("Impossibile caricare il piano manutenzione.");
     } finally {
@@ -148,14 +146,8 @@ export default function PianiPage() {
       if (editDurata !== "") body.durata_ore = Number(editDurata);
       if (editAssetId !== "") body.asset_id = Number(editAssetId);
 
-      const res = await fetch(`${API_BASE}/piani/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error();
-      const updated: Attivita = await res.json();
-      setResult((prev) => prev ? { ...prev, items: prev.items.map(a => a.id === id ? updated : a) } : prev);
+      const d = await apiPut<Attivita>(`/piani/${id}`, body);
+      setResult((prev) => prev ? { ...prev, items: prev.items.map(a => a.id === id ? d : a) } : prev);
       setEditingId(null);
     } catch {
       setError("Errore durante il salvataggio.");
@@ -169,14 +161,8 @@ export default function PianiPage() {
     setGeneraMsg("");
     if (ids.length === 1) setGeneratingId(ids[0]);
     try {
-      const res = await fetch(`${API_BASE}/piani/genera-ticket`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attivita_ids: ids }),
-      });
-      if (!res.ok) throw new Error();
-      const genResult = await res.json();
-      setGeneraMsg(`${genResult.created} ticket creati, ${genResult.skipped} già presenti.`);
+      const d = await apiPost<{created: number, skipped: number}>("/piani/genera-ticket", { attivita_ids: ids });
+      setGeneraMsg(`${d.created} ticket creati, ${d.skipped} già presenti.`);
       await loadPiani(currentPage);
     } catch {
       setError("Errore durante la generazione ticket.");
@@ -221,7 +207,12 @@ export default function PianiPage() {
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <button 
-            onClick={() => window.location.href = `${API_BASE}/piani/export`} 
+            onClick={() => {
+              const token = localStorage.getItem("maintai_jwt");
+              const url = new URL(`${window.location.origin === "http://localhost:3000" ? "http://localhost:8000" : "https://maintai-v3.onrender.com"}/piani/export`);
+              if (token) url.searchParams.append("token", token);
+              window.location.href = url.toString();
+            }} 
             style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.4)", color: "#22c55e", fontWeight: 600, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}
           >
             <span>📊</span> Esporta CSV
