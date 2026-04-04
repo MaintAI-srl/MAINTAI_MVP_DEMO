@@ -282,9 +282,25 @@ class EmailConfig(Base):
     imap_server = Column(String)  # es. imap.gmail.com
     imap_port = Column(Integer, default=993)
     email_address = Column(String)
-    password = Column(String) # Idealmente dovrebbe essere crittografata
+    password = Column(String) # Può essere crittografata (Fernet)
+    is_encrypted = Column(Boolean, default=False)
     active = Column(Boolean, default=True)
     default_asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True) # A chi intestare il ticket
 
     tenant = relationship("Tenant")
     default_asset = relationship("Asset")
+
+
+class SystemLog(Base):
+    """Log persistente per eventi di sistema (Email Poller, Errori Critici, ecc.)"""
+    __tablename__ = "system_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    level = Column(String, index=True)      # INFO, WARNING, ERROR, CRITICAL
+    module = Column(String, index=True)     # EMAIL_POLLER, AUTH, DB, AI
+    message = Column(Text)
+    extra_info = Column(Text, nullable=True) # JSON o stacktrace
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+    tenant = relationship("Tenant")

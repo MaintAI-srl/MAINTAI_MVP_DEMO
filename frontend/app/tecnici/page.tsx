@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import StatusToggle from "../components/StatusToggle";
 import styles from "./tecnici.module.css";
 import AssenzeModal from "../components/AssenzeModal";
 
@@ -79,7 +80,9 @@ export default function TecniciPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<number | null>(null);
   const [error, setError] = useState("");
+
   const [sortCol, setSortCol] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
@@ -161,6 +164,20 @@ export default function TecniciPage() {
       setError(err.message || "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
+
+  async function handleQuickStatusChange(id: number, nuovoStato: string) {
+    setIsUpdatingStatus(id);
+    try {
+      await apiPut(`/tecnici/${id}`, { stato: nuovoStato });
+      setTecnici(prev => prev.map(t => t.id === id ? { ...t, stato: nuovoStato } : t));
+      await loadStats();
+    } catch {
+      // ignore
+    } finally {
+      setIsUpdatingStatus(null);
+    }
+  }
+
 
   const filteredTecnici = useMemo(() => {
     let result = tecnici;
@@ -345,7 +362,20 @@ export default function TecniciPage() {
                       </td>
                       <td><span className={styles.hoursPill}>{t.ore_giornaliere?.toFixed(1)}h</span></td>
                       <td style={{ fontSize: 12, color: "var(--text-soft)" }}>{t.orario_inizio}–{t.orario_fine}</td>
-                      <td><span style={statoBadge(t.stato)}>{t.stato}</span></td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <StatusToggle 
+                          size="sm"
+                          currentValue={t.stato}
+                          disabled={isUpdatingStatus === t.id}
+                          onChange={(s) => handleQuickStatusChange(t.id, s)}
+                          options={[
+                            { value: "in servizio", label: "Servizio", color: "#34d399" },
+                            { value: "ferie", label: "Ferie", color: "#38bdf8" },
+                            { value: "malattia", label: "Malattia", color: "#f87171" },
+                            { value: "corso", label: "Corso", color: "#fbbf24" },
+                          ]}
+                        />
+                      </td>
                       <td style={{ display: "flex", gap: "8px" }}>
                         <button onClick={() => editId === t.id ? cancelEdit() : startEdit(t)} style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,.4)", color: editId === t.id ? "var(--text-secondary)" : "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4 }}>
                           {editId === t.id ? "Annulla" : "Modifica"}

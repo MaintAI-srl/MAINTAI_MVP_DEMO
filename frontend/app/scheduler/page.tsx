@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import StatusToggle from "../components/StatusToggle";
 import styles from "./scheduler.module.css";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -873,14 +874,15 @@ export default function SchedulerPage() {
                           </label>
                           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "var(--text-muted)" }}>
                             Fascia
-                            <select
-                              value={editFascia}
-                              onChange={(e) => setEditFascia(e.target.value)}
-                              style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(148,163,184,.2)", borderRadius: 6, color: "#f8fbff", padding: "5px 8px", fontSize: ".85rem" }}
-                            >
-                              <option value="diurna">diurna</option>
-                              <option value="notturna">notturna</option>
-                            </select>
+                            <StatusToggle 
+                              size="sm"
+                              currentValue={editFascia}
+                              onChange={(v) => setEditFascia(v)}
+                              options={[
+                                { value: "diurna", label: "Diurna", color: "var(--blue)" },
+                                { value: "notturna", label: "Notturna", color: "var(--violet)" },
+                              ]}
+                            />
                           </label>
                           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "var(--text-muted)" }}>
                             Durata (ore)

@@ -65,7 +65,7 @@
 
 - [x] Ottimizzazione Dashboard KPI (MTBF, OEE reali, filtri avanzati, paginazione)
 - [x] Fix performance Dashboard (isolamento re-render timer e fluidità transizioni)
-- [ ] Pagina /admin/logs — visualizzazione log di sistema nell'interfaccia web
+- [x] Pagina /admin/logs — visualizzazione log di sistema nell'interfaccia web
 - [ ] Export ticket in Excel (generazione server-side completata, manca pulizia UI)
 - [ ] Badge contatore notifiche sul campanellino (numero scadenze attive)
 - [ ] Aggiornamento automatico prossima_scadenza dopo chiusura ticket PM

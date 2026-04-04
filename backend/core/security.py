@@ -4,10 +4,18 @@ import jwt
 import bcrypt
 from fastapi import HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
+from cryptography.fernet import Fernet
 
 SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-key-maintai-v2")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+
+# Carica la chiave di cifratura simmetrica dall'ambiente (32 bytes base64)
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "uO7U_6N-XyP2UvY_YyS7y8s5Y-Y9u8s7Y8s5Y-Y9u8s=")
+if ENCRYPTION_KEY:
+    fernet = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
+else:
+    fernet = None
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -17,6 +25,23 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+# --- ENCRYPTION (PER PERSISTENZA) ---
+
+def encrypt_data(plain_text: str) -> str:
+    """Cifra una stringa usando Fernet. Utile per password IMAP."""
+    if not fernet:
+        return plain_text # Fallback poco sicuro se manca la chiave
+    return fernet.encrypt(plain_text.encode()).decode()
+
+def decrypt_data(encrypted_text: str) -> str:
+    """Decifra una stringa usando Fernet."""
+    if not fernet or not encrypted_text:
+        return encrypted_text
+    try:
+        return fernet.decrypt(encrypted_text.encode()).decode()
+    except Exception:
+        return encrypted_text # Se non è cifrata o la chiave è errata, restituisci l'originale
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
+import StatusToggle from "../components/StatusToggle";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -461,6 +462,8 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<AssetDetail>>({});
   const [saving, setSaving] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -472,6 +475,20 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
     if (!detail) return; setSaving(true);
     try { await apiPut(`/assets/${detail.id}`, editForm); await load(); setEditing(false); } catch { } finally { setSaving(false); }
   };
+
+  const quickStatusChange = async (newStatus: string) => {
+    if (!detail) return;
+    setUpdatingStatus(true);
+    try {
+      await apiPut(`/assets/${detail.id}`, { stato: newStatus });
+      setDetail(prev => prev ? { ...prev, stato: newStatus } : null);
+    } catch {
+      // Potresti mostrare un toast o loggare l'errore
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
 
   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>Caricamento...</div>;
   if (!detail) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>Asset non trovato</div>;
@@ -489,9 +506,19 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             <span>Asset</span>
           </div>
           <h2 style={{ margin: "0 0 6px", fontSize: "20px", fontWeight: 700 }}>🔧 {detail.nome}</h2>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <CriticitaChip valore={detail.criticita} />
-            <StatoChip stato={detail.stato} />
+            <StatusToggle 
+              size="sm"
+              currentValue={detail.stato}
+              onChange={quickStatusChange}
+              disabled={updatingStatus}
+              options={[
+                { value: "service", label: "Servizio", color: "var(--green)" },
+                { value: "stopped", label: "Fermo", color: "var(--amber)" },
+                { value: "out of service", label: "Guasto", color: "var(--red)" },
+              ]}
+            />
             {detail.codice && <span style={{ fontSize: "11px", color: "var(--text-secondary)", padding: "2px 8px", background: "var(--bg-elevated)", borderRadius: "4px", border: "1px solid var(--border)" }}>{detail.codice}</span>}
           </div>
         </div>

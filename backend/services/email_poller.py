@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from imap_tools import MailBox, AND
 from backend.core.database import SessionLocal
 from backend.db.modelli import EmailConfig, Ticket, TicketAllegato
+from backend.core.security import decrypt_data
+from backend.core.logger_db import db_info, db_error
 import mimetypes
 
 logger = logging.getLogger("email_poller")
@@ -23,8 +25,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def parse_and_create_tickets(db: Session, config: EmailConfig):
     try:
+        # Decifratura password se necessario (supporto legacy per password in chiaro)
+        imap_pass = decrypt_data(config.password) if config.is_encrypted else config.password
+        
         # Tenta connessione
-        with MailBox(config.imap_server, port=config.imap_port).login(config.email_address, config.password) as mailbox:
+        with MailBox(config.imap_server, port=config.imap_port).login(config.email_address, imap_pass) as mailbox:
             # Cerca solo UNSEEN e le marca automaticamente come viste
             messages = mailbox.fetch(AND(seen=False), mark_seen=True)
             for msg in messages:
@@ -94,10 +99,14 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
                 if msg.attachments:
                     db.commit()
                     
-                logger.info(f"Creato Ticket #{new_ticket.id} da email mittente {sender}")
+                msg_log = f"Creato Ticket #{new_ticket.id} da email mittente {sender}"
+                logger.info(msg_log)
+                db_info("EMAIL_POLLER", msg_log, {"ticket_id": new_ticket.id, "sender": sender}, config.tenant_id)
 
     except Exception as e:
-        logger.error(f"Errore connessione/operazione IMAP - tenant {config.tenant_id} - user {config.email_address}: {str(e)}")
+        err_msg = f"Errore IMAP - tenant {config.tenant_id} ({config.email_address}): {str(e)}"
+        logger.error(err_msg)
+        db_error("EMAIL_POLLER", err_msg, {"error": str(e)}, config.tenant_id)
 
 def check_all_mailboxes():
     db = SessionLocal()

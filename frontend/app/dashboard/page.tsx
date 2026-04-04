@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { apiGet } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import StatusToggle from "../components/StatusToggle";
 import {
   Chart as ChartJS, ArcElement, Tooltip, Legend,
   CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler,
@@ -311,26 +312,31 @@ export default function DashboardPage() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
-            <select 
-              className="input" 
-              style={{ width: 160, fontSize: 13 }}
-              value={selectedArea}
-              onChange={(e) => { setSelectedArea(e.target.value); setPage(1); }}
-            >
-              <option value="">Tutte le Famiglie</option>
-              {areas.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-            <select 
-              className="input" 
-              style={{ width: 160, fontSize: 13 }}
-              value={selectedStato}
-              onChange={(e) => { setSelectedStato(e.target.value); setPage(1); }}
-            >
-              <option value="">Tutti gli Stati</option>
-              <option value="service">In Servizio</option>
-              <option value="stopped">Fermo</option>
-              <option value="out of service">In Guasto</option>
-            </select>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Famiglia:</span>
+            <StatusToggle 
+              size="sm"
+              currentValue={selectedArea}
+              onChange={(v) => { setSelectedArea(v); setPage(1); }}
+              options={[
+                { value: "", label: "Tutte", color: "var(--blue)" },
+                ...areas.map(a => ({ value: a, label: a, color: "#818cf8" }))
+              ]}
+            />
+
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginLeft: 10 }}>Stato:</span>
+            <StatusToggle 
+              size="sm"
+              currentValue={selectedStato}
+              onChange={(v) => { setSelectedStato(v); setPage(1); }}
+              options={[
+                { value: "", label: "Tutti", color: "var(--blue)" },
+                { value: "service", label: "Servizio", color: "#34d399" },
+                { value: "stopped", label: "Fermo", color: "#fbbf24" },
+                { value: "out of service", label: "Guasto", color: "#f87171" },
+              ]}
+            />
+          </div>
           </div>
         </div>
 

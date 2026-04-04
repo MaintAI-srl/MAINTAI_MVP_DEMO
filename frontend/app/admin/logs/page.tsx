@@ -1,26 +1,44 @@
 "use client";
 import { useState, useEffect } from "react";
 import { apiGet } from "../../lib/api";
+import StatusToggle from "../../components/StatusToggle";
 
 export default function AdminLogsPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lines, setLines] = useState(100);
+  const [view, setView] = useState<"db" | "file">("db");
+  const [level, setLevel] = useState("");
+  const [module, setModule] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const fetchLogs = async () => {
     setLoading(true);
     setError("");
     try {
-      const data: any = await apiGet(`/logs?lines=${lines}`);
-      // Robustness: check if data is an object with 'logs' array
-      if (data && typeof data === 'object' && Array.isArray(data.logs)) {
-        setLogs(data.logs);
-      } else if (typeof data === 'string') {
-        // Fallback for old/plain text backend responses
-        setLogs([data]);
+      if (view === "file") {
+        const data: any = await apiGet(`/logs?lines=${lines}`);
+        if (data && typeof data === 'object' && Array.isArray(data.logs)) {
+          setLogs(data.logs);
+        } else {
+          setLogs([]);
+        }
       } else {
-        setLogs([]);
+        const q = new URLSearchParams({
+          page: String(page),
+          limit: "50",
+          ...(level && { level }),
+          ...(module && { module }),
+        });
+        const data: any = await apiGet(`/logs/system-logs?${q.toString()}`);
+        if (data && Array.isArray(data.logs)) {
+          setLogs(data.logs.map((l: any) => 
+            `[${new Date(l.timestamp).toLocaleString()}] ${l.level} [${l.module}] ${l.message} ${l.extra_info ? '| ' + l.extra_info : ''}`
+          ));
+          setTotal(data.total);
+        }
       }
     } catch (err: any) {
       setError(err.message || "Errore durante il caricamento dei log");
@@ -31,7 +49,7 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     fetchLogs();
-  }, [lines]);
+  }, [view, lines, level, module, page]);
 
   const getLogLevelColor = (line: string) => {
     if (line.includes("ERROR")) return "#ef4444";
@@ -47,22 +65,60 @@ export default function AdminLogsPage() {
           <h1 style={{ fontSize: "20px", fontWeight: 700 }}>LOG DI SISTEMA</h1>
           <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>Monitoraggio in tempo reale delle operazioni backend</p>
         </div>
-        <div style={{ display: "flex", gap: "12px" }}>
-           <select 
-            className="input" 
-            style={{ width: "150px" }}
-            value={lines}
-            onChange={(e) => setLines(Number(e.target.value))}
-           >
-             <option value={50}>Ultime 50 righe</option>
-             <option value={100}>Ultime 100 righe</option>
-             <option value={500}>Ultime 500 righe</option>
-             <option value={1000}>Ultime 1000 righe</option>
-           </select>
-           <button className="btn btn-secondary" onClick={fetchLogs} disabled={loading}>
-             {loading ? "..." : "RIFRESH"}
+        <StatusToggle 
+          size="sm"
+          currentValue={view}
+          onChange={(v: any) => setView(v)}
+          options={[
+            { value: "db", label: "DB Logs", color: "var(--blue)" },
+            { value: "file", label: "System File", color: "var(--text-muted)" },
+          ]}
+        />
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+           {view === "file" ? (
+             <select 
+              className="input" 
+              style={{ width: "150px" }}
+              value={lines}
+              onChange={(e) => setLines(Number(e.target.value))}
+             >
+               <option value={50}>Ultime 50 righe</option>
+               <option value={100}>Ultime 100 righe</option>
+               <option value={500}>Ultime 500 righe</option>
+               <option value={1000}>Ultime 1000 righe</option>
+             </select>
+           ) : (
+             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>LIVELLO:</span>
+                <StatusToggle 
+                  size="sm"
+                  currentValue={level}
+                  onChange={(v) => { setLevel(v); setPage(1); }}
+                  options={[
+                    { value: "", label: "TUTTI", color: "var(--text-muted)" },
+                    { value: "INFO", label: "INFO", color: "var(--green)" },
+                    { value: "WARNING", label: "WARN", color: "var(--amber)" },
+                    { value: "ERROR", label: "ERR", color: "var(--red)" },
+                  ]}
+                />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginLeft: 8 }}>MODULO:</span>
+                <StatusToggle 
+                  size="sm"
+                  currentValue={module}
+                  onChange={(v) => { setModule(v); setPage(1); }}
+                  options={[
+                    { value: "", label: "TUTTI", color: "var(--text-muted)" },
+                    { value: "EMAIL_POLLER", label: "EMAIL", color: "#818cf8" },
+                    { value: "AUTH", label: "AUTH", color: "#a78bfa" },
+                  ]}
+                />
+             </div>
+           )}
+           <button className="btn btn-secondary" onClick={fetchLogs} disabled={loading} style={{ borderRadius: 10 }}>
+             {loading ? "..." : "REFRESH"}
            </button>
         </div>
+
       </div>
 
       <div style={{ 

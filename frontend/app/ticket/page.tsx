@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import UploadAllegati from "../components/UploadAllegati";
+import StatusToggle from "../components/StatusToggle";
 
 type Ticket = {
   id: number;
@@ -189,14 +190,18 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         {/* Stato */}
         <div style={{ marginBottom: 20 }}>
           <label style={modalLabel}>Stato</label>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {STATI.map(s => (
-              <button key={s} onClick={() => handleStatoChange(s)}
-                style={{ ...statoStyle(s), fontSize: 11, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: stato === s ? 1 : 0.4, outline: stato === s ? "1px solid currentColor" : "none" }}>
-                {s}
-              </button>
-            ))}
-          </div>
+          <StatusToggle 
+            size="md"
+            currentValue={stato}
+            onChange={(s) => handleStatoChange(s)}
+            options={[
+              { value: "Aperto", label: "Aperto", color: "#60a5fa" },
+              { value: "Pianificato", label: "Pianificato", color: "#a78bfa" },
+              { value: "In corso", label: "In corso", color: "#fbbf24" },
+              { value: "Chiuso", label: "Chiuso", color: "#34d399" },
+              { value: "Eliminato", label: "Eliminato", color: "#f87171" },
+            ]}
+          />
         </div>
 
         {/* Link ticket figlio (generato da diagnostica) */}
@@ -502,14 +507,18 @@ export default function TicketPage() {
         </td>
         <td><span style={{ ...getPrioritaStyle(t.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{t.priorita}</span></td>
         <td onClick={e => e.stopPropagation()}>
-          <select
-            value={t.stato}
+          <StatusToggle 
+            size="sm"
+            currentValue={t.stato}
+            onChange={(s) => handleStatoChange(t.id, s)}
             disabled={updatingId === t.id}
-            onChange={e => handleStatoChange(t.id, e.target.value)}
-            style={{ ...statoStyle(t.stato), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600, cursor: "pointer", appearance: "none", WebkitAppearance: "none" as never, outline: "none" }}
-          >
-            {STATI.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+            options={[
+              { value: "Aperto", label: "Ape", color: "#60a5fa" },
+              { value: "Pianificato", label: "Pia", color: "#a78bfa" },
+              { value: "In corso", label: "Cor", color: "#fbbf24" },
+              { value: "Chiuso", label: "Chi", color: "#34d399" },
+            ]}
+          />
         </td>
         <td>{t.fascia_oraria}</td>
         <td style={{ fontSize: 11, color: "var(--text-soft)" }}>
