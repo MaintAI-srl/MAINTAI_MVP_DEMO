@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { apiGet } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import {
@@ -39,12 +39,18 @@ type KpiAssetItem = {
 };
 type KpiAsset = { assets: KpiAssetItem[]; aggregati: { avg_mtbf_giorni: number; avg_oee_pct: number } };
 
-function useDowntimeTick(assets: KpiAssetItem[]) {
+function DowntimeTicker({ statoChangedAt, secondsFromBackend }: { statoChangedAt?: string | null, secondsFromBackend?: number | null }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
+
+  return (
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--red)", fontWeight: 700, background: "var(--red-dim)", padding: "4px 10px", borderRadius: 6 }}>
+      🔴 {formatDowntime(secondsFromBackend, statoChangedAt)}
+    </span>
+  );
 }
 
 function formatDowntime(secondsFromBackend: number | null | undefined, statoChangedAt: string | null | undefined): string {
@@ -106,7 +112,6 @@ export default function DashboardPage() {
   const [kpiAsset, setKpiAsset] = useState<(KpiAsset & { total: number; page: number; pages: number }) | null>(null);
   const [error, setError] = useState("");
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [, setTick] = useState(0);
 
   // Filtri e Paginazione
   const [page, setPage] = useState(1);
@@ -145,10 +150,6 @@ export default function DashboardPage() {
     },
   };
 
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   async function loadKPIs() {
     try {
@@ -198,40 +199,40 @@ export default function DashboardPage() {
     loadKPIs();
   }, [page, search, selectedArea, selectedStato]);
 
-  const priorityData = charts ? {
+  const priorityData = useMemo(() => charts ? {
     labels: charts.ticket_by_priority.map(i => i.name),
     datasets: [{ data: charts.ticket_by_priority.map(i => i.value), backgroundColor: PRIORITY_COLORS, borderWidth: 0, hoverOffset: 4 }],
-  } : null;
+  } : null, [charts]);
 
-  const statusData = charts ? {
+  const statusData = useMemo(() => charts ? {
     labels: charts.ticket_by_status.map(i => i.name),
     datasets: [{ data: charts.ticket_by_status.map(i => i.value), backgroundColor: STATUS_COLORS, borderWidth: 0, hoverOffset: 4 }],
-  } : null;
+  } : null, [charts]);
 
-  const assetStatoData = charts?.asset_by_stato?.length ? {
+  const assetStatoData = useMemo(() => charts?.asset_by_stato?.length ? {
     labels: charts.asset_by_stato.map(i => i.name),
     datasets: [{ data: charts.asset_by_stato.map(i => i.value), backgroundColor: charts.asset_by_stato.map(i => STATO_ASSET_COLORS[i.name] || "var(--text-secondary)"), borderWidth: 0, hoverOffset: 4 }],
-  } : null;
+  } : null, [charts]);
 
-  const tipoData = charts ? {
+  const tipoData = useMemo(() => charts ? {
     labels: charts.ticket_by_tipo.map(i => i.name),
     datasets: [{ label: "Ticket", data: charts.ticket_by_tipo.map(i => i.value), backgroundColor: "rgba(59,130,246,0.6)", borderColor: "var(--blue)", borderWidth: 1, borderRadius: 4 }],
-  } : null;
+  } : null, [charts]);
 
-  const trendChartData = trend ? {
+  const trendChartData = useMemo(() => trend ? {
     labels: trend.labels,
     datasets: [{ label: "Ticket attivi", data: trend.values, fill: true, backgroundColor: "rgba(59,130,246,0.12)", borderColor: "var(--blue)", borderWidth: 2, pointBackgroundColor: "var(--blue)", pointRadius: 3, tension: 0.4 }],
-  } : null;
+  } : null, [trend]);
 
-  const mtbfData = kpiAsset?.assets?.length ? {
+  const mtbfData = useMemo(() => kpiAsset?.assets?.length ? {
     labels: kpiAsset.assets.map(a => a.asset_codice || a.asset_nome),
     datasets: [{ label: "MTBF (giorni)", data: kpiAsset.assets.map(a => a.mtbf_giorni), backgroundColor: "rgba(129,140,248,.6)", borderColor: "#818cf8", borderWidth: 1, borderRadius: 4 }],
-  } : null;
+  } : null, [kpiAsset]);
 
-  const oeeData = kpiAsset?.assets?.length ? {
+  const oeeData = useMemo(() => kpiAsset?.assets?.length ? {
     labels: kpiAsset.assets.map(a => a.asset_codice || a.asset_nome),
     datasets: [{ label: "OEE (%)", data: kpiAsset.assets.map(a => a.oee_pct), backgroundColor: "rgba(52,211,153,.6)", borderColor: "#34d399", borderWidth: 1, borderRadius: 4 }],
-  } : null;
+  } : null, [kpiAsset]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
@@ -358,9 +359,7 @@ export default function DashboardPage() {
                   <td style={{ padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>{a.downtime_ore_30gg}h</td>
                   <td style={{ padding: "14px 16px" }}>
                     {a.stato === "out of service" && a.stato_changed_at ? (
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--red)", fontWeight: 700, background: "var(--red-dim)", padding: "4px 10px", borderRadius: 6 }}>
-                        🔴 {formatDowntime(a.downtime_seconds, a.stato_changed_at)}
-                      </span>
+                      <DowntimeTicker statoChangedAt={a.stato_changed_at} secondsFromBackend={a.downtime_seconds} />
                     ) : (
                       <span style={{ color: "var(--text-disabled)", fontSize: 12 }}>—</span>
                     )}

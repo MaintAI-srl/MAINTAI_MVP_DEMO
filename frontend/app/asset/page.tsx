@@ -785,7 +785,7 @@ export default function AssetPage() {
       {modalDelSito && (
         <ModalConferma
           titolo="Elimina Sito"
-          messaggio={`Sei sicuro di voler eliminare "${modalDelSito.nome}"? Verranno eliminati anche tutti gli impianti e asset associati.`}
+          messaggio={`Sei sicuro di voler eliminare irrevocabilmente "${modalDelSito.nome}"? L'operazione eliminerà a cascata TUTTI i dati ad esso collegati (Impianti, Asset, Piani, Ticket, Documenti, Analisi).`}
           onClose={() => setModalDelSito(null)}
           onConferma={deleteSito}
         />
@@ -796,7 +796,7 @@ export default function AssetPage() {
       {modalDelImpianto && (
         <ModalConferma
           titolo="Elimina Impianto"
-          messaggio={`Sei sicuro di voler eliminare "${modalDelImpianto.nome}"? Verranno eliminati anche tutti gli asset associati.`}
+          messaggio={`Sei sicuro di voler eliminare irrevocabilmente "${modalDelImpianto.nome}"? L'operazione eliminerà a cascata TUTTI i dati ad esso collegati (Asset, Piani, Ticket, Documenti, Analisi).`}
           onClose={() => setModalDelImpianto(null)}
           onConferma={deleteImpianto}
         />
@@ -807,7 +807,7 @@ export default function AssetPage() {
       {modalDelAsset !== null && (
         <ModalConferma
           titolo="Elimina Asset"
-          messaggio="Sei sicuro di voler eliminare questo asset? Tutti i ticket e piani associati potrebbero essere influenzati."
+          messaggio="Sei sicuro di voler eliminare irrevocabilmente questo asset? L'operazione eliminerà a cascata TUTTI i dati ad esso collegati (Piani, Ticket, Documenti, Analisi)."
           onClose={() => setModalDelAsset(null)}
           onConferma={deleteAsset}
         />

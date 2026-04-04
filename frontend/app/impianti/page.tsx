@@ -21,6 +21,7 @@ export default function ImpiantiPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
+  const [modalDelId, setModalDelId] = useState<number | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -76,12 +77,18 @@ export default function ImpiantiPage() {
     } finally { setSaving(false); }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Eliminare questo impianto?")) return;
+  function handleDeleteClick(id: number) {
+    setModalDelId(id);
+  }
+
+  async function handleConfirmDelete() {
+    if (modalDelId === null) return;
     try {
-      await apiDelete(`/impianti/${id}`);
+      await apiDelete(`/impianti/${modalDelId}`);
       await load();
-    } catch {}
+    } catch {} finally {
+      setModalDelId(null);
+    }
   }
 
   const cardStyle: React.CSSProperties = { background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" };
@@ -162,7 +169,7 @@ export default function ImpiantiPage() {
                     <td style={{ padding: "10px 12px", fontSize: 11, color: "var(--text-muted)" }}>{imp.latitude ? `${imp.latitude}, ${imp.longitude}` : "—"}</td>
                     <td style={{ padding: "10px 12px" }}>
                       <button onClick={() => startEdit(imp)} style={{ marginRight: 8, fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,.4)", color: "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4 }}>Modifica</button>
-                      <button onClick={() => handleDelete(imp.id)} style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(248,113,113,.3)", color: "#f87171", background: "transparent", cursor: "pointer", borderRadius: 4 }}>Elimina</button>
+                      <button onClick={() => handleDeleteClick(imp.id)} style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(248,113,113,.3)", color: "#f87171", background: "transparent", cursor: "pointer", borderRadius: 4 }}>Elimina</button>
                     </td>
                   </tr>
                 ))}
@@ -171,6 +178,21 @@ export default function ImpiantiPage() {
           )}
         </div>
       </div>
+
+      {modalDelId !== null && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setModalDelId(null)}>
+          <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: 12, padding: 28, width: 480 }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>Elimina Impianto</h2>
+            <div style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+              Sei sicuro di voler eliminare irrevocabilmente questo impianto? L'operazione eliminerà a cascata TUTTI i dati ad esso collegati (Asset, Piani, Ticket, Documenti, Analisi).
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setModalDelId(null)} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 16px", borderRadius: 6, cursor: "pointer" }}>Annulla</button>
+              <button onClick={handleConfirmDelete} style={{ background: "var(--red-dim)", border: "1px solid var(--red)", color: "var(--red)", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

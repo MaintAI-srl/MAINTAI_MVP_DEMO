@@ -55,7 +55,7 @@ class Sito(Base):
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    impianti = relationship("Impianto", back_populates="sito")
+    impianti = relationship("Impianto", back_populates="sito", cascade="all, delete-orphan")
     tenant = relationship("Tenant", back_populates="siti")
 
 
@@ -67,7 +67,7 @@ class Impianto(Base):
     nome = Column(String, nullable=False)
     descrizione = Column(Text, nullable=True)
 
-    assets = relationship("Asset", back_populates="impianto")
+    assets = relationship("Asset", back_populates="impianto", cascade="all, delete-orphan")
 
     # Localizzazione meteo
     latitude = Column(Float, nullable=True)
@@ -123,6 +123,8 @@ class Asset(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     impianto = relationship("Impianto", back_populates="assets")
+    tickets = relationship("Ticket", back_populates="asset", cascade="all, delete-orphan")
+    attivita = relationship("AttivitaManutenzione", cascade="all, delete-orphan")
 
 
 class Tecnico(Base):
@@ -170,10 +172,13 @@ class Ticket(Base):
     firma_percorso = Column(String, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    asset = relationship("Asset")
+    asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
-    children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic")
+    children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic", cascade="all, delete-orphan")
     parent = relationship("Ticket", foreign_keys="Ticket.parent_id", remote_side="Ticket.id", back_populates="children")
+    analisi = relationship("AnalisiGuasto", back_populates="ticket", cascade="all, delete-orphan")
+    sessioni = relationship("DiagnosticSession", back_populates="ticket", cascade="all, delete-orphan")
+    allegati = relationship("TicketAllegato", back_populates="ticket", cascade="all, delete-orphan")
 
 
 class Manuale(Base):
@@ -217,7 +222,7 @@ class AnalisiGuasto(Base):
     ai_utilizzata = Column(Boolean)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    ticket = relationship("Ticket")
+    ticket = relationship("Ticket", back_populates="analisi")
 
 
 class DiagnosticSession(Base):
@@ -231,7 +236,7 @@ class DiagnosticSession(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    ticket = relationship("Ticket")
+    ticket = relationship("Ticket", back_populates="sessioni")
 
 
 @event.listens_for(Asset.stato, 'set')
@@ -266,4 +271,4 @@ class TicketAllegato(Base):
     creato_il = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    ticket = relationship("Ticket", backref="allegati")
+    ticket = relationship("Ticket", back_populates="allegati")
