@@ -10,9 +10,18 @@ export default function AdminLogsPage() {
 
   const fetchLogs = async () => {
     setLoading(true);
+    setError("");
     try {
-      const data = await apiGet(`/logs?lines=${lines}`) as { logs: string[] };
-      setLogs(data.logs || []);
+      const data: any = await apiGet(`/logs?lines=${lines}`);
+      // Robustness: check if data is an object with 'logs' array
+      if (data && typeof data === 'object' && Array.isArray(data.logs)) {
+        setLogs(data.logs);
+      } else if (typeof data === 'string') {
+        // Fallback for old/plain text backend responses
+        setLogs([data]);
+      } else {
+        setLogs([]);
+      }
     } catch (err: any) {
       setError(err.message || "Errore durante il caricamento dei log");
     } finally {
