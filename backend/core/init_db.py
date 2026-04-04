@@ -19,7 +19,7 @@ def _apply_migrations():
         "ALTER TABLE manuali ADD COLUMN stato TEXT DEFAULT 'attivo'",
         "ALTER TABLE ticket ADD COLUMN tecnico_id INTEGER REFERENCES tecnici(id)",
         # --- v2: impianti ---
-        "CREATE TABLE IF NOT EXISTS impianti (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, descrizione TEXT)",
+        "CREATE TABLE IF NOT EXISTS impianti (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, descrizione TEXT)",
         # --- v2: asset nuovi campi ---
         "ALTER TABLE asset ADD COLUMN codice TEXT",
         "ALTER TABLE asset ADD COLUMN descrizione TEXT",
@@ -46,7 +46,7 @@ def _apply_migrations():
         # --- v3: ticket tipo ---
         "ALTER TABLE ticket ADD COLUMN tipo TEXT DEFAULT 'CM'",
         # --- v4: utenti e auth ---
-        "CREATE TABLE IF NOT EXISTS utenti (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, ruolo TEXT DEFAULT 'tecnico', is_active BOOLEAN DEFAULT 1)",
+        "CREATE TABLE IF NOT EXISTS utenti (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, ruolo TEXT DEFAULT 'tecnico', is_active BOOLEAN DEFAULT 1)",
         # --- v5: missing columns bugfix ---
         "ALTER TABLE asset ADD COLUMN stato_changed_at DATETIME",
         "ALTER TABLE asset ADD COLUMN created_at DATETIME",
@@ -58,13 +58,13 @@ def _apply_migrations():
         # --- v6: technician user link ---
         "ALTER TABLE tecnici ADD COLUMN utente_id INTEGER REFERENCES utenti(id)",
         # --- v7: tecnico assenze ---
-        "CREATE TABLE IF NOT EXISTS tecnici_assenze (id INTEGER PRIMARY KEY AUTOINCREMENT, tecnico_id INTEGER REFERENCES tecnici(id) NOT NULL, data_inizio DATETIME NOT NULL, data_fine DATETIME NOT NULL, tipo_assenza TEXT DEFAULT 'Ferie', note TEXT)",
+        "CREATE TABLE IF NOT EXISTS tecnici_assenze (id INTEGER PRIMARY KEY, tecnico_id INTEGER REFERENCES tecnici(id) NOT NULL, data_inizio DATETIME NOT NULL, data_fine DATETIME NOT NULL, tipo_assenza TEXT DEFAULT 'Ferie', note TEXT)",
         # --- v8: allegati ticket ---
-        "CREATE TABLE IF NOT EXISTS ticket_allegati (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER REFERENCES ticket(id) NOT NULL, nome_file TEXT NOT NULL, percorso TEXT NOT NULL, tipo_mime TEXT, dimensione_bytes INTEGER, creato_il DATETIME)",
+        "CREATE TABLE IF NOT EXISTS ticket_allegati (id INTEGER PRIMARY KEY, ticket_id INTEGER REFERENCES ticket(id) NOT NULL, nome_file TEXT NOT NULL, percorso TEXT NOT NULL, tipo_mime TEXT, dimensione_bytes INTEGER, creato_il DATETIME)",
         # --- v9: firma digitale ---
         "ALTER TABLE ticket ADD COLUMN firma_percorso TEXT",
         # --- v10: siti ---
-        "CREATE TABLE IF NOT EXISTS siti (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, descrizione TEXT, ubicazione TEXT, citta TEXT, paese TEXT DEFAULT 'Italia', responsabile TEXT, telefono_responsabile TEXT, email_responsabile TEXT, note TEXT, created_at DATETIME, updated_at DATETIME)",
+        "CREATE TABLE IF NOT EXISTS siti (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, descrizione TEXT, ubicazione TEXT, citta TEXT, paese TEXT DEFAULT 'Italia', responsabile TEXT, telefono_responsabile TEXT, email_responsabile TEXT, note TEXT, created_at DATETIME, updated_at DATETIME)",
         # --- v10: impianti nuovi campi ---
         "ALTER TABLE impianti ADD COLUMN sito_id INTEGER REFERENCES siti(id)",
         "ALTER TABLE impianti ADD COLUMN tipologia TEXT",
@@ -87,7 +87,7 @@ def _apply_migrations():
         "ALTER TABLE asset ADD COLUMN criticita TEXT DEFAULT 'media'",
         "ALTER TABLE asset ADD COLUMN posizione_fisica TEXT",
         # --- v11: multi-tenancy ---
-        "CREATE TABLE IF NOT EXISTS tenants (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, is_active BOOLEAN DEFAULT 1, created_at DATETIME)",
+        "CREATE TABLE IF NOT EXISTS tenants (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, is_active BOOLEAN DEFAULT 1, created_at DATETIME)",
         "ALTER TABLE utenti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
         "ALTER TABLE siti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
         "ALTER TABLE impianti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
@@ -113,17 +113,23 @@ def _apply_migrations():
 def _seed_tenant_and_migrate_data():
     """Crea il tenant Demo (id=1) e assegna i dati esistenti ad esso."""
     from backend.core.database import SessionLocal
+    from datetime import datetime, timezone
+    
     with SessionLocal() as db:
-        # Crea tenant Demo se non esiste
-        existing = db.execute(text("SELECT id FROM tenants WHERE slug='demo'")).fetchone()
-        if not existing:
-            db.execute(text(
-                "INSERT INTO tenants (nome, slug, is_active, created_at) VALUES ('Demo', 'demo', 1, datetime('now'))"
-            ))
+        # Crea tenant Demo se non esiste (usiamo ORM per compatibilità cross-db)
+        demo_tenant = db.query(Tenant).filter(Tenant.slug == 'demo').first()
+        if not demo_tenant:
+            demo_tenant = Tenant(
+                nome='Demo', 
+                slug='demo', 
+                is_active=True, 
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(demo_tenant)
             db.commit()
-
-        tenant_row = db.execute(text("SELECT id FROM tenants WHERE slug='demo'")).fetchone()
-        tenant_id = tenant_row[0]
+            db.refresh(demo_tenant)
+        
+        tenant_id = demo_tenant.id
 
         # Assegna tutti i dati esistenti senza tenant al tenant Demo
         tables = [
@@ -133,14 +139,17 @@ def _seed_tenant_and_migrate_data():
         ]
         for table in tables:
             try:
-                db.execute(text(f"UPDATE {table} SET tenant_id={tenant_id} WHERE tenant_id IS NULL"))
+                # Update tramite SQL testuale per velocità, ma con parametri sicuri
+                db.execute(text(f"UPDATE {table} SET tenant_id=:tid WHERE tenant_id IS NULL"), {"tid": tenant_id})
             except Exception:
                 pass
         db.commit()
 
-        # Promuovi admin a superadmin
-        db.execute(text("UPDATE utenti SET ruolo='superadmin' WHERE username='admin'"))
-        db.commit()
+        # Promuovi admin a superadmin (usiamo ORM per sicurezza)
+        admin = db.query(Utente).filter(Utente.username == "admin").first()
+        if admin:
+            admin.ruolo = "superadmin"
+            db.commit()
 
 
 def init_db():
