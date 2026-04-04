@@ -1,9 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useRef } from "react";
-import { API_BASE } from "../../../lib/api";
-
-const API = API_BASE;
+import { apiPost } from "../../../lib/api";
 
 type StepType = "question" | "check" | "conclusion";
 
@@ -44,10 +42,7 @@ export default function DiagnosticPage({
   async function startSession() {
     setStatus("loading");
     try {
-      const res = await fetch(`${API}/tickets/${ticketId}/diagnostic/start`, {
-        method: "POST",
-      });
-      const data = await res.json();
+      const data = await apiPost<any>(`/tickets/${ticketId}/diagnostic/start`, {});
       setSessionId(data.session_id);
       setMessages([
         {
@@ -74,15 +69,7 @@ export default function DiagnosticPage({
     ]);
 
     try {
-      const res = await fetch(
-        `${API}/tickets/${ticketId}/diagnostic/${sessionId}/reply`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reply: userText }),
-        }
-      );
-      const data = await res.json();
+      const data = await apiPost<any>(`/tickets/${ticketId}/diagnostic/${sessionId}/reply`, { reply: userText });
       setMessages((prev) => [
         ...prev,
         { from: "ai", step: data.step, timestamp: new Date() },
