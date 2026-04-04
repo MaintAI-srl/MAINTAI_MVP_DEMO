@@ -1,4 +1,5 @@
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,10 +23,23 @@ from backend.api.routes.tecnici import router as tecnici_router
 from backend.api.routes.tickets import router as tickets_router
 from backend.api.routes.scadenze import router as scadenze_router
 from backend.api.routes.logs import router as logs_router
+from backend.api.routes.email_config import router as email_config_router
 from backend.core.config import init_backend
 from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
 from backend.core.init_db import init_db
 from backend.core.logging_config import setup_logging
+from backend.services.email_poller import check_all_mailboxes
+
+async def email_poller_task():
+    """Task in background che preleva le email IMAP per generare i ticket ogni 5 minuti."""
+    while True:
+        try:
+            # Eseguiamo la funzione in un thread per non bloccare l'event loop di FastAPI, dato che imap-tools è sincrono.
+            await asyncio.to_thread(check_all_mailboxes)
+        except Exception as e:
+            print(f"Errore generale nel task email poller: {e}")
+        await asyncio.sleep(300) # Polling ogni 5 minuti
+
 
 _DEFAULT_ORIGINS = [
     "http://localhost:3000",
@@ -55,7 +69,14 @@ async def lifespan(app: FastAPI):
     # e i file vengono serviti da Supabase Storage)
     if not os.getenv("SUPABASE_URL"):
         os.makedirs("uploads", exist_ok=True)
+        
+    # Avvio email poller in background
+    poller_task = asyncio.create_task(email_poller_task())
+    
     yield
+    
+    # Pulizia
+    poller_task.cancel()
 
 app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 
@@ -87,6 +108,7 @@ app.include_router(impianti_router)
 app.include_router(siti_router)
 app.include_router(problem_analysis_router)
 app.include_router(tenants_router)
+app.include_router(email_config_router)
 
 # Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
 if not os.getenv("SUPABASE_URL"):

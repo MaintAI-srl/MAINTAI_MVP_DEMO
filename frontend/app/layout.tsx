@@ -38,6 +38,7 @@ const NAV = [
     items: [
       { href: "/admin/tenants", label: "Clienti", icon: "◈", superadminOnly: true },
       { href: "/admin/logs",    label: "Log Sistema", icon: "📋", adminOnly: true },
+      { href: "/admin/email",   label: "Integrazione Email", icon: "✉️", adminOnly: true },
     ],
   },
 ];
@@ -54,6 +55,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/piani":          "Piano di Manutenzione",
   "/admin/tenants":  "Gestione Clienti",
   "/admin/logs":     "Log di Sistema",
+  "/admin/email":    "Integrazione Email-to-Ticket",
   "/profilo":       "Mio Profilo",
 };
 

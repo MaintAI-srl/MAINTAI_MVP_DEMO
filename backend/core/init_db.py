@@ -5,7 +5,7 @@ from backend.core.database import engine, Base
 from backend.db.modelli import (  # noqa: F401
     Tenant, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
-    Utente, TecnicoAssenza, TicketAllegato
+    Utente, TecnicoAssenza, TicketAllegato, EmailConfig
 )
 
 
@@ -101,6 +101,8 @@ def _apply_migrations():
         "ALTER TABLE analisi_guasti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
         "ALTER TABLE diagnostic_sessions ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
         "ALTER TABLE ticket_allegati ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        # --- v13: email integration ---
+        "CREATE TABLE IF NOT EXISTS email_config (id INTEGER PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id), imap_server TEXT, imap_port INTEGER DEFAULT 993, email_address TEXT, password TEXT, active BOOLEAN DEFAULT 1, default_asset_id INTEGER REFERENCES asset(id))",
     ]
     for stmt in migrations:
         try:

@@ -272,3 +272,19 @@ class TicketAllegato(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     ticket = relationship("Ticket", back_populates="allegati")
+
+class EmailConfig(Base):
+    """Configurazione IMAP per importare email come Ticket via Polling."""
+    __tablename__ = "email_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    imap_server = Column(String)  # es. imap.gmail.com
+    imap_port = Column(Integer, default=993)
+    email_address = Column(String)
+    password = Column(String) # Idealmente dovrebbe essere crittografata
+    active = Column(Boolean, default=True)
+    default_asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True) # A chi intestare il ticket
+
+    tenant = relationship("Tenant")
+    default_asset = relationship("Asset")
