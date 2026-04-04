@@ -1,10 +1,15 @@
 import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-# Supporto per Database Cloud o Rete Aziendale Chiusa
-# Se DATABASE_URL è definita nel .env usa quella, altrimenti fallback su SQLite locale.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./maintai.db")
+# Root del progetto (3 livelli su da backend/core/database.py)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_SQLITE_DEFAULT = f"sqlite:///{_PROJECT_ROOT / 'maintai.db'}"
+
+# In cloud imposta DATABASE_URL come variabile d'ambiente (PostgreSQL Supabase/Render)
+# In locale usa SQLite con path assoluto → sempre lo stesso file indipendentemente da dove si lancia
+DATABASE_URL = os.getenv("DATABASE_URL", _SQLITE_DEFAULT)
 
 # Argomenti extra per la connessione (SQLite richiede check_same_thread=False)
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
