@@ -1,5 +1,6 @@
 
-from fastapi import APIRouter, Depends
+import os
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -26,6 +27,22 @@ def force_migrate():
     from backend.core.init_db import _apply_migrations
     _apply_migrations()
     return {"status": "ok", "message": "Migrazioni eseguite"}
+
+
+@router.post("/db/reset-emergency")
+def reset_emergency(secret: str = Query(...)):
+    """
+    Reset di emergenza senza JWT — richiede ADMIN_SECRET dall'env.
+    Usa: POST /db/reset-emergency?secret=<valore>
+    Imposta ADMIN_SECRET nelle env var di Render.
+    """
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Secret non valido.")
+    from backend.core.init_db import init_db
+    Base.metadata.drop_all(bind=engine)
+    init_db()
+    return {"status": "ok", "message": "DB resettato. Login: admin/admin (superadmin)"}
 
 
 @router.post("/db/reset")

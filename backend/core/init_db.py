@@ -175,6 +175,13 @@ def init_db():
                 ruolo="superadmin",
                 tenant_id=tenant_id,
             ))
+        else:
+            # Forza sempre ruolo superadmin e tenant corretto
+            admin.ruolo = "superadmin"
+            admin.password_hash = get_password_hash("admin")
+            if not admin.tenant_id:
+                admin.tenant_id = tenant_id
+        db.commit()
 
         tecnico_user = db.query(Utente).filter(Utente.username == "tecnico").first()
         if not tecnico_user:
@@ -186,8 +193,9 @@ def init_db():
             )
             db.add(tecnico_user)
             db.commit()
-        elif not tecnico_user.tenant_id:
-            tecnico_user.tenant_id = tenant_id
+        else:
+            if not tecnico_user.tenant_id:
+                tecnico_user.tenant_id = tenant_id
             db.commit()
 
         # Link tecnico user to the first tecnico record if exists
