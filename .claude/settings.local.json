@@ -47,7 +47,9 @@
       "Bash(.venv/Scripts/python.exe -m pytest backend/tests/ -v)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git -C C:/Users/aless/DESKTOP/MAINTAI_V3 add frontend/app/components/UploadAllegati.tsx frontend/app/lib/api.ts frontend/app/lib/version.ts frontend/app/manuali/page.tsx)",
+      "Bash(git -C:*)"
     ]
   }
 }

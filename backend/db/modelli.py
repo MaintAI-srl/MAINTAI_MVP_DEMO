@@ -215,6 +215,7 @@ class AnalisiGuasto(Base):
     sintomi = Column(Text)
     analisi_json = Column(Text)
     ai_utilizzata = Column(Boolean)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     ticket = relationship("Ticket")
 
@@ -228,6 +229,7 @@ class DiagnosticSession(Base):
     status = Column(String, default="active")
     root_cause = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     ticket = relationship("Ticket")
 
@@ -247,6 +249,7 @@ class TecnicoAssenza(Base):
     data_fine = Column(DateTime, nullable=False)
     tipo_assenza = Column(String, default="Ferie")
     note = Column(Text, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     tecnico = relationship("Tecnico", back_populates="assenze")
 
@@ -261,5 +264,6 @@ class TicketAllegato(Base):
     tipo_mime = Column(String(100), nullable=True)
     dimensione_bytes = Column(Integer, nullable=True)
     creato_il = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     ticket = relationship("Ticket", backref="allegati")

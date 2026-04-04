@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 import jwt
 import bcrypt
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 
 SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-key-maintai-v2")
@@ -40,10 +40,26 @@ def decode_access_token(token: str):
 def get_current_user_payload(token: str = Depends(oauth2_scheme)):
     return decode_access_token(token)
 
-def get_current_tenant_id(payload: dict = Depends(get_current_user_payload)) -> int:
-    """Estrae il tenant_id dal token JWT. Obbligatorio per tutti gli endpoint dati."""
+def get_current_tenant_id(
+    payload: dict = Depends(get_current_user_payload),
+    x_tenant_id: str | None = Header(None, alias="X-Tenant-Id")
+) -> int | None:
+    """
+    Estrae il tenant_id dal token JWT o dall'header X-Tenant-Id (solo per superadmin).
+    """
     tid = payload.get("tenant_id")
-    if not tid:
+    ruolo = payload.get("ruolo")
+
+    if ruolo == "superadmin":
+        # Il superadmin può forzare un tenant tramite header
+        if x_tenant_id:
+            try:
+                return int(x_tenant_id)
+            except ValueError:
+                pass
+        return int(tid) if tid else None
+
+    if tid is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tenant non configurato per questo utente. Contattare l'amministratore.",

@@ -23,11 +23,17 @@ def _to_dict(sito: Sito) -> dict:
 
 class SitoRepository:
 
-    def get_all(self, db: Session, tenant_id: int) -> list[dict]:
-        return [_to_dict(s) for s in db.query(Sito).filter(Sito.tenant_id == tenant_id).order_by(Sito.nome).all()]
+    def get_all(self, db: Session, tenant_id: int | None) -> list[dict]:
+        query = db.query(Sito)
+        if tenant_id is not None:
+            query = query.filter(Sito.tenant_id == tenant_id)
+        return [_to_dict(s) for s in query.order_by(Sito.nome).all()]
 
-    def get_by_id(self, db: Session, sito_id: int, tenant_id: int) -> dict | None:
-        sito = db.query(Sito).filter(Sito.id == sito_id, Sito.tenant_id == tenant_id).first()
+    def get_by_id(self, db: Session, sito_id: int, tenant_id: int | None) -> dict | None:
+        query = db.query(Sito).filter(Sito.id == sito_id)
+        if tenant_id is not None:
+            query = query.filter(Sito.tenant_id == tenant_id)
+        sito = query.first()
         return _to_dict(sito) if sito else None
 
     def create(self, db: Session, data: SitoCreate, tenant_id: int) -> dict:
@@ -48,8 +54,11 @@ class SitoRepository:
         db.refresh(sito)
         return _to_dict(sito)
 
-    def update(self, db: Session, sito_id: int, data: SitoUpdate, tenant_id: int) -> dict | None:
-        sito = db.query(Sito).filter(Sito.id == sito_id, Sito.tenant_id == tenant_id).first()
+    def update(self, db: Session, sito_id: int, data: SitoUpdate, tenant_id: int | None) -> dict | None:
+        query = db.query(Sito).filter(Sito.id == sito_id)
+        if tenant_id is not None:
+            query = query.filter(Sito.tenant_id == tenant_id)
+        sito = query.first()
         if not sito:
             return None
         for field in ["nome", "descrizione", "ubicazione", "citta", "paese",
@@ -61,21 +70,23 @@ class SitoRepository:
         db.refresh(sito)
         return _to_dict(sito)
 
-    def delete(self, db: Session, sito_id: int, tenant_id: int) -> bool:
-        sito = db.query(Sito).filter(Sito.id == sito_id, Sito.tenant_id == tenant_id).first()
+    def delete(self, db: Session, sito_id: int, tenant_id: int | None) -> bool:
+        query = db.query(Sito).filter(Sito.id == sito_id)
+        if tenant_id is not None:
+            query = query.filter(Sito.tenant_id == tenant_id)
+        sito = query.first()
         if not sito:
             return False
         db.delete(sito)
         db.commit()
         return True
 
-    def get_tree(self, db: Session, sito_id: int, tenant_id: int) -> dict | None:
-        sito = (
-            db.query(Sito)
-            .options(joinedload(Sito.impianti).joinedload(Impianto.assets))
-            .filter(Sito.id == sito_id, Sito.tenant_id == tenant_id)
-            .first()
-        )
+    def get_tree(self, db: Session, sito_id: int, tenant_id: int | None) -> dict | None:
+        query = db.query(Sito).options(joinedload(Sito.impianti).joinedload(Impianto.assets))
+        query = query.filter(Sito.id == sito_id)
+        if tenant_id is not None:
+            query = query.filter(Sito.tenant_id == tenant_id)
+        sito = query.first()
         if not sito:
             return None
 
@@ -138,8 +149,11 @@ class SitoRepository:
             "asset_critici": asset_critici,
         }
 
-    def get_all_tree(self, db: Session, tenant_id: int) -> list[dict]:
-        siti = db.query(Sito).filter(Sito.tenant_id == tenant_id).order_by(Sito.nome).all()
+    def get_all_tree(self, db: Session, tenant_id: int | None) -> list[dict]:
+        query = db.query(Sito)
+        if tenant_id is not None:
+            query = query.filter(Sito.tenant_id == tenant_id)
+        siti = query.order_by(Sito.nome).all()
         result = []
         for sito in siti:
             tree = self.get_tree(db, sito.id, tenant_id)

@@ -164,6 +164,25 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             ))}
 
             <div className="sidebar-footer">
+              {isSuperadmin && (
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={{ fontSize: "9px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>CONTESTO TENANT</label>
+                  <select 
+                    style={{ background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border-strong)", borderRadius: "4px", fontSize: "11px", padding: "4px", width: "100%", outline: "none" }}
+                    value={localStorage.getItem("maintai_tenant_context") || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) localStorage.setItem("maintai_tenant_context", val);
+                      else localStorage.removeItem("maintai_tenant_context");
+                      window.location.reload(); // Ricarica per applicare il nuovo contesto
+                    }}
+                  >
+                    <option value="">Global (Tutti)</option>
+                    {/* Qui servirebbe una lista di tenant, ma per ora il superadmin può inserirne uno o gestire da /admin/tenants */}
+                    <option value="1">Tenant Demo (#1)</option>
+                  </select>
+                </div>
+              )}
               {user?.tenant_nome && (
                 <div style={{ fontSize: "10px", color: "var(--text-secondary)", opacity: 0.7, marginBottom: "6px", letterSpacing: "0.5px", textTransform: "uppercase" }}>
                   ◈ {user.tenant_nome}

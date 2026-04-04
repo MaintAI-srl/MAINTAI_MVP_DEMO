@@ -80,21 +80,18 @@ _NEW_ANAGRAFICA_FIELDS = [
 class AssetRepository:
 
     def get_all(self, db: Session, tenant_id: int) -> list[dict]:
-        assets = (
-            db.query(Asset)
-            .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
-            .filter(Asset.tenant_id == tenant_id)
-            .all()
-        )
+        query = db.query(Asset).options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+        if tenant_id is not None:
+            query = query.filter(Asset.tenant_id == tenant_id)
+        assets = query.all()
         return [_to_dict(a) for a in assets]
 
-    def get_by_id(self, db: Session, asset_id: int, tenant_id: int) -> dict | None:
-        asset = (
-            db.query(Asset)
-            .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
-            .filter(Asset.id == asset_id, Asset.tenant_id == tenant_id)
-            .first()
-        )
+    def get_by_id(self, db: Session, asset_id: int, tenant_id: int | None) -> dict | None:
+        query = db.query(Asset).options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+        query = query.filter(Asset.id == asset_id)
+        if tenant_id is not None:
+            query = query.filter(Asset.tenant_id == tenant_id)
+        asset = query.first()
         return _to_dict(asset) if asset else None
 
     def generate_codice_preview(self, db: Session, descrizione: str, tenant_id: int) -> str:
@@ -149,7 +146,10 @@ class AssetRepository:
         return result or _to_dict(asset)
 
     def update(self, db: Session, asset_id: int, data: AssetUpdate, tenant_id: int) -> dict | None:
-        asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
+        query = db.query(Asset).filter(Asset.id == asset_id)
+        if tenant_id is not None:
+            query = query.filter(Asset.tenant_id == tenant_id)
+        asset = query.first()
         if not asset:
             return None
         nome_val = data.nome or data.name
@@ -191,7 +191,10 @@ class AssetRepository:
         return self.get_by_id(db, asset_id, tenant_id)
 
     def delete(self, db: Session, asset_id: int, tenant_id: int) -> bool:
-        asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
+        query = db.query(Asset).filter(Asset.id == asset_id)
+        if tenant_id is not None:
+            query = query.filter(Asset.tenant_id == tenant_id)
+        asset = query.first()
         if not asset:
             return False
         db.delete(asset)

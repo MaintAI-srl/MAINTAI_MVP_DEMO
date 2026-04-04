@@ -24,6 +24,14 @@ async function request<T>(
     ? { Authorization: `Bearer ${token}` }
     : {};
 
+  // Supporto per il cambio contesto tenant (solo superadmin)
+  if (typeof window !== "undefined") {
+    const tenantContext = localStorage.getItem("maintai_tenant_context");
+    if (tenantContext) {
+      authHeader["X-Tenant-Id"] = tenantContext;
+    }
+  }
+
   const init: RequestInit = {
     method,
     headers: {

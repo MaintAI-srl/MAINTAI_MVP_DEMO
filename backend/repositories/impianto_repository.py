@@ -22,22 +22,18 @@ def _to_dict(imp: Impianto) -> dict:
 class ImpiantoRepository:
 
     def get_all(self, db: Session, tenant_id: int) -> list[dict]:
-        impianti = (
-            db.query(Impianto)
-            .options(joinedload(Impianto.sito))
-            .filter(Impianto.tenant_id == tenant_id)
-            .order_by(Impianto.nome)
-            .all()
-        )
+        query = db.query(Impianto).options(joinedload(Impianto.sito))
+        if tenant_id is not None:
+            query = query.filter(Impianto.tenant_id == tenant_id)
+        impianti = query.order_by(Impianto.nome).all()
         return [_to_dict(i) for i in impianti]
 
     def get_by_id(self, db: Session, imp_id: int, tenant_id: int) -> dict | None:
-        imp = (
-            db.query(Impianto)
-            .options(joinedload(Impianto.sito))
-            .filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id)
-            .first()
-        )
+        query = db.query(Impianto).options(joinedload(Impianto.sito))
+        query = query.filter(Impianto.id == imp_id)
+        if tenant_id is not None:
+            query = query.filter(Impianto.tenant_id == tenant_id)
+        imp = query.first()
         return _to_dict(imp) if imp else None
 
     def create(self, db: Session, data: ImpiantoCreate, tenant_id: int) -> dict:
@@ -56,8 +52,11 @@ class ImpiantoRepository:
         db.refresh(imp)
         return self.get_by_id(db, imp.id, tenant_id) or _to_dict(imp)
 
-    def update(self, db: Session, imp_id: int, data: ImpiantoUpdate, tenant_id: int) -> dict | None:
-        imp = db.query(Impianto).filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id).first()
+    def update(self, db: Session, imp_id: int, data: ImpiantoUpdate, tenant_id: int | None) -> dict | None:
+        query = db.query(Impianto).filter(Impianto.id == imp_id)
+        if tenant_id is not None:
+            query = query.filter(Impianto.tenant_id == tenant_id)
+        imp = query.first()
         if not imp:
             return None
         for field in ["nome", "descrizione", "latitude", "longitude", "sito_id", "tipologia", "note"]:
@@ -68,21 +67,23 @@ class ImpiantoRepository:
         db.refresh(imp)
         return self.get_by_id(db, imp_id, tenant_id)
 
-    def delete(self, db: Session, imp_id: int, tenant_id: int) -> bool:
-        imp = db.query(Impianto).filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id).first()
+    def delete(self, db: Session, imp_id: int, tenant_id: int | None) -> bool:
+        query = db.query(Impianto).filter(Impianto.id == imp_id)
+        if tenant_id is not None:
+            query = query.filter(Impianto.tenant_id == tenant_id)
+        imp = query.first()
         if not imp:
             return False
         db.delete(imp)
         db.commit()
         return True
 
-    def get_tree(self, db: Session, imp_id: int, tenant_id: int) -> dict | None:
-        imp = (
-            db.query(Impianto)
-            .options(joinedload(Impianto.sito), joinedload(Impianto.assets))
-            .filter(Impianto.id == imp_id, Impianto.tenant_id == tenant_id)
-            .first()
-        )
+    def get_tree(self, db: Session, imp_id: int, tenant_id: int | None) -> dict | None:
+        query = db.query(Impianto).options(joinedload(Impianto.sito), joinedload(Impianto.assets))
+        query = query.filter(Impianto.id == imp_id)
+        if tenant_id is not None:
+            query = query.filter(Impianto.tenant_id == tenant_id)
+        imp = query.first()
         if not imp:
             return None
 

@@ -96,6 +96,11 @@ def _apply_migrations():
         "ALTER TABLE ticket ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
         "ALTER TABLE manuali ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
         "ALTER TABLE attivita_manutenzione ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        # --- v12: multi-tenancy sub-tables ---
+        "ALTER TABLE tecnici_assenze ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE analisi_guasti ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE diagnostic_sessions ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE ticket_allegati ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)",
     ]
     for stmt in migrations:
         try:
@@ -121,7 +126,12 @@ def _seed_tenant_and_migrate_data():
         tenant_id = tenant_row[0]
 
         # Assegna tutti i dati esistenti senza tenant al tenant Demo
-        for table in ["utenti", "siti", "impianti", "asset", "tecnici", "ticket", "manuali", "attivita_manutenzione"]:
+        tables = [
+            "utenti", "siti", "impianti", "asset", "tecnici", "ticket", 
+            "manuali", "attivita_manutenzione", "tecnici_assenze", 
+            "analisi_guasti", "diagnostic_sessions", "ticket_allegati"
+        ]
+        for table in tables:
             try:
                 db.execute(text(f"UPDATE {table} SET tenant_id={tenant_id} WHERE tenant_id IS NULL"))
             except Exception:
@@ -176,3 +186,9 @@ def init_db():
             if tecnico_user_now:
                 tecnico_worker.utente_id = tecnico_user_now.id
                 db.commit()
+
+
+if __name__ == "__main__":
+    print("Avvio migrazioni e inizializzazione database...")
+    init_db()
+    print("Database aggiornato con successo.")

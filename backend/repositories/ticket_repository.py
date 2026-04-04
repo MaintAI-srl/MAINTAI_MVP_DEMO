@@ -34,13 +34,15 @@ class TicketRepository:
     def get_paginated(
         self,
         db: Session,
-        tenant_id: int,
+        tenant_id: int | None,
         page: int = 1,
         limit: int = 25,
         stati: list[str] | None = None,
         tecnico_id: int | None = None,
     ) -> dict:
-        query = db.query(Ticket).options(joinedload(Ticket.asset)).filter(Ticket.tenant_id == tenant_id)
+        query = db.query(Ticket).options(joinedload(Ticket.asset))
+        if tenant_id is not None:
+            query = query.filter(Ticket.tenant_id == tenant_id)
         if stati:
             query = query.filter(Ticket.stato.in_(stati))
         if tecnico_id:
@@ -100,13 +102,12 @@ class TicketRepository:
         db.refresh(primo_ticket)
         return primo_ticket
 
-    def update(self, db: Session, ticket_id: int, data: TicketUpdate, tenant_id: int):
-        ticket = (
-            db.query(Ticket)
-            .options(joinedload(Ticket.asset))
-            .filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id)
-            .first()
-        )
+    def update(self, db: Session, ticket_id: int, data: TicketUpdate, tenant_id: int | None):
+        query = db.query(Ticket).options(joinedload(Ticket.asset))
+        query = query.filter(Ticket.id == ticket_id)
+        if tenant_id is not None:
+            query = query.filter(Ticket.tenant_id == tenant_id)
+        ticket = query.first()
         if not ticket:
             return None
         if data.stato is not None:
