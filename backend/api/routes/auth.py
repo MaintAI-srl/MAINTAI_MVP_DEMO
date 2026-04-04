@@ -1,6 +1,7 @@
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.db.modelli import Utente
@@ -75,7 +76,7 @@ def get_me(payload: dict = Depends(get_current_user_payload), db: Session = Depe
     }
 
 
-class PasswordChange(PydanticModel):
+class PasswordChange(BaseModel):
     current_password: str
     new_password: str
 
