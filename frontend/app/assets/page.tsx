@@ -198,6 +198,12 @@ export default function AssetsPage() {
     } finally { setIsSaving(false); }
   }
 
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+
+  // reset pagina quando cambiano i filtri
+  useEffect(() => { setPage(1); }, [search, colFilters, sortCol]);
+
   const filteredAssets = useMemo(() => {
     let result = assets;
     const term = search.trim().toLowerCase();
@@ -306,6 +312,18 @@ export default function AssetsPage() {
         </section>
 
         <section className={styles.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <input
+              className={styles.input}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cerca per nome, codice, impianto..."
+              style={{ flex: 1 }}
+            />
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+              {filteredAssets.length} asset
+            </span>
+          </div>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
@@ -319,7 +337,7 @@ export default function AssetsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAssets.map(asset => (
+                {filteredAssets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(asset => (
                   <tr key={asset.id}>
                     <td style={{ fontFamily: "monospace", color: "#818cf8" }}>{asset.codice || "—"}</td>
                     <td>{asset.name}</td>
@@ -340,6 +358,16 @@ export default function AssetsPage() {
               </tbody>
             </table>
           </div>
+          {/* Paginazione */}
+          {filteredAssets.length > PAGE_SIZE && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 12, justifyContent: "center" }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "4px 10px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", borderRadius: 6, cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1 }}>‹</button>
+              {Array.from({ length: Math.ceil(filteredAssets.length / PAGE_SIZE) }, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPage(p)} style={{ padding: "4px 10px", background: p === page ? "rgba(99,102,241,0.3)" : "transparent", border: `1px solid ${p === page ? "rgba(99,102,241,0.5)" : "var(--border-strong)"}`, color: p === page ? "#818cf8" : "var(--text-secondary)", borderRadius: 6, cursor: "pointer" }}>{p}</button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(Math.ceil(filteredAssets.length / PAGE_SIZE), p + 1))} disabled={page === Math.ceil(filteredAssets.length / PAGE_SIZE)} style={{ padding: "4px 10px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer", opacity: page === Math.ceil(filteredAssets.length / PAGE_SIZE) ? 0.4 : 1 }}>›</button>
+            </div>
+          )}
         </section>
       </div>
 

@@ -1,3 +1,4 @@
+from sqlalchemy.orm import Session, joinedload
 from backend.db.modelli import Impianto, Asset, Ticket, Sito
 from backend.schemas.impianti import ImpiantoCreate, ImpiantoUpdate
 from backend.core.security import check_tenant_ownership
