@@ -13,8 +13,12 @@ PLANNED_ORE_MESE = 176.0
 
 
 def _calcola_kpi_asset(db: Session, asset: Asset, tenant_id: int) -> dict:
-    # MTBF: Mean Time Between Failures
-    # Consideriamo "Guasti" i ticket di tipo CM (Corrective Maintenance) o BD (Breakdown)
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    
+    # 1. Definizione Guasti: Tutti i ticket NON-informativi o preventivi (CM, BD o tipo mancante se out of service)
+    # Consideriamo "Guasti" i ticket di tipo CM (Corrective) o BD (Breakdown)
+    # Se il tipo è mancante ma l'asset è o è stato out of service, lo contiamo come guasto.
     guasti_query = db.query(Ticket).filter(
         Ticket.asset_id == asset.id,
         Ticket.tenant_id == tenant_id,
@@ -22,41 +26,68 @@ def _calcola_kpi_asset(db: Session, asset: Asset, tenant_id: int) -> dict:
     )
     n_guasti = guasti_query.count()
 
-    # Calcolo tempo totale operativo base (giorni)
+    # 2. Tempo Operativo Base (giorni)
     if asset.created_at:
-        start_date = asset.created_at.date()
+        start_date = asset.created_at
     elif asset.anno:
-        start_date = date(asset.anno, 1, 1)
+        start_date = datetime(asset.anno, 1, 1, tzinfo=timezone.utc)
     else:
-        start_date = date.today() - timedelta(days=365)
+        start_date = now - timedelta(days=365)
     
-    total_days = max(1, (date.today() - start_date).days)
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+        
+    total_days = max(0.1, (now - start_date).days + (now - start_date).seconds / 86400.0)
     mtbf_giorni = total_days / max(n_guasti, 1)
 
-    # OEE / Availability (ultimo mese)
-    # Disponibilità = (Tempo Programmato - Tempo Fermo) / Tempo Programmato
-    # Assumiamo Tempo Programmato = 30gg * 24h = 720h (H24) o 176h (Business)
-    # Usiamo 720h per un calcolo industriale standard H24
+    # 3. OEE / Availability (ultimo mese)
+    # Calcoliamo il downtime totale negli ultimi 30gg: Chiusi + In corso + Ongoing (se OoS)
     TEMPO_PROGRAMMATO_H = 720.0 
-    cutoff = datetime.now() - timedelta(days=30)
+    cutoff = now - timedelta(days=30)
     
-    # Downtime dai ticket chiusi negli ultimi 30gg
-    downtime_ore = sum(
-        (t.durata_stimata_ore or 1.0) # Assumiamo almeno 1h se non specificato
+    # A. Downtime dai ticket CHIUSI negli ultimi 30gg
+    downtime_chiusi_ore = sum(
+        (t.durata_stimata_ore or 1.0)
         for t in guasti_query.filter(
             Ticket.stato == "Chiuso",
             Ticket.execution_finish >= cutoff
         ).all()
     )
     
-    availability = max(0.0, min(1.0, (TEMPO_PROGRAMMATO_H - downtime_ore) / TEMPO_PROGRAMMATO_H))
+    # B. Downtime dai ticket IN CORSO / APERTI (stima o reale)
+    # Per semplicità usiamo durata_stimata_ore se presente, o 1h minima
+    downtime_aperti_ore = sum(
+        (t.durata_stimata_ore or 1.0)
+        for t in db.query(Ticket).filter(
+            Ticket.asset_id == asset.id,
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato.in_(["Aperto", "In corso"]),
+            Ticket.created_at >= cutoff
+        ).all()
+    )
+
+    # C. Downtime ONGOING (tempo reale se out of service)
+    downtime_ongoing_ore = 0.0
+    if asset.stato == "out of service" and asset.stato_changed_at:
+        ts = asset.stato_changed_at
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        
+        # Consideriamo solo quanto avvenuto negli ultimi 30gg
+        start_event = max(ts, cutoff)
+        ongoing_seconds = (now - start_event).total_seconds()
+        downtime_ongoing_ore = max(0.0, ongoing_seconds / 3600.0)
+
+    total_downtime_30gg = downtime_chiusi_ore + downtime_aperti_ore + downtime_ongoing_ore
+    
+    availability = max(0.0, min(1.0, (TEMPO_PROGRAMMATO_H - total_downtime_30gg) / TEMPO_PROGRAMMATO_H))
     oee = round(availability * 100, 1)
 
     return {
         "mtbf_giorni": round(mtbf_giorni, 1),
         "oee_pct": oee,
         "n_guasti": n_guasti,
-        "downtime_ore_30gg": round(downtime_ore, 1),
+        "downtime_ore_30gg": round(total_downtime_30gg, 1),
     }
 
 
