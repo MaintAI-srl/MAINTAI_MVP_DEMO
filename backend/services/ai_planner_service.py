@@ -580,7 +580,7 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
 
 def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_backlog: int) -> Dict[str, Any]:
     """
-    Calcola efficiency score 0-100 con breakdown per 5 fattori.
+    Calcola efficiency score 0-100 con breakdown per 5 fattori e motivazioni testuali.
     """
     planned = plan.get("planned_workorders", [])
     deferred = plan.get("deferred_workorders", [])
@@ -637,6 +637,85 @@ def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_bac
         + meteo_score   * 0.10
     )
 
+    # ── Motivazioni per componenti sotto target ───────────────────────────────
+    n_deferred = len(deferred)
+    motivations = []
+
+    if copertura < 85:
+        motivations.append({
+            "componente": "Copertura backlog",
+            "valore": round(copertura, 1),
+            "target": 85,
+            "spiegazione": (
+                f"{n_deferred} ticket non pianificati su {n_total} totali "
+                f"({round(100 - copertura)}% del backlog rimandato)."
+            ),
+            "suggerimento": (
+                "Aggiungi disponibilità tecnici nei giorni mancanti o sposta "
+                "i ticket meno urgenti alla settimana successiva."
+            ),
+        })
+
+    if utilizzo < 70:
+        ore_libere = round(ore_disponibili - ore_assegnate, 1)
+        motivations.append({
+            "componente": "Utilizzo tecnici",
+            "valore": round(utilizzo, 1),
+            "target": 70,
+            "spiegazione": (
+                f"Capacità tecnici usata al {round(utilizzo)}%: "
+                f"{ore_libere} ore/settimana non assegnate."
+            ),
+            "suggerimento": (
+                "Carica più ticket in backlog o attiva interventi PM preventivi "
+                "per riempire i turni liberi."
+            ),
+        })
+
+    if bilanciamento < 80:
+        motivations.append({
+            "componente": "Bilanciamento PM/CM (target 70/30)",
+            "valore": round(ratio_pm, 1),
+            "target": 70,
+            "spiegazione": (
+                f"Rapporto PM attuale: {round(ratio_pm)}% (target 70%). "
+                f"{n_cm} CM vs {n_pm} PM pianificati."
+            ),
+            "suggerimento": (
+                "Aggiungi attività PM preventive al backlog per avvicinarsi "
+                "al rapporto 70/30."
+            ),
+        })
+
+    if skill_score < 90:
+        motivations.append({
+            "componente": "Match competenze tecnici",
+            "valore": round(skill_score, 1),
+            "target": 90,
+            "spiegazione": (
+                f"{skill_ko} ticket rimandati per assenza di tecnici qualificati."
+            ),
+            "suggerimento": (
+                "Verifica le competenze assegnate ai tecnici o inserisci un "
+                "tecnico con le skill richieste."
+            ),
+        })
+
+    if meteo_score < 90:
+        motivations.append({
+            "componente": "Ottimizzazione meteo",
+            "valore": round(meteo_score, 1),
+            "target": 90,
+            "spiegazione": (
+                f"{wo_with_meteo_warning} ticket pianificati con avvisi meteo "
+                "attivi sui vincoli asset."
+            ),
+            "suggerimento": (
+                "Sposta gli interventi all'aperto a giorni con previsioni "
+                "favorevoli o rivedi i vincoli meteo degli asset."
+            ),
+        })
+
     return {
         "efficiency_score": round(efficiency, 1),
         "efficiency_breakdown": {
@@ -646,4 +725,5 @@ def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_bac
             "match_skill":          round(skill_score, 1),
             "ottimizzazione_meteo": round(meteo_score, 1),
         },
+        "efficiency_motivations": motivations,
     }

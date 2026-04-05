@@ -26,8 +26,9 @@ const NAV = [
     section: "VISUALIZZAZIONI",
     items: [
       { href: "/scheduler", label: "Pianificazione", icon: "◫" },
-      { href: "/ticket",    label: "Ticket",      icon: "◷" },
-      { href: "/profilo",   label: "Mio Profilo",  icon: "👤" },
+      { href: "/planning",  label: "Piano AI",       icon: "⚡" },
+      { href: "/ticket",    label: "Ticket",         icon: "◷" },
+      { href: "/profilo",   label: "Mio Profilo",    icon: "👤" },
     ],
   },
   {
@@ -56,6 +57,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/impianti":   "Impianti",
   "/tecnici":    "Tecnici",
   "/scheduler":  "Pianificazione",
+  "/planning":   "Piano AI — MARCO",
   "/ticket":     "Ticket",
   "/manuali":    "Manuali",
   "/piani":          "Piano di Manutenzione",

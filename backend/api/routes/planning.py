@@ -148,14 +148,18 @@ def confirm_plan(
         ticket.tecnico_id = tecnico_id
         ticket.stato = "Pianificato"
 
-        # Calcola planned_start dalla data + ora inizio fascia
+        # Calcola planned_start e planned_finish dai campi calcolati da calculate_split_assignments
         if planned_date_str:
             try:
-                start_time = "08:00"
-                if time_slot and "-" in time_slot:
+                start_time = wo.get("planned_start_time") or "08:00"
+                end_time = wo.get("planned_end_time") or "17:00"
+                if not start_time and time_slot and "-" in time_slot:
                     start_time = time_slot.split("-")[0].strip()
+                    end_time = time_slot.split("-")[1].strip()
                 planned_start = datetime.fromisoformat(f"{planned_date_str}T{start_time}:00")
+                planned_finish = datetime.fromisoformat(f"{planned_date_str}T{end_time}:00")
                 ticket.planned_start = planned_start
+                ticket.planned_finish = planned_finish
             except ValueError:
                 logger.warning("Confirm plan: impossibile parsare data/ora per ticket %s", wo_id)
 
