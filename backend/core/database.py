@@ -17,9 +17,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _SQLITE_DEFAULT = f"sqlite:///{_PROJECT_ROOT / 'maintai.db'}"
 
 # In cloud imposta DATABASE_URL come variabile d'ambiente (PostgreSQL Render)
-# In locale metti DATABASE_URL nel backend/.env per puntare al PostgreSQL di Render
+# In locale usa SQLite con path assoluto
 DATABASE_URL = os.getenv("DATABASE_URL", _SQLITE_DEFAULT)
-DEMO_DATABASE_URL = f"sqlite:///{_PROJECT_ROOT / 'demo.db'}"
 
 # Argomenti extra per la connessione (SQLite richiede check_same_thread=False)
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -27,8 +26,5 @@ connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite")
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-demo_engine = create_engine(DEMO_DATABASE_URL, connect_args={"check_same_thread": False})
-DemoSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=demo_engine)
-
 class Base(DeclarativeBase):
-    pass
+    pass

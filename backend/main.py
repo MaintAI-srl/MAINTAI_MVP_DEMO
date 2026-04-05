@@ -39,7 +39,6 @@ try:
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
-    from backend.core.demo_db import init_demo_db
     from backend.core.logging_config import setup_logging
     from backend.services.email_poller import check_all_mailboxes
 except ImportError as e:
@@ -125,7 +124,7 @@ def _ensure_columns() -> None:
         ("generated_plans", "deauthorization_reason",  "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorization_reason VARCHAR"),
     ]
 
-    # generated_plans — tabella intera
+    # generated_plans — tabella intera (con tutte le colonne incluse le nuove)
     gp_pg = """
         CREATE TABLE IF NOT EXISTS generated_plans (
             id SERIAL PRIMARY KEY,
@@ -134,7 +133,12 @@ def _ensure_columns() -> None:
             horizon_days INTEGER DEFAULT 7,
             plan_json JSONB,
             confirmed_at TIMESTAMP,
-            tenant_id INTEGER REFERENCES tenants(id)
+            tenant_id INTEGER REFERENCES tenants(id),
+            plan_number INTEGER,
+            confirmed_by VARCHAR,
+            deauthorized_at TIMESTAMP,
+            deauthorized_by VARCHAR,
+            deauthorization_reason VARCHAR
         )
     """
     gp_sqlite = """
@@ -145,7 +149,12 @@ def _ensure_columns() -> None:
             horizon_days INTEGER DEFAULT 7,
             plan_json TEXT,
             confirmed_at DATETIME,
-            tenant_id INTEGER REFERENCES tenants(id)
+            tenant_id INTEGER REFERENCES tenants(id),
+            plan_number INTEGER,
+            confirmed_by VARCHAR,
+            deauthorized_at DATETIME,
+            deauthorized_by VARCHAR,
+            deauthorization_reason VARCHAR
         )
     """
 
@@ -156,6 +165,9 @@ def _ensure_columns() -> None:
         ifne = "IF NOT EXISTS " if pg else ""
         try:
             with eng.begin() as conn:
+                # Prima crea la tabella (idempotente), poi aggiungi colonne mancanti
+                conn.execute(text(gp_pg if pg else gp_sqlite))
+                logger.info("_ensure_columns[%s]: generated_plans OK", url.split("://")[0])
                 for _table, col_name, tmpl in ddl_statements:
                     sql = tmpl.format(ifne=ifne)
                     try:
@@ -167,16 +179,12 @@ def _ensure_columns() -> None:
                             logger.debug("_ensure_columns: %s già presente", col_name)
                         else:
                             logger.warning("_ensure_columns DDL %s: %s", col_name, col_exc)
-                conn.execute(text(gp_pg if pg else gp_sqlite))
-                logger.info("_ensure_columns[%s]: generated_plans OK", url.split("://")[0])
         except Exception as exc:
             logger.warning("_ensure_columns[%s] fallito: %s", url.split("://")[0], exc)
 
     try:
-        from backend.core.database import DATABASE_URL as MAIN_URL, DEMO_DATABASE_URL
+        from backend.core.database import DATABASE_URL as MAIN_URL
         _apply_to(MAIN_URL, is_pg)
-        # Applica sempre anche sul demo DB (SQLite) — ha sempre le stesse colonne
-        _apply_to(DEMO_DATABASE_URL, False)
     except Exception as exc:
         logger.warning("_ensure_columns: import URL fallito: %s", exc)
 
@@ -194,8 +202,6 @@ async def lifespan(app: FastAPI):
         print("✅ migrations checked")
         init_db()               # crea tabelle mancanti + seed
         print("✅ main db initialized")
-        init_demo_db()          # crea tabelle + seed demo.db (per utenti is_demo)
-        print("✅ demo db initialized")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
         traceback.print_exc()
