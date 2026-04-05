@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import { VERSION } from "./lib/version";
+import DemoBanner from "./components/DemoBanner";
 
 const NAV = [
   {
@@ -247,6 +248,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
             {/* Page content */}
             <main className="app-content">
+              <DemoBanner />
               {children}
             </main>
 

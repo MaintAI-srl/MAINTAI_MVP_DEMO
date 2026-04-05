@@ -11,6 +11,31 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # --- MODALITÀ DEMO ---
+    if form_data.username == "demo" and form_data.password == "demo123":
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={
+                "sub": "demo",
+                "ruolo": "responsabile",
+                "userid": 999,
+                "tenant_id": 1,
+                "is_demo": True,
+            },
+            expires_delta=access_token_expires,
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "ruolo": "responsabile",
+            "username": "demo",
+            "userid": 999,
+            "tenant_id": 1,
+            "tenant_nome": "MaintAI Demo",
+            "is_demo": True,
+        }
+    # ----------------------
+
     user = (
         db.query(Utente)
         .options(joinedload(Utente.tenant))

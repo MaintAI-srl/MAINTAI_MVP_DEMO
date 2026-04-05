@@ -49,7 +49,29 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git -C C:/Users/aless/DESKTOP/MAINTAI_V3 add frontend/app/components/UploadAllegati.tsx frontend/app/lib/api.ts frontend/app/lib/version.ts frontend/app/manuali/page.tsx)",
-      "Bash(git -C:*)"
+      "Bash(git -C:*)",
+      "Bash(for f:*)",
+      "Bash(do python:*)",
+      "Bash(echo \"OK $f\")",
+      "Bash(echo \"ERRORE $f\")",
+      "Bash(done)",
+      "Bash(vercel --version)",
+      "Bash(npx vercel:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel ls:*)",
+      "Bash(vercel inspect:*)",
+      "Bash(vercel logs:*)",
+      "Bash(vercel --prod --yes)",
+      "Bash(render --version)",
+      "Bash(rm -f backend/maintai.db backend/db/maintai.db)",
+      "Bash(ls *.db)",
+      "Bash(export DATABASE_URL=\"postgresql://postgres.onvqeynflxktwzwcfvnd:MaintAI2026!Prod@aws-1-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require\")",
+      "Bash(export PYTHONIOENCODING=utf-8)",
+      "Bash(alembic stamp:*)",
+      "Bash(winget upgrade:*)",
+      "Bash(find /c/Users/aless/Desktop/maintai_v3/frontend/app -name \"*.module.css\" -exec head -30 {} +)",
+      "Bash(ls:*)",
+      "Bash(wc:*)"
     ]
   }
 }

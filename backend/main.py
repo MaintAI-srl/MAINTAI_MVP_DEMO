@@ -24,6 +24,7 @@ from backend.api.routes.tickets import router as tickets_router
 from backend.api.routes.scadenze import router as scadenze_router
 from backend.api.routes.logs import router as logs_router
 from backend.api.routes.email_config import router as email_config_router
+from backend.api.routes.demo import router as demo_router
 from backend.core.config import init_backend
 from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
 from backend.core.init_db import init_db
@@ -125,6 +126,7 @@ app.include_router(siti_router)
 app.include_router(problem_analysis_router)
 app.include_router(tenants_router)
 app.include_router(email_config_router)
+app.include_router(demo_router)
 
 # Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
 if not os.getenv("SUPABASE_URL"):
