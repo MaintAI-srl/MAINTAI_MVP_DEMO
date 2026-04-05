@@ -116,6 +116,12 @@ def _ensure_columns() -> None:
         ("ticket", "parent_ticket_id",   "ALTER TABLE ticket ADD COLUMN {ifne}parent_ticket_id INTEGER"),
         ("ticket", "is_continuation",    "ALTER TABLE ticket ADD COLUMN {ifne}is_continuation BOOLEAN DEFAULT FALSE"),
         ("ticket", "planned_start_time", "ALTER TABLE ticket ADD COLUMN {ifne}planned_start_time TIME"),
+        # generated_plans — storico piani
+        ("generated_plans", "plan_number",             "ALTER TABLE generated_plans ADD COLUMN {ifne}plan_number INTEGER"),
+        ("generated_plans", "confirmed_by",            "ALTER TABLE generated_plans ADD COLUMN {ifne}confirmed_by VARCHAR"),
+        ("generated_plans", "deauthorized_at",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_at DATETIME"),
+        ("generated_plans", "deauthorized_by",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_by VARCHAR"),
+        ("generated_plans", "deauthorization_reason",  "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorization_reason VARCHAR"),
     ]
 
     # generated_plans — tabella intera

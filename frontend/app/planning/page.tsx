@@ -9,6 +9,7 @@ import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import GanttGiornaliero from "./components/GanttGiornaliero";
 import KanbanSettimanale from "./components/KanbanSettimanale";
 import CalendarioMensile from "./components/CalendarioMensile";
+import StoricoPiani from "./components/StoricoPiani";
 
 import type {
   TicketData,
@@ -232,6 +233,7 @@ export default function PlanningPage() {
   const [generando, setGenerando] = useState(false);
   const [confermando, setConfermando] = useState(false);
   const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
+  const [storico, setStorico] = useState<GeneratedPlan[]>([]);
 
   // ── Mappe per lookup O(1) ──────────────────────────────────────────────────
   const ticketMap = useMemo(
@@ -271,6 +273,15 @@ export default function PlanningPage() {
   const globalWarnings: string[] = planJson?.global_warnings ?? [];
 
   // ── Caricamento dati ───────────────────────────────────────────────────────
+  const loadStorico = useCallback(async () => {
+    try {
+      const res = await apiGet<GeneratedPlan[]>("/planning/history").catch(() => []);
+      setStorico(res ?? []);
+    } catch {
+      // ignora errori storico silenziosamente
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -289,7 +300,10 @@ export default function PlanningPage() {
     }
   }, []);
 
+  useEffect(() => { loadStorico(); }, [loadStorico]);
+
   useEffect(() => { loadData(); }, [loadData]);
+  // loadStorico is called in its own useEffect above
 
   // ── Genera piano AI ────────────────────────────────────────────────────────
   async function generateAIPlan() {
@@ -319,6 +333,7 @@ export default function PlanningPage() {
       const nAgg = plannedWOs.filter(w => !w.is_continuation).length;
       setPiano(null);
       toast.success(`Piano confermato — ${nAgg} ticket aggiornati`);
+      loadStorico();
     } catch (e: any) {
       toast.error(e?.message ?? "Errore conferma piano");
     } finally {
@@ -637,38 +652,6 @@ export default function PlanningPage() {
               })
             )}
 
-            {/* Lista ticket aperti in modalità manuale */}
-            {modalita === "manuale" && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{
-                  fontSize: 11, fontWeight: 700, color: "#6b7280",
-                  letterSpacing: "0.08em", marginBottom: 8,
-                }}>TICKET APERTI</div>
-                {tickets
-                  .filter(t => t.stato === "Aperto")
-                  .slice(0, 20)
-                  .map(t => (
-                    <div key={t.id} style={{
-                      background: "#1a2332",
-                      border: "1px solid #2a3748",
-                      borderRadius: 5,
-                      padding: "8px 10px",
-                      marginBottom: 6,
-                      cursor: "pointer",
-                    }}
-                    onClick={() => setTicketDaPianificare(t)}
-                    >
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>
-                        #{t.id} · {t.tipo} · {t.durata_stimata_ore}h
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginTop: 2 }}>
-                        {t.titolo}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>{t.asset_name ?? "—"}</div>
-                    </div>
-                  ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -806,6 +789,11 @@ export default function PlanningPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── STORICO PIANI ──────────────────────────────────────────────────── */}
+      <div style={{ padding: "0 24px 32px" }}>
+        <StoricoPiani piani={storico} onRefresh={loadStorico} />
       </div>
 
       {/* Modale pianificazione manuale */}

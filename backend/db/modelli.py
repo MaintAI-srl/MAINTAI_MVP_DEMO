@@ -323,8 +323,18 @@ class GeneratedPlan(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(String, default="draft")    # draft | confirmed
+    status = Column(String, default="draft")    # draft | confirmed | deauthorized
     horizon_days = Column(Integer, default=7)
     plan_json = Column(JSON)
+
+    # Conferma
+    plan_number = Column(Integer, nullable=True, index=True)  # numero progressivo per tenant
     confirmed_at = Column(DateTime, nullable=True)
+    confirmed_by = Column(String, nullable=True)  # username di chi ha confermato
+
+    # Deautorizzazione (solo flag admin, non modifica i ticket)
+    deauthorized_at = Column(DateTime, nullable=True)
+    deauthorized_by = Column(String, nullable=True)
+    deauthorization_reason = Column(String, nullable=True)
+
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

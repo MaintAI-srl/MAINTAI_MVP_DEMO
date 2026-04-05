@@ -157,21 +157,46 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 
   return (
     <DialogContent
-      className="max-w-[600px] max-h-[92vh] overflow-y-auto p-0 border-none"
-      style={{ background: "#060b13", color: "var(--text-primary)", borderRadius: 16, boxShadow: "0 24px 48px rgba(0,0,0,0.6)" }}
+      showCloseButton={false}
+      className="max-w-[600px] max-h-[90vh] overflow-y-auto p-0 border-none"
+      style={{
+        background: "#111827",
+        color: "var(--text-primary)",
+        borderRadius: 12,
+        boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
+        border: "1px solid #1f2937",
+        width: "min(90vw, 680px)",
+        maxWidth: "min(90vw, 680px)",
+      }}
     >
       {/* Header Premium */}
-      <div style={{ padding: "24px 28px", background: "linear-gradient(to bottom, rgba(59,130,246,0.05), transparent)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
-              Dettaglio Ticket #{ticket.id}
-            </div>
-            <DialogTitle style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em", margin: 0 }}>
-              {ticket.titolo}
-            </DialogTitle>
+      <div style={{ padding: "24px 28px", background: "linear-gradient(to bottom, rgba(59,130,246,0.05), transparent)", borderBottom: "1px solid rgba(255,255,255,0.05)", position: "relative" }}>
+        {/* Pulsante chiusura — unico, position absolute */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            background: "transparent",
+            border: "none",
+            color: "var(--text-muted)",
+            cursor: "pointer",
+            fontSize: 20,
+            lineHeight: 1,
+            zIndex: 10,
+            padding: 4,
+          }}
+        >
+          &times;
+        </button>
+        <div style={{ marginBottom: 12, paddingRight: 32 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
+            Dettaglio Ticket #{ticket.id}
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20 }}>&times;</button>
+          <DialogTitle style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em", margin: 0 }}>
+            {ticket.titolo}
+          </DialogTitle>
         </div>
         
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
