@@ -114,7 +114,7 @@ class AssetRepository:
             nome=nome_val,
             area=data.area,
             vincolo_orario=data.vincolo_orario or "",
-            note=note_val,
+            note=data.note or "",
             codice=codice_val,
             descrizione=data.descrizione or "",
             anno=data.anno,

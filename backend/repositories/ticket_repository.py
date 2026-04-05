@@ -69,9 +69,9 @@ class TicketRepository:
         dump["tenant_id"] = tenant_id
 
         # Validazione tenant per Asset e Tecnico
-        if data.asset_id:
+        if getattr(data, "asset_id", None):
             check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
-        if data.tecnico_id:
+        if getattr(data, "tecnico_id", None):
             check_tenant_ownership(db, Tecnico, data.tecnico_id, tenant_id)
 
         if getattr(data, "asset_stato", None) is not None:

@@ -13,6 +13,7 @@ class TicketCreate(BaseModel):
     durata_stimata_ore: float = Field(..., ge=0)
     fascia_oraria: str
     descrizione: str | None = None
+    tecnico_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
 
