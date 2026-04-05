@@ -78,7 +78,16 @@ export interface GeneratedPlan {
   status: string;
   horizon_days: number;
   plan_json: PlanJson;
+  plan_number: number | null;
+  plan_label: string | null;
   confirmed_at: string | null;
+  confirmed_by: string | null;
+  deauthorized_at: string | null;
+  deauthorized_by: string | null;
+  deauthorization_reason: string | null;
+  wo_count: number;
+  efficiency_score: number | undefined;
+  tenant_id: number | null;
 }
 
 // Colori per tipo ticket
