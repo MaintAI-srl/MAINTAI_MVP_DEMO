@@ -72,6 +72,22 @@ def debug_db(db: Session = Depends(get_db)):
     except Exception as e:
         result["checks"].append(f"query Tecnico FAIL — {str(e)}")
 
+    # Test demo.db (SQLite)
+    try:
+        from backend.core.database import DEMO_DATABASE_URL, demo_engine
+        from sqlalchemy import inspect as sa_inspect, text as sa_text
+        insp2 = sa_inspect(demo_engine)
+        demo_cols = [c["name"] for c in insp2.get_columns("asset")] if "asset" in insp2.get_table_names() else []
+        result["demo_asset_columns"] = demo_cols
+        result["demo_has_weather_constraint"] = "weather_constraint" in demo_cols
+        # Try query on demo db
+        with demo_engine.connect() as c2:
+            r = c2.execute(sa_text("SELECT count(*) FROM asset")).scalar()
+            result["checks"].append(f"demo.db query Asset count: OK ({r})")
+    except Exception as e:
+        result["checks"].append(f"demo.db FAIL — {str(e)[:200]}")
+
+    result["deploy_ts"] = "2026-04-05T_fix3"
     return result
 
 
