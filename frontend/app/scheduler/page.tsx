@@ -1,1178 +1,262 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiGet, apiPost, apiPut } from "../lib/api";
-import StatusToggle from "../components/StatusToggle";
-import { DatePicker } from "@/components/ui/date-picker";
-import styles from "./scheduler.module.css";
+import { useEffect, useState, useMemo } from "react";
+import { apiGet, apiPost } from "../lib/api";
+import { notify } from "@/lib/toast";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+import { UnifiedTicket, BacklogStats } from "./unified_types";
+import { toIso, addDays, parseStartHour, parseEndHour, woTypeColor } from "./unified_helpers";
+import { BlockList, GanttBlock } from "./DashboardComponents";
 
-interface SchedulerItem {
-  id: number;
-  titolo: string;
-  asset_name: string;
-  asset_id: number | null;
-  tipo: string;
-  priorita: string;
-  fascia: string;
-  durata_ore: number;
-  tecnico: string;
-  tecnico_id: number | null;
-  date: string | null;
-  start_hour: number | null;
-  end_hour: number | null;
-  planned_start: string | null;
-  planned_finish: string | null;
-  locked: boolean;
-}
-
-interface TecnicoOption {
-  id: number;
-  nome: string;
-  skill: string;
-  ore_giornaliere: number;
-}
-
-interface OreGiorno {
-  date: string;
-  ore_residue: number;
-}
-
-interface OreSettimana {
-  tecnico: string;
-  ore_per_giorno: OreGiorno[];
-}
-
-interface OreResidue {
-  tecnico: string;
-  ore_residue: number;
-}
-
-interface SchedulerData {
-  items: SchedulerItem[];
-  non_allocati: SchedulerItem[];
-  ore_residue: OreResidue[];
-  ore_settimana: OreSettimana[];
-  start_date: string;
-  forecast?: Record<string, {
-    is_sunny: boolean;
-    is_rainy: boolean;
-    wind_max: number;
-    rain_sum: number;
-  }>;
-  assets_metadata?: Record<number, {
-    weather_sunny_required: boolean;
-    weather_max_wind_kmh?: number;
-    weather_max_rain_mm?: number;
-  }>;
-}
-
-
-// ── Style constants ────────────────────────────────────────────────────────
-
-const navBtn: React.CSSProperties = {
-  background: "transparent",
-  border: "1px solid rgba(148,163,184,.3)",
-  color: "var(--text-muted)",
-  borderRadius: 10,
-  padding: "6px 12px",
-  cursor: "pointer",
-  fontSize: "1rem",
-  lineHeight: 1,
-};
-
-const thStyle: React.CSSProperties = {
-  background: "rgba(15,23,42,.95)",
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  fontSize: ".72rem",
-  letterSpacing: ".1em",
-  padding: "10px 12px",
-  fontWeight: 700,
-  borderBottom: "1px solid rgba(255,255,255,.07)",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: React.CSSProperties = {
-  minWidth: 130,
-  padding: "10px 12px",
-  borderBottom: "1px solid rgba(255,255,255,.06)",
-  verticalAlign: "top",
-};
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function toIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso + "T00:00:00").toLocaleDateString("it-IT", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
-}
-
-function formatHour(value?: number | null): string {
-  if (value == null) return "-";
-  const h = Math.floor(value);
-  const m = Math.round((value - h) * 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-function priorityBadgeClass(v: string): string {
-  switch (v?.toLowerCase()) {
-    case "alta":
-    case "critica":
-      return styles.badgeRose;
-    case "media":
-      return styles.badgeAmber;
-    case "bassa":
-      return styles.badgeEmerald;
-    default:
-      return styles.badgeSlate;
-  }
-}
-
-function fasciaBadgeClass(v: string): string {
-  switch (v?.toLowerCase()) {
-    case "mattina":
-      return styles.badgeSky;
-    case "pomeriggio":
-      return styles.badgeAmber;
-    case "sera":
-    case "notte":
-      return styles.badgeViolet;
-    default:
-      return styles.badgeSlate;
-  }
-}
-
-function ganttBlockClass(item: SchedulerItem): string {
-  switch (item.priorita?.toLowerCase()) {
-    case "alta":
-    case "critica":
-      return styles.ganttBlockRose;
-    case "media":
-      return styles.ganttBlockAmber;
-    case "bassa":
-      return styles.ganttBlockSky;
-    default:
-      return styles.ganttBlockViolet;
-  }
-}
-
-// ── GanttTechRow sub-component ─────────────────────────────────────────────
-
-function GanttTechRow({
-  tecnico,
-  items,
-  forecast,
-  assetsMeta,
-  onBlockDrop,
-}: {
-  tecnico: string;
-  items: SchedulerItem[];
-  forecast?: SchedulerData["forecast"];
-  assetsMeta?: SchedulerData["assets_metadata"];
-  onBlockDrop?: (itemId: number, newStartHour: number, newEndHour: number) => void;
-}) {
-  const [draggingId, setDraggingId] = useState<number | null>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const assetNames = [...new Set(items.map((i) => i.asset_name).filter(Boolean))].join(", ");
-
-  return (
-    <div className={styles.ganttRow}>
-      <div className={styles.ganttRowMeta}>
-        <div className={styles.ganttRowTech}>{tecnico}</div>
-        <div className={styles.ganttRowAsset}>{assetNames || "—"}</div>
-      </div>
-      <div
-        ref={trackRef}
-        className={styles.ganttTrack}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          if (!trackRef.current || !onBlockDrop) return;
-          const itemId = Number(e.dataTransfer.getData("gantt-item-id"));
-          const durata = Number(e.dataTransfer.getData("gantt-item-durata"));
-          const grabOffset = Number(e.dataTransfer.getData("gantt-grab-offset"));
-          const rect = trackRef.current.getBoundingClientRect();
-          const dropPct = (e.clientX - rect.left) / rect.width;
-          const rawStart = dropPct * 24 - grabOffset;
-          const newStartHour = Math.max(0, Math.min(22, Math.round(rawStart * 2) / 2));
-          const newEndHour = Math.min(24, newStartHour + durata);
-          setDraggingId(null);
-          onBlockDrop(itemId, newStartHour, newEndHour);
-        }}
-      >
-        {items.map((item) => {
-          let hasWeatherWarning = false;
-          let warningReason = "";
-
-          if (item.date && item.asset_id && assetsMeta?.[item.asset_id] && forecast?.[item.date]) {
-            const meta = assetsMeta[item.asset_id];
-            const fc = forecast[item.date];
-            if (item.priorita?.toLowerCase() !== "alta") {
-              if (meta.weather_sunny_required && !fc.is_sunny) { hasWeatherWarning = true; warningReason = "Richiede Sole"; }
-              if (meta.weather_max_wind_kmh && fc.wind_max > meta.weather_max_wind_kmh) { hasWeatherWarning = true; warningReason = `Vento > ${meta.weather_max_wind_kmh}km/h`; }
-              if (meta.weather_max_rain_mm && fc.rain_sum > meta.weather_max_rain_mm) { hasWeatherWarning = true; warningReason = `Pioggia > ${meta.weather_max_rain_mm}mm`; }
-            }
-          }
-
-          return item.start_hour != null && item.end_hour != null ? (
-            <div
-              key={item.id}
-              className={`${styles.ganttBlock} ${ganttBlockClass(item)}`}
-              draggable
-              onDragStart={(e) => {
-                const blockRect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                const grabOffset = ((e.clientX - blockRect.left) / blockRect.width) * (item.end_hour! - item.start_hour!);
-                e.dataTransfer.setData("gantt-item-id", String(item.id));
-                e.dataTransfer.setData("gantt-item-durata", String(item.durata_ore));
-                e.dataTransfer.setData("gantt-grab-offset", String(grabOffset));
-                setDraggingId(item.id);
-              }}
-              onDragEnd={() => setDraggingId(null)}
-              style={{
-                left: `${(item.start_hour / 24) * 100}%`,
-                width: `${((item.end_hour - item.start_hour) / 24) * 100}%`,
-                outline: item.locked ? "1px solid rgba(129,140,248,.7)" : undefined,
-                display: "flex",
-                alignItems: "center",
-                overflow: "hidden",
-                opacity: draggingId === item.id ? 0.4 : 1,
-                cursor: draggingId === item.id ? "grabbing" : "grab",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                backdropFilter: "blur(4px)",
-              }}
-              title={`${formatHour(item.start_hour)} – ${formatHour(item.end_hour)} · ${item.titolo}${item.locked ? " [bloccato]" : ""}${warningReason ? ` · ATTENZIONE: ${warningReason}` : ""}`}
-            >
-              {hasWeatherWarning && (
-                <span style={{ fontSize: 10, marginRight: 4, filter: "drop-shadow(0 0 2px rgba(0,0,0,0.5))" }} title={warningReason}>⚠️</span>
-              )}
-              <span className={styles.ganttBlockTime}>{formatHour(item.start_hour)}</span>
-              <span className={styles.ganttBlockTitle}>{item.titolo}</span>
-            </div>
-          ) : null;
-        })}
-      </div>
-    </div>
-  );
-}
-
-
-// ── Main component ─────────────────────────────────────────────────────────
-
-export default function SchedulerPage() {
-  const [data, setData] = useState<SchedulerData | null>(null);
+export default function SchedulerMasterPage() {
+  const [mode, setMode] = useState<"MANUALE" | "AI">("MANUALE");
   const [loading, setLoading] = useState(false);
-  const [ricalcolaMsg, setRicalcolaMsg] = useState("");
-  const [view, setView] = useState<"day" | "week">("day");
-  const [selectedDay, setSelectedDay] = useState<string>(toIso(new Date()));
-  const [tecniciList, setTecniciList] = useState<TecnicoOption[]>([]);
+  const [baseDate, setBaseDate] = useState<Date>(new Date());
+  const baseDateStr = toIso(baseDate);
 
-  // Inline edit state
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editTecnicoId, setEditTecnicoId] = useState<number | null>(null);
-  const [editDurata, setEditDurata] = useState<number>(1);
-  const [editFascia, setEditFascia] = useState<string>("diurna");
-  const [editDate, setEditDate] = useState<string>("");
-  const [editTime, setEditTime] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-
-  const [listPage, setListPage] = useState(1);
-  const [listFilter, setListFilter] = useState<"all" | "PM" | "CM" | "alta">("all");
-  const ITEMS_PER_PAGE = 10;
-
-  // ── Derived state ──────────────────────────────────────────────────────
-
-  const weekStart = useMemo<Date>(() => {
-    const d = new Date(selectedDay + "T00:00:00");
-    const day = d.getDay();
-    const offset = day === 0 ? -6 : -(day - 1);
-    return addDays(d, offset);
-  }, [selectedDay]);
-
-  const weekDays = useMemo<string[]>(() => {
-    return Array.from({ length: 7 }, (_, i) => toIso(addDays(weekStart, i)));
-  }, [weekStart]);
-
-  const scheduleBase = useMemo<string>(() => {
-    return view === "day" ? selectedDay : toIso(weekStart);
-  }, [view, selectedDay, weekStart]);
-
-  const dayItems = useMemo<SchedulerItem[]>(() => {
-    if (!data) return [];
-    return data.items.filter((item) => item.date === selectedDay);
-  }, [data, selectedDay]);
-
-  const dayItemsByTech = useMemo<[string, SchedulerItem[]][]>(() => {
-    const map = new Map<string, SchedulerItem[]>();
-    for (const item of dayItems) {
-      const key = item.tecnico ?? "—";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
-    }
-    return Array.from(map.entries());
-  }, [dayItems]);
-
-  const tecnici = useMemo<string[]>(() => {
-    if (!data) return [];
-    const set = new Set(data.items.map((i) => i.tecnico));
-    return Array.from(set).sort();
-  }, [data]);
-
-  const weekMatrix = useMemo<Record<string, Record<string, SchedulerItem[]>>>(() => {
-    if (!data) return {};
-    const matrix: Record<string, Record<string, SchedulerItem[]>> = {};
-    for (const item of data.items) {
-      if (!item.date) continue;
-      if (!matrix[item.tecnico]) matrix[item.tecnico] = {};
-      if (!matrix[item.tecnico][item.date]) matrix[item.tecnico][item.date] = [];
-      matrix[item.tecnico][item.date].push(item);
-    }
-    return matrix;
-  }, [data]);
-
-  const oreSettimanaUsate = useMemo<Record<string, number>>(() => {
-    if (!data) return {};
-    // Somma le durate effettivamente allocate per tecnico nella settimana corrente
-    const result: Record<string, number> = {};
-    for (const item of data.items) {
-      if (!item.date || !weekDays.includes(item.date)) continue;
-      result[item.tecnico] = (result[item.tecnico] ?? 0) + item.durata_ore;
-    }
-    return result;
-  }, [data, weekDays]);
-
-  // ── Effects ────────────────────────────────────────────────────────────
+  // Manual State
+  const [manualData, setManualData] = useState<any>(null);
+  // AI State
+  const [aiData, setAiData] = useState<any>(null);
+  
+  // Shared lookups
+  const [tecnici, setTecnici] = useState<any[]>([]);
+  const [assets, setAssets] = useState<any[]>([]);
+  const [ticketsMeta, setTicketsMeta] = useState<any[]>([]);
 
   useEffect(() => {
-    loadPlan(scheduleBase);
+    async function loadMeta() {
+      try {
+        const [tecRes, astRes, tixRes] = await Promise.allSettled([
+          apiGet<any[]>("/tecnici"),
+          apiGet<any>("/assets?limit=500"),
+          apiGet<any>("/tickets?limit=500"),
+        ]);
+        if (tecRes.status === "fulfilled") setTecnici(Array.isArray(tecRes.value) ? tecRes.value : []);
+        if (astRes.status === "fulfilled") setAssets(Array.isArray(astRes.value) ? astRes.value : astRes.value.items || []);
+        if (tixRes.status === "fulfilled") setTicketsMeta(Array.isArray(tixRes.value) ? tixRes.value : tixRes.value.items || []);
+      } catch (e) {}
+    }
+    loadMeta();
+  }, []);
+
+  const loadManual = async () => {
+    setLoading(true);
+    try {
+      const d = await apiGet(`/scheduler/gantt?start_date=${baseDateStr}`);
+      setManualData(d);
+    } catch (e) {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAI = async () => {
+    setLoading(true);
+    try {
+      const current = await apiGet(`/planning/current`);
+      setAiData(current);
+    } catch (e) {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mode === "MANUALE") {
+       loadManual();
+    } else {
+       if (!aiData) loadAI(); // load AI only if not already loaded to avoid looping
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scheduleBase]);
+  }, [mode, baseDateStr]);
 
-  useEffect(() => {
-    apiGet<TecnicoOption[]>("/tecnici")
-      .then((d) => setTecniciList(d))
-      .catch(() => { });
-  }, []);
+  const handleGenerateAI = async () => {
+     setLoading(true);
+     try {
+        const result = await apiPost("/planning/generate", { days: 7 });
+        setAiData(result);
+        notify.success("Piano AI Generato");
+     } catch(e: any) {
+        notify.error("Errore AI: " + e.message);
+     } finally {
+        setLoading(false);
+     }
+  };
 
-  // ── Actions ────────────────────────────────────────────────────────────
+  // Convert data to UnifiedTicket format
+  const tixMap = useMemo(() => Object.fromEntries(ticketsMeta.map(t => [t.id, t])), [ticketsMeta]);
+  const astMap = useMemo(() => Object.fromEntries(assets.map(a => [a.id, a])), [assets]);
+  const tecMap = useMemo(() => Object.fromEntries(tecnici.map(t => [t.id, t])), [tecnici]);
 
-  const loadPlan = useCallback(async (startDate: string) => {
-    setLoading(true);
-    try {
-      const d = await apiGet<SchedulerData>(`/scheduler/gantt?start_date=${startDate}`);
-      setData(d);
-    } catch {
-      // ignore or show error
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { unifiedList, nonAllocati, efficiency, backlogStats } = useMemo(() => {
+     let list: UnifiedTicket[] = [];
+     let unalloc: UnifiedTicket[] = [];
+     let eff: any = null;
+     let bs: BacklogStats = { pm_percent: 0, cm_percent: 0, bd_percent: 0 };
 
-  async function handleRicalcola() {
-    setLoading(true);
-    setRicalcolaMsg("");
-    try {
-      const d = await apiPost<SchedulerData>("/scheduler/ricalcola", { start_date: scheduleBase });
-      const msg = `Piano ricalcolato: ${d.items.length} allocate, ${d.non_allocati.length} non allocate.`;
-      setRicalcolaMsg(msg);
-      // Ricarica dal DB per avere il campo locked aggiornato correttamente
-      await loadPlan(scheduleBase);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }
+     if (mode === "MANUALE" && manualData) {
+        const mapManual = (s: any, isAlloc: boolean): UnifiedTicket => ({
+           id: s.id, title: s.titolo, asset: s.asset_name || "—",
+           type: s.tipo, priority: s.priorita, technicianId: s.tecnico_id,
+           technicianName: s.tecnico || "—", date: s.date,
+           startHour: s.start_hour, endHour: s.end_hour, durationHours: s.durata_ore,
+           isAI: false
+        });
+        list = (manualData.items || []).map((i:any) => mapManual(i, true));
+        unalloc = (manualData.non_allocati || []).map((i:any) => mapManual(i, false));
 
-  function openEdit(item: SchedulerItem) {
-    setEditingId(item.id);
-    setEditTecnicoId(item.tecnico_id ?? null);
-    setEditDurata(item.durata_ore);
-    setEditFascia(item.fascia);
-    setEditDate(item.planned_start ? item.planned_start.substring(0, 10) : "");
-    setEditTime(item.planned_start ? item.planned_start.substring(11, 16) : "");
-  }
-
-  async function unlockItem(id: number) {
-    try {
-      await apiPut(`/tickets/${id}`, { planned_start: null, planned_finish: null });
-      await loadPlan(scheduleBase);
-    } catch { /* ignore */ }
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-  }
-
-  async function saveEdit() {
-    if (editingId == null) return;
-
-    // --- WEATHER VALIDATION (Visual Only) ---
-    // Rimozione confirm() come richiesto. Il monitoraggio rimane visibile via icone ⚠️ nel Gantt.
-    // --------------------------
-
-
-    setSaving(true);
-    try {
-      let planned_start = null;
-      let planned_finish = null;
-      if (editDate && editTime) {
-        const pStart = new Date(`${editDate}T${editTime}:00`);
-        planned_start = pStart.getTime() ? pStart.toISOString() : null;
-        if (planned_start) {
-          const pFinish = new Date(pStart.getTime() + editDurata * 3600000);
-          planned_finish = pFinish.toISOString();
+        const totalU = unalloc.length || 1; // avoid div 0
+        const pm = unalloc.filter(t => t.type?.toUpperCase().includes("PM")).length;
+        const cm = unalloc.filter(t => t.type?.toUpperCase().includes("CM")).length;
+        const bd = unalloc.filter(t => t.type?.toUpperCase().includes("BD")).length;
+        bs = { pm_percent: Math.round((pm/totalU)*100), cm_percent: Math.round((cm/totalU)*100), bd_percent: Math.round((bd/totalU)*100) };
+     } 
+     else if (mode === "AI") {
+        if (aiData && aiData.plan_json) {
+           const mapAI = (w: any): UnifiedTicket => {
+              const tMeta = tixMap[w.wo_id] || {};
+              const aMeta = astMap[tMeta.asset_id || 0] || {};
+              const tTec  = tecMap[w.technician_id];
+              return {
+                 id: w.wo_id, title: tMeta.titolo || "Work Order AI", asset: aMeta.nome || w.asset_name || "—",
+                 type: w.wo_type || tMeta.tipo || "CM", priority: tMeta.priorita || "-",
+                 technicianId: w.technician_id, technicianName: tTec ? `${tTec.nome} ${tTec.cognome||""}`.trim() : "—",
+                 date: w.planned_date, startHour: parseStartHour(w.planned_start_time, w.time_slot), endHour: parseEndHour(w.planned_end_time, w.planned_start_time, w.duration_hours, w.time_slot), durationHours: w.duration_hours,
+                 isAI: true, warnings: w.warnings, isContinuation: w.is_continuation
+              };
+           };
+           list = (aiData.plan_json.planned_workorders || []).map(mapAI);
+           unalloc = (aiData.plan_json.deferred_workorders || []).map((w:any) => ({
+              id: w.wo_id, title: tixMap[w.wo_id]?.titolo || "Rimandato", asset: w.asset_name || "—", type: w.type || "-", priority: "-", technicianId: null, technicianName: "—", date: null, startHour: null, endHour: null, durationHours: 0, isAI: true, warnings: [w.reason]
+           }));
+           eff = { score: aiData.plan_json.efficiency_score || 0, breakdown: aiData.plan_json.efficiency_breakdown || {} };
         }
-      }
+        // AI Backlog is calculated ideally from the remaining unallocated or the total DB backlog.
+        // We will mock the AI Backlog stats for now using unalloc as well if we don't have global stats.
+        const totalU = unalloc.length || 1;
+        const pm = unalloc.filter(t => t.type?.toUpperCase().includes("PM")).length;
+        const cm = unalloc.filter(t => t.type?.toUpperCase().includes("CM")).length;
+        const bd = unalloc.filter(t => t.type?.toUpperCase().includes("BD")).length;
+        bs = { pm_percent: Math.round((pm/totalU)*100), cm_percent: Math.round((cm/totalU)*100), bd_percent: Math.round((bd/totalU)*100) };
+     }
 
-      const body: Record<string, unknown> = {
-        fascia_oraria: editFascia,
-        durata_stimata_ore: editDurata,
-        tecnico_id: editTecnicoId,
-        planned_start,
-        planned_finish,
-      };
+     return { unifiedList: list, nonAllocati: unalloc, efficiency: eff, backlogStats: bs };
+  }, [mode, manualData, aiData, tixMap, astMap, tecMap]);
 
-      // Automazione: Forza stato a Pianificato se salviamo una data
-      if (planned_start) {
-        body.stato = "Pianificato";
-      }
+  // Derived lists for blocks
+  const [dailyPage, setDailyPage] = useState(0); 
+  const [weeklyPage, setWeeklyPage] = useState(0); 
+  const [monthlyPage, setMonthlyPage] = useState(0); 
+  
+  const dailyDateStr = toIso(addDays(baseDate, dailyPage));
+  const dailyTickets = unifiedList.filter(t => t.date === dailyDateStr);
 
-      await apiPut(`/tickets/${editingId}`, body);
-      setEditingId(null);
-      await loadPlan(scheduleBase);
-    } catch {
-      // ignore
-    } finally {
-      setSaving(false);
-    }
-  }
+  const weeklyStart = addDays(baseDate, Math.floor(weeklyPage / 7) * 7);
+  const weeklyEnd = addDays(weeklyStart, 6);
+  const weeklyTickets = unifiedList.filter(t => {
+     if (!t.date) return false;
+     const d = new Date(t.date); return d >= weeklyStart && d <= weeklyEnd;
+  });
 
-  async function handleBlockDrop(itemId: number, newStartHour: number, newEndHour: number) {
-    const item = data?.items.find(i => i.id === itemId);
-    if (!item || !item.date) return;
-    const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
-    const minStr = (h: number) => String(Math.round((h % 1) * 60)).padStart(2, "0");
-    const planned_start = `${item.date}T${pad(newStartHour)}:${minStr(newStartHour)}:00`;
-    const planned_finish = `${item.date}T${pad(newEndHour)}:${minStr(newEndHour)}:00`;
-    // Optimistic update
-    setData(prev => prev ? {
-      ...prev,
-      items: prev.items.map(i => i.id === itemId
-        ? { ...i, start_hour: newStartHour, end_hour: newEndHour, planned_start, planned_finish, locked: true }
-        : i
-      )
-    } : prev);
-    try {
-      await apiPut(`/tickets/${itemId}`, { planned_start, planned_finish });
-    } catch {
-      loadPlan(scheduleBase);
-    }
-  }
+  const monthlyStart = addDays(baseDate, Math.floor(monthlyPage / 30) * 30);
+  const monthlyEnd = addDays(monthlyStart, 29);
+  const monthlyTickets = unifiedList.filter(t => {
+     if (!t.date) return false;
+     const d = new Date(t.date); return d >= monthlyStart && d <= monthlyEnd;
+  });
 
-  // ── Computed display values ────────────────────────────────────────────
-
-  const totalOreResidue = data
-    ? data.ore_residue.reduce((acc, r) => acc + r.ore_residue, 0)
-    : 0;
-
-  const filteredItems = useMemo(() => {
-    if (!data) return [];
-    let res = data.items;
-    if (listFilter === "alta") res = res.filter(i => i.priorita?.toLowerCase() === "alta" || i.priorita?.toLowerCase() === "critica");
-    if (listFilter === "PM") res = res.filter(i => i.tipo === "PM");
-    if (listFilter === "CM") res = res.filter(i => i.tipo === "CM");
-    return res;
-  }, [data, listFilter]);
-
-  const pagedItems = useMemo(() => {
-    const start = (listPage - 1) * ITEMS_PER_PAGE;
-    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredItems, listPage]);
-
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE) || 1;
-
-  // ── Render ─────────────────────────────────────────────────────────────
+  // Styles
+  const gridLine = "1px solid rgba(148,163,184,0.3)";
+  const boxStyle = { border: gridLine, background: "var(--bg-card)", display: "flex", flexDirection: "column" as const, minHeight: "150px" };
+  const headerStyle = { borderBottom: gridLine, padding: "8px", fontWeight: "bold" as const, fontSize: "12px", textTransform: "uppercase" as const, background: "rgba(148,163,184,0.05)" };
 
   return (
-    <div className={styles.page}>
-      {/* ── Hero header ─────────────────────────────────────────────────── */}
-      <div style={{
-        position: "relative", borderRadius: 20, overflow: "hidden",
-        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)",
-        border: "1px solid rgba(99,102,241,0.2)",
-        padding: "28px 32px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)",
-        marginBottom: 4,
-      }}>
-        {/* Mesh grid */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
-        {/* Glow blobs */}
-        <div style={{ position: "absolute", top: -60, right: 60, width: 280, height: 280, background: "radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: -40, left: 60, width: 200, height: 200, background: "radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
-
-        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "#818cf8", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", padding: "3px 10px", borderRadius: 20, display: "inline-block", marginBottom: 10 }}>
-              Planning Engine
-            </span>
-            <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, fontFamily: "var(--font-display)", color: "#f8fafc", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
-              Pianificazione{" "}
-              <span style={{ background: "linear-gradient(135deg, #818cf8, #38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                Interventi
-              </span>
-            </h1>
-            <p style={{ margin: "8px 0 0", fontSize: 13, color: "rgba(148,163,184,0.75)" }}>
-              Scheduler AI · Gantt giornaliero · Vista settimanale
-            </p>
+    <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "10px", width: "100%", height: "100%", overflowY: "auto", fontFamily: "sans-serif" }}>
+      
+      {/* HEADER ROW */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+        
+        {/* BACKLOG STATUS */}
+        <div style={boxStyle}>
+          <div style={headerStyle}>BACKLOG STATUS</div>
+          <div style={{ padding: "10px", flex: 1, display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+             <div style={{ display: "flex", justifyContent: "space-between" }}><span>PM</span><span style={{ fontWeight: "bold" }}>{backlogStats.pm_percent}%</span></div>
+             <div style={{ display: "flex", justifyContent: "space-between" }}><span>CM</span><span style={{ fontWeight: "bold" }}>{backlogStats.cm_percent}%</span></div>
+             <div style={{ display: "flex", justifyContent: "space-between" }}><span>BD</span><span style={{ fontWeight: "bold" }}>{backlogStats.bd_percent}%</span></div>
           </div>
-          {loading && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 30, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", fontSize: 12, color: "#818cf8", fontWeight: 600 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#818cf8", display: "inline-block", animation: "pulse 1s infinite" }} />
-              Calcolo in corso...
-            </div>
+        </div>
+
+        {/* PULSANTE SCELTA GENERATIVA */}
+        <div style={{ ...boxStyle, alignItems: "center", justifyContent: "center", gap: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: "bold", textTransform: "uppercase" }}>Pulsante Scelta Generativa</div>
+          <div style={{ display: "flex", border: gridLine, borderRadius: "6px", overflow: "hidden" }}>
+             <button onClick={() => setMode("MANUALE")} style={{ padding: "10px 20px", border: "none", cursor: "pointer", fontWeight: "bold", background: mode === "MANUALE" ? "#3b82f6" : "transparent", color: mode === "MANUALE" ? "#fff" : "var(--text-primary)" }}>MANUALE</button>
+             <button onClick={() => setMode("AI")} style={{ padding: "10px 20px", border: "none", borderLeft: gridLine, cursor: "pointer", fontWeight: "bold", background: mode === "AI" ? "#10b981" : "transparent", color: mode === "AI" ? "#fff" : "var(--text-primary)" }}>AI</button>
+          </div>
+          {mode === "AI" && (
+            <button onClick={handleGenerateAI} disabled={loading} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", background: "#10b981", color: "#fff", fontWeight: "bold", cursor: loading ? "not-allowed" : "pointer" }}>
+               {loading ? "Generazione..." : "Rigenera Piano"}
+            </button>
           )}
         </div>
 
-        {/* KPI strip */}
-        {data && (
-          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, marginTop: 24, background: "rgba(255,255,255,0.04)", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
-            {[
-              { label: "Allocate", value: data.items.length, color: "#818cf8" },
-              { label: "Non allocate", value: data.non_allocati.length, color: data.non_allocati.length > 0 ? "#f87171" : "#34d399" },
-              { label: "Ore residue", value: `${totalOreResidue.toFixed(1)}h`, color: "#38bdf8" },
-              { label: "Tecnici", value: tecnici.length, color: "#34d399" },
-            ].map((s, i) => (
-              <div key={i} style={{ padding: "14px 20px", background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent", textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: 10, color: "rgba(148,163,184,0.6)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
-      </div>
-
-      {/* ── Sticky header bar ──────────────────────────────────────────── */}
-      <div className={styles.stickyBar}>
-        {/* Title + KPI chips */}
-        <div className={styles.stickyLeft}>
-          <div>
-            <span className={styles.stickyEyebrow}>Planning Engine</span>
-            <span className={styles.stickyTitle}>Scheduler</span>
-          </div>
-          <div className={styles.kpiRow}>
-            <span className={styles.kpiChip}>
-              <span className={styles.kpiLabel}>Allocate</span>
-              <strong className={styles.kpiValue}>{data ? data.items.length : "—"}</strong>
-            </span>
-            <span className={styles.kpiChip}>
-              <span className={styles.kpiLabel}>Non alloc.</span>
-              <strong className={`${styles.kpiValue} ${data && data.non_allocati.length > 0 ? styles.kpiValueWarn : ""}`}>
-                {data ? data.non_allocati.length : "—"}
-              </strong>
-            </span>
-            <span className={styles.kpiChip}>
-              <span className={styles.kpiLabel}>Ore residue</span>
-              <strong className={styles.kpiValue}>{data ? totalOreResidue.toFixed(1) : "—"}h</strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div className={styles.stickyControls}>
-          {/* Ricalcola */}
-          <button
-            onClick={handleRicalcola}
-            disabled={loading}
-            style={{
-              background: loading
-                ? "rgba(99,102,241,.4)"
-                : "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
-              padding: "7px 16px",
-              fontWeight: 700,
-              fontSize: ".88rem",
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.7 : 1,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {loading ? "Ricalcolo in corso..." : "Ricalcola"}
-          </button>
-
-          {/* Day / Week toggle */}
-          <div style={{ display: "flex", gap: 4 }}>
-            {(["day", "week"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                style={{
-                  ...navBtn,
-                  background:
-                    view === v
-                      ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)"
-                      : "transparent",
-                  color: view === v ? "#fff" : "var(--text-muted)",
-                  border:
-                    view === v
-                      ? "1px solid #6366f1"
-                      : "1px solid rgba(148,163,184,.3)",
-                  padding: "5px 13px",
-                  fontWeight: 700,
-                  fontSize: ".85rem",
-                }}
-              >
-                {v === "day" ? "Giorno" : "Settimana"}
-              </button>
-            ))}
-          </div>
-
-          {/* Date navigation */}
-          {view === "day" ? (
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button
-                style={navBtn}
-                onClick={() =>
-                  setSelectedDay(toIso(addDays(new Date(selectedDay + "T00:00:00"), -1)))
-                }
-              >
-                ‹
-              </button>
-              <input
-                type="date"
-                value={selectedDay}
-                onChange={(e) => setSelectedDay(e.target.value)}
-                style={{
-                  background: "rgba(255,255,255,.06)",
-                  border: "1px solid rgba(148,163,184,.25)",
-                  borderRadius: 8,
-                  color: "#f8fbff",
-                  padding: "5px 8px",
-                  fontSize: ".85rem",
-                }}
-              />
-              <button
-                style={navBtn}
-                onClick={() =>
-                  setSelectedDay(toIso(addDays(new Date(selectedDay + "T00:00:00"), 1)))
-                }
-              >
-                ›
-              </button>
-              <span style={{ color: "var(--text-muted)", fontSize: ".85rem", whiteSpace: "nowrap" }}>
-                {formatDate(selectedDay)}
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button
-                style={navBtn}
-                onClick={() =>
-                  setSelectedDay(toIso(addDays(new Date(selectedDay + "T00:00:00"), -7)))
-                }
-              >
-                ‹
-              </button>
-              <span style={{ color: "#f8fbff", fontSize: ".85rem", fontWeight: 700, whiteSpace: "nowrap" }}>
-                {formatDate(toIso(weekStart))} – {formatDate(toIso(addDays(weekStart, 6)))}
-              </span>
-              <button
-                style={navBtn}
-                onClick={() =>
-                  setSelectedDay(toIso(addDays(new Date(selectedDay + "T00:00:00"), 7)))
-                }
-              >
-                ›
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Ricalcola message */}
-      {ricalcolaMsg && (
-        <div
-          style={{
-            background: "rgba(16,185,129,.12)",
-            border: "1px solid rgba(16,185,129,.28)",
-            borderRadius: 14,
-            padding: "10px 16px",
-            color: "#6ee7b7",
-            fontWeight: 700,
-            fontSize: ".9rem",
-          }}
-        >
-          {ricalcolaMsg}
-        </div>
-      )}
-
-      {/* Content */}
-      {!data ? (
-        <div className={styles.loadingCard}>
-          {loading ? "Caricamento piano in corso…" : "Nessun dato disponibile."}
-        </div>
-      ) : (
-        <>
-          {/* Gantt — day view */}
-          {view === "day" && (
-            <div style={{ background: "linear-gradient(135deg, var(--bg-card) 0%, rgba(15,23,42,0.95) 100%)", border: "1px solid rgba(148,163,184,0.1)", borderRadius: 16, padding: "24px", boxShadow: "0 4px 24px rgba(0,0,0,0.15)", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, transparent, #6366f1, transparent)" }} />
-              <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>
-                  Gantt — {formatDate(selectedDay)}
-                </h2>
-                <p className={styles.cardSubtitle}>
-                  {dayItems.length} attività in questo giorno
-                </p>
-              </div>
-              <div className={styles.ganttWrap}>
-                <div className={styles.ganttHeader}>
-                  <div className={styles.ganttHeaderLabel}>Tecnico / Asset</div>
-                  <div className={styles.ganttHours}>
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <div key={i} className={styles.ganttHour}>
-                        {String(i * 2).padStart(2, "0")}
-                      </div>
+        {/* EFFICIENZA PIANO */}
+        <div style={boxStyle}>
+          <div style={headerStyle}>EFFICIENZA PIANO</div>
+          <div style={{ padding: "10px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+             {mode === "AI" && efficiency ? (
+                 <>
+                    <div style={{ fontSize: "36px", fontWeight: "bold", color: efficiency.score >= 85 ? "#10b981" : "#f59e0b" }}>{efficiency.score}%</div>
+                    {Object.entries(efficiency.breakdown || {}).slice(0,3).map(([key, val]: any) => (
+                       <div key={key} style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>{key.replace(/_/g, ' ')}: {val}%</div>
                     ))}
-                  </div>
-                </div>
-                <div className={styles.ganttBody}>
-                  {dayItemsByTech.length === 0 ? (
-                    <div className={styles.empty}>
-                      Nessuna attività pianificata per questo giorno.
-                    </div>
-                  ) : (
-                    dayItemsByTech.map(([tecnico, items]) => (
-                      <GanttTechRow
-                        key={tecnico}
-                        tecnico={tecnico}
-                        items={items}
-                        forecast={data.forecast}
-                        assetsMeta={data.assets_metadata}
-                        onBlockDrop={handleBlockDrop}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Week view table */}
-          {view === "week" && (
-            <div className={styles.card}>
-              <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>Vista settimana</h2>
-                <p className={styles.cardSubtitle}>
-                  {formatDate(toIso(weekStart))} –{" "}
-                  {formatDate(toIso(addDays(weekStart, 6)))}
-                </p>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: ".9rem",
-                  }}
-                >
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>Tecnico</th>
-                      {weekDays.map((d) => (
-                        <th key={d} style={thStyle}>
-                          {formatDate(d)}
-                        </th>
-                      ))}
-                      <th style={thStyle}>Ore sett.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tecnici.map((tech) => {
-                      const oreUsate = oreSettimanaUsate[tech] ?? 0;
-                      const oreColor = oreUsate <= 35 ? "#6ee7b7" : "#fb7185";
-                      return (
-                        <tr key={tech}>
-                          <td
-                            style={{
-                              ...tdStyle,
-                              fontWeight: 700,
-                              color: "#f8fbff",
-                              minWidth: 160,
-                            }}
-                          >
-                            {tech}
-                          </td>
-                          {weekDays.map((d) => {
-                            const dayTasks = weekMatrix[tech]?.[d] ?? [];
-                            return (
-                              <td key={d} style={tdStyle}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                  {dayTasks.length === 0 ? (
-                                    <span style={{ color: "rgba(148,163,184,.4)" }}>—</span>
-                                  ) : (
-                                    dayTasks.map((item) => {
-                                      let pillBg = "rgba(99,102,241,.22)";
-                                      let pillColor = "#c7d2fe";
-                                      const p = item.priorita?.toLowerCase();
-                                      if (p === "alta" || p === "critica") {
-                                        pillBg = "rgba(244,63,94,.2)";
-                                        pillColor = "#fda4af";
-                                      } else if (p === "media") {
-                                        pillBg = "rgba(245,158,11,.2)";
-                                        pillColor = "#fde68a";
-                                      } else if (p === "bassa") {
-                                        pillBg = "rgba(16,185,129,.2)";
-                                        pillColor = "#6ee7b7";
-                                      }
-                                      return (
-                                        <span
-                                          key={item.id}
-                                          style={{
-                                            background: pillBg,
-                                            color: pillColor,
-                                            borderRadius: 8,
-                                            padding: "3px 8px",
-                                            fontSize: ".78rem",
-                                            fontWeight: 700,
-                                            whiteSpace: "nowrap",
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            maxWidth: 180,
-                                            display: "block",
-                                          }}
-                                          title={item.titolo}
-                                        >
-                                          {item.titolo}
-                                        </span>
-                                      );
-                                    })
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          })}
-                          <td
-                            style={{
-                              ...tdStyle,
-                              fontWeight: 700,
-                              color: oreColor,
-                              textAlign: "center",
-                            }}
-                          >
-                            {oreUsate.toFixed(1)}h
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {tecnici.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={weekDays.length + 2}
-                          style={{
-                            ...tdStyle,
-                            textAlign: "center",
-                            color: "rgba(148,163,184,.6)",
-                          }}
-                        >
-                          Nessun tecnico con attività questa settimana.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Non allocati */}
-          <div className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Non allocate</h2>
-              <p className={styles.cardSubtitle}>
-                {data.non_allocati.length} attività non pianificabili
-              </p>
-            </div>
-            {data.non_allocati.length === 0 ? (
-              <div className={styles.empty}>
-                Tutte le attività sono state allocate.
-              </div>
-            ) : (
-              <div className={styles.unallocatedGrid}>
-                {data.non_allocati.map((item) => (
-                  <div key={item.id} className={styles.unallocatedCard}>
-                    <div className={styles.taskTop}>
-                      <div>
-                        <div className={styles.taskTitle}>{item.titolo}</div>
-                        <div className={styles.taskMeta}>{item.asset_name}</div>
-                      </div>
-                      <span
-                        className={`${styles.badge} ${priorityBadgeClass(item.priorita)}`}
-                      >
-                        {item.priorita}
-                      </span>
-                    </div>
-                    <div
-                      className={`${styles.taskBadges} ${styles.taskBadgesSpaced}`}
-                    >
-                      <span
-                        className={`${styles.badge} ${fasciaBadgeClass(item.fascia)}`}
-                      >
-                        {item.fascia}
-                      </span>
-                      <span className={styles.hoursPill}>{item.durata_ore?.toFixed(1)}h</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                 </>
+             ) : (
+                 <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>Disponibile solo in modalità AI</div>
+             )}
           </div>
-          {/* Top grid */}
-          <div className={styles.topGrid}>
-            {/* Piano attività */}
-            <div className={styles.card}>
-              <div className={styles.cardHead} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                <div>
-                  <h2 className={styles.cardTitle}>Piano attività</h2>
-                  <p className={styles.cardSubtitle}>
-                    {data.items.length} attività pianificate —{" "}
-                    {data.items.filter(i => !i.locked).length} modificabili,{" "}
-                    {data.items.filter(i => i.locked).length} bloccate
-                  </p>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {(["all", "PM", "CM", "alta"] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => { setListFilter(f); setListPage(1); }}
-                      style={{
-                        background: listFilter === f ? "rgba(99,102,241,0.2)" : "transparent",
-                        border: listFilter === f ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(148,163,184,0.3)",
-                        color: listFilter === f ? "#818cf8" : "var(--text-muted)",
-                        borderRadius: 6, padding: "4px 10px", fontSize: ".8rem", cursor: "pointer", fontWeight: 600
-                      }}
-                    >
-                      {f === "all" ? "Tutti" : f === "alta" ? "Alta Priorità" : f}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {pagedItems.length === 0 ? (
-                <div className={styles.empty}>Nessuna attività pianificata per questi filtri.</div>
-              ) : (
-                <div className={styles.list}>
-                  {pagedItems.map((item) =>
-                    editingId === item.id ? (
-                      /* ── Inline edit form ── */
-                      <div key={item.id} className={styles.taskCard} style={{
-                        background: "rgba(15,23,42,0.6)",
-                        border: "1px solid rgba(99,102,241,0.4)",
-                        padding: "20px",
-                        borderRadius: "16px",
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-                        marginBottom: "16px"
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                          <div>
-                            <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "#818cf8", marginBottom: 4 }}>Modifica manuale</div>
-                            <div className={styles.taskTitle} style={{ margin: 0, fontSize: "1.1rem" }}>{item.titolo}</div>
-                          </div>
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <button onClick={() => {
-                              const d = new Date(); d.setHours(8, 0, 0, 0);
-                              setEditDate(d.toISOString().slice(0, 10)); setEditTime("08:00");
-                            }} style={{ fontSize: 9, padding: "4px 8px", background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 6, cursor: "pointer", fontWeight: 700 }}>OGGI 08:00</button>
-                            <button onClick={() => {
-                              const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0);
-                              setEditDate(d.toISOString().slice(0, 10)); setEditTime("08:00");
-                            }} style={{ fontSize: 9, padding: "4px 8px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", fontWeight: 700 }}>DOMANI</button>
-                          </div>
-                        </div>
+        </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "rgba(148,163,184,0.8)" }}>
-                            Tecnico Assegnato
-                            <select
-                              value={editTecnicoId ?? ""}
-                              onChange={(e) => setEditTecnicoId(e.target.value ? Number(e.target.value) : null)}
-                              style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(148,163,184,.15)", borderRadius: 8, color: "#f8fbff", padding: "8px 12px", fontSize: ".85rem" }}
-                            >
-                              <option value="">— auto —</option>
-                              {tecniciList.map((t) => (
-                                <option key={t.id} value={t.id}>{t.nome}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "rgba(148,163,184,0.8)" }}>
-                            Turno / Fascia
-                            <StatusToggle
-                              size="md"
-                              currentValue={editFascia}
-                              onChange={(v) => setEditFascia(v)}
-                              options={[
-                                { value: "diurna", label: "Diurna", color: "var(--blue)" },
-                                { value: "notturna", label: "Notturna", color: "var(--violet)" },
-                              ]}
-                            />
-                          </label>
-                        </div>
+      </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "0.6fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "rgba(148,163,184,0.8)" }}>
-                            Durata (h)
-                            <input
-                              type="number"
-                              min={0.5}
-                              step={0.5}
-                              value={editDurata}
-                              onChange={(e) => setEditDurata(Number(e.target.value))}
-                              style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(148,163,184,.15)", borderRadius: 8, color: "#f8fbff", padding: "8px 12px", fontSize: ".85rem" }}
-                            />
-                          </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "#6ee7b7" }}>
-                            Data Inizio
-                            <DatePicker value={editDate} onChange={setEditDate} placeholder="Seleziona data" />
-                          </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "#6ee7b7" }}>
-                            Ora Inizio
-                            <input
-                              type="time"
-                              value={editTime}
-                              onChange={(e) => setEditTime(e.target.value)}
-                              style={{ background: "rgba(16,185,129,.05)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 8, color: "#6ee7b7", padding: "8px 12px", fontSize: ".85rem" }}
-                            />
-                          </label>
-                        </div>
+      {loading && <div style={{ textAlign: "center", padding: "10px", color: "#3b82f6", fontWeight: "bold" }}>Caricamento dati in corso...</div>}
 
-                        <div style={{ display: "flex", gap: 12 }}>
-                          <button
-                            onClick={saveEdit}
-                            disabled={saving}
-                            style={{ flex: 2, background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 800, fontSize: ".9rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}
-                          >
-                            {saving ? "Salvataggio..." : "Salva Pianificazione"}
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            style={{ flex: 1, background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: ".9rem", cursor: "pointer" }}
-                          >
-                            Annulla
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* ── Normal task card ── */
-                      <div
-                        key={item.id}
-                        className={`${styles.taskCard}${item.locked ? ` ${styles.taskCardLocked}` : ""}`}
-                        onClick={() => !item.locked && openEdit(item)}
-                        style={{
-                          cursor: item.locked ? "default" : "pointer",
-                        }}
-                      >
-                        <div className={styles.taskTop}>
-                          <div>
-                            <div className={styles.taskTitle}>{item.titolo}</div>
-                            <div className={styles.taskMeta}>
-                              {item.asset_name} · {item.tecnico}
-                              {item.date && (
-                                <> · <span style={{ color: "#6ee7b7" }}>{formatDate(item.date)}</span></>
-                              )}
-                            </div>
-                          </div>
-                          <div className={styles.taskBadges}>
-                            {item.locked ? (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); unlockItem(item.id); }}
-                                title="Vuoi far pianificare all'AI? Clicca per sbloccare"
-                                style={{ fontSize: ".72rem", color: "#fca5a5", background: "rgba(248,113,113,.15)", border: "1px solid rgba(248,113,113,.3)", borderRadius: 4, padding: "2px 7px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-                              >
-                                📌 Manuale (sblocca)
-                              </button>
-                            ) : null}
-                            <span className={`${styles.badge} ${priorityBadgeClass(item.priorita)}`}>
-                              {item.priorita}
-                            </span>
-                          </div>
-                        </div>
-                        <div className={`${styles.taskBadges} ${styles.taskBadgesSpaced}`}>
-                          <span className={`${styles.badge} ${fasciaBadgeClass(item.fascia)}`}>
-                            {item.fascia}
-                          </span>
-                          <span className={styles.hoursPill}>{item.durata_ore?.toFixed(1)}h</span>
-                          {item.start_hour != null && (
-                            <span className={styles.timePill}>
-                              {formatHour(item.start_hour)} – {formatHour(item.end_hour)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-              {totalPages > 1 && (
-                <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginTop: 16 }}>
-                  <button style={navBtn} disabled={listPage <= 1} onClick={() => setListPage(p => p - 1)}>‹</button>
-                  <span style={{ fontSize: ".85rem", color: "var(--text-secondary)" }}>Pag. {listPage} / {totalPages}</span>
-                  <button style={navBtn} disabled={listPage >= totalPages} onClick={() => setListPage(p => p + 1)}>›</button>
-                </div>
-              )}
-            </div>
+      {/* GANTT ROUTE */}
+      <GanttBlock 
+        tickets={unifiedList} 
+        dateStr={dailyDateStr} 
+        onDateChange={setDailyPage} 
+      />
 
-            {/* Ore residue */}
-            <div className={styles.card}>
-              <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>Ore residue</h2>
-                <p className={styles.cardSubtitle}>
-                  Capacità disponibile per tecnico
-                </p>
-              </div>
-              {data.ore_residue.length === 0 ? (
-                <div className={styles.empty}>Nessun dato disponibile.</div>
-              ) : (
-                <div className={styles.residualList}>
-                  {data.ore_residue.map((r) => (
-                    <div key={r.tecnico} className={styles.residualRow}>
-                      <div className={styles.residualTop}>
-                        <span className={styles.residualName}>{r.tecnico}</span>
-                        <span className={styles.residualValue}>
-                          {r.ore_residue.toFixed(1)}h
-                        </span>
-                      </div>
-                      <div className={styles.progressTrack}>
-                        <div
-                          className={styles.progressFill}
-                          style={{
-                            width: `${Math.min(100, (r.ore_residue / 8) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      {/* PIANO GIORNALIERO */}
+      <BlockList 
+         title={`PIANO GIORNALIERO: ${new Date(dailyDateStr).toLocaleDateString("it-IT")}`} 
+         tickets={dailyTickets} 
+         pageSize={8} 
+      />
 
-        </>
-      )}
+      {/* PIANO SETTIMANALE & MENSILE */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <BlockList 
+           title={`PIANO SETTIMANALE: ${weeklyStart.toLocaleDateString("it-IT")} - ${weeklyEnd.toLocaleDateString("it-IT")}`} 
+           tickets={weeklyTickets} 
+           pageSize={6} 
+        />
+        <BlockList 
+           title={`PIANO MENSILE: ${monthlyStart.toLocaleDateString("it-IT")} - ${monthlyEnd.toLocaleDateString("it-IT")}`} 
+           tickets={monthlyTickets} 
+           pageSize={6} 
+        />
+      </div>
+
+      {/* NON PIANIFICATE */}
+      <BlockList 
+         title="NON PIANIFICATE" 
+         tickets={nonAllocati} 
+         pageSize={10} 
+      />
+
     </div>
   );
 }

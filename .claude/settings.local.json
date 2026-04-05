@@ -74,7 +74,14 @@
       "Bash(wc:*)",
       "Bash(npx shadcn@latest init --defaults)",
       "Bash(npx shadcn@latest add button badge card dialog input select sonner popover calendar table dropdown-menu --overwrite)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(find /c/Users/aless/Desktop/maintai_v3/frontend/app -name \"*.tsx\" -exec grep -l \"any\" {})",
+      "Bash(git reset:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vIiwicnVvbG8iOiJyZXNwb25zYWJpbGUiLCJ1c2VyaWQiOjk5OSwidGVuYW50X2lkIjoxLCJpc19kZW1vIjp0cnVlLCJleHAiOjE3NzU5ODk4MTJ9.7NnTlNQJLkBjZzOs9ecTQT9wysgl2geullIfyI8SEuI\" curl -s --max-time 10 \"https://maintai-v3.onrender.com/siti\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(taskkill /F /IM python.exe /T)",
+      "Bash(taskkill /F /IM node.exe /T)",
+      "Bash(taskkill //F //IM python.exe //T)",
+      "Bash(taskkill //F //IM node.exe //T)"
     ]
   }
 }

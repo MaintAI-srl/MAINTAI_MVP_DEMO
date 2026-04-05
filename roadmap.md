@@ -1,5 +1,5 @@
 # Roadmap MaintAI
-*Versione: 1.3.0 — Aggiornata al: 2026-04-04*
+*Versione: 1.4.0 — Aggiornata al: 2026-04-05*
 
 ---
 
@@ -10,8 +10,6 @@
 - [x] Ticket con 5 stati (Aperto → Pianificato → In corso → Chiuso / Eliminato)
 - [x] Filtro attivi / archivio con paginazione server-side
 - [x] Pianificazione automatica multi-day (14 giorni) — POST /scheduler/ricalcola
-- [x] Gantt giornaliero + vista settimanale per tecnico
-- [x] Navigazione avanti/indietro nel Gantt (giorno e settimana)
 - [x] Caricamento PDF manuali → piano manutenzione AI automatico
 - [x] Pagina /piani con filtri, paginazione, edit inline, genera ticket, export CSV
 - [x] Dashboard KPI (ticket per stato/categoria, OEE, MTBF, downtime ticker)
@@ -30,7 +28,6 @@
 - [x] Vincoli meteo per asset outdoor (sole richiesto, vento max, pioggia max)
 - [x] Error boundary nel frontend per errori API
 - [x] Gestione timeout AI con feedback utente (30 secondi)
-- [x] Alembic migrations stabili + migrazioni manuali init_db.py
 - [x] Split automatico ticket lunghi (>8h) in parti da max 8h
 
 ---
@@ -44,65 +41,63 @@
 - [x] Analytics asset: MTBF, MTTR, Availability Score, trend guasti SVG
 - [x] Upload foto / allegati ai ticket dal campo
 - [x] Firma digitale tecnico su canvas touch/mouse a chiusura ticket
-- [x] Database popolato: 6 tecnici, 10 impianti, 15 asset, 120 ticket storici
-- [x] Accesso remoto Tailscale (CORS aperto, backend su 0.0.0.0)
-- [x] Interfaccia mobile ottimizzata per smartphone (scanner ticket, foto, firma)
 
 ---
 
-## ✅ v1.3 — Cloud & PostgreSQL (Completato)
+## ✅ v1.3 — Cloud & Infrastruttura (Completato)
 
 - [x] **Migrazione PostgreSQL** — Sostituito SQLite con PostgreSQL per stabilità cloud (Render)
 - [x] **Backend Deployment** — Hosting live su Render (FastAPI + Gunicorn)
 - [x] **Frontend Deployment** — Hosting live su Vercel (Next.js 15)
 - [x] **Auth Global Fix** — Refactoring helper API per gestione iniettata di JWT e Tenant-Id
 - [x] **Database Idempotency** — Refactoring `init_db.py` per inizializzazione sicura su PostgreSQL
-- [x] **Export Fix** — Download Excel/CSV protetti da autenticazione JWT
 
 ---
 
-## 🔵 v1.4 — Breve Termine (Prossime settimane)
+## ✅ v1.4 — UI Ergonomics & Unified Scheduler (Maggio 2026) (Completato)
 
-- [x] Ottimizzazione Dashboard KPI (MTBF, OEE reali, filtri avanzati, paginazione)
-- [x] Fix performance Dashboard (isolamento re-render timer e fluidità transizioni)
-- [x] Pagina /admin/logs — visualizzazione log di sistema nell'interfaccia web
-- [ ] Export ticket in Excel (generazione server-side completata, manca pulizia UI)
-- [ ] Badge contatore notifiche sul campanellino (numero scadenze attive)
-- [ ] Aggiornamento automatico prossima_scadenza dopo chiusura ticket PM
-- [ ] Pagina /profilo per cambio password e impostazioni utente
-- [ ] Filtro globale "Cerca" multi-campo sulla pagina Ticket
+- [x] **Ridisegno Ergonomica Status**: Eliminati vecchi dropdown, sostituiti con Status Toggle (1-click action) in tutte le interfacce per velocizzare il lavoro.
+- [x] **Cruscotto di Pianificazione Unificato**: Modulo Scheduler e Modulo Pianificazione AI accorpati. Navigazione ibrida (Manuale/AI) pilotata dal un Toggle switch superiore.
+- [x] **Interfaccia Master in Stile Dash Excel**: Layout comprensivo di Status Backlog, KPI Efficienza, Gantt Orari, Piani Giornalieri, Settimanali e Mensili accorpati in un'unica visuale per il planner.
+- [x] **Gestione Visuale**: Indicatori warning globali, indicazione visiva split (>8h).
+- [x] **Dashboard Analysis**: MTBF e OEE in real-time interattivi per singoli asset con grafici live.
+- [x] **Sanificazione Progetto**: Rimozione totale script test orfani, log temporanei e vecchi mock files JSON per un repository pulito, scalabile e senza debto tecnico.
 
 ---
 
-## 🟡 v2.0 — Enterprise Readiness (Medio termine, 1-3 mesi)
+## 🔵 v1.5 — Breve Termine (Prossimi Target)
 
-- [ ] **Multi-tenancy reale** — Isolamento dati a livello database per aziende diverse
-- [ ] Report storico asset in PDF (MTBF rolling, grafici trend, raccomandazioni)
-- [ ] QR Code per asset: scansione → apertura ticket istantanea da mobile
-- [ ] Commenti e note tecniche sui ticket (thread conversazione)
-- [ ] Notifiche Push Web per ticket urgenti (Web Push API)
-- [ ] Calendario visuale mensile PM (alternativo al Gantt)
-- [ ] Integrazione ERP/MES via webhook (SAP, Infor, ecc.)
+- [ ] Completamento Pagina `/profilo` per cambio password e preferenze singole dell'utente.
+- [ ] Export finale ticket interattivi in Excel lato Frontend.
+- [ ] Implementazione "Global Search" multi-campo sulla pagina Ticket (Ricerca per Titolo, Asset, Tecnico in un colpo solo).
+- [ ] Badge contatore sull'icona notifiche campanellino (topbar) per richiamare attenzione visiva al rinnovo PM.
 
 ---
 
-## 🔴 v2.1 — Scalabilità Cloud (Lungo termine, 3-6 mesi)
+## 🟡 v2.0 — Enterprise Readiness & Workflow (Medio termine, 1-3 mesi)
 
-### ☁️ Infrastruttura
-- [ ] **Containerizzazione Docker** — Deploy one-click con Docker Compose
-- [ ] **Audit Log System** — Tracciabilità completa per conformità ISO 9001
-- [ ] **SSO Integration** — Login Azure AD / Google Workspace
+- [ ] **Multi-tenancy reale**: Isolamento dati a livello database per gestire contemporaneamente clienti, branch o plant diversi sotto un unico backend in SaaS.
+- [ ] **Thread di Commenti**: Chat collaborativa incapsulata nei singoli Ticket per comunicazioni dirette Responsabile <-> Tecnico.
+- [ ] **Notifiche Push Web**: Dispatch via Web Push API per notificare ai tecnici in campo un BD (Guasto Critico) direttamente sullo smartphone aggirando le email.
+- [ ] **QR Code Scanning Reale**: Generazione PDF di QRCode per ogni asset. Il tecnico inquadra il codice da cell e si apre automaticamente la maschera "Nuovo Ticket" pre-compilata.
+- [ ] **Report AI PDF**: Autogenerazione mensile di report per la dirigenza con andamenti, grafici storici, raccomandazioni AI su quali macchinari sostituire per abbassare MTBF.
+- [ ] **WebHooks & Integrazioni ERP**: Connettori SAP via REST/WebHook per inviare flussi di scarico magazzino consumabili.
 
-### 🤖 AI Avanzata
-- [ ] **Vision AI** — Analisi foto guasto per classificazione automatica intervento
-- [ ] **Privacy Redaction Layer** — Rimozione PII dai prompt prima dell'invio a OpenAI
-- [ ] **Azure OpenAI** — Dati dentro perimetro cloud aziendale (GDPR enterprise)
-- [ ] **Predictive Maintenance** — ML su storico ticket per predizione guasti
+---
 
-### 📱 Mobile Avanzato
-- [ ] **Sync Offline** — Operatività in zone senza copertura, sync automatica al rientro
-- [ ] **App Nativa** — React Native per iOS/Android con notifiche push native
-- [ ] **Geolocalizzazione Tecnico** — Tracking posizione GPS in mappa impianto
+## 🔴 v3.0 — Innovazione, AI & Scalabilità Cloud (Lungo termine, 3-6 mesi)
+
+### 🤖 AI e Automazione Avanzata
+- [ ] **Extraction Pezzi di Ricambio via NLP**: L'AI legge le note finali del tecnico dal ticket e decurta automaticamente l'inventario dei pezzi di ricambio menzionati dal magazzino virtuale.
+- [ ] **Predictive Maintenance Machine Learning**: Sistema isolato su cloud che analizza temperature, vibrazioni e log storici (o sensori IoT reali) per avviare *Ticket Predittivi* pre-rottura.
+- [ ] **Voice-To-Ticket**: Integrazione Whisper AI su app mobile. Il Tecnico detta la natura del guasto e il sistema auto-compila form lunghi (causa radice, lavoro svolto, materiali usati).
+- [ ] **Vision AI**: Analisi di una foto scattata dall'app per suggerire in automatico tag e root cause visibili (es. quadro elettrico manomesso, perdita olio visibile).
+
+### ☁️ Infrastruttura & Operatività Estrema
+- [ ] **Containerizzazione Docker**: Deploy one-click enterprise della piattaforma completa per aziende in modalità on-premise isolata (Docker Compose).
+- [ ] **SSO Integration**: Login Azure AD / Google Workspace per sicurezza aziendale.
+- [ ] **Offline-First PWA Storage Sync**: IndexedDB e architettura a code "ServiceWorker" per far lavorare il tecnico nei sottoscala o cantine fuori-rete. Al recupero linea (Wi-Fi), il payload viene svuotato asincronamente verso il server. 
+- [ ] **Geolocalizzazione GPS e Dispatching Map**: Una mappa interattiva (Google Maps / Leaflet) per visualizzare ticket territoriali sparsi a livello cittadino e suggerire le roadmap stradali migliori nel giorno. 
 
 ---
 
@@ -111,11 +106,8 @@
 | Componente    | Tecnologia                         |
 |---------------|------------------------------------|
 | Frontend      | Next.js 15, React 18, TypeScript   |
-| Backend       | FastAPI, Python 3.11+, Uvicorn/Gunicorn |
+| Backend       | FastAPI, Python 3.11+, Gunicorn    |
 | Database      | **PostgreSQL** (Hosted on Render)  |
 | AI Engine     | OpenAI GPT-4.1 / GPT-4.1-mini     |
-| Meteo         | Open-Meteo API (gratuita)          |
-| Auth          | JWT + bcrypt                       |
-| Rete Remota   | Tailscale VPN (Development)        |
-| Hosting       | Vercel (Frontend) + Render (Backend) |
-| Mobile        | PWA (Manifest + Service Worker)    |
+| Rete / Sync   | HTTPS, JWT Auth, Service Worker    |
+| Hosting       | Vercel (Front) + Render (Back)     |
