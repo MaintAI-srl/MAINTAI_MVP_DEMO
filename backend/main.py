@@ -118,7 +118,7 @@ def _ensure_columns() -> None:
         # generated_plans — storico piani
         ("generated_plans", "plan_number",             "ALTER TABLE generated_plans ADD COLUMN {ifne}plan_number INTEGER"),
         ("generated_plans", "confirmed_by",            "ALTER TABLE generated_plans ADD COLUMN {ifne}confirmed_by VARCHAR"),
-        ("generated_plans", "deauthorized_at",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_at DATETIME"),
+        ("generated_plans", "deauthorized_at",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_at TIMESTAMP"),
         ("generated_plans", "deauthorized_by",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_by VARCHAR"),
         ("generated_plans", "deauthorization_reason",  "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorization_reason VARCHAR"),
     ]
@@ -186,27 +186,33 @@ def _ensure_columns() -> None:
         ca = {"check_same_thread": False} if url.startswith("sqlite") else {}
         eng = create_engine(url, connect_args=ca)
         ifne = "IF NOT EXISTS " if pg else ""
-        try:
-            with eng.begin() as conn:
-                # 1. Crea le tabelle intere se non esistono
-                conn.execute(text(sl_pg if pg else sl_sqlite))
-                conn.execute(text(gp_pg if pg else gp_sqlite))
-                logger.info("_ensure_columns[%s]: tabelle base OK", url.split("://")[0])
-                
-                # 2. Aggiungi colonne opzionali se le tabelle esistevano già (migrazione incrementale)
-                for _table, col_name, tmpl in ddl_statements:
-                    sql = tmpl.format(ifne=ifne)
-                    try:
-                        conn.execute(text(sql))
-                        logger.info("_ensure_columns[%s]: aggiunta %s", url.split("://")[0], col_name)
-                    except Exception as col_exc:
-                        msg = str(col_exc).lower()
-                        if "duplicate column" in msg or "already exists" in msg:
-                            logger.debug("_ensure_columns: %s già presente", col_name)
-                        else:
-                            logger.warning("_ensure_columns DDL %s: %s", col_name, col_exc)
-        except Exception as exc:
-            logger.warning("_ensure_columns[%s] fallito: %s", url.split("://")[0], exc)
+        db_label = url.split("://")[0]
+
+        # ── CRITICO: ogni DDL in transazione separata ──────────────────────────
+        # Su PostgreSQL, un errore in una transazione mette il connection in stato
+        # "aborted": tutti i DDL successivi nella stessa transazione vengono
+        # ignorati silenziosamente. Usando una transazione per ogni statement
+        # ogni DDL è indipendente e idempotente.
+
+        def _exec_ddl(sql: str, label: str) -> None:
+            try:
+                with eng.begin() as conn:
+                    conn.execute(text(sql))
+                logger.info("_ensure_columns[%s]: OK %s", db_label, label)
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "already exists" in msg or "duplicate column" in msg or "duplicate object" in msg:
+                    logger.debug("_ensure_columns[%s]: già presente %s", db_label, label)
+                else:
+                    logger.warning("_ensure_columns[%s] DDL %s: %s", db_label, label, exc)
+
+        # 1. Crea le tabelle complete se non esistono
+        _exec_ddl(sl_pg if pg else sl_sqlite, "system_logs CREATE")
+        _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
+
+        # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
+        for _table, col_name, tmpl in ddl_statements:
+            _exec_ddl(tmpl.format(ifne=ifne), col_name)
 
     try:
         from backend.core.database import DATABASE_URL as MAIN_URL
