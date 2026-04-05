@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone, date
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, JSON, event
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, event
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -177,6 +177,11 @@ class Ticket(Base):
     diagnosi_eseguita = Column(Boolean, default=False)
     firma_percorso = Column(String, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+    # Campi splitting/pianificazione AI (FASE 6)
+    parent_ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=True)
+    is_continuation = Column(Boolean, default=False)
+    planned_start_time = Column(Time, nullable=True)
 
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")

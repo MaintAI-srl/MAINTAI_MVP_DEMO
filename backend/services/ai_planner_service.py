@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -413,7 +413,25 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         )
 
         raw = response.choices[0].message.content
-        return json.loads(raw)
+        plan_result = json.loads(raw)
+
+        # Integra splitting e calcolo orari
+        technician_hours = {tc["id"]: tc.get("ore_giornaliere", 8) for tc in context["tecnici"]}
+        plan_result["planned_workorders"] = calculate_split_assignments(
+            plan_result.get("planned_workorders", []),
+            technician_hours,
+        )
+
+        # Calcola efficienza piano
+        efficiency_data = calculate_plan_efficiency(
+            plan_result,
+            context["tecnici"],
+            total_backlog=len(context["tickets"]),
+        )
+        plan_result["efficiency_score"] = efficiency_data["efficiency_score"]
+        plan_result["efficiency_breakdown"] = efficiency_data["efficiency_breakdown"]
+
+        return plan_result
 
     except json.JSONDecodeError as exc:
         logger.error("AI Planner: errore parsing JSON risposta: %s", exc)
@@ -421,3 +439,211 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
     except Exception as exc:
         logger.error("AI Planner: errore chiamata OpenAI: %s", exc)
         return {"error": f"Errore chiamata AI: {exc}", "raw_response": ""}
+
+
+# ── Ticket Splitting ───────────────────────────────────────────────────────────
+
+WORKDAY_START = 8.0    # 08:00
+WORKDAY_END   = 17.0   # 17:00
+WORKDAY_HOURS = WORKDAY_END - WORKDAY_START  # 9 ore lorde
+BUFFER_HOURS  = 0.5    # 30 min buffer tra interventi
+
+
+def _next_workday(d: date) -> date:
+    """Ritorna il prossimo giorno lavorativo (salta sab/dom)."""
+    next_d = d + timedelta(days=1)
+    while next_d.weekday() >= 5:
+        next_d += timedelta(days=1)
+    return next_d
+
+
+def _hours_to_time(h: float) -> str:
+    hh = int(h)
+    mm = int(round((h - hh) * 60))
+    if mm == 60:
+        hh += 1
+        mm = 0
+    return f"{hh:02d}:{mm:02d}"
+
+
+def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> list:
+    """
+    Riceve la lista planned_workorders dall'AI (con wo_id, technician_id, planned_date, duration_hours)
+    e calcola orari inizio/fine con splitting se un WO supera le ore disponibili.
+
+    technician_hours: dict {tech_id: ore_giornaliere} — fallback ore se non disponibile
+
+    Ritorna lista arricchita con:
+    - planned_start_time: "HH:MM"
+    - planned_end_time:   "HH:MM"
+    - is_continuation:    bool
+    - parent_wo_id:       int | None
+    - continuation_wos:   list (WO figli da aggiungere)
+    """
+    # Tracking ultima ora occupata per (tech_id, date_str)
+    tech_day_end: Dict[tuple, float] = {}
+
+    result = []
+    continuations = []
+
+    for wo in planned_wos:
+        tech_id = wo.get("technician_id")
+        day = wo.get("planned_date", "")
+
+        # Ricava durata dal time_slot se duration_hours non disponibile
+        duration = float(wo.get("duration_hours", 0.0))
+        if duration == 0.0:
+            slot = wo.get("time_slot", "")
+            if slot and "-" in slot:
+                try:
+                    parts = slot.split("-")
+                    start_parts = parts[0].strip().split(":")
+                    end_parts = parts[1].strip().split(":")
+                    s_h = int(start_parts[0]) + int(start_parts[1]) / 60.0
+                    e_h = int(end_parts[0]) + int(end_parts[1]) / 60.0
+                    duration = max(e_h - s_h, 0.5)
+                except (IndexError, ValueError):
+                    duration = 2.0
+            else:
+                duration = 2.0
+
+        key = (tech_id, day)
+        start_h = tech_day_end.get(key, WORKDAY_START)
+        if start_h > WORKDAY_START:
+            start_h += BUFFER_HOURS
+
+        available = WORKDAY_END - start_h
+
+        enriched = {**wo}
+
+        if duration <= available:
+            end_h = start_h + duration
+            enriched["planned_start_time"] = _hours_to_time(start_h)
+            enriched["planned_end_time"]   = _hours_to_time(end_h)
+            enriched["duration_hours"]     = duration
+            enriched["is_continuation"]    = wo.get("is_continuation", False)
+            enriched["parent_wo_id"]       = wo.get("parent_wo_id", None)
+            enriched["continuation_wos"]   = []
+            tech_day_end[key] = end_h
+            result.append(enriched)
+        else:
+            # Tronca al turno corrente
+            trunc_end = WORKDAY_END
+            enriched["planned_start_time"] = _hours_to_time(start_h)
+            enriched["planned_end_time"]   = _hours_to_time(trunc_end)
+            enriched["is_continuation"]    = wo.get("is_continuation", False)
+            enriched["parent_wo_id"]       = wo.get("parent_wo_id", None)
+            enriched["duration_hours"]     = available
+            tech_day_end[key] = trunc_end
+
+            # WO di continuazione
+            remaining = duration - available
+            try:
+                next_day = _next_workday(date.fromisoformat(day))
+            except ValueError:
+                next_day = date.today() + timedelta(days=1)
+
+            cont_wo: Dict[str, Any] = {
+                **wo,
+                "planned_date":      str(next_day),
+                "planned_start_time": _hours_to_time(WORKDAY_START),
+                "duration_hours":    remaining,
+                "is_continuation":   True,
+                "parent_wo_id":      wo["wo_id"],
+                "title":             "[CONTINUAZIONE] " + wo.get("title", f"WO #{wo['wo_id']}"),
+                "warnings":          list(wo.get("warnings", [])) + ["Continuazione da giorno precedente"],
+            }
+            enriched["continuation_wos"] = [cont_wo]
+            continuations.append(cont_wo)
+            result.append(enriched)
+
+    # Calcola orari per i WO di continuazione e aggiungili
+    for cont in continuations:
+        tech_id = cont["technician_id"]
+        day = cont["planned_date"]
+        duration = float(cont["duration_hours"])
+        key = (tech_id, day)
+        start_h = tech_day_end.get(key, WORKDAY_START)
+        if start_h > WORKDAY_START:
+            start_h += BUFFER_HOURS
+        end_h = min(start_h + duration, WORKDAY_END)
+        cont["planned_start_time"] = _hours_to_time(start_h)
+        cont["planned_end_time"]   = _hours_to_time(end_h)
+        cont["continuation_wos"]   = []
+        tech_day_end[key] = end_h
+        result.append(cont)
+
+    return result
+
+
+# ── Efficienza Piano ───────────────────────────────────────────────────────────
+
+def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_backlog: int) -> Dict[str, Any]:
+    """
+    Calcola efficiency score 0-100 con breakdown per 5 fattori.
+    """
+    planned = plan.get("planned_workorders", [])
+    deferred = plan.get("deferred_workorders", [])
+
+    n_planned = len([w for w in planned if not w.get("is_continuation")])
+    n_total = n_planned + len(deferred)
+
+    # 1. Copertura backlog (30%)
+    copertura = (n_planned / max(n_total, 1)) * 100
+
+    # 2. Utilizzo tecnici (25%)
+    ore_assegnate = sum(
+        float(w.get("duration_hours", 2))
+        for w in planned
+        if not w.get("is_continuation")
+    )
+    ore_disponibili = sum(float(t.get("ore_giornaliere", 8)) * 5 for t in technicians) or 1
+    utilizzo = min((ore_assegnate / ore_disponibili) * 100, 100)
+
+    # 3. Bilanciamento 70/30 (20%)
+    types = [w.get("wo_type", w.get("tipo", "PM")) for w in planned if not w.get("is_continuation")]
+    n_pm = sum(1 for t in types if "PM" in str(t).upper())
+    n_cm = sum(1 for t in types if "CM" in str(t).upper() and "BD" not in str(t).upper())
+    n_non_bd = n_pm + n_cm or 1
+    ratio_pm = (n_pm / n_non_bd) * 100
+    scostamento = abs(ratio_pm - 70)  # target 70%
+    bilanciamento = max(0, 100 - scostamento * 2)
+
+    # 4. Match skill (15%) — proxy: WO non rimandati per mancanza skill
+    skill_ko = sum(
+        1 for d in deferred
+        if "skill" in d.get("reason", "").lower() or "qualific" in d.get("reason", "").lower()
+    )
+    skill_score = max(0, 100 - (skill_ko / max(n_total, 1)) * 100)
+
+    # 5. Ottimizzazione meteo (10%)
+    wo_with_meteo_warning = sum(
+        1 for w in planned
+        if any(
+            "meteo" in (x or "").lower()
+            or "pioggia" in (x or "").lower()
+            or "vento" in (x or "").lower()
+            or "gelo" in (x or "").lower()
+            for x in w.get("warnings", [])
+        )
+    )
+    meteo_score = max(0, 100 - (wo_with_meteo_warning / max(n_planned, 1)) * 100)
+
+    efficiency = (
+        copertura    * 0.30
+        + utilizzo   * 0.25
+        + bilanciamento * 0.20
+        + skill_score   * 0.15
+        + meteo_score   * 0.10
+    )
+
+    return {
+        "efficiency_score": round(efficiency, 1),
+        "efficiency_breakdown": {
+            "copertura_backlog":    round(copertura, 1),
+            "utilizzo_tecnici":     round(utilizzo, 1),
+            "bilanciamento_70_30":  round(bilanciamento, 1),
+            "match_skill":          round(skill_score, 1),
+            "ottimizzazione_meteo": round(meteo_score, 1),
+        },
+    }
