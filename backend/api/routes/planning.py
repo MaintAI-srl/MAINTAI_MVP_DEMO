@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, get_current_user_payload
 from backend.core.logging_config import get_logger
+from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset
 from backend.services.ai_planner_service import generate_ai_plan
 from backend.services.planner_engine_bridge import generate_deterministic_plan
@@ -85,27 +86,37 @@ async def generate_plan(
         "Planning: avvio generazione — mode=%s days=%s tenant=%s",
         effective_mode, data.days, tenant_id,
     )
+    db_info("PLANNING", f"Avvio generazione piano [{effective_mode}] — orizzonte {data.days}gg", tenant_id=tenant_id)
 
-    if effective_mode == "deterministic":
-        plan_json = await generate_deterministic_plan(
-            db=db,
-            days=data.days,
-            asset_ids=data.asset_ids,
-            tenant_id=tenant_id,
-        )
-    else:
-        plan_json = await generate_ai_plan(
-            db=db,
-            days=data.days,
-            asset_ids=data.asset_ids,
-            tenant_id=tenant_id,
-        )
-        if "error" in plan_json:
-            logger.error("AI Planning: errore generazione — %s", plan_json.get("error"))
-            raise HTTPException(
-                status_code=500,
-                detail=f"Errore nella generazione del piano AI: {plan_json['error']}",
+    try:
+        if effective_mode == "deterministic":
+            plan_json = await generate_deterministic_plan(
+                db=db,
+                days=data.days,
+                asset_ids=data.asset_ids,
+                tenant_id=tenant_id,
             )
+            if "error" in plan_json:
+                msg = plan_json["error"]
+                db_error("PLANNING", f"Errore motore deterministico: {msg}", tenant_id=tenant_id)
+                raise HTTPException(status_code=500, detail=f"Errore motore deterministico: {msg}")
+        else:
+            plan_json = await generate_ai_plan(
+                db=db,
+                days=data.days,
+                asset_ids=data.asset_ids,
+                tenant_id=tenant_id,
+            )
+            if "error" in plan_json:
+                msg = plan_json["error"]
+                db_error("PLANNING", f"Errore motore AI: {msg}", tenant_id=tenant_id)
+                raise HTTPException(status_code=500, detail=f"Errore motore AI: {msg}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Planning: eccezione non gestita — %s", exc, exc_info=True)
+        db_error("PLANNING", f"Eccezione durante generazione piano: {exc}", tenant_id=tenant_id)
+        raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
 
     new_plan = GeneratedPlan(
         status="draft",
@@ -117,12 +128,17 @@ async def generate_plan(
     db.commit()
     db.refresh(new_plan)
 
+    n_wo = len(plan_json.get("planned_workorders", []))
+    n_def = len(plan_json.get("deferred_workorders", []))
     logger.info(
         "Planning [%s]: piano generato — id=%s WO=%s rimandati=%s",
-        effective_mode,
-        new_plan.id,
-        len(plan_json.get("planned_workorders", [])),
-        len(plan_json.get("deferred_workorders", [])),
+        effective_mode, new_plan.id, n_wo, n_def,
+    )
+    db_info(
+        "PLANNING",
+        f"Piano #{new_plan.id} generato [{effective_mode}] — {n_wo} pianificati, {n_def} rimandati",
+        extra={"efficiency_score": plan_json.get("efficiency_score")},
+        tenant_id=tenant_id,
     )
 
     return _plan_to_dict(new_plan)

@@ -56,20 +56,31 @@ def _split_competenze(raw: Optional[str]) -> List[str]:
     return [p.strip().upper() for p in parts if p.strip()]
 
 
+# Tipi di manutenzione standard: ogni tecnico attivo può eseguire qualsiasi tipo.
+# In MaintAI le competenze sono job-skills (Meccanico, Elettricista…), non categorie
+# di manutenzione (PM/CM/BD). Aggiungiamo i tipi standard come competenze implicite
+# così il PlannerEngine non scarta tutti i ticket per REASON_NO_SKILL.
+_TIPO_IMPLICITI = ["PM", "CM", "BD", "TUTTI"]
+
+
 def _build_planner_tecnici(tecnici: List[Tecnico]) -> List[PlannerTecnico]:
     result = []
     for t in tecnici:
         if t.stato.lower() not in ("in servizio", "in_servizio"):
             continue
+        comp = _split_competenze(t.competenze)
+        # Aggiungi tipi manutenzione impliciti se non già presenti
+        for tipo in _TIPO_IMPLICITI:
+            if tipo not in comp:
+                comp.append(tipo)
         result.append(PlannerTecnico(
             id=t.id,
             nome=f"{t.nome} {t.cognome or ''}".strip(),
             stato="in_servizio",
-            competenze=_split_competenze(t.competenze),
+            competenze=comp,
             ore_giornaliere=t.ore_giornaliere or 8,
             orario_inizio=t.orario_inizio or "08:00",
             orario_fine=t.orario_fine or "17:00",
-            # limitazioni_orarie è testo libero — trattiamo come lista di tag
             limitazioni=_split_competenze(t.limitazioni_orarie or ""),
         ))
     return result
@@ -188,14 +199,18 @@ async def generate_deterministic_plan(
         len(planner_tickets), len(planner_tecnici), days,
     )
 
-    engine = PlannerEngine(
-        tecnici=planner_tecnici,
-        tickets=planner_tickets,
-        existing_assignments=[],
-        today=today,
-        horizon_days=days,
-    )
-    engine_result = engine.run()
+    try:
+        engine = PlannerEngine(
+            tecnici=planner_tecnici,
+            tickets=planner_tickets,
+            existing_assignments=[],
+            today=today,
+            horizon_days=days,
+        )
+        engine_result = engine.run()
+    except Exception as exc:
+        logger.error("PlannerEngine: eccezione durante run(): %s", exc, exc_info=True)
+        return {"error": f"Errore motore deterministico: {exc}"}
 
     logger.info(
         "PlannerEngine: completato — %d assegnati, %d non assegnati",
