@@ -64,7 +64,7 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
       <div style={{ position: "relative", marginBottom: 12 }}>
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,.doc,.docx"
           id={`upload-${ticketId}`}
           onChange={handleFileChange}
           style={{ display: "none" }}

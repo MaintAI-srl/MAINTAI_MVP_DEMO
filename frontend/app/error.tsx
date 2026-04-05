@@ -21,7 +21,7 @@ export default function ErrorBoundary({
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "var(--text-primary)",
+      backgroundColor: "var(--bg-base)",
       padding: "24px"
     }}>
       <div style={{
