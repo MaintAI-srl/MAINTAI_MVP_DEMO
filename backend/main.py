@@ -138,28 +138,36 @@ def _ensure_columns() -> None:
         )
     """
 
+    def _apply_to(url: str, pg: bool) -> None:
+        from sqlalchemy import create_engine, text
+        ca = {"check_same_thread": False} if url.startswith("sqlite") else {}
+        eng = create_engine(url, connect_args=ca)
+        ifne = "IF NOT EXISTS " if pg else ""
+        try:
+            with eng.begin() as conn:
+                for _table, col_name, tmpl in ddl_statements:
+                    sql = tmpl.format(ifne=ifne)
+                    try:
+                        conn.execute(text(sql))
+                        logger.info("_ensure_columns[%s]: aggiunta %s", url.split("://")[0], col_name)
+                    except Exception as col_exc:
+                        msg = str(col_exc).lower()
+                        if "duplicate column" in msg or "already exists" in msg:
+                            logger.debug("_ensure_columns: %s già presente", col_name)
+                        else:
+                            logger.warning("_ensure_columns DDL %s: %s", col_name, col_exc)
+                conn.execute(text(gp_pg if pg else gp_sqlite))
+                logger.info("_ensure_columns[%s]: generated_plans OK", url.split("://")[0])
+        except Exception as exc:
+            logger.warning("_ensure_columns[%s] fallito: %s", url.split("://")[0], exc)
+
     try:
-        engine = create_engine(DATABASE_URL)
-        ifne = "IF NOT EXISTS " if is_pg else ""
-
-        with engine.begin() as conn:  # begin() → autocommit al termine del with
-            for _table, col_name, tmpl in ddl_statements:
-                sql = tmpl.format(ifne=ifne)
-                try:
-                    conn.execute(text(sql))
-                    logger.info("_ensure_columns: OK — %s", sql.strip())
-                except Exception as col_exc:
-                    # Su SQLite "duplicate column name" è un errore — ignoralo
-                    if "duplicate column" in str(col_exc).lower() or "already exists" in str(col_exc).lower():
-                        logger.debug("_ensure_columns: colonna già presente (%s)", col_name)
-                    else:
-                        logger.warning("_ensure_columns: errore DDL su %s: %s", col_name, col_exc)
-
-            conn.execute(text(gp_pg if is_pg else gp_sqlite))
-            logger.info("_ensure_columns: generated_plans OK")
-
+        from backend.core.database import DATABASE_URL as MAIN_URL, DEMO_DATABASE_URL
+        _apply_to(MAIN_URL, is_pg)
+        # Applica sempre anche sul demo DB (SQLite) — ha sempre le stesse colonne
+        _apply_to(DEMO_DATABASE_URL, False)
     except Exception as exc:
-        logger.warning("_ensure_columns fallito (non bloccante): %s", exc)
+        logger.warning("_ensure_columns: import URL fallito: %s", exc)
 
 
 @asynccontextmanager
