@@ -283,6 +283,38 @@ def deauthorize_plan(
     return _plan_to_dict(plan)
 
 
+@router.get("/debug")
+def debug_schema(db: Session = Depends(get_db)):
+    """Endpoint diagnostico: mostra le colonne di generated_plans nel DB reale."""
+    from sqlalchemy import text, inspect
+    result = {}
+    try:
+        # Metodo 1: information_schema (PostgreSQL + SQLite)
+        cols = db.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='generated_plans' ORDER BY ordinal_position"
+        )).fetchall()
+        result["columns_info_schema"] = [r[0] for r in cols]
+    except Exception as e:
+        result["columns_info_schema_error"] = str(e)
+
+    try:
+        # Metodo 2: PRAGMA per SQLite
+        cols2 = db.execute(text("PRAGMA table_info(generated_plans)")).fetchall()
+        result["columns_pragma"] = [r[1] for r in cols2]
+    except Exception as e:
+        result["columns_pragma_error"] = str(e)
+
+    try:
+        # Metodo 3: SELECT senza ORM
+        row = db.execute(text("SELECT COUNT(*) FROM generated_plans")).scalar()
+        result["row_count"] = row
+    except Exception as e:
+        result["row_count_error"] = str(e)
+
+    return result
+
+
 @router.get("/current")
 def get_current_plan(
     db: Session = Depends(get_db),
