@@ -12,7 +12,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # --- MODALITÀ DEMO ---
-    if form_data.username == "demo" and form_data.password == "demo123":
+    if form_data.username.lower() == "demo" and form_data.password == "demo123":
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, HTTPException, Depends
 from backend.core.security import get_current_user_payload
-from backend.core.database import get_db
+from backend.core.dependencies import get_db
 from backend.db.modelli import SystemLog
 from sqlalchemy.orm import Session
 from sqlalchemy import desc

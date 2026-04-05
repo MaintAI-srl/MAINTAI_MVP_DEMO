@@ -6,30 +6,36 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.api.routes.assets import router as assets_router
-from backend.api.routes.auth import router as auth_router
-from backend.api.routes.dashboard import router as dashboard_router
-from backend.api.routes.db_routes import router as db_router
-from backend.api.routes.diagnostic import router as diagnostic_router
-from backend.api.routes.health import router as health_router
-from backend.api.routes.impianti import router as impianti_router
-from backend.api.routes.siti import router as siti_router
-from backend.api.routes.manuali import router as manuali_router
-from backend.api.routes.piani import router as piani_router
-from backend.api.routes.problem_analysis import router as problem_analysis_router
-from backend.api.routes.tenants import router as tenants_router
-from backend.api.routes.scheduler import router as scheduler_router
-from backend.api.routes.tecnici import router as tecnici_router
-from backend.api.routes.tickets import router as tickets_router
-from backend.api.routes.scadenze import router as scadenze_router
-from backend.api.routes.logs import router as logs_router
-from backend.api.routes.email_config import router as email_config_router
-from backend.api.routes.demo import router as demo_router
-from backend.core.config import init_backend
-from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
-from backend.core.init_db import init_db
-from backend.core.logging_config import setup_logging
-from backend.services.email_poller import check_all_mailboxes
+try:
+    from backend.api.routes.assets import router as assets_router
+    from backend.api.routes.auth import router as auth_router
+    from backend.api.routes.dashboard import router as dashboard_router
+    from backend.api.routes.db_routes import router as db_router
+    from backend.api.routes.diagnostic import router as diagnostic_router
+    from backend.api.routes.health import router as health_router
+    from backend.api.routes.impianti import router as impianti_router
+    from backend.api.routes.siti import router as siti_router
+    from backend.api.routes.manuali import router as manuali_router
+    from backend.api.routes.piani import router as piani_router
+    from backend.api.routes.problem_analysis import router as problem_analysis_router
+    from backend.api.routes.tenants import router as tenants_router
+    from backend.api.routes.scheduler import router as scheduler_router
+    from backend.api.routes.tecnici import router as tecnici_router
+    from backend.api.routes.tickets import router as tickets_router
+    from backend.api.routes.scadenze import router as scadenze_router
+    from backend.api.routes.logs import router as logs_router
+    from backend.api.routes.email_config import router as email_config_router
+    from backend.api.routes.demo import router as demo_router
+    from backend.core.config import init_backend
+    from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
+    from backend.core.init_db import init_db
+    from backend.core.logging_config import setup_logging
+    from backend.services.email_poller import check_all_mailboxes
+except ImportError as e:
+    print(f"❌ CRITICAL IMPORT ERROR: {e}")
+    import traceback
+    traceback.print_exc()
+    raise e
 
 async def email_poller_task():
     """Task in background che preleva le email IMAP per generare i ticket ogni 5 minuti."""
@@ -77,22 +83,30 @@ def _run_alembic_upgrade() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_logging()
-    init_backend()
-    _run_alembic_upgrade()  # applica migrazioni pendenti
-    init_db()               # crea tabelle mancanti + seed
+    import traceback
+    print("🚀 APP LIFESPAN STARTING...")
+    try:
+        setup_logging()
+        print("✅ logging configured")
+        init_backend()
+        print("✅ backend initialized")
+        _run_alembic_upgrade()  # applica migrazioni pendenti
+        print("✅ migrations checked")
+        init_db()               # crea tabelle mancanti + seed
+        print("✅ main db initialized")
+    except Exception as e:
+        print(f"❌ CRASH DURING STARTUP: {str(e)}")
+        traceback.print_exc()
+        raise e
 
-    # Crea cartella uploads solo in locale (su Render il filesystem è effimero
-    # e i file vengono serviti da Supabase Storage)
-    if not os.getenv("SUPABASE_URL"):
-        os.makedirs("uploads", exist_ok=True)
-        
     # Avvio email poller in background
     poller_task = asyncio.create_task(email_poller_task())
+    print("✅ background tasks started")
     
     yield
     
     # Pulizia
+    print("🛑 APP LIFESPAN ENDING...")
     poller_task.cancel()
 
 app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
