@@ -8,7 +8,6 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import { VERSION } from "./lib/version";
-import DemoBanner from "./components/DemoBanner";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -253,7 +252,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
             {/* Page content */}
             <main className="app-content">
-              <DemoBanner />
               {children}
             </main>
 

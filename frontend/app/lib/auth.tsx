@@ -18,12 +18,11 @@ type User = {
   userid?: number;
   tenant_id?: number;
   tenant_nome?: string;
-  isDemo?: boolean;
 };
 
 interface AuthContextType {
   user: User | null;
-  login: (token: string, username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string, isDemo?: boolean) => void;
+  login: (token: string, username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -48,7 +47,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedUserId = localStorage.getItem("maintai_userid");
     const savedTenantId = localStorage.getItem("maintai_tenant_id");
     const savedTenantNome = localStorage.getItem("maintai_tenant_nome");
-    const savedIsDemo = localStorage.getItem("maintai_is_demo") === "true";
 
     if (savedToken && savedUsername && savedRuolo) {
       if (isTokenExpired(savedToken)) {
@@ -66,23 +64,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userid: savedUserId ? parseInt(savedUserId) : undefined,
           tenant_id: savedTenantId ? parseInt(savedTenantId) : undefined,
           tenant_nome: savedTenantNome || undefined,
-          isDemo: savedIsDemo,
         });
       }
     }
     setLoading(false);
   }, []);
 
-  const login = (token: string, username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string, isDemo?: boolean) => {
+  const login = (token: string, username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string) => {
     localStorage.setItem("maintai_jwt", token);
     localStorage.setItem("maintai_username", username);
     localStorage.setItem("maintai_ruolo", ruolo);
     if (userid) localStorage.setItem("maintai_userid", String(userid));
     if (tenant_id) localStorage.setItem("maintai_tenant_id", String(tenant_id));
     if (tenant_nome) localStorage.setItem("maintai_tenant_nome", tenant_nome);
-    if (isDemo) localStorage.setItem("maintai_is_demo", "true");
-    else localStorage.removeItem("maintai_is_demo");
-    setUser({ token, username, ruolo, userid, tenant_id, tenant_nome, isDemo });
+    setUser({ token, username, ruolo, userid, tenant_id, tenant_nome });
   };
 
   const logout = useCallback(() => {
@@ -92,7 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("maintai_userid");
     localStorage.removeItem("maintai_tenant_id");
     localStorage.removeItem("maintai_tenant_nome");
-    localStorage.removeItem("maintai_is_demo");
     setUser(null);
   }, []);
 

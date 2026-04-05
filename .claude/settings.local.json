@@ -81,7 +81,9 @@
       "Bash(taskkill /F /IM python.exe /T)",
       "Bash(taskkill /F /IM node.exe /T)",
       "Bash(taskkill //F //IM python.exe //T)",
-      "Bash(taskkill //F //IM node.exe //T)"
+      "Bash(taskkill //F //IM node.exe //T)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vIiwicnVvbG8iOiJyZXNwb25zYWJpbGUiLCJ1c2VyaWQiOjk5OSwidGVuYW50X2lkIjoxLCJpc19kZW1vIjp0cnVlLCJleHAiOjE3NzYwMjEzMTN9.EymDNGg-AQqf8OZeJvWxeYZtzXBcCHttKFRwE4NSwfc\" __NEW_LINE_ace0742833f7dd5d__ echo \"=== /planning/status ===\" curl -s https://maintai-v3.onrender.com/planning/status -H \"Authorization: Bearer $TOKEN\")"
     ]
   }
 }
