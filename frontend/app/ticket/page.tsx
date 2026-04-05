@@ -92,11 +92,42 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [saving, setSaving] = useState(false);
   const [showAssetDialog, setShowAssetDialog] = useState(false);
 
-  // Quando si cambia stato → auto-fill date suggerite
+  // Automazione: Cambio Stato
   function handleStatoChange(s: string) {
     setStato(s);
+    // Se torna ad Aperto, pulisci pianificazione
+    if (s === "Aperto") {
+      setPlannedStart("");
+      setPlannedFinish("");
+    }
+    // Se passa a In Corso, imposta inizio se vuoto
     if (s === "In corso" && !executionStart) setExecutionStart(nowDatetimeLocal());
+    // Se passa a Chiuso, imposta fine se vuoto
     if (s === "Chiuso" && !executionFinish) setExecutionFinish(nowDatetimeLocal());
+  }
+
+  // Automazione: Cambio Data Pianificazione
+  function handlePlannedChange(start: string) {
+    setPlannedStart(start);
+    if (start) {
+      if (stato === "Aperto") setStato("Pianificato");
+      // Auto-calcola fine basata su durata stimata
+      const d = new Date(start);
+      d.setMinutes(d.getMinutes() + (ticket.durata_stimata_ore || 1) * 60);
+      setPlannedFinish(d.toISOString().slice(0, 16));
+    }
+  }
+
+  // Funzioni di Pianificazione Rapida
+  function quickPlan(hoursFromNow: number = 0, hourOfDay?: number) {
+    const d = new Date();
+    if (hourOfDay !== undefined) {
+      d.setHours(hourOfDay, 0, 0, 0);
+      if (hoursFromNow > 0) d.setDate(d.getDate() + 1);
+    } else {
+      d.setMinutes(d.getMinutes() + 15); // Un po' di margine
+    }
+    handlePlannedChange(d.toISOString().slice(0, 16));
   }
 
   async function doSave(assetStatoOverride?: string) {
@@ -105,14 +136,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       const body: Record<string, string | null> = { stato };
       const as = assetStatoOverride !== undefined ? assetStatoOverride : assetStato;
       if (as) body.asset_stato = as;
-      if (plannedStart)    body.planned_start    = new Date(plannedStart).toISOString();
-      else                 body.planned_start    = null;
-      if (plannedFinish)   body.planned_finish   = new Date(plannedFinish).toISOString();
-      else                 body.planned_finish   = null;
-      if (executionStart)  body.execution_start  = new Date(executionStart).toISOString();
-      else                 body.execution_start  = null;
-      if (executionFinish) body.execution_finish = new Date(executionFinish).toISOString();
-      else                 body.execution_finish = null;
+      
+      body.planned_start = plannedStart ? new Date(plannedStart).toISOString() : null;
+      body.planned_finish = plannedFinish ? new Date(plannedFinish).toISOString() : null;
+      body.execution_start = executionStart ? new Date(executionStart).toISOString() : null;
+      body.execution_finish = executionFinish ? new Date(executionFinish).toISOString() : null;
 
       await apiPut(`/tickets/${ticket.id}`, body);
       onSaved();
@@ -123,37 +151,43 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   function handleSave() {
-    if (stato === "Chiuso") {
-      setShowAssetDialog(true);
-    } else {
-      doSave();
-    }
+    if (stato === "Chiuso") setShowAssetDialog(true);
+    else doSave();
   }
 
   return (
     <DialogContent
-      className="max-w-[540px] max-h-[90vh] overflow-y-auto"
-      style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.25)" }}
+      className="max-w-[600px] max-h-[92vh] overflow-y-auto p-0 border-none"
+      style={{ background: "#060b13", color: "var(--text-primary)", borderRadius: 16, boxShadow: "0 24px 48px rgba(0,0,0,0.6)" }}
     >
-      <DialogHeader>
-        <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)", marginBottom: 4 }}>
-          Ticket #{ticket.id}
+      {/* Header Premium */}
+      <div style={{ padding: "24px 28px", background: "linear-gradient(to bottom, rgba(59,130,246,0.05), transparent)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
+              Dettaglio Ticket #{ticket.id}
+            </div>
+            <DialogTitle style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em", margin: 0 }}>
+              {ticket.titolo}
+            </DialogTitle>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20 }}>&times;</button>
         </div>
-        <DialogTitle style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>
-          {ticket.titolo}
-        </DialogTitle>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ ...getPrioritaStyle(ticket.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{ticket.priorita}</span>
-          <span style={{ fontSize: 12, color: "var(--text-soft)" }}>{ticket.asset_name ?? "—"}</span>
-          <span style={{ fontSize: 12, color: "var(--text-soft)" }}>{ticket.fascia_oraria} · {ticket.durata_stimata_ore?.toFixed(1)}h</span>
+        
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ ...getPrioritaStyle(ticket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{ticket.priorita}</span>
+          <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{ticket.asset_name ?? "Asset non specificato"}</span>
+          <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{ticket.tipo} · {ticket.durata_stimata_ore?.toFixed(1)}h</span>
         </div>
-      </DialogHeader>
+      </div>
 
-        {/* Stato */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={modalLabel}>Stato</label>
+      <div style={{ padding: "28px" }}>
+        {/* Sezione Stato */}
+        <div style={{ marginBottom: 32 }}>
+          <label style={{ ...modalLabel, fontSize: 11, marginBottom: 12 }}>Stato Corrente</label>
           <StatusToggle 
-            size="md"
+            size="lg"
             currentValue={stato}
             onChange={(s) => handleStatoChange(s)}
             options={[
@@ -166,112 +200,127 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           />
         </div>
 
-        {/* Link ticket figlio (generato da diagnostica) */}
-        {ticket.diagnosi_eseguita && (
-          <div style={{ marginBottom: 16, padding: "10px 14px", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 8, fontSize: 12, color: "#a5b4fc" }}>
-            Diagnostica AI eseguita — il ticket correttivo è stato generato automaticamente.
+        {/* Sezione Pianificazione */}
+        <div style={{ marginBottom: 32, padding: 20, background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+             <label style={{ ...modalLabel, margin: 0 }}>Pianificazione Intervento</label>
+             <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => quickPlan(0, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>OGGI 08:00</button>
+                <button onClick={() => quickPlan(1, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>DOMANI</button>
+             </div>
           </div>
-        )}
-        {ticket.parent_id && (
-          <div style={{ marginBottom: 16, padding: "10px 14px", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 8, fontSize: 12, color: "#6ee7b7" }}>
-            Ticket correttivo figlio di <strong>#{ticket.parent_id}</strong> — creato da diagnostica AI.
-          </div>
-        )}
-
-        {/* Date grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-          <div>
-            <label style={modalLabel}>Inizio pianificato</label>
-            <input type="datetime-local" style={dtInput} value={plannedStart} onChange={e => setPlannedStart(e.target.value)} />
-          </div>
-          <div>
-            <label style={modalLabel}>Fine pianificata</label>
-            <input type="datetime-local" style={dtInput} value={plannedFinish} onChange={e => setPlannedFinish(e.target.value)} />
-          </div>
-          <div>
-            <label style={modalLabel}>
-              Inizio esecuzione
-              {!executionStart && (
-                <button onClick={() => { setExecutionStart(nowDatetimeLocal()); if (stato === "Aperto" || stato === "Pianificato") setStato("In corso"); }}
-                  style={{ marginLeft: 8, fontSize: 9, padding: "1px 7px", border: "1px solid rgba(251,191,36,.4)", color: "#fbbf24", background: "transparent", borderRadius: 3, cursor: "pointer", fontWeight: 700 }}>
-                  ORA
-                </button>
-              )}
-            </label>
-            <input type="datetime-local" style={dtInput} value={executionStart} onChange={e => setExecutionStart(e.target.value)} />
-          </div>
-          <div>
-            <label style={modalLabel}>
-              Fine esecuzione
-              {!executionFinish && (
-                <button onClick={() => { setExecutionFinish(nowDatetimeLocal()); if (stato !== "Chiuso") setStato("Chiuso"); }}
-                  style={{ marginLeft: 8, fontSize: 9, padding: "1px 7px", border: "1px solid rgba(52,211,153,.4)", color: "#34d399", background: "transparent", borderRadius: 3, cursor: "pointer", fontWeight: 700 }}>
-                  ORA
-                </button>
-              )}
-            </label>
-            <input type="datetime-local" style={dtInput} value={executionFinish} onChange={e => setExecutionFinish(e.target.value)} />
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Inizio Pianificato</label>
+              <input type="datetime-local" style={dtInput} value={plannedStart} onChange={e => handlePlannedChange(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Fine Pianificata</label>
+              <input type="datetime-local" style={dtInput} value={plannedFinish} onChange={e => setPlannedFinish(e.target.value)} />
+            </div>
           </div>
         </div>
+
+        {/* Sezione Esecuzione Dinamica */}
+        <div style={{ marginBottom: 32 }}>
+          <label style={{ ...modalLabel, marginBottom: 16 }}>Dati di Esecuzione Personale</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ position: "relative" }}>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Inizio Reale</label>
+              <input type="datetime-local" style={{ ...dtInput, border: executionStart ? "1px solid rgba(251,191,36,0.4)" : dtInput.border }} value={executionStart} onChange={e => {setExecutionStart(e.target.value); if(e.target.value && stato !== "In corso") setStato("In corso");}} />
+              {!executionStart && (
+                <button onClick={() => { setExecutionStart(nowDatetimeLocal()); setStato("In corso"); }}
+                  style={{ position: "absolute", right: 10, top: 28, fontSize: 9, padding: "2px 6px", background: "#fbbf24", color: "#000", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 800 }}>
+                  INIZIA ORA
+                </button>
+              )}
+            </div>
+            <div style={{ position: "relative" }}>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Fine Reale</label>
+              <input type="datetime-local" style={{ ...dtInput, border: executionFinish ? "1px solid rgba(52,211,153,0.4)" : dtInput.border }} value={executionFinish} onChange={e => {setExecutionFinish(e.target.value); if(e.target.value && stato !== "Chiuso") setStato("Chiuso");}} />
+              {!executionFinish && (
+                <button onClick={() => { setExecutionFinish(nowDatetimeLocal()); setStato("Chiuso"); }}
+                  style={{ position: "absolute", right: 10, top: 28, fontSize: 9, padding: "2px 6px", background: "#34d399", color: "#000", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 800 }}>
+                  CHIUDI ORA
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Descrizione & Allegati */}
+        {ticket.descrizione && (
+          <div style={{ marginBottom: 24 }}>
+             <label style={modalLabel}>Descrizione / Note</label>
+             <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6, padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+                {ticket.descrizione}
+             </div>
+          </div>
+        )}
 
         {/* Allegati */}
-        <div style={{ marginBottom: 24, padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
-          <label style={{ ...modalLabel, marginBottom: 12, display: "block" }}>Allegati e Foto Intervento</label>
-          <UploadAllegati ticketId={ticket.id} />
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ ...modalLabel, marginBottom: 12 }}>Dati e Foto Intervento</label>
+          <div style={{ padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)" }}>
+            <UploadAllegati ticketId={ticket.id} />
+          </div>
         </div>
+      </div>
 
-      <DialogFooter showCloseButton={false}>
-        <Button variant="outline" onClick={onClose}>Annulla</Button>
+      {/* Footer sticky-style */}
+      <div style={{ padding: "20px 28px", background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <Button variant="outline" onClick={onClose} style={{ borderColor: "rgba(255,255,255,0.1)", color: "var(--text-muted)" }}>Annulla</Button>
         <Button onClick={handleSave} disabled={saving}
-          style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)" }}>
-          {saving ? "Salvataggio…" : "Salva"}
+          style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)", minWidth: 120, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}>
+          {saving ? "Salvataggio…" : "Salva Modifiche"}
         </Button>
-      </DialogFooter>
+      </div>
 
       {/* Sub-dialog: stato asset alla chiusura */}
       <Dialog open={showAssetDialog} onOpenChange={(o) => !o && setShowAssetDialog(false)}>
         <DialogContent
           showCloseButton={false}
           className="max-w-[420px]"
-          style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)" }}
+          style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 16 }}
         >
           <DialogHeader>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)" }}>Chiusura ticket #{ticket.id}</div>
-            <DialogTitle style={{ fontSize: 15, fontWeight: 800 }}>
-              L&apos;asset torna in servizio?
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#3b82f6", fontWeight: 700 }}>Chiusura ticket #{ticket.id}</div>
+            <DialogTitle style={{ fontSize: 18, fontWeight: 800 }}>
+              Verifica Stato Asset
             </DialogTitle>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-soft)", lineHeight: 1.5 }}>
-              Seleziona lo stato dell&apos;asset <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong> dopo la chiusura.
+            <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
+              Il ticket è concluso. In che stato si trova l&apos;asset <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong>?
             </p>
           </DialogHeader>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={() => { setShowAssetDialog(false); doSave("service"); }}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}>
-              <span style={{ fontSize: 18 }}>✅</span>
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 22 }}>✅</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#34d399" }}>Sì, torna in servizio</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset operativo — stato impostato a Service</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#34d399" }}>Operativo (Service)</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>L&apos;asset è pronto e funzionante.</div>
               </div>
             </button>
             <button onClick={() => { setShowAssetDialog(false); doSave("stopped"); }}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}>
-              <span style={{ fontSize: 18 }}>⏸️</span>
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 22 }}>⏸️</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#fbbf24" }}>Fermo temporaneamente</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset in attesa — stato impostato a Stopped</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#fbbf24" }}>Fermo (Stopped)</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset in attesa di ulteriori verifiche.</div>
               </div>
             </button>
             <button onClick={() => { setShowAssetDialog(false); doSave("out of service"); }}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}>
-              <span style={{ fontSize: 18 }}>🔴</span>
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 22 }}>🔴</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#f87171" }}>No, fuori servizio</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset non operativo — stato impostato a Out of Service</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#f87171" }}>Fuori Servizio (OOS)</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>L&apos;asset richiede ulteriori interventi.</div>
               </div>
             </button>
           </div>
-          <Button variant="outline" className="w-full" onClick={() => { setShowAssetDialog(false); doSave(""); }}>
-            Non modificare stato asset
+          <Button variant="ghost" className="w-full mt-2" onClick={() => { setShowAssetDialog(false); doSave(""); }} style={{ color: "var(--text-muted)", fontSize: 12 }}>
+            Mantieni stato attuale
           </Button>
         </DialogContent>
       </Dialog>

@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone, date
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, event
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, JSON, event
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -101,6 +101,12 @@ class Asset(Base):
     weather_sunny_required = Column(Boolean, default=False)
     weather_max_wind_kmh = Column(Float, nullable=True)
     weather_max_rain_mm = Column(Float, nullable=True)
+
+    # Campi AI Planning
+    weather_constraint = Column(String, nullable=True)   # NONE | NO_RAIN | NO_WIND | NO_FROST | OUTDOOR_ONLY | INDOOR_ONLY
+    fermo_on_schedule = Column(Boolean, default=False)   # se True: asset → FERMO alla conferma del piano
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
 
     # Nuovi campi anagrafica
     anno_installazione = Column(Integer, nullable=True)
@@ -304,3 +310,16 @@ class SystemLog(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     tenant = relationship("Tenant")
+
+
+class GeneratedPlan(Base):
+    """Piano manutenzione generato dall'AI Planner."""
+    __tablename__ = "generated_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="draft")    # draft | confirmed
+    horizon_days = Column(Integer, default=7)
+    plan_json = Column(JSON)
+    confirmed_at = Column(DateTime, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

@@ -364,7 +364,7 @@ export default function SchedulerPage() {
   useEffect(() => {
     apiGet<TecnicoOption[]>("/tecnici")
       .then((d) => setTecniciList(d))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -419,7 +419,7 @@ export default function SchedulerPage() {
 
   async function saveEdit() {
     if (editingId == null) return;
-    
+
     // --- WEATHER VALIDATION (Visual Only) ---
     // Rimozione confirm() come richiesto. Il monitoraggio rimane visibile via icone ⚠️ nel Gantt.
     // --------------------------
@@ -433,8 +433,8 @@ export default function SchedulerPage() {
         const pStart = new Date(`${editDate}T${editTime}:00`);
         planned_start = pStart.getTime() ? pStart.toISOString() : null;
         if (planned_start) {
-            const pFinish = new Date(pStart.getTime() + editDurata * 3600000);
-            planned_finish = pFinish.toISOString();
+          const pFinish = new Date(pStart.getTime() + editDurata * 3600000);
+          planned_finish = pFinish.toISOString();
         }
       }
 
@@ -445,6 +445,12 @@ export default function SchedulerPage() {
         planned_start,
         planned_finish,
       };
+
+      // Automazione: Forza stato a Pianificato se salviamo una data
+      if (planned_start) {
+        body.stato = "Pianificato";
+      }
+
       await apiPut(`/tickets/${editingId}`, body);
       setEditingId(null);
       await loadPlan(scheduleBase);
@@ -974,15 +980,38 @@ export default function SchedulerPage() {
                   {pagedItems.map((item) =>
                     editingId === item.id ? (
                       /* ── Inline edit form ── */
-                      <div key={item.id} className={styles.taskCard} style={{ border: "1px solid rgba(99,102,241,.4)" }}>
-                        <div className={styles.taskTitle} style={{ marginBottom: 12 }}>{item.titolo}</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "var(--text-muted)" }}>
-                            Tecnico
+                      <div key={item.id} className={styles.taskCard} style={{
+                        background: "rgba(15,23,42,0.6)",
+                        border: "1px solid rgba(99,102,241,0.4)",
+                        padding: "20px",
+                        borderRadius: "16px",
+                        boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+                        marginBottom: "16px"
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "#818cf8", marginBottom: 4 }}>Modifica manuale</div>
+                            <div className={styles.taskTitle} style={{ margin: 0, fontSize: "1.1rem" }}>{item.titolo}</div>
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button onClick={() => {
+                              const d = new Date(); d.setHours(8, 0, 0, 0);
+                              setEditDate(d.toISOString().slice(0, 10)); setEditTime("08:00");
+                            }} style={{ fontSize: 9, padding: "4px 8px", background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 6, cursor: "pointer", fontWeight: 700 }}>OGGI 08:00</button>
+                            <button onClick={() => {
+                              const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0);
+                              setEditDate(d.toISOString().slice(0, 10)); setEditTime("08:00");
+                            }} style={{ fontSize: 9, padding: "4px 8px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", fontWeight: 700 }}>DOMANI</button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "rgba(148,163,184,0.8)" }}>
+                            Tecnico Assegnato
                             <select
                               value={editTecnicoId ?? ""}
                               onChange={(e) => setEditTecnicoId(e.target.value ? Number(e.target.value) : null)}
-                              style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(148,163,184,.2)", borderRadius: 6, color: "#f8fbff", padding: "5px 8px", fontSize: ".85rem" }}
+                              style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(148,163,184,.15)", borderRadius: 8, color: "#f8fbff", padding: "8px 12px", fontSize: ".85rem" }}
                             >
                               <option value="">— auto —</option>
                               {tecniciList.map((t) => (
@@ -990,10 +1019,10 @@ export default function SchedulerPage() {
                               ))}
                             </select>
                           </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "var(--text-muted)" }}>
-                            Fascia
-                            <StatusToggle 
-                              size="sm"
+                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "rgba(148,163,184,0.8)" }}>
+                            Turno / Fascia
+                            <StatusToggle
+                              size="md"
                               currentValue={editFascia}
                               onChange={(v) => setEditFascia(v)}
                               options={[
@@ -1002,42 +1031,46 @@ export default function SchedulerPage() {
                               ]}
                             />
                           </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "var(--text-muted)" }}>
-                            Durata (ore)
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "0.6fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "rgba(148,163,184,0.8)" }}>
+                            Durata (h)
                             <input
                               type="number"
                               min={0.5}
                               step={0.5}
                               value={editDurata}
                               onChange={(e) => setEditDurata(Number(e.target.value))}
-                              style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(148,163,184,.2)", borderRadius: 6, color: "#f8fbff", padding: "5px 8px", fontSize: ".85rem" }}
+                              style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(148,163,184,.15)", borderRadius: 8, color: "#f8fbff", padding: "8px 12px", fontSize: ".85rem" }}
                             />
                           </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "#6ee7b7" }}>
-                            Data Pianificata
+                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "#6ee7b7" }}>
+                            Data Inizio
                             <DatePicker value={editDate} onChange={setEditDate} placeholder="Seleziona data" />
                           </label>
-                          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "#6ee7b7" }}>
+                          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".75rem", color: "#6ee7b7" }}>
                             Ora Inizio
                             <input
                               type="time"
                               value={editTime}
                               onChange={(e) => setEditTime(e.target.value)}
-                              style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.3)", borderRadius: 6, color: "#6ee7b7", padding: "5px 8px", fontSize: ".85rem" }}
+                              style={{ background: "rgba(16,185,129,.05)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 8, color: "#6ee7b7", padding: "8px 12px", fontSize: ".85rem" }}
                             />
                           </label>
                         </div>
-                        <div style={{ display: "flex", gap: 8 }}>
+
+                        <div style={{ display: "flex", gap: 12 }}>
                           <button
                             onClick={saveEdit}
                             disabled={saving}
-                            style={{ flex: 1, background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff", border: "none", borderRadius: 8, padding: "7px 0", fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}
+                            style={{ flex: 2, background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 800, fontSize: ".9rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}
                           >
-                            {saving ? "…" : "Salva"}
+                            {saving ? "Salvataggio..." : "Salva Pianificazione"}
                           </button>
                           <button
                             onClick={cancelEdit}
-                            style={{ flex: 1, background: "transparent", color: "var(--text-muted)", border: "1px solid rgba(148,163,184,.2)", borderRadius: 8, padding: "7px 0", fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}
+                            style={{ flex: 1, background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: ".9rem", cursor: "pointer" }}
                           >
                             Annulla
                           </button>
