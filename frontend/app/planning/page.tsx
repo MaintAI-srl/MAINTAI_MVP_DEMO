@@ -324,14 +324,15 @@ export default function PlanningPage() {
     if (!piano) return;
     setConfermando(true);
     try {
-      await apiPost(`/planning/confirm/${piano.id}`);
+      const confirmedPlan = await apiPost<GeneratedPlan>(`/planning/confirm/${piano.id}`);
       // Ricarica tickets aggiornati (stato → Pianificato, tecnico_id assegnato)
       const ticketsRes = await apiGet<{ items: TicketData[] }>(
         "/tickets?stato=Aperto,Pianificato&limit=200"
       );
       setTickets(ticketsRes?.items ?? []);
       const nAgg = plannedWOs.filter(w => !w.is_continuation).length;
-      setPiano(null);
+      // Mantieni il piano visibile (solo status aggiornato) — le viste restano popolate
+      setPiano(confirmedPlan ?? { ...piano, status: "confirmed" });
       toast.success(`Piano confermato — ${nAgg} ticket aggiornati`);
       loadStorico();
     } catch (e: any) {

@@ -25,7 +25,6 @@ const NAV = [
   {
     section: "VISUALIZZAZIONI",
     items: [
-      { href: "/scheduler", label: "Pianificazione", icon: "◫" },
       { href: "/planning",  label: "Piano AI",       icon: "⚡" },
       { href: "/ticket",    label: "Ticket",         icon: "◷" },
       { href: "/profilo",   label: "Mio Profilo",    icon: "👤" },
@@ -56,7 +55,6 @@ const PAGE_LABELS: Record<string, string> = {
   "/assets":     "Asset",
   "/impianti":   "Impianti",
   "/tecnici":    "Tecnici",
-  "/scheduler":  "Pianificazione",
   "/planning":   "Piano AI — MARCO",
   "/ticket":     "Ticket",
   "/manuali":    "Manuali",
