@@ -49,6 +49,9 @@ class PlannerTecnico:
     limitazioni: List[str] = field(default_factory=list)
     area: Optional[str] = None                       # può mancare (campo non presente in DB)
     impianti_abilitati: List[int] = field(default_factory=list)  # può essere vuoto = tutti
+    # Workaround: giorni non disponibili per assenza (ferie, malattia, ecc.)
+    # Caricati dal bridge via TecnicoAssenza; il motore li esclude dalla pianificazione.
+    giorni_assenza: List[date] = field(default_factory=list)
 
 
 @dataclass
@@ -192,6 +195,13 @@ class PlannerEngine:
 
         # Tecnici attivi
         self.tecnici_attivi = [t for t in tecnici if t.stato.lower() in ("in_servizio", "in servizio")]
+
+        # Pre-popola assenze: i giorni di assenza vengono resi indisponibili
+        # saturando le ore_consumate a ore_giornaliere per quel giorno.
+        for t in tecnici:
+            for giorno in t.giorni_assenza:
+                if giorno in self.ore_consumate.get(t.id, {}):
+                    self.ore_consumate[t.id][giorno] = float(t.ore_giornaliere)
 
         # Impianti per tecnico già attivi oggi (per soft-rule impianto)
         # impianto_tecnico_day[(impianto_id, tecnico_id, giorno)] = True

@@ -17,6 +17,10 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+STATI_VALIDI = {"Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"}
+MAX_ALLEGATO_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
 class BulkStatusUpdate(PydanticModel):
     ids: list[int]
     stato: str
@@ -65,6 +69,12 @@ def create_ticket(data: TicketCreate, db: Session = Depends(get_db), tenant_id: 
 
 @router.patch("/tickets/bulk-status")
 def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    if data.stato not in STATI_VALIDI:
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(
+            status_code=400,
+            detail=f"Stato non valido: '{data.stato}'. Valori ammessi: {sorted(STATI_VALIDI)}",
+        )
     updated = db.query(Ticket).filter(
         Ticket.id.in_(data.ids),
         Ticket.tenant_id == tenant_id,
@@ -131,6 +141,11 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
     ext = os.path.splitext(file.filename)[1] if file.filename else ""
     unique_filename = f"{uuid.uuid4()}{ext}"
     content = await file.read()
+    if len(content) > MAX_ALLEGATO_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File troppo grande: massimo {MAX_ALLEGATO_BYTES // (1024*1024)} MB consentiti.",
+        )
     url = storage.save_file(content, unique_filename)
 
     allegato = TicketAllegato(

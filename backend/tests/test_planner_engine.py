@@ -31,6 +31,7 @@ def make_tecnico(
     limitazioni=None,
     orario_inizio: str = "08:00",
     area: str | None = None,
+    giorni_assenza: list | None = None,
 ) -> PlannerTecnico:
     return PlannerTecnico(
         id=id,
@@ -42,6 +43,7 @@ def make_tecnico(
         orario_fine="17:00",
         limitazioni=limitazioni or [],
         area=area,
+        giorni_assenza=giorni_assenza or [],
     )
 
 
@@ -304,3 +306,45 @@ def test_TC08_time_window_conflict():
     assert len(result.assignments) == 0
     assert len(result.unassigned) == 1
     assert result.unassigned[0].reason_code == REASON_TIME_WINDOW_CONFLICT
+
+
+# ── TC-09: Assenza tecnico rende il giorno non disponibile ────────────────────
+
+def test_TC09_assenza_tecnico():
+    """
+    Tecnico in assenza per tutti i giorni dell'orizzonte tranne l'ultimo.
+    Il ticket deve essere pianificato sull'unico giorno disponibile.
+    """
+    # 3 giorni di orizzonte: TODAY, TODAY+1, TODAY+2
+    # Tecnico assente TODAY e TODAY+1 → disponibile solo TODAY+2
+    giorni_assenza = [TODAY, TODAY + timedelta(days=1)]
+    tecnico = make_tecnico(id=1, competenze=["PM"], ore_giornaliere=8, giorni_assenza=giorni_assenza)
+    ticket = make_ticket(id=109, tipo="PM", durata=2.0)
+
+    result = run([tecnico], [ticket], horizon=3)
+
+    assert len(result.unassigned) == 0, "Il ticket deve essere pianificato sul giorno disponibile"
+    assert len(result.assignments) == 1
+    a = result.assignments[0]
+    assert a.ticket_id == 109
+    assert a.tecnico_id == 1
+    # Deve essere pianificato su TODAY+2 (unico giorno non in assenza)
+    assert a.start.date() == TODAY + timedelta(days=2), (
+        f"Atteso {TODAY + timedelta(days=2)}, ottenuto {a.start.date()}"
+    )
+
+
+def test_TC09b_assenza_totale():
+    """
+    Tecnico in assenza per tutti i giorni dell'orizzonte.
+    → CAPACITY_EXCEEDED (nessun giorno disponibile).
+    """
+    giorni_assenza = [TODAY + timedelta(days=i) for i in range(3)]
+    tecnico = make_tecnico(id=1, competenze=["PM"], ore_giornaliere=8, giorni_assenza=giorni_assenza)
+    ticket = make_ticket(id=110, tipo="PM", durata=2.0)
+
+    result = run([tecnico], [ticket], horizon=3)
+
+    assert len(result.assignments) == 0
+    assert len(result.unassigned) == 1
+    assert result.unassigned[0].ticket_id == 110

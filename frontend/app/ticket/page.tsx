@@ -151,6 +151,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   function handleSave() {
+    // Validazione date: fine non può precedere inizio
+    if (plannedStart && plannedFinish && new Date(plannedFinish) < new Date(plannedStart)) {
+      notify.error("La data di fine pianificazione non può precedere quella di inizio.");
+      return;
+    }
+    if (executionStart && executionFinish && new Date(executionFinish) < new Date(executionStart)) {
+      notify.error("La data di fine esecuzione non può precedere quella di inizio.");
+      return;
+    }
     if (stato === "Chiuso") setShowAssetDialog(true);
     else doSave();
   }

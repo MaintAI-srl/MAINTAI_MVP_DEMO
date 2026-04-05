@@ -153,10 +153,11 @@ def confirm_plan(
 ):
     """
     Conferma un piano draft:
-    - Assegna plan_number progressivo per tenant
+    - Assegna plan_number progressivo per tenant (con lock per evitare race condition)
     - Aggiorna tecnico_id, planned_start, planned_finish sui ticket pianificati
     - Imposta asset con fermo_on_schedule in stato 'Fermo'
     - Salva confirmed_by (username dal token)
+    Tutta l'operazione è atomica: in caso di errore viene eseguito rollback completo.
     """
     plan = db.query(GeneratedPlan).filter(
         GeneratedPlan.id == plan_id,
@@ -170,70 +171,82 @@ def confirm_plan(
         raise HTTPException(status_code=400, detail="Il piano è già stato confermato")
 
     plan_data = plan.plan_json or {}
+    confirmed_by = payload.get("sub") or payload.get("email") or "sconosciuto"
 
-    # Aggiorna i ticket pianificati (zero nuovi record)
-    planned = plan_data.get("planned_workorders", [])
-    for wo in planned:
-        wo_id = wo.get("wo_id")
-        tecnico_id = wo.get("technician_id")
-        planned_date_str = wo.get("planned_date")
-        time_slot = wo.get("time_slot", "")
+    try:
+        # Aggiorna i ticket pianificati (zero nuovi record)
+        planned = plan_data.get("planned_workorders", [])
+        for wo in planned:
+            wo_id = wo.get("wo_id")
+            tecnico_id = wo.get("technician_id")
+            planned_date_str = wo.get("planned_date")
+            time_slot = wo.get("time_slot", "")
 
-        if not wo_id:
-            continue
+            if not wo_id:
+                continue
 
-        ticket = db.query(Ticket).filter(
-            Ticket.id == wo_id,
-            Ticket.tenant_id == tenant_id,
-        ).first()
+            ticket = db.query(Ticket).filter(
+                Ticket.id == wo_id,
+                Ticket.tenant_id == tenant_id,
+            ).first()
 
-        if not ticket:
-            logger.warning("Confirm plan: ticket %s non trovato", wo_id)
-            continue
+            if not ticket:
+                logger.warning("Confirm plan: ticket %s non trovato", wo_id)
+                continue
 
-        ticket.tecnico_id = tecnico_id
-        ticket.stato = "Pianificato"
+            ticket.tecnico_id = tecnico_id
+            ticket.stato = "Pianificato"
 
-        # Calcola planned_start e planned_finish dai campi orari
-        if planned_date_str:
-            try:
-                start_time = wo.get("planned_start_time") or "08:00"
-                end_time = wo.get("planned_end_time") or "17:00"
-                if not start_time and time_slot and "-" in time_slot:
-                    start_time = time_slot.split("-")[0].strip()
-                    end_time = time_slot.split("-")[1].strip()
-                ticket.planned_start = datetime.fromisoformat(f"{planned_date_str}T{start_time}:00")
-                ticket.planned_finish = datetime.fromisoformat(f"{planned_date_str}T{end_time}:00")
-            except ValueError:
-                logger.warning("Confirm plan: impossibile parsare data/ora per ticket %s", wo_id)
+            # Calcola planned_start e planned_finish dai campi orari
+            if planned_date_str:
+                try:
+                    start_time = wo.get("planned_start_time") or "08:00"
+                    end_time = wo.get("planned_end_time") or "17:00"
+                    if not start_time and time_slot and "-" in time_slot:
+                        start_time = time_slot.split("-")[0].strip()
+                        end_time = time_slot.split("-")[1].strip()
+                    ticket.planned_start = datetime.fromisoformat(f"{planned_date_str}T{start_time}:00")
+                    ticket.planned_finish = datetime.fromisoformat(f"{planned_date_str}T{end_time}:00")
+                except ValueError:
+                    logger.warning("Confirm plan: impossibile parsare data/ora per ticket %s", wo_id)
 
-    # Aggiorna asset con fermo_on_schedule
-    for fa in plan_data.get("fermo_assets", []):
-        asset_id = fa.get("asset_id")
-        if not asset_id:
-            continue
-        asset = db.query(Asset).filter(
-            Asset.id == asset_id,
-            Asset.tenant_id == tenant_id,
-        ).first()
-        if asset:
-            asset.stato = "Fermo"
-            logger.info("Asset %s impostato in stato Fermo", asset_id)
+        # Aggiorna asset con fermo_on_schedule
+        for fa in plan_data.get("fermo_assets", []):
+            asset_id = fa.get("asset_id")
+            if not asset_id:
+                continue
+            asset = db.query(Asset).filter(
+                Asset.id == asset_id,
+                Asset.tenant_id == tenant_id,
+            ).first()
+            if asset:
+                asset.stato = "Fermo"
+                logger.info("Asset %s impostato in stato Fermo", asset_id)
 
-    # Assegna plan_number progressivo (MAX per tenant + 1, primo = 1)
-    max_num = db.query(func.max(GeneratedPlan.plan_number)).filter(
-        GeneratedPlan.tenant_id == tenant_id,
-        GeneratedPlan.plan_number.isnot(None),
-    ).scalar()
-    plan.plan_number = (max_num or 0) + 1
+        # Assegna plan_number progressivo con lock per evitare race condition
+        # with_for_update() blocca le righe fino al commit, impedendo assegnazioni doppie
+        max_num = db.query(func.max(GeneratedPlan.plan_number)).filter(
+            GeneratedPlan.tenant_id == tenant_id,
+            GeneratedPlan.plan_number.isnot(None),
+        ).with_for_update().scalar()
+        plan.plan_number = (max_num or 0) + 1
 
-    # Segna piano come confermato
-    plan.status = "confirmed"
-    plan.confirmed_at = datetime.utcnow()
-    plan.confirmed_by = payload.get("sub", "sconosciuto")
+        # Segna piano come confermato
+        plan.status = "confirmed"
+        plan.confirmed_at = datetime.utcnow()
+        plan.confirmed_by = confirmed_by
 
-    db.commit()
-    db.refresh(plan)
+        db.commit()
+        db.refresh(plan)
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.error("Confirm plan: errore durante conferma piano %s: %s", plan_id, exc, exc_info=True)
+        db_error("PLANNING", f"Errore durante conferma piano #{plan_id}: {exc}", tenant_id=tenant_id)
+        raise HTTPException(status_code=500, detail=f"Errore durante la conferma del piano: {exc}")
 
     logger.info(
         "AI Planning: piano %s confermato da %s (PIANO-%03d)",

@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime, timedelta, timezone
 import jwt
 import bcrypt
@@ -6,12 +7,29 @@ from fastapi import HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 from cryptography.fernet import Fernet
 
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-key-maintai-v2")
+_logger = logging.getLogger(__name__)
+
+_DEFAULT_JWT_SECRET = "super-secret-key-maintai-v2"
+_DEFAULT_ENCRYPTION_KEY = "uO7U_6N-XyP2UvY_YyS7y8s5Y-Y9u8s7Y8s5Y-Y9u8s="
+
+SECRET_KEY = os.getenv("JWT_SECRET", _DEFAULT_JWT_SECRET)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
+if SECRET_KEY == _DEFAULT_JWT_SECRET:
+    _logger.warning(
+        "SECURITY: JWT_SECRET non impostato nelle env var — si sta usando la chiave di default. "
+        "In produzione impostare JWT_SECRET con un valore casuale sicuro."
+    )
+
 # Carica la chiave di cifratura simmetrica dall'ambiente (32 bytes base64)
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "uO7U_6N-XyP2UvY_YyS7y8s5Y-Y9u8s7Y8s5Y-Y9u8s=")
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", _DEFAULT_ENCRYPTION_KEY)
+if ENCRYPTION_KEY == _DEFAULT_ENCRYPTION_KEY:
+    _logger.warning(
+        "SECURITY: ENCRYPTION_KEY non impostata nelle env var — si sta usando la chiave di default. "
+        "In produzione impostare ENCRYPTION_KEY con una chiave Fernet generata via Fernet.generate_key()."
+    )
+
 if ENCRYPTION_KEY:
     fernet = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
 else:

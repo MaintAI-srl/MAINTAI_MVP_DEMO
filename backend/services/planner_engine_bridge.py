@@ -2,8 +2,8 @@
 PlannerEngine Bridge — Adattatore tra i modelli ORM e il PlannerEngine deterministico.
 
 Converte:
-  ORM (Ticket, Tecnico, Asset) → PlannerTecnico / PlannerTicket
-  PlannerResult              → plan_json (formato identico al motore AI)
+  ORM (Ticket, Tecnico, Asset, TecnicoAssenza) → PlannerTecnico / PlannerTicket
+  PlannerResult                                 → plan_json (formato identico al motore AI)
 
 Uso:
   from backend.services.planner_engine_bridge import generate_deterministic_plan
@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import re
 import logging
-from datetime import date as date_type, timedelta
+from datetime import date as date_type, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from backend.db.modelli import Asset, Tecnico, Ticket
+from backend.db.modelli import Asset, Tecnico, Ticket, TecnicoAssenza
 from backend.services.planner_engine import (
+    PlannerAssignment,
     PlannerEngine,
     PlannerTecnico,
     PlannerTicket,
@@ -56,20 +57,27 @@ def _split_competenze(raw: Optional[str]) -> List[str]:
     return [p.strip().upper() for p in parts if p.strip()]
 
 
-# Tipi di manutenzione standard: ogni tecnico attivo può eseguire qualsiasi tipo.
-# In MaintAI le competenze sono job-skills (Meccanico, Elettricista…), non categorie
-# di manutenzione (PM/CM/BD). Aggiungiamo i tipi standard come competenze implicite
-# così il PlannerEngine non scarta tutti i ticket per REASON_NO_SKILL.
-_TIPO_IMPLICITI = ["PM", "CM", "BD", "TUTTI"]
+# Workaround documentato (planning_directive.md):
+# Le competenze dei tecnici in MaintAI sono job-skill (Meccanico, Elettricista…),
+# non categorie di manutenzione (PM/CM/BD). Finché il modello non espone
+# `competenza_richiesta` sul ticket, aggiungiamo i tipi manutenzione standard
+# come competenze implicite — SOLO per i tecnici che non ne hanno già di esplicite.
+# Se il tecnico ha competenze reali nel DB, quelle prevalgono e vengono usate
+# per il matching; i tipi impliciti vengono aggiunti comunque per permettere
+# la pianificazione in assenza di un campo `competenza_richiesta` strutturato.
+_TIPO_IMPLICITI = ["PM", "CM", "BD"]
 
 
-def _build_planner_tecnici(tecnici: List[Tecnico]) -> List[PlannerTecnico]:
+def _build_planner_tecnici(
+    tecnici: List[Tecnico],
+    assenze_map: Dict[int, List[date_type]],
+) -> List[PlannerTecnico]:
     result = []
     for t in tecnici:
         if t.stato.lower() not in ("in servizio", "in_servizio"):
             continue
         comp = _split_competenze(t.competenze)
-        # Aggiungi tipi manutenzione impliciti se non già presenti
+        # Aggiunge tipi manutenzione impliciti (workaround — vedi commento sopra)
         for tipo in _TIPO_IMPLICITI:
             if tipo not in comp:
                 comp.append(tipo)
@@ -82,6 +90,7 @@ def _build_planner_tecnici(tecnici: List[Tecnico]) -> List[PlannerTecnico]:
             orario_inizio=t.orario_inizio or "08:00",
             orario_fine=t.orario_fine or "17:00",
             limitazioni=_split_competenze(t.limitazioni_orarie or ""),
+            giorni_assenza=assenze_map.get(t.id, []),
         ))
     return result
 
@@ -105,10 +114,65 @@ def _build_planner_tickets(
             priorita=t.priorita or "Media",
             tipo=t.tipo or "CM",
             durata_stimata_ore=float(t.durata_stimata_ore or 2.0),
-            competenza_richiesta=None,   # usa tipo come proxy (BD/PM/CM)
+            competenza_richiesta=None,   # usa tipo come proxy (BD/PM/CM) — workaround
             splittabile=True,
             area=area,
         ))
+    return result
+
+
+def _build_existing_assignments(locked_tickets: List[Ticket]) -> List[PlannerAssignment]:
+    """
+    Converte i ticket già pianificati in PlannerAssignment locked.
+
+    Un ticket è considerato locked (planning_directive: REGOLA DI BASE SUI TICKET GIÀ ASSEGNATI)
+    quando ha ENTRAMBI: tecnico_id valorizzato E planned_start valorizzato.
+    Questi ticket concorrono al consumo capacità e non devono essere toccati dal planner.
+    """
+    result = []
+    for t in locked_tickets:
+        if not t.tecnico_id or not t.planned_start:
+            continue
+        # planned_finish può mancare: usa planned_start + durata_stimata come fallback
+        if t.planned_finish:
+            end_dt = t.planned_finish
+        else:
+            ore = float(t.durata_stimata_ore or 2.0)
+            end_dt = t.planned_start + timedelta(hours=ore)
+
+        result.append(PlannerAssignment(
+            ticket_id=t.id,
+            tecnico_id=t.tecnico_id,
+            start=t.planned_start if isinstance(t.planned_start, datetime) else datetime.combine(t.planned_start, datetime.min.time()),
+            end=end_dt if isinstance(end_dt, datetime) else datetime.combine(end_dt, datetime.min.time()),
+            locked=True,
+        ))
+    return result
+
+
+def _build_assenze_map(
+    assenze: List[TecnicoAssenza],
+    horizon_start: date_type,
+    horizon_end: date_type,
+) -> Dict[int, List[date_type]]:
+    """
+    Costruisce un dizionario {tecnico_id: [giorni_assenza]} per i giorni
+    nell'orizzonte di pianificazione coperti da almeno un'assenza.
+    """
+    result: Dict[int, List[date_type]] = {}
+    for a in assenze:
+        # Converti datetime → date se necessario
+        inizio = a.data_inizio.date() if isinstance(a.data_inizio, datetime) else a.data_inizio
+        fine = a.data_fine.date() if isinstance(a.data_fine, datetime) else a.data_fine
+
+        # Intersezione con l'orizzonte
+        inizio_eff = max(inizio, horizon_start)
+        fine_eff = min(fine, horizon_end)
+
+        giorno = inizio_eff
+        while giorno <= fine_eff:
+            result.setdefault(a.tecnico_id, []).append(giorno)
+            giorno += timedelta(days=1)
     return result
 
 
@@ -125,10 +189,23 @@ async def generate_deterministic_plan(
     Ritorna lo stesso formato plan_json prodotto dal motore AI (compatibilità totale).
     """
     today = date_type.today()
+    horizon_end = today + timedelta(days=days - 1)
 
-    # ── Carica ticket pianificabili ───────────────────────────────────────────
+    # ── Carica ticket locked (già pianificati: non devono essere ripianificati) ─
+    # Workaround: locked implicito = tecnico_id AND planned_start valorizzati
+    locked_query = db.query(Ticket).filter(
+        Ticket.tecnico_id.isnot(None),
+        Ticket.planned_start.isnot(None),
+    )
+    if tenant_id:
+        locked_query = locked_query.filter(Ticket.tenant_id == tenant_id)
+    locked_tickets = locked_query.all()
+    locked_ids = {t.id for t in locked_tickets}
+
+    # ── Carica ticket pianificabili (Aperto, oppure Pianificato senza assegnazione) ──
     ticket_query = db.query(Ticket).filter(
-        Ticket.stato.in_(["Aperto", "Pianificato"])
+        Ticket.stato.in_(["Aperto", "Pianificato"]),
+        ~Ticket.id.in_(locked_ids) if locked_ids else True,
     )
     if tenant_id:
         ticket_query = ticket_query.filter(Ticket.tenant_id == tenant_id)
@@ -137,7 +214,9 @@ async def generate_deterministic_plan(
     tickets = ticket_query.all()
 
     # ── Carica tecnici attivi ─────────────────────────────────────────────────
-    tecnico_query = db.query(Tecnico).filter(Tecnico.stato == "in servizio")
+    tecnico_query = db.query(Tecnico).filter(
+        Tecnico.stato.in_(["in servizio", "in_servizio"])
+    )
     if tenant_id:
         tecnico_query = tecnico_query.filter(Tecnico.tenant_id == tenant_id)
     tecnici = tecnico_query.all()
@@ -148,7 +227,7 @@ async def generate_deterministic_plan(
             "planned_workorders": [],
             "deferred_workorders": [],
             "fermo_assets": [],
-            "global_warnings": ["Nessun ticket aperto o pianificato trovato nel sistema."],
+            "global_warnings": ["Nessun ticket aperto o pianificabile trovato nel sistema."],
             "efficiency_score": 0,
             "efficiency_breakdown": {},
             "efficiency_motivations": [],
@@ -169,14 +248,33 @@ async def generate_deterministic_plan(
             "efficiency_motivations": [],
         }
 
+    # ── Carica assenze tecnici nell'orizzonte ─────────────────────────────────
+    tecnico_ids = [t.id for t in tecnici]
+    assenze = db.query(TecnicoAssenza).filter(
+        TecnicoAssenza.tecnico_id.in_(tecnico_ids),
+        TecnicoAssenza.data_fine >= today,
+        TecnicoAssenza.data_inizio <= horizon_end,
+    )
+    if tenant_id:
+        assenze = assenze.filter(TecnicoAssenza.tenant_id == tenant_id)
+    assenze_list = assenze.all()
+    assenze_map = _build_assenze_map(assenze_list, today, horizon_end)
+
+    if assenze_list:
+        logger.info(
+            "PlannerEngine bridge: %d assenze caricate per %d tecnici nell'orizzonte",
+            len(assenze_list), len({a.tecnico_id for a in assenze_list}),
+        )
+
     # ── Asset map per lookup O(1) ─────────────────────────────────────────────
     asset_ids_set = list({t.asset_id for t in tickets if t.asset_id})
-    assets = db.query(Asset).filter(Asset.id.in_(asset_ids_set)).all()
+    assets = db.query(Asset).filter(Asset.id.in_(asset_ids_set)).all() if asset_ids_set else []
     asset_map: Dict[int, Asset] = {a.id: a for a in assets}
 
     # ── Conversione ORM → strutture PlannerEngine ─────────────────────────────
-    planner_tecnici = _build_planner_tecnici(tecnici)
+    planner_tecnici = _build_planner_tecnici(tecnici, assenze_map)
     planner_tickets = _build_planner_tickets(tickets, asset_map)
+    existing_assignments = _build_existing_assignments(locked_tickets)
 
     if not planner_tecnici:
         # Tutti i tecnici filtrati per stato non valido
@@ -195,15 +293,15 @@ async def generate_deterministic_plan(
 
     # ── Esecuzione PlannerEngine ──────────────────────────────────────────────
     logger.info(
-        "PlannerEngine: avvio — %d ticket, %d tecnici, orizzonte %d giorni",
-        len(planner_tickets), len(planner_tecnici), days,
+        "PlannerEngine: avvio — %d ticket pianificabili, %d locked, %d tecnici, orizzonte %d giorni",
+        len(planner_tickets), len(existing_assignments), len(planner_tecnici), days,
     )
 
     try:
         engine = PlannerEngine(
             tecnici=planner_tecnici,
             tickets=planner_tickets,
-            existing_assignments=[],
+            existing_assignments=existing_assignments,
             today=today,
             horizon_days=days,
         )
