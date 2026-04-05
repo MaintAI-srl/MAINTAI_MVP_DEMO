@@ -123,6 +123,30 @@ def _ensure_columns() -> None:
         ("generated_plans", "deauthorization_reason",  "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorization_reason VARCHAR"),
     ]
 
+    # system_logs — tabella intera
+    sl_pg = """
+        CREATE TABLE IF NOT EXISTS system_logs (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT NOW(),
+            level VARCHAR,
+            module VARCHAR,
+            message TEXT,
+            extra_info TEXT,
+            tenant_id INTEGER REFERENCES tenants(id)
+        )
+    """
+    sl_sqlite = """
+        CREATE TABLE IF NOT EXISTS system_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            level VARCHAR,
+            module VARCHAR,
+            message TEXT,
+            extra_info TEXT,
+            tenant_id INTEGER REFERENCES tenants(id)
+        )
+    """
+
     # generated_plans — tabella intera (con tutte le colonne incluse le nuove)
     gp_pg = """
         CREATE TABLE IF NOT EXISTS generated_plans (
@@ -164,9 +188,12 @@ def _ensure_columns() -> None:
         ifne = "IF NOT EXISTS " if pg else ""
         try:
             with eng.begin() as conn:
-                # Prima crea la tabella (idempotente), poi aggiungi colonne mancanti
+                # 1. Crea le tabelle intere se non esistono
+                conn.execute(text(sl_pg if pg else sl_sqlite))
                 conn.execute(text(gp_pg if pg else gp_sqlite))
-                logger.info("_ensure_columns[%s]: generated_plans OK", url.split("://")[0])
+                logger.info("_ensure_columns[%s]: tabelle base OK", url.split("://")[0])
+                
+                # 2. Aggiungi colonne opzionali se le tabelle esistevano già (migrazione incrementale)
                 for _table, col_name, tmpl in ddl_statements:
                     sql = tmpl.format(ifne=ifne)
                     try:
