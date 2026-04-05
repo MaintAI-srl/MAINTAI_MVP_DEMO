@@ -1,6 +1,15 @@
 import os
+import sys
 import asyncio
 from contextlib import asynccontextmanager
+
+# Forza UTF-8 su Windows per evitare UnicodeEncodeError con emoji nei log
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
