@@ -35,6 +35,7 @@ interface TecnicoAPI {
 
 type VistaAttiva = "giornaliero" | "settimanale" | "mensile";
 type Modalita = "manuale" | "ai";
+type EngineMode = "deterministic" | "ai";
 
 // ── Componente BacklogBar ─────────────────────────────────────────────────────
 function BacklogBar({
@@ -234,6 +235,7 @@ export default function PlanningPage() {
   const [confermando, setConfermando] = useState(false);
   const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
+  const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
 
   // ── Mappe per lookup O(1) ──────────────────────────────────────────────────
   const ticketMap = useMemo(
@@ -317,7 +319,7 @@ export default function PlanningPage() {
   async function generateAIPlan() {
     setGenerando(true);
     try {
-      const res = await apiPost<GeneratedPlan>("/planning/generate", { days: 7 });
+      const res = await apiPost<GeneratedPlan>("/planning/generate", { days: 7, mode: engineMode });
       setPiano(res);
       toast.success("Piano AI generato con successo");
     } catch (e: any) {
@@ -450,6 +452,40 @@ export default function PlanningPage() {
               </button>
             ))}
           </div>
+
+          {/* Toggle engine: Deterministico / AI GPT */}
+          {modalita === "ai" && (
+            <div style={{
+              display: "flex",
+              background: "#1f2937",
+              border: "1px solid #374151",
+              borderRadius: 8,
+              overflow: "hidden",
+              fontSize: 11,
+            }}>
+              {(["deterministic", "ai"] as EngineMode[]).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setEngineMode(m)}
+                  title={m === "deterministic" ? "Motore deterministico — istantaneo, nessuna API" : "Motore GPT — richiede OpenAI, più lento"}
+                  style={{
+                    padding: "7px 12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "none",
+                    borderRight: m === "deterministic" ? "1px solid #374151" : "none",
+                    background: engineMode === m
+                      ? (m === "ai" ? "linear-gradient(135deg,#1d4ed8,#7c3aed)" : "#065f46")
+                      : "transparent",
+                    color: engineMode === m ? "#fff" : "#6b7280",
+                    transition: "background 150ms",
+                  }}
+                >
+                  {m === "deterministic" ? "⚙ Engine" : "🤖 GPT"}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Bottone Ricarica dati */}
           <button

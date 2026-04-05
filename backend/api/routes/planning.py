@@ -16,6 +16,7 @@ from backend.core.security import get_current_tenant_id, get_current_user_payloa
 from backend.core.logging_config import get_logger
 from backend.db.modelli import GeneratedPlan, Ticket, Asset
 from backend.services.ai_planner_service import generate_ai_plan
+from backend.services.planner_engine_bridge import generate_deterministic_plan
 
 router = APIRouter(prefix="/planning", tags=["planning"])
 logger = get_logger(__name__)
@@ -26,6 +27,7 @@ logger = get_logger(__name__)
 class GeneratePlanRequest(BaseModel):
     days: int = 7
     asset_ids: Optional[List[int]] = None
+    mode: str = "auto"   # "deterministic" | "ai" | "auto"
 
 
 class DeauthorizeRequest(BaseModel):
@@ -71,21 +73,39 @@ async def generate_plan(
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """Genera un piano AI e lo salva come draft."""
-    logger.info("AI Planning: avvio generazione piano — days=%s tenant=%s", data.days, tenant_id)
+    import os
+    has_openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
 
-    plan_json = await generate_ai_plan(
-        db=db,
-        days=data.days,
-        asset_ids=data.asset_ids,
-        tenant_id=tenant_id,
+    # Risolvi mode "auto": deterministico se no OpenAI key, AI altrimenti
+    effective_mode = data.mode
+    if effective_mode == "auto":
+        effective_mode = "ai" if has_openai else "deterministic"
+
+    logger.info(
+        "Planning: avvio generazione — mode=%s days=%s tenant=%s",
+        effective_mode, data.days, tenant_id,
     )
 
-    if "error" in plan_json:
-        logger.error("AI Planning: errore generazione — %s", plan_json.get("error"))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Errore nella generazione del piano AI: {plan_json['error']}",
+    if effective_mode == "deterministic":
+        plan_json = await generate_deterministic_plan(
+            db=db,
+            days=data.days,
+            asset_ids=data.asset_ids,
+            tenant_id=tenant_id,
         )
+    else:
+        plan_json = await generate_ai_plan(
+            db=db,
+            days=data.days,
+            asset_ids=data.asset_ids,
+            tenant_id=tenant_id,
+        )
+        if "error" in plan_json:
+            logger.error("AI Planning: errore generazione — %s", plan_json.get("error"))
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nella generazione del piano AI: {plan_json['error']}",
+            )
 
     new_plan = GeneratedPlan(
         status="draft",
@@ -98,7 +118,8 @@ async def generate_plan(
     db.refresh(new_plan)
 
     logger.info(
-        "AI Planning: piano generato — id=%s WO=%s rimandati=%s",
+        "Planning [%s]: piano generato — id=%s WO=%s rimandati=%s",
+        effective_mode,
         new_plan.id,
         len(plan_json.get("planned_workorders", [])),
         len(plan_json.get("deferred_workorders", [])),
