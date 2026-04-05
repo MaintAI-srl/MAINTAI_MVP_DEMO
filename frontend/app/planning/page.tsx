@@ -505,6 +505,38 @@ export default function PlanningPage() {
             {loading ? "…" : "↻"}
           </button>
 
+          {/* Bottone Diagnostica DB */}
+          <button
+            onClick={async () => {
+              try {
+                const s = await apiGet<any>("/planning/status");
+                const lines = [
+                  `tenant_id: ${s.tenant_id ?? "null"}`,
+                  `ticket pianificabili: ${s.ticket_pianificabili}`,
+                  `tecnici in servizio: ${s.tecnici_in_servizio}`,
+                  `OpenAI key: ${s.has_openai_key ? "sì" : "no"}`,
+                  `ultimo piano: #${s.ultimo_piano_id ?? "-"} (${s.ultimo_piano_status ?? "-"})`,
+                  `stati ticket: ${JSON.stringify(s.ticket_per_stato)}`,
+                ];
+                toast.info(lines.join(" | "), { duration: 10000 });
+              } catch (e: any) {
+                toast.error("Diagnostica fallita: " + (e?.message ?? "err"));
+              }
+            }}
+            title="Diagnostica: verifica ticket e tecnici nel DB"
+            style={{
+              background: "transparent",
+              border: "1px solid #374151",
+              color: "#6b7280",
+              borderRadius: 8,
+              padding: "9px 12px",
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            🔍 DB
+          </button>
+
           {/* Bottone Genera AI */}
           {modalita === "ai" && (
             <button

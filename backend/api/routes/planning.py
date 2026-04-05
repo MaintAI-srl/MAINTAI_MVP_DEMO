@@ -15,7 +15,7 @@ from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, get_current_user_payload
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
-from backend.db.modelli import GeneratedPlan, Ticket, Asset
+from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico
 from backend.services.ai_planner_service import generate_ai_plan
 from backend.services.planner_engine_bridge import generate_deterministic_plan
 
@@ -298,6 +298,50 @@ def get_current_plan(
     if not plan:
         return None
     return _plan_to_dict(plan)
+
+
+@router.get("/status")
+def get_planning_status(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Endpoint diagnostico: ritorna lo stato del sistema per il planning.
+    Mostra conteggio ticket per stato, tecnici, tenant_id — senza chiamate AI.
+    """
+    import os
+
+    # Ticket per stato
+    ticket_filter = db.query(Ticket.stato, func.count(Ticket.id))
+    if tenant_id:
+        ticket_filter = ticket_filter.filter(Ticket.tenant_id == tenant_id)
+    stati_ticket = dict(ticket_filter.group_by(Ticket.stato).all())
+
+    pianificabili = sum(
+        v for k, v in stati_ticket.items() if k in ("Aperto", "Pianificato")
+    )
+
+    # Tecnici attivi
+    tec_q = db.query(func.count(Tecnico.id)).filter(Tecnico.stato == "in servizio")
+    if tenant_id:
+        tec_q = tec_q.filter(Tecnico.tenant_id == tenant_id)
+    tecnici_attivi = tec_q.scalar() or 0
+
+    # Ultimo piano
+    lp_q = db.query(GeneratedPlan)
+    if tenant_id:
+        lp_q = lp_q.filter(GeneratedPlan.tenant_id == tenant_id)
+    last_plan = lp_q.order_by(GeneratedPlan.created_at.desc()).first()
+
+    return {
+        "tenant_id": tenant_id,
+        "ticket_per_stato": stati_ticket,
+        "ticket_pianificabili": pianificabili,
+        "tecnici_in_servizio": tecnici_attivi,
+        "has_openai_key": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+        "ultimo_piano_id": last_plan.id if last_plan else None,
+        "ultimo_piano_status": last_plan.status if last_plan else None,
+    }
 
 
 @router.get("/history")

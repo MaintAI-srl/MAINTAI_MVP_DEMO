@@ -149,7 +149,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <div className="sidebar-logo-text">
                 <span className="sidebar-logo-name">MAINTAI</span>
                 <span className="sidebar-logo-sub">Manutenzione</span>
-                <span style={{ fontSize: "9px", color: "var(--text-secondary)", opacity: 0.5, letterSpacing: "0.5px" }}>v{VERSION}</span>
+                <span style={{ fontSize: "11px", color: "var(--blue)", opacity: 0.9, letterSpacing: "0.5px", fontWeight: 600 }}>v{VERSION}</span>
               </div>
             </Link>
 
