@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
 import StatusToggle from "../components/StatusToggle";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -172,29 +172,52 @@ function ganttBlockClass(item: SchedulerItem): string {
 
 // ── GanttTechRow sub-component ─────────────────────────────────────────────
 
-function GanttTechRow({ 
-  tecnico, 
-  items, 
-  forecast, 
-  assetsMeta 
-}: { 
-  tecnico: string; 
+function GanttTechRow({
+  tecnico,
+  items,
+  forecast,
+  assetsMeta,
+  onBlockDrop,
+}: {
+  tecnico: string;
   items: SchedulerItem[];
   forecast?: SchedulerData["forecast"];
   assetsMeta?: SchedulerData["assets_metadata"];
+  onBlockDrop?: (itemId: number, newStartHour: number, newEndHour: number) => void;
 }) {
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
   const assetNames = [...new Set(items.map((i) => i.asset_name).filter(Boolean))].join(", ");
+
   return (
     <div className={styles.ganttRow}>
       <div className={styles.ganttRowMeta}>
         <div className={styles.ganttRowTech}>{tecnico}</div>
         <div className={styles.ganttRowAsset}>{assetNames || "—"}</div>
       </div>
-      <div className={styles.ganttTrack}>
+      <div
+        ref={trackRef}
+        className={styles.ganttTrack}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (!trackRef.current || !onBlockDrop) return;
+          const itemId = Number(e.dataTransfer.getData("gantt-item-id"));
+          const durata = Number(e.dataTransfer.getData("gantt-item-durata"));
+          const grabOffset = Number(e.dataTransfer.getData("gantt-grab-offset"));
+          const rect = trackRef.current.getBoundingClientRect();
+          const dropPct = (e.clientX - rect.left) / rect.width;
+          const rawStart = dropPct * 24 - grabOffset;
+          const newStartHour = Math.max(0, Math.min(22, Math.round(rawStart * 2) / 2));
+          const newEndHour = Math.min(24, newStartHour + durata);
+          setDraggingId(null);
+          onBlockDrop(itemId, newStartHour, newEndHour);
+        }}
+      >
         {items.map((item) => {
           let hasWeatherWarning = false;
           let warningReason = "";
-          
+
           if (item.date && item.asset_id && assetsMeta?.[item.asset_id] && forecast?.[item.date]) {
             const meta = assetsMeta[item.asset_id];
             const fc = forecast[item.date];
@@ -209,13 +232,27 @@ function GanttTechRow({
             <div
               key={item.id}
               className={`${styles.ganttBlock} ${ganttBlockClass(item)}`}
+              draggable
+              onDragStart={(e) => {
+                const blockRect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                const grabOffset = ((e.clientX - blockRect.left) / blockRect.width) * (item.end_hour! - item.start_hour!);
+                e.dataTransfer.setData("gantt-item-id", String(item.id));
+                e.dataTransfer.setData("gantt-item-durata", String(item.durata_ore));
+                e.dataTransfer.setData("gantt-grab-offset", String(grabOffset));
+                setDraggingId(item.id);
+              }}
+              onDragEnd={() => setDraggingId(null)}
               style={{
                 left: `${(item.start_hour / 24) * 100}%`,
                 width: `${((item.end_hour - item.start_hour) / 24) * 100}%`,
                 outline: item.locked ? "1px solid rgba(129,140,248,.7)" : undefined,
                 display: "flex",
                 alignItems: "center",
-                overflow: "hidden"
+                overflow: "hidden",
+                opacity: draggingId === item.id ? 0.4 : 1,
+                cursor: draggingId === item.id ? "grabbing" : "grab",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                backdropFilter: "blur(4px)",
               }}
               title={`${formatHour(item.start_hour)} – ${formatHour(item.end_hour)} · ${item.titolo}${item.locked ? " [bloccato]" : ""}${warningReason ? ` · ATTENZIONE: ${warningReason}` : ""}`}
             >
@@ -418,6 +455,28 @@ export default function SchedulerPage() {
     }
   }
 
+  async function handleBlockDrop(itemId: number, newStartHour: number, newEndHour: number) {
+    const item = data?.items.find(i => i.id === itemId);
+    if (!item || !item.date) return;
+    const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
+    const minStr = (h: number) => String(Math.round((h % 1) * 60)).padStart(2, "0");
+    const planned_start = `${item.date}T${pad(newStartHour)}:${minStr(newStartHour)}:00`;
+    const planned_finish = `${item.date}T${pad(newEndHour)}:${minStr(newEndHour)}:00`;
+    // Optimistic update
+    setData(prev => prev ? {
+      ...prev,
+      items: prev.items.map(i => i.id === itemId
+        ? { ...i, start_hour: newStartHour, end_hour: newEndHour, planned_start, planned_finish, locked: true }
+        : i
+      )
+    } : prev);
+    try {
+      await apiPut(`/tickets/${itemId}`, { planned_start, planned_finish });
+    } catch {
+      loadPlan(scheduleBase);
+    }
+  }
+
   // ── Computed display values ────────────────────────────────────────────
 
   const totalOreResidue = data
@@ -444,6 +503,63 @@ export default function SchedulerPage() {
 
   return (
     <div className={styles.page}>
+      {/* ── Hero header ─────────────────────────────────────────────────── */}
+      <div style={{
+        position: "relative", borderRadius: 20, overflow: "hidden",
+        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)",
+        border: "1px solid rgba(99,102,241,0.2)",
+        padding: "28px 32px",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)",
+        marginBottom: 4,
+      }}>
+        {/* Mesh grid */}
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
+        {/* Glow blobs */}
+        <div style={{ position: "absolute", top: -60, right: 60, width: 280, height: 280, background: "radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -40, left: 60, width: 200, height: 200, background: "radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "#818cf8", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", padding: "3px 10px", borderRadius: 20, display: "inline-block", marginBottom: 10 }}>
+              Planning Engine
+            </span>
+            <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, fontFamily: "var(--font-display)", color: "#f8fafc", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+              Pianificazione{" "}
+              <span style={{ background: "linear-gradient(135deg, #818cf8, #38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                Interventi
+              </span>
+            </h1>
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "rgba(148,163,184,0.75)" }}>
+              Scheduler AI · Gantt giornaliero · Vista settimanale
+            </p>
+          </div>
+          {loading && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 30, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", fontSize: 12, color: "#818cf8", fontWeight: 600 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#818cf8", display: "inline-block", animation: "pulse 1s infinite" }} />
+              Calcolo in corso...
+            </div>
+          )}
+        </div>
+
+        {/* KPI strip */}
+        {data && (
+          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, marginTop: 24, background: "rgba(255,255,255,0.04)", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {[
+              { label: "Allocate", value: data.items.length, color: "#818cf8" },
+              { label: "Non allocate", value: data.non_allocati.length, color: data.non_allocati.length > 0 ? "#f87171" : "#34d399" },
+              { label: "Ore residue", value: `${totalOreResidue.toFixed(1)}h`, color: "#38bdf8" },
+              { label: "Tecnici", value: tecnici.length, color: "#34d399" },
+            ].map((s, i) => (
+              <div key={i} style={{ padding: "14px 20px", background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent", textAlign: "center" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: "rgba(148,163,184,0.6)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 4 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+      </div>
+
       {/* ── Sticky header bar ──────────────────────────────────────────── */}
       <div className={styles.stickyBar}>
         {/* Title + KPI chips */}
@@ -609,7 +725,8 @@ export default function SchedulerPage() {
         <>
           {/* Gantt — day view */}
           {view === "day" && (
-            <div className={styles.card}>
+            <div style={{ background: "linear-gradient(135deg, var(--bg-card) 0%, rgba(15,23,42,0.95) 100%)", border: "1px solid rgba(148,163,184,0.1)", borderRadius: 16, padding: "24px", boxShadow: "0 4px 24px rgba(0,0,0,0.15)", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, transparent, #6366f1, transparent)" }} />
               <div className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>
                   Gantt — {formatDate(selectedDay)}
@@ -636,15 +753,15 @@ export default function SchedulerPage() {
                     </div>
                   ) : (
                     dayItemsByTech.map(([tecnico, items]) => (
-                      <GanttTechRow 
-                        key={tecnico} 
-                        tecnico={tecnico} 
-                        items={items} 
+                      <GanttTechRow
+                        key={tecnico}
+                        tecnico={tecnico}
+                        items={items}
                         forecast={data.forecast}
                         assetsMeta={data.assets_metadata}
+                        onBlockDrop={handleBlockDrop}
                       />
                     ))
-
                   )}
                 </div>
               </div>
