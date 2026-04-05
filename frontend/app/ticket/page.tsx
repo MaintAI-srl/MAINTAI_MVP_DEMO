@@ -74,6 +74,52 @@ function nowDatetimeLocal(): string {
 const dtInput: React.CSSProperties = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
 const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", display: "block", marginBottom: 5 };
 
+// ── ButtonPicker: sostituisce i <select> per valori a scelta limitata ────────
+// Ogni opzione è un pulsante colorato; quello attivo è evidenziato con bordo e sfondo.
+
+function ButtonPicker({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string; color: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+      {options.map(opt => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              padding: "5px 13px",
+              fontSize: 12,
+              fontWeight: 700,
+              borderRadius: 6,
+              cursor: "pointer",
+              border: active
+                ? `1px solid ${opt.color}88`
+                : "1px solid rgba(255,255,255,0.08)",
+              background: active
+                ? `${opt.color}22`
+                : "rgba(255,255,255,0.02)",
+              color: active ? opt.color : "var(--text-muted)",
+              transition: "all 0.15s",
+              letterSpacing: "0.3px",
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Modale dettaglio ticket ───────────────────────────────────────────────
 
 type DetailModalProps = {
@@ -376,7 +422,7 @@ export default function TicketPage() {
 
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number; statoCorrente: string } | null>(null);
   const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
 
   // New ticket form
@@ -679,18 +725,28 @@ export default function TicketPage() {
           </div>
           <div>
             <label className="label">Tipo</label>
-            <select className="select" value={tipo} onChange={e => setTipo(e.target.value)}>
-              <option value="PM">PM (Preventiva)</option>
-              <option value="CM">CM (Correttiva)</option>
-              <option value="BD">BD (Breakdown)</option>
-              <option value="ISP">ISP (Ispezione)</option>
-            </select>
+            <ButtonPicker
+              options={[
+                { value: "PM",  label: "PM",  color: "#22c55e" },
+                { value: "CM",  label: "CM",  color: "#f59e0b" },
+                { value: "BD",  label: "BD",  color: "#ef4444" },
+                { value: "ISP", label: "ISP", color: "#3b82f6" },
+              ]}
+              value={tipo}
+              onChange={setTipo}
+            />
           </div>
           <div>
             <label className="label">Priorità</label>
-            <select className="select" value={priorita} onChange={e => setPriorita(e.target.value)}>
-              <option>Alta</option><option>Media</option><option>Bassa</option>
-            </select>
+            <ButtonPicker
+              options={[
+                { value: "Alta",  label: "Alta",  color: "#ef4444" },
+                { value: "Media", label: "Media", color: "#f59e0b" },
+                { value: "Bassa", label: "Bassa", color: "#22c55e" },
+              ]}
+              value={priorita}
+              onChange={setPriorita}
+            />
           </div>
           <div>
             <label className="label">Nuovo stato asset</label>
@@ -703,9 +759,18 @@ export default function TicketPage() {
           </div>
           <div>
             <label className="label">Stato Ticket</label>
-            <select className="select" value={stato} onChange={e => setStato(e.target.value)}>
-              {STATI.map(s => <option key={s}>{s}</option>)}
-            </select>
+            <StatusToggle
+              size="sm"
+              currentValue={stato}
+              onChange={(s) => setStato(s)}
+              options={[
+                { value: "Aperto",     label: "Aperto",  color: "#60a5fa" },
+                { value: "Pianificato",label: "Pia.",    color: "#a78bfa" },
+                { value: "In corso",   label: "In corso",color: "#fbbf24" },
+                { value: "Chiuso",     label: "Chiuso",  color: "#34d399" },
+                { value: "Eliminato",  label: "Elim.",   color: "#f87171" },
+              ]}
+            />
           </div>
           <div>
             <label className="label">Durata ore</label>
@@ -713,10 +778,14 @@ export default function TicketPage() {
           </div>
           <div>
             <label className="label">Fascia</label>
-            <select className="select" value={fascia} onChange={e => setFascia(e.target.value)}>
-              <option value="diurna">diurna</option>
-              <option value="notturna">notturna</option>
-            </select>
+            <ButtonPicker
+              options={[
+                { value: "diurna",   label: "Diurna",   color: "#fbbf24" },
+                { value: "notturna", label: "Notturna", color: "#818cf8" },
+              ]}
+              value={fascia}
+              onChange={setFascia}
+            />
           </div>
           <div>
             <label className="label">Inizio pianificato</label>
@@ -736,12 +805,22 @@ export default function TicketPage() {
       {selectedIds.size > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 8, marginBottom: 12 }}>
           <span style={{ color: "#818cf8", fontSize: 12 }}>{selectedIds.size} selezionati</span>
-          {["Pianificato", "In corso", "Chiuso", "Eliminato"].map(s => (
-            <button key={s} onClick={() => bulkUpdateStatus(s)}
-              style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4 }}>
-              → {s}
-            </button>
-          ))}
+          {["Pianificato", "In corso", "Chiuso", "Eliminato"].map(s => {
+            const sStyle = statoStyle(s);
+            return (
+              <button key={s} onClick={() => bulkUpdateStatus(s)}
+                style={{
+                  fontSize: 11, padding: "4px 10px",
+                  border: `1px solid ${sStyle.color}55`,
+                  color: sStyle.color,
+                  background: sStyle.background,
+                  cursor: "pointer", borderRadius: 4,
+                  fontWeight: 700,
+                }}>
+                {s}
+              </button>
+            );
+          })}
           <button onClick={() => setSelectedIds(new Set())} style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)", background: "transparent", border: "none", cursor: "pointer" }}>Deseleziona</button>
         </div>
       )}
@@ -766,7 +845,7 @@ export default function TicketPage() {
           emptyMessage="Nessun ticket attivo"
           onRowClick={(t) => setDetailTicket(t)}
           getRowProps={(t) => ({
-            onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id }); },
+            onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
             style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined },
           })}
         />
@@ -787,7 +866,7 @@ export default function TicketPage() {
             emptyMessage="Nessun ticket archiviato"
             onRowClick={(t) => setDetailTicket(t)}
             getRowProps={(t) => ({
-              onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id }); },
+              onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
               style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined },
             })}
           />
@@ -809,19 +888,33 @@ export default function TicketPage() {
               {selectedIds.size} selezionati
             </div>
           )}
-          {STATI.map(s => (
-            <button key={s} onClick={() => {
-              if (selectedIds.has(ctxMenu.ticketId) && selectedIds.size > 1) {
-                bulkUpdateStatus(s);
-              } else {
-                handleStatoChange(ctxMenu.ticketId, s);
-              }
-              setCtxMenu(null);
-            }}
-              style={{ display: "block", width: "100%", padding: "8px 16px", background: "transparent", border: "none", color: "var(--text-primary)", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
-              → {s}
-            </button>
-          ))}
+          {STATI.map(s => {
+            const sStyle = statoStyle(s);
+            const isActive = ctxMenu.statoCorrente === s;
+            return (
+              <button key={s} onClick={() => {
+                if (selectedIds.has(ctxMenu.ticketId) && selectedIds.size > 1) {
+                  bulkUpdateStatus(s);
+                } else {
+                  handleStatoChange(ctxMenu.ticketId, s);
+                }
+                setCtxMenu(null);
+              }}
+                style={{
+                  display: "block", width: "100%",
+                  padding: "7px 16px 7px 12px",
+                  background: isActive ? sStyle.background : "transparent",
+                  border: "none",
+                  borderLeft: `3px solid ${isActive ? sStyle.color : "transparent"}`,
+                  color: isActive ? sStyle.color : "var(--text-secondary)",
+                  fontSize: 12, cursor: "pointer", textAlign: "left",
+                  fontWeight: isActive ? 700 : 500,
+                  transition: "background 0.12s",
+                }}>
+                {s}
+              </button>
+            );
+          })}
         </div>
       )}
 
