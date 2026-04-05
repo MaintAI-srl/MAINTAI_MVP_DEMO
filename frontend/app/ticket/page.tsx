@@ -441,7 +441,13 @@ export default function TicketPage() {
   async function handleStatoChange(ticketId: number, nuovoStato: string) {
     setUpdatingId(ticketId);
     try {
-      await apiPut(`/tickets/${ticketId}`, { stato: nuovoStato });
+      const body: Record<string, string | null> = { stato: nuovoStato };
+      // Se torna Aperto, azzera le date di pianificazione
+      if (nuovoStato === "Aperto") {
+        body.planned_start = null;
+        body.planned_finish = null;
+      }
+      await apiPut(`/tickets/${ticketId}`, body);
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { notify.error("Errore aggiornamento stato."); }
     finally { setUpdatingId(null); }
@@ -560,10 +566,49 @@ export default function TicketPage() {
     { accessorKey: "fascia_oraria", header: "Fascia" },
     {
       accessorKey: "planned_start",
-      header: "Pianificato",
+      header: "Pian. Inizio",
       cell: ({ getValue }) => {
         const v = getValue<string | null>();
-        return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>{v ? new Date(v).toLocaleDateString("it-IT") : "—"}</span>;
+        if (!v) return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>—</span>;
+        const d = new Date(v);
+        return (
+          <span style={{ fontSize: 11, color: "#a78bfa" }}>
+            {d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}{" "}
+            <span style={{ color: "var(--text-soft)" }}>{d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "planned_finish",
+      header: "Pian. Fine",
+      cell: ({ getValue }) => {
+        const v = getValue<string | null>();
+        if (!v) return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>—</span>;
+        const d = new Date(v);
+        return (
+          <span style={{ fontSize: 11, color: "#a78bfa" }}>
+            {d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}{" "}
+            <span style={{ color: "var(--text-soft)" }}>{d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+          </span>
+        );
+      },
+    },
+    {
+      id: "durata",
+      header: "Durata",
+      cell: ({ row }) => {
+        const t = row.original;
+        if (t.planned_start && t.planned_finish) {
+          const mins = Math.round((new Date(t.planned_finish).getTime() - new Date(t.planned_start).getTime()) / 60000);
+          if (mins > 0) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            const label = h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ""}` : `${m}m`;
+            return <span style={{ fontSize: 11, color: "#fbbf24" }}>{label}</span>;
+          }
+        }
+        return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>{t.durata_stimata_ore ? `${t.durata_stimata_ore}h*` : "—"}</span>;
       },
     },
     {
