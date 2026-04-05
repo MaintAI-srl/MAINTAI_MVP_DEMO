@@ -90,6 +90,62 @@ def _run_alembic_upgrade() -> None:
     except Exception as exc:
         logger.warning("Alembic upgrade fallito (continuo con init_db): %s", exc)
 
+    # Fallback: aggiungi colonne mancanti via SQL diretto (idempotente)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """Aggiunge colonne mancanti al DB in modo idempotente (safe per ogni deploy)."""
+    import logging
+    from sqlalchemy import create_engine, inspect, text
+    from backend.core.database import DATABASE_URL
+
+    logger = logging.getLogger(__name__)
+    try:
+        engine = create_engine(DATABASE_URL)
+        insp = inspect(engine)
+
+        # Colonne da garantire per ogni tabella: {table: [(col, sql_type, default)]}
+        required_columns: dict[str, list[tuple[str, str, str]]] = {
+            "asset": [
+                ("weather_constraint", "VARCHAR", "NULL"),
+                ("fermo_on_schedule", "BOOLEAN", "0"),
+                ("latitude", "FLOAT", "NULL"),
+                ("longitude", "FLOAT", "NULL"),
+            ],
+        }
+
+        with engine.connect() as conn:
+            for table, columns in required_columns.items():
+                if table not in insp.get_table_names():
+                    continue
+                existing = {c["name"] for c in insp.get_columns(table)}
+                for col_name, col_type, default in columns:
+                    if col_name not in existing:
+                        conn.execute(text(
+                            f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type} DEFAULT {default}"
+                        ))
+                        logger.info("_ensure_columns: aggiunta colonna %s.%s", table, col_name)
+
+            # Crea generated_plans se non esiste
+            if "generated_plans" not in insp.get_table_names():
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS generated_plans (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        status VARCHAR DEFAULT 'draft',
+                        horizon_days INTEGER DEFAULT 7,
+                        plan_json JSON,
+                        confirmed_at DATETIME,
+                        tenant_id INTEGER REFERENCES tenants(id)
+                    )
+                """))
+                logger.info("_ensure_columns: creata tabella generated_plans")
+
+            conn.commit()
+    except Exception as exc:
+        logger.warning("_ensure_columns fallito (non bloccante): %s", exc)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
