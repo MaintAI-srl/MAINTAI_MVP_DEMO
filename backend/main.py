@@ -95,54 +95,69 @@ def _run_alembic_upgrade() -> None:
 
 
 def _ensure_columns() -> None:
-    """Aggiunge colonne mancanti al DB in modo idempotente (safe per ogni deploy)."""
+    """Aggiunge colonne mancanti al DB — idempotente, compatibile SQLite e PostgreSQL."""
     import logging
-    from sqlalchemy import create_engine, inspect, text
+    from sqlalchemy import create_engine, text
     from backend.core.database import DATABASE_URL
 
     logger = logging.getLogger(__name__)
+    is_pg = DATABASE_URL.startswith("postgresql") or DATABASE_URL.startswith("postgres")
+
+    # DDL statements idempotenti: ogni comando è autonomo
+    # PostgreSQL supporta ADD COLUMN IF NOT EXISTS (v9.6+)
+    # SQLite non supporta IF NOT EXISTS → usiamo try/except per colonna
+    ddl_statements = [
+        # asset — nuovi campi planning
+        ("asset", "weather_constraint", "ALTER TABLE asset ADD COLUMN {ifne}weather_constraint VARCHAR"),
+        ("asset", "fermo_on_schedule",  "ALTER TABLE asset ADD COLUMN {ifne}fermo_on_schedule BOOLEAN DEFAULT FALSE"),
+        ("asset", "latitude",           "ALTER TABLE asset ADD COLUMN {ifne}latitude FLOAT"),
+        ("asset", "longitude",          "ALTER TABLE asset ADD COLUMN {ifne}longitude FLOAT"),
+    ]
+
+    # generated_plans — tabella intera
+    gp_pg = """
+        CREATE TABLE IF NOT EXISTS generated_plans (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT NOW(),
+            status VARCHAR DEFAULT 'draft',
+            horizon_days INTEGER DEFAULT 7,
+            plan_json JSONB,
+            confirmed_at TIMESTAMP,
+            tenant_id INTEGER REFERENCES tenants(id)
+        )
+    """
+    gp_sqlite = """
+        CREATE TABLE IF NOT EXISTS generated_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status VARCHAR DEFAULT 'draft',
+            horizon_days INTEGER DEFAULT 7,
+            plan_json TEXT,
+            confirmed_at DATETIME,
+            tenant_id INTEGER REFERENCES tenants(id)
+        )
+    """
+
     try:
         engine = create_engine(DATABASE_URL)
-        insp = inspect(engine)
+        ifne = "IF NOT EXISTS " if is_pg else ""
 
-        # Colonne da garantire per ogni tabella: {table: [(col, sql_type, default)]}
-        required_columns: dict[str, list[tuple[str, str, str]]] = {
-            "asset": [
-                ("weather_constraint", "VARCHAR", "NULL"),
-                ("fermo_on_schedule", "BOOLEAN", "0"),
-                ("latitude", "FLOAT", "NULL"),
-                ("longitude", "FLOAT", "NULL"),
-            ],
-        }
+        with engine.begin() as conn:  # begin() → autocommit al termine del with
+            for _table, col_name, tmpl in ddl_statements:
+                sql = tmpl.format(ifne=ifne)
+                try:
+                    conn.execute(text(sql))
+                    logger.info("_ensure_columns: OK — %s", sql.strip())
+                except Exception as col_exc:
+                    # Su SQLite "duplicate column name" è un errore — ignoralo
+                    if "duplicate column" in str(col_exc).lower() or "already exists" in str(col_exc).lower():
+                        logger.debug("_ensure_columns: colonna già presente (%s)", col_name)
+                    else:
+                        logger.warning("_ensure_columns: errore DDL su %s: %s", col_name, col_exc)
 
-        with engine.connect() as conn:
-            for table, columns in required_columns.items():
-                if table not in insp.get_table_names():
-                    continue
-                existing = {c["name"] for c in insp.get_columns(table)}
-                for col_name, col_type, default in columns:
-                    if col_name not in existing:
-                        conn.execute(text(
-                            f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type} DEFAULT {default}"
-                        ))
-                        logger.info("_ensure_columns: aggiunta colonna %s.%s", table, col_name)
+            conn.execute(text(gp_pg if is_pg else gp_sqlite))
+            logger.info("_ensure_columns: generated_plans OK")
 
-            # Crea generated_plans se non esiste
-            if "generated_plans" not in insp.get_table_names():
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS generated_plans (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        status VARCHAR DEFAULT 'draft',
-                        horizon_days INTEGER DEFAULT 7,
-                        plan_json JSON,
-                        confirmed_at DATETIME,
-                        tenant_id INTEGER REFERENCES tenants(id)
-                    )
-                """))
-                logger.info("_ensure_columns: creata tabella generated_plans")
-
-            conn.commit()
     except Exception as exc:
         logger.warning("_ensure_columns fallito (non bloccante): %s", exc)
 
