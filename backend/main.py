@@ -39,6 +39,7 @@ try:
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
+    from backend.core.demo_db import init_demo_db
     from backend.core.logging_config import setup_logging
     from backend.services.email_poller import check_all_mailboxes
 except ImportError as e:
@@ -193,6 +194,8 @@ async def lifespan(app: FastAPI):
         print("✅ migrations checked")
         init_db()               # crea tabelle mancanti + seed
         print("✅ main db initialized")
+        init_demo_db()          # crea tabelle + seed demo.db (per utenti is_demo)
+        print("✅ demo db initialized")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
         traceback.print_exc()
