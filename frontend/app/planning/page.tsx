@@ -303,7 +303,15 @@ export default function PlanningPage() {
   useEffect(() => { loadStorico(); }, [loadStorico]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  // loadStorico is called in its own useEffect above
+
+  // Ricarica i ticket quando la pagina torna in focus (es. utente era su /ticket e ha cambiato stati)
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") loadData();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [loadData]);
 
   // ── Genera piano AI ────────────────────────────────────────────────────────
   async function generateAIPlan() {
@@ -442,6 +450,24 @@ export default function PlanningPage() {
               </button>
             ))}
           </div>
+
+          {/* Bottone Ricarica dati */}
+          <button
+            onClick={loadData}
+            disabled={loading}
+            title="Ricarica ticket dal server"
+            style={{
+              background: "transparent",
+              border: "1px solid #374151",
+              color: "#6b7280",
+              borderRadius: 8,
+              padding: "9px 12px",
+              fontSize: 14,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? "…" : "↻"}
+          </button>
 
           {/* Bottone Genera AI */}
           {modalita === "ai" && (

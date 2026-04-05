@@ -430,6 +430,7 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         )
         plan_result["efficiency_score"] = efficiency_data["efficiency_score"]
         plan_result["efficiency_breakdown"] = efficiency_data["efficiency_breakdown"]
+        plan_result["efficiency_motivations"] = efficiency_data.get("efficiency_motivations", [])
 
         return plan_result
 

@@ -8,6 +8,21 @@ function getToken(): string | null {
   return localStorage.getItem("maintai_jwt");
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+// Endpoint che chiamano AI (OpenAI) — timeout lungo
+const SLOW_ENDPOINTS: RegExp[] = [
+  /\/planning\/generate/,
+  /\/planning\/confirm/,
+  /\/manuali\/\d+\/analisi/,
+  /\/problem-analysis/,
+  /\/diagnostic/,
+];
+
+function timeoutForPath(path: string): number {
+  return SLOW_ENDPOINTS.some(re => re.test(path)) ? 120_000 : DEFAULT_TIMEOUT_MS;
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -17,7 +32,7 @@ async function request<T>(
   const url = `${API_BASE}${path}`;
 
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 30000);
+  const id = setTimeout(() => controller.abort(), timeoutForPath(path));
 
   const token = getToken();
   const authHeader: Record<string, string> = token
@@ -74,7 +89,7 @@ async function request<T>(
   } catch (error: any) {
     clearTimeout(id);
     if (error.name === "AbortError") {
-      throw new Error("Il server ha impiegato troppo tempo a rispondere (Timeout 30s). Riprova tra poco.");
+      throw new Error("Il server ha impiegato troppo tempo a rispondere. Riprova (Render potrebbe essere in avvio).");
     }
     throw error;
   }
