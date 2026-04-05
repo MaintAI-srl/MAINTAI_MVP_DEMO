@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "../../lib/api";
+import { notify } from "@/lib/toast";
 
 type EmailConfigItem = {
   id: number;
@@ -24,8 +25,6 @@ const PROVIDERS = [
 export default function EmailConfigPage() {
   const [configs, setConfigs]         = useState<EmailConfigItem[]>([]);
   const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState("");
-  const [success, setSuccess]         = useState("");
   const [saving, setSaving]           = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(0);
 
@@ -41,9 +40,8 @@ export default function EmailConfigPage() {
     try {
       const data = await apiGet<EmailConfigItem[]>("/email-config");
       setConfigs(data || []);
-      setError("");
     } catch (err: any) {
-      setError(err.message || "Errore di caricamento configurazioni");
+      notify.error(err.message || "Errore di caricamento configurazioni");
     } finally {
       setLoading(false);
     }
@@ -60,12 +58,10 @@ export default function EmailConfigPage() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!form.imap_server || !form.email_address || !form.password) {
-      setError("Compila tutti i campi obbligatori (Server, Email, Password)");
+      notify.error("Compila tutti i campi obbligatori (Server, Email, Password)");
       return;
     }
     setSaving(true);
-    setError("");
-    setSuccess("");
     try {
       await apiPost<EmailConfigItem>("/email-config", {
         imap_server:  form.imap_server,
@@ -74,11 +70,11 @@ export default function EmailConfigPage() {
         password:     form.password,
         active:       true,
       });
-      setSuccess("Connessione verificata e salvata. Il polling email è attivo ogni 5 minuti.");
+      notify.success("Connessione verificata e salvata. Il polling email è attivo ogni 5 minuti.");
       setForm(f => ({ ...f, email_address: "", password: "" }));
       loadData();
     } catch (err: any) {
-      setError(err.message || "Connessione fallita. Controlla le credenziali.");
+      notify.error(err.message || "Connessione fallita. Controlla le credenziali.");
     } finally {
       setSaving(false);
     }
@@ -89,9 +85,9 @@ export default function EmailConfigPage() {
     try {
       await apiDelete(`/email-config/${id}`);
       setConfigs(c => c.filter(x => x.id !== id));
-      setSuccess("Configurazione rimossa.");
+      notify.success("Configurazione rimossa.");
     } catch (err: any) {
-      setError(err.message || "Errore durante l'eliminazione");
+      notify.error(err.message || "Errore durante l'eliminazione");
     }
   }
 
@@ -110,16 +106,6 @@ export default function EmailConfigPage() {
         </p>
       </div>
 
-      {error && (
-        <div style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(248,113,113,0.4)", color: "#fca5a5", padding: "14px 18px", borderRadius: 8, marginBottom: 20, lineHeight: 1.6, fontSize: 14 }}>
-          ⚠️ {error}
-        </div>
-      )}
-      {success && (
-        <div style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(52,211,153,0.4)", color: "var(--green)", padding: "14px 18px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
-          ✅ {success}
-        </div>
-      )}
 
       {/* Form */}
       <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: 28, marginBottom: 32, boxShadow: "0 4px 24px rgba(0,0,0,0.1)" }}>

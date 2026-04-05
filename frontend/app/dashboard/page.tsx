@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { apiGet } from "../lib/api";
+import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import StatusToggle from "../components/StatusToggle";
 import {
-  Chart as ChartJS, ArcElement, Tooltip, Legend,
-  CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler,
-} from "chart.js";
-import { Doughnut, Line, Bar } from "react-chartjs-2";
-
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler);
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+} from "recharts";
 
 type ChartItem = { name: string; value: number };
 type DashboardData = {
@@ -70,16 +68,7 @@ const PRIORITY_COLORS = ["#f87171", "#fbbf24", "#34d399", "var(--text-secondary)
 const STATUS_COLORS = ["#60a5fa", "#a78bfa", "#fbbf24", "#34d399", "#f87171"];
 const STATO_ASSET_COLORS: Record<string, string> = { service: "#34d399", stopped: "#fbbf24", "out of service": "#f87171" };
 
-const tooltipOptions = {
-  backgroundColor: "var(--bg-elevated)", titleColor: "var(--text-primary)",
-  bodyColor: "var(--text-secondary)", borderColor: "var(--border-bright)", borderWidth: 1,
-  padding: 12, boxPadding: 6,
-};
-
-const doughnutOptions = {
-  responsive: true, maintainAspectRatio: false, cutout: "70%",
-  plugins: { legend: { position: "bottom" as const, labels: { color: "var(--text-secondary)", font: { size: 12, family: "var(--font-body)" }, padding: 16, boxWidth: 12 } }, tooltip: tooltipOptions },
-};
+const chartTooltipStyle = { background: "var(--bg-elevated)", border: "1px solid var(--border-bright)", color: "var(--text-primary)", fontSize: 12 };
 
 function KpiCard({ label, value, accent, sub }: { label: string; value: number | string; accent: string; sub?: string }) {
   return (
@@ -112,7 +101,6 @@ export default function DashboardPage() {
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
   const [trend, setTrend] = useState<TrendData | null>(null);
   const [kpiAsset, setKpiAsset] = useState<(KpiAsset & { total: number; page: number; pages: number }) | null>(null);
-  const [error, setError] = useState("");
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   // Filtri e Paginazione
@@ -122,35 +110,6 @@ export default function DashboardPage() {
   const [selectedStato, setSelectedStato] = useState("");
   const [areas, setAreas] = useState<string[]>([]);
 
-  // Helper per risolvere i colori delle variabili CSS a runtime per Chart.js
-  const getThemeColor = (varName: string, fallback: string) => {
-    if (typeof window === 'undefined') return fallback;
-    const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-    return val || fallback;
-  };
-
-  const textPrimary = getThemeColor('--text-primary', '#f8fafc');
-  const textMuted = getThemeColor('--text-muted', '#94a3b8');
-  const textSecondary = getThemeColor('--text-secondary', '#cbd5e1');
-  const chartGrid = getThemeColor('--chart-grid', 'rgba(255,255,255,0.06)');
-
-  const lineOptions = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: tooltipOptions },
-    scales: {
-      x: { grid: { color: chartGrid }, ticks: { color: textMuted, font: { size: 11 } } },
-      y: { grid: { color: chartGrid }, ticks: { color: textMuted, font: { size: 11 } }, beginAtZero: true },
-    },
-  };
-
-  const barOptions = {
-    responsive: true, maintainAspectRatio: false, indexAxis: "y" as const,
-    plugins: { legend: { display: false }, tooltip: tooltipOptions },
-    scales: {
-      x: { grid: { color: chartGrid }, ticks: { color: textMuted, font: { size: 11 } }, beginAtZero: true },
-      y: { grid: { display: false }, ticks: { color: textSecondary, font: { size: 12, weight: "bold" as const } } },
-    },
-  };
 
 
   async function loadKPIs() {
@@ -186,10 +145,9 @@ export default function DashboardPage() {
         if (trendData) setTrend(trendData);
         if (kpiData) setKpiAsset(kpiData);
         setLastUpdate(new Date());
-        setError("");
       } catch (err: any) {
         console.error("Dashboard Load Error:", err);
-        setError("Errore di connessione al backend.");
+        notify.error("Errore di connessione al backend.");
       }
     }
     loadInitial();
@@ -199,40 +157,6 @@ export default function DashboardPage() {
     loadKPIs();
   }, [page, search, selectedArea, selectedStato]);
 
-  const priorityData = useMemo(() => charts ? {
-    labels: charts.ticket_by_priority.map(i => i.name),
-    datasets: [{ data: charts.ticket_by_priority.map(i => i.value), backgroundColor: PRIORITY_COLORS, borderWidth: 0, hoverOffset: 4 }],
-  } : null, [charts]);
-
-  const statusData = useMemo(() => charts ? {
-    labels: charts.ticket_by_status.map(i => i.name),
-    datasets: [{ data: charts.ticket_by_status.map(i => i.value), backgroundColor: STATUS_COLORS, borderWidth: 0, hoverOffset: 4 }],
-  } : null, [charts]);
-
-  const assetStatoData = useMemo(() => charts?.asset_by_stato?.length ? {
-    labels: charts.asset_by_stato.map(i => i.name),
-    datasets: [{ data: charts.asset_by_stato.map(i => i.value), backgroundColor: charts.asset_by_stato.map(i => STATO_ASSET_COLORS[i.name] || "var(--text-secondary)"), borderWidth: 0, hoverOffset: 4 }],
-  } : null, [charts]);
-
-  const tipoData = useMemo(() => charts ? {
-    labels: charts.ticket_by_tipo.map(i => i.name),
-    datasets: [{ label: "Ticket", data: charts.ticket_by_tipo.map(i => i.value), backgroundColor: "rgba(59,130,246,0.6)", borderColor: "var(--blue)", borderWidth: 1, borderRadius: 4 }],
-  } : null, [charts]);
-
-  const trendChartData = useMemo(() => trend ? {
-    labels: trend.labels,
-    datasets: [{ label: "Ticket attivi", data: trend.values, fill: true, backgroundColor: "rgba(59,130,246,0.12)", borderColor: "var(--blue)", borderWidth: 2, pointBackgroundColor: "var(--blue)", pointRadius: 3, tension: 0.4 }],
-  } : null, [trend]);
-
-  const mtbfData = useMemo(() => kpiAsset?.assets?.length ? {
-    labels: kpiAsset.assets.map(a => a.asset_codice || a.asset_nome),
-    datasets: [{ label: "MTBF (giorni)", data: kpiAsset.assets.map(a => a.mtbf_giorni), backgroundColor: "rgba(129,140,248,.6)", borderColor: "#818cf8", borderWidth: 1, borderRadius: 4 }],
-  } : null, [kpiAsset]);
-
-  const oeeData = useMemo(() => kpiAsset?.assets?.length ? {
-    labels: kpiAsset.assets.map(a => a.asset_codice || a.asset_nome),
-    datasets: [{ label: "OEE (%)", data: kpiAsset.assets.map(a => a.oee_pct), backgroundColor: "rgba(52,211,153,.6)", borderColor: "#34d399", borderWidth: 1, borderRadius: 4 }],
-  } : null, [kpiAsset]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
@@ -251,7 +175,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {error && <div style={{ color: "#fecaca", background: "rgba(127,29,29,0.35)", border: "1px solid rgba(248,113,113,0.35)", padding: "12px 16px", borderRadius: 10 }}>{error}</div>}
 
       {/* KPI Cards */}
       {dashboard && (
@@ -275,12 +198,34 @@ export default function DashboardPage() {
       {charts && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <ChartCard title="Ticket per Priorità">
-            {priorityData && <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><Doughnut data={priorityData} options={{ ...doughnutOptions, plugins: { ...doughnutOptions.plugins, legend: { ...doughnutOptions.plugins.legend, labels: { ...doughnutOptions.plugins.legend.labels, color: textSecondary } } } }} /></div>}
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={charts.ticket_by_priority} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                  {charts.ticket_by_priority.map((entry, i) => (
+                    <Cell key={entry.name} fill={PRIORITY_COLORS[i % PRIORITY_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTooltipStyle} />
+                <Legend formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>{v}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
           </ChartCard>
           <ChartCard title="Asset per Stato operativo">
-            {assetStatoData
-              ? <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><Doughnut data={assetStatoData} options={{ ...doughnutOptions, plugins: { ...doughnutOptions.plugins, legend: { ...doughnutOptions.plugins.legend, labels: { ...doughnutOptions.plugins.legend.labels, color: textSecondary } } } }} /></div>
-              : <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 40 }}>Nessun dato asset.</div>}
+            {charts.asset_by_stato?.length ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={charts.asset_by_stato} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                    {charts.asset_by_stato.map((entry) => (
+                      <Cell key={entry.name} fill={STATO_ASSET_COLORS[entry.name] ?? "var(--text-secondary)"} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Legend formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 40 }}>Nessun dato asset.</div>
+            )}
           </ChartCard>
         </div>
       )}
@@ -289,10 +234,26 @@ export default function DashboardPage() {
       {kpiAsset && kpiAsset.assets.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <ChartCard title="MTBF per Asset (Pagina)">
-            {mtbfData && <div style={{ height: 200 }}><Bar data={mtbfData} options={{ ...barOptions, scales: { ...barOptions.scales, x: { ...barOptions.scales.x, max: Math.max(...kpiAsset.assets.map(a => a.mtbf_giorni), 1) * 1.2 } } }} /></div>}
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={kpiAsset.assets.map(a => ({ name: a.asset_codice || a.asset_nome, value: a.mtbf_giorni }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} domain={[0, "dataMax"]} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "var(--text-secondary)", fontSize: 11, fontWeight: 700 }} width={80} />
+                <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${v} gg`, "MTBF"]} />
+                <Bar dataKey="value" fill="rgba(129,140,248,.6)" stroke="#818cf8" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </ChartCard>
           <ChartCard title="OEE per Asset (Pagina)">
-            {oeeData && <div style={{ height: 200 }}><Bar data={oeeData} options={{ ...barOptions, scales: { ...barOptions.scales, x: { ...barOptions.scales.x, max: 100 } } }} /></div>}
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={kpiAsset.assets.map(a => ({ name: a.asset_codice || a.asset_nome, value: a.oee_pct }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} domain={[0, 100]} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "var(--text-secondary)", fontSize: 11, fontWeight: 700 }} width={80} />
+                <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${v}%`, "OEE"]} />
+                <Bar dataKey="value" fill="rgba(52,211,153,.6)" stroke="#34d399" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </ChartCard>
         </div>
       )}

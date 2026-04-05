@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { notify } from "@/lib/toast";
 import StatusToggle from "../components/StatusToggle";
 import styles from "./tecnici.module.css";
 import AssenzeModal from "../components/AssenzeModal";
@@ -81,7 +82,6 @@ export default function TecniciPage() {
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<number | null>(null);
-  const [error, setError] = useState("");
 
   const [sortCol, setSortCol] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -129,7 +129,7 @@ export default function TecniciPage() {
   function resetForm() {
     setNome(""); setCognome(""); setSkill(""); setOre(8);
     setStatoCampo("in servizio"); setOrarioInizio("08:00"); setOrarioFine("17:00");
-    setLimitazioniOrarie(""); setError("");
+    setLimitazioniOrarie("");
   }
 
   function startEdit(t: Tecnico) {
@@ -137,14 +137,13 @@ export default function TecniciPage() {
     setNome(t.nome); setCognome(t.cognome || ""); setSkill(t.skill); setOre(t.ore_giornaliere);
     setStatoCampo(t.stato || "in servizio"); setOrarioInizio(t.orario_inizio || "08:00");
     setOrarioFine(t.orario_fine || "17:00"); setLimitazioniOrarie(t.limitazioni_orarie || "");
-    setError("");
   }
 
   function cancelEdit() { setEditId(null); resetForm(); }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nome.trim()) { setError("Il campo 'Nome' è obbligatorio."); return; }
+    if (!nome.trim()) { notify.error("Il campo 'Nome' è obbligatorio."); return; }
     try {
       setIsSaving(true);
       const payload = {
@@ -161,7 +160,7 @@ export default function TecniciPage() {
       await loadStats();
       if (editId !== null) cancelEdit(); else resetForm();
     } catch (err: any) {
-      setError(err.message || "Errore nel salvataggio.");
+      notify.error(err.message || "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
 
@@ -266,7 +265,6 @@ export default function TecniciPage() {
         </section>
       )}
 
-      {error && <div style={{ color: "#fecaca", background: "rgba(127,29,29,.35)", border: "1px solid rgba(248,113,113,.35)", padding: "12px 16px", borderRadius: 10 }}>{error}</div>}
 
       <div className={styles.grid}>
         {/* Form */}

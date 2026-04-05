@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { notify } from "@/lib/toast";
 import styles from "./assets.module.css";
 import AssetAnalyticsModal from "../components/AssetAnalyticsModal";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 
 type Impianto = { id: number; nome: string };
 type Asset = {
@@ -38,11 +40,6 @@ function statoStyle(s: string) {
   return { color: c.color, background: c.bg, border: `1px solid ${c.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 };
 }
 
-const colFilterInput: React.CSSProperties = {
-  marginTop: 3, width: "100%", background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(59,130,246,0.15)", borderRadius: 3,
-  color: "var(--text-secondary)", padding: "2px 5px", fontSize: 10, outline: "none", fontFamily: "inherit",
-};
 
 export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -69,34 +66,7 @@ export default function AssetsPage() {
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [error, setError] = useState("");
-  const [sortCol, setSortCol] = useState("");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [selectedAnalyticsAsset, setSelectedAnalyticsAsset] = useState<any>(null);
-
-  function handleSort(col: string) {
-    if (sortCol === col) {
-      if (sortDir === "asc") setSortDir("desc");
-      else { setSortCol(""); setSortDir("asc"); }
-    } else { setSortCol(col); setSortDir("asc"); }
-  }
-  function handleColFilter(col: string, val: string) {
-    setColFilters(prev => ({ ...prev, [col]: val }));
-  }
-
-  function SortTh({ label, col }: { label: string; col: string }) {
-    const active = sortCol === col;
-    return (
-      <th>
-        <div onClick={() => handleSort(col)} style={{ cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-          {label}
-          <span style={{ fontSize: 9, opacity: active ? 1 : 0.25, color: active ? "#818cf8" : "inherit" }}>{active && sortDir === "desc" ? "↓" : "↑"}</span>
-        </div>
-        <input value={colFilters[col] ?? ""} onChange={e => handleColFilter(col, e.target.value)} onClick={e => e.stopPropagation()} placeholder="…" style={colFilterInput} />
-      </th>
-    );
-  }
 
   useEffect(() => {
     loadAssets();
@@ -126,7 +96,7 @@ export default function AssetsPage() {
   function resetForm() {
     setNome(""); setCodice(""); setCodicePreview(""); setDescrizione(""); setAnno("");
     setArea(""); setImpiantoId(""); setLimitazioni("");
-    setVincoloOrario(""); setNote(""); setStato("service"); setError("");
+    setVincoloOrario(""); setNote(""); setStato("service");
     setWeatherSunnyRequired(false); setWeatherMaxWindKmh(""); setWeatherMaxRainMm("");
   }
 
@@ -145,7 +115,6 @@ export default function AssetsPage() {
     setWeatherSunnyRequired(asset.weather_sunny_required || false);
     setWeatherMaxWindKmh(asset.weather_max_wind_kmh ? String(asset.weather_max_wind_kmh) : "");
     setWeatherMaxRainMm(asset.weather_max_rain_mm ? String(asset.weather_max_rain_mm) : "");
-    setError("");
     setCodicePreview("");
   }
 
@@ -156,11 +125,10 @@ export default function AssetsPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
 
-    if (!nome.trim()) { setError("Il campo 'Nome asset' è obbligatorio."); return; }
-    if (!area.trim()) { setError("Il campo 'Area' è obbligatorio."); return; }
-    if (!impiantoId) { setError("Devi selezionare un impianto."); return; }
+    if (!nome.trim()) { notify.error("Il campo 'Nome asset' è obbligatorio."); return; }
+    if (!area.trim()) { notify.error("Il campo 'Area' è obbligatorio."); return; }
+    if (!impiantoId) { notify.error("Devi selezionare un impianto."); return; }
 
     try {
       setIsSaving(true);
@@ -194,35 +162,84 @@ export default function AssetsPage() {
         resetForm();
       }
     } catch (err: any) {
-      setError(err.message || "Errore nel salvataggio.");
+      notify.error(err.message || "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
 
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-
-  // reset pagina quando cambiano i filtri
-  useEffect(() => { setPage(1); }, [search, colFilters, sortCol]);
-
   const filteredAssets = useMemo(() => {
-    let result = assets;
     const term = search.trim().toLowerCase();
-    if (term) result = result.filter(a => [a.name, a.codice ?? "", a.area, a.impianto_nome ?? ""].join(" ").toLowerCase().includes(term));
-    for (const [col, val] of Object.entries(colFilters)) {
-      if (!val.trim()) continue;
-      const t = val.toLowerCase();
-      result = result.filter(a => String((a as Record<string, unknown>)[col] ?? "").toLowerCase().includes(t));
-    }
-    if (sortCol) {
-      result = [...result].sort((a, b) => {
-        const av = String((a as Record<string, unknown>)[sortCol] ?? "");
-        const bv = String((b as Record<string, unknown>)[sortCol] ?? "");
-        const cmp = av.localeCompare(bv, "it", { numeric: true });
-        return sortDir === "asc" ? cmp : -cmp;
-      });
-    }
-    return result;
-  }, [assets, search, sortCol, sortDir, colFilters]);
+    if (!term) return assets;
+    return assets.filter(a =>
+      [a.name, a.codice ?? "", a.area, a.impianto_nome ?? ""].join(" ").toLowerCase().includes(term)
+    );
+  }, [assets, search]);
+
+  const columns = useMemo<ColumnDef<Asset>[]>(() => [
+    {
+      accessorKey: "codice",
+      header: "Codice",
+      cell: ({ getValue }) => (
+        <span style={{ fontFamily: "monospace", color: "#818cf8" }}>{getValue<string>() || "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "name",
+      header: "Nome",
+    },
+    {
+      accessorKey: "impianto_nome",
+      header: "Impianto",
+    },
+    {
+      id: "meteo",
+      header: "Meteo",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const a = row.original;
+        return (
+          <div style={{ display: "flex", gap: 4 }}>
+            {a.weather_sunny_required && (
+              <span title="Richiede Sole" style={{ fontSize: 10, background: "rgba(251,191,36,0.2)", color: "#fbbf24", padding: "1px 4px", borderRadius: 4 }}>☀️</span>
+            )}
+            {a.weather_max_wind_kmh && (
+              <span title={`Vento max ${a.weather_max_wind_kmh} km/h`} style={{ fontSize: 10, background: "rgba(59,130,246,0.2)", color: "#60a5fa", padding: "1px 4px", borderRadius: 4 }}>💨 {a.weather_max_wind_kmh}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "stato",
+      header: "Stato",
+      cell: ({ getValue }) => (
+        <span style={statoStyle(getValue<string>() || "service")}>{getValue<string>()}</span>
+      ),
+    },
+    {
+      id: "azioni",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const asset = row.original;
+        return (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={() => startEdit(asset)}
+              style={{ fontSize: 11, background: "none", color: "#818cf8", border: "1px solid #818cf8", padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}
+            >
+              Modifica
+            </button>
+            <button
+              onClick={() => setSelectedAnalyticsAsset(asset)}
+              style={{ fontSize: 11, background: "#818cf8", color: "#fff", border: "none", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
+            >
+              📊 Stats
+            </button>
+          </div>
+        );
+      },
+    },
+  ], []);
 
   return (
     <div className={styles.page}>
@@ -234,7 +251,6 @@ export default function AssetsPage() {
         </div>
       </section>
 
-      {error && <div style={{ color: "#fecaca", background: "rgba(127,29,29,.35)", border: "1px solid rgba(248,113,113,.35)", padding: "12px 16px", borderRadius: 10, marginBottom: 8 }}>{error}</div>}
 
       <div className={styles.grid}>
         <section className={styles.card}>
@@ -324,50 +340,12 @@ export default function AssetsPage() {
               {filteredAssets.length} asset
             </span>
           </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <SortTh label="Codice" col="codice" />
-                  <SortTh label="Nome" col="name" />
-                  <SortTh label="Impianto" col="impianto_nome" />
-                  <th>Meteo</th>
-                  <th>Stato</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAssets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(asset => (
-                  <tr key={asset.id}>
-                    <td style={{ fontFamily: "monospace", color: "#818cf8" }}>{asset.codice || "—"}</td>
-                    <td>{asset.name}</td>
-                    <td>{asset.impianto_nome}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {asset.weather_sunny_required && <span title="Richiede Sole" style={{ fontSize: 10, background: "rgba(251,191,36,0.2)", color: "#fbbf24", padding: "1px 4px", borderRadius: 4 }}>☀️</span>}
-                        {asset.weather_max_wind_kmh && <span title={`Vento max ${asset.weather_max_wind_kmh} km/h`} style={{ fontSize: 10, background: "rgba(59,130,246,0.2)", color: "#60a5fa", padding: "1px 4px", borderRadius: 4 }}>💨 {asset.weather_max_wind_kmh}</span>}
-                      </div>
-                    </td>
-                    <td><span style={statoStyle(asset.stato || "service")}>{asset.stato}</span></td>
-                    <td style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => startEdit(asset)} style={{ fontSize: 11, background: "none", color: "#818cf8", border: "1px solid #818cf8", padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}>Modifica</button>
-                      <button onClick={() => setSelectedAnalyticsAsset(asset)} style={{ fontSize: 11, background: "#818cf8", color: "#fff", border: "none", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}>📊 Stats</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* Paginazione */}
-          {filteredAssets.length > PAGE_SIZE && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 12, justifyContent: "center" }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "4px 10px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", borderRadius: 6, cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1 }}>‹</button>
-              {Array.from({ length: Math.ceil(filteredAssets.length / PAGE_SIZE) }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)} style={{ padding: "4px 10px", background: p === page ? "rgba(99,102,241,0.3)" : "transparent", border: `1px solid ${p === page ? "rgba(99,102,241,0.5)" : "var(--border-strong)"}`, color: p === page ? "#818cf8" : "var(--text-secondary)", borderRadius: 6, cursor: "pointer" }}>{p}</button>
-              ))}
-              <button onClick={() => setPage(p => Math.min(Math.ceil(filteredAssets.length / PAGE_SIZE), p + 1))} disabled={page === Math.ceil(filteredAssets.length / PAGE_SIZE)} style={{ padding: "4px 10px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer", opacity: page === Math.ceil(filteredAssets.length / PAGE_SIZE) ? 0.4 : 1 }}>›</button>
-            </div>
-          )}
+          <DataTable
+            data={filteredAssets}
+            columns={columns}
+            pageSize={10}
+            emptyMessage="Nessun asset trovato"
+          />
         </section>
       </div>
 

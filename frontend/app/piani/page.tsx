@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { notify } from "@/lib/toast";
 
 type Asset = { id: number; name: string; categoria: string };
 
@@ -73,7 +74,6 @@ export default function PianiPage() {
   const [filterPriorita, setFilterPriorita] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [generaMsg, setGeneraMsg] = useState("");
 
   // Sorting + col filters
@@ -108,7 +108,6 @@ export default function PianiPage() {
 
   async function loadPiani(p: number) {
     setLoading(true);
-    setError("");
     try {
       const params = new URLSearchParams({ page: String(p), limit: String(PAGE_LIMIT) });
       if (filterAsset) params.set("asset_id", filterAsset);
@@ -116,7 +115,7 @@ export default function PianiPage() {
       const d = await apiGet<PagedPiani>(`/piani?${params}`);
       setResult(d);
     } catch {
-      setError("Impossibile caricare il piano manutenzione.");
+      notify.error("Impossibile caricare il piano manutenzione.");
     } finally {
       setLoading(false);
     }
@@ -150,7 +149,7 @@ export default function PianiPage() {
       setResult((prev) => prev ? { ...prev, items: prev.items.map(a => a.id === id ? d : a) } : prev);
       setEditingId(null);
     } catch {
-      setError("Errore durante il salvataggio.");
+      notify.error("Errore durante il salvataggio.");
     } finally {
       setSaving(false);
     }
@@ -165,7 +164,7 @@ export default function PianiPage() {
       setGeneraMsg(`${d.created} ticket creati, ${d.skipped} già presenti.`);
       await loadPiani(currentPage);
     } catch {
-      setError("Errore durante la generazione ticket.");
+      notify.error("Errore durante la generazione ticket.");
     } finally {
       setGeneratingId(null);
     }
@@ -226,11 +225,6 @@ export default function PianiPage() {
         </div>
       </div>
 
-      {error && (
-        <div style={{ color: "#fecaca", background: "rgba(127,29,29,0.35)", border: "1px solid rgba(248,113,113,0.35)", padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
-          {error}
-        </div>
-      )}
 
       {generaMsg && (
         <div style={{ color: "#86efac", background: "rgba(22,163,74,0.15)", border: "1px solid rgba(34,197,94,0.3)", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 13 }}>

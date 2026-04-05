@@ -9,6 +9,11 @@ import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import { VERSION } from "./lib/version";
 import DemoBanner from "./components/DemoBanner";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const NAV = [
   {
@@ -270,7 +275,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   `;
 
   return (
-    <html lang="it" suppressHydrationWarning>
+    <html lang="it" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <head>
         <title>MaintAI — Centro di Controllo</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
@@ -284,6 +289,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <AppLayoutContent>{children}</AppLayoutContent>
         </AuthProvider>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border-strong)",
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-body)",
+            },
+          }}
+        />
       </body>
     </html>
   );

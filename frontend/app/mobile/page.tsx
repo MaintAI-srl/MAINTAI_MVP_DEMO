@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import Link from "next/link";
 import UploadAllegati from "../components/UploadAllegati";
@@ -23,7 +24,6 @@ export default function MobileHomePage() {
   const [tecnicoId, setTecnicoId] = useState<number | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [signingTicketId, setSigningTicketId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function MobileHomePage() {
         setTecnicoId(d.id);
       } catch (err) { 
         console.error(err);
-        setError("Impossibile caricare il profilo tecnico.");
+        notify.error("Impossibile caricare il profilo tecnico.");
         setLoading(false);
       }
     }
@@ -51,10 +51,9 @@ export default function MobileHomePage() {
       try {
         const d = await apiGet<any>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
         setTickets(d.items);
-        setError(null);
-      } catch (err) { 
+      } catch (err) {
         console.error(err);
-        setError("Errore nel caricamento degli interventi.");
+        notify.error("Errore nel caricamento degli interventi.");
       }
       setLoading(false);
     }
@@ -72,7 +71,6 @@ export default function MobileHomePage() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>⎯⎯  Caricamento interventi...</div>;
 
-  if (error) return <div style={{ padding: 40, textAlign: "center", color: "var(--red)" }}>⚠️ {error}</div>;
 
   const activeTickets = tickets.filter(t => t.stato === "In corso");
   const upcomingTickets = tickets.filter(t => t.stato === "Pianificato" || t.stato === "Aperto");

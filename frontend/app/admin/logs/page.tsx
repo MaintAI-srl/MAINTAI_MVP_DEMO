@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import { apiGet } from "../../lib/api";
+import { notify } from "@/lib/toast";
 import StatusToggle from "../../components/StatusToggle";
 
 export default function AdminLogsPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [lines, setLines] = useState(100);
   const [view, setView] = useState<"db" | "file">("db");
   const [level, setLevel] = useState("");
@@ -16,7 +16,6 @@ export default function AdminLogsPage() {
 
   const fetchLogs = async () => {
     setLoading(true);
-    setError("");
     try {
       if (view === "file") {
         const data: any = await apiGet(`/logs?lines=${lines}`);
@@ -41,7 +40,7 @@ export default function AdminLogsPage() {
         }
       }
     } catch (err: any) {
-      setError(err.message || "Errore durante il caricamento dei log");
+      notify.error(err.message || "Errore durante il caricamento dei log");
     } finally {
       setLoading(false);
     }
@@ -136,8 +135,6 @@ export default function AdminLogsPage() {
       }}>
         {loading && logs.length === 0 ? (
           <div style={{ color: "var(--text-muted)", textAlign: "center", marginTop: "40px" }}>Caricamento in corso...</div>
-        ) : error ? (
-          <div style={{ color: "var(--red)", textAlign: "center", marginTop: "40px" }}>{error}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {logs.map((log, i) => (

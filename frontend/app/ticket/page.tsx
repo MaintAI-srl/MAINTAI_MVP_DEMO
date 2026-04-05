@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
+import { notify } from "@/lib/toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 
 type Ticket = {
   id: number;
@@ -66,41 +71,8 @@ function nowDatetimeLocal(): string {
   return new Date().toISOString().slice(0, 16);
 }
 
-function Pagination({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
-  if (pages <= 1) return null;
-  return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 16, justifyContent: "center" }}>
-      <button onClick={() => onPage(page - 1)} disabled={page <= 1} style={btnPage}>‹</button>
-      {Array.from({ length: pages }, (_, i) => i + 1).filter(p => Math.abs(p - page) <= 2 || p === 1 || p === pages).map((p, idx, arr) => {
-        const prev = arr[idx - 1];
-        return [
-          prev && p - prev > 1 ? <span key={`e${p}`} style={{ color: "var(--text-muted)" }}>…</span> : null,
-          <button key={p} onClick={() => onPage(p)} style={{ ...btnPage, ...(p === page ? { background: "rgba(99,102,241,0.3)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.5)" } : {}) }}>{p}</button>
-        ];
-      })}
-      <button onClick={() => onPage(page + 1)} disabled={page >= pages} style={btnPage}>›</button>
-      <span style={{ color: "var(--text-muted)", fontSize: 12 }}>pag. {page}/{pages}</span>
-    </div>
-  );
-}
-
-const btnPage: React.CSSProperties = { padding: "4px 10px", background: "transparent", border: "1px solid rgba(75,85,99,0.5)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer", fontSize: 13 };
-const colFilterInput: React.CSSProperties = { marginTop: 3, width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(59,130,246,0.15)", borderRadius: 3, color: "var(--text-secondary)", padding: "2px 5px", fontSize: 10, outline: "none", fontFamily: "inherit" };
 const dtInput: React.CSSProperties = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
 const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", display: "block", marginBottom: 5 };
-
-function SortTh({ label, col, sortCol, sortDir, colFilters, onSort, onFilter }: { label: string; col: string; sortCol: string | null; sortDir: "asc" | "desc"; colFilters: Record<string, string>; onSort: (c: string) => void; onFilter: (c: string, v: string) => void }) {
-  const active = sortCol === col;
-  return (
-    <th>
-      <div onClick={() => onSort(col)} style={{ cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-        {label}
-        <span style={{ fontSize: 9, opacity: active ? 1 : 0.25, color: active ? "#818cf8" : "inherit" }}>{active && sortDir === "desc" ? "↓" : "↑"}</span>
-      </div>
-      <input value={colFilters[col] ?? ""} onChange={e => onFilter(col, e.target.value)} onClick={e => e.stopPropagation()} placeholder="…" style={colFilterInput} />
-    </th>
-  );
-}
 
 // ── Modale dettaglio ticket ───────────────────────────────────────────────
 
@@ -118,7 +90,6 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [executionStart, setExecutionStart] = useState(toDatetimeLocal(ticket.execution_start));
   const [executionFinish, setExecutionFinish] = useState(toDatetimeLocal(ticket.execution_finish));
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
   const [showAssetDialog, setShowAssetDialog] = useState(false);
 
   // Quando si cambia stato → auto-fill date suggerite
@@ -130,7 +101,6 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 
   async function doSave(assetStatoOverride?: string) {
     setSaving(true);
-    setErr("");
     try {
       const body: Record<string, string | null> = { stato };
       const as = assetStatoOverride !== undefined ? assetStatoOverride : assetStato;
@@ -147,8 +117,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       await apiPut(`/tickets/${ticket.id}`, body);
       onSaved();
       onClose();
-    } catch { 
-      setErr("Errore nel salvataggio."); 
+    } catch {
+      notify.error("Errore nel salvataggio.");
     } finally { setSaving(false); }
   }
 
@@ -161,31 +131,23 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
-      onClick={onClose}
+    <DialogContent
+      className="max-w-[540px] max-h-[90vh] overflow-y-auto"
+      style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.25)" }}
     >
-      <div
-        style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 16, padding: "28px 32px", width: "min(540px, 94vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)", marginBottom: 4 }}>
-              Ticket #{ticket.id}
-            </div>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>{ticket.titolo}</h2>
-            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ ...getPrioritaStyle(ticket.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{ticket.priorita}</span>
-              <span style={{ fontSize: 12, color: "var(--text-soft)" }}>{ticket.asset_name ?? "—"}</span>
-              <span style={{ fontSize: 12, color: "var(--text-soft)" }}>{ticket.fascia_oraria} · {ticket.durata_stimata_ore?.toFixed(1)}h</span>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer", lineHeight: 1, padding: "0 4px" }}>×</button>
+      <DialogHeader>
+        <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)", marginBottom: 4 }}>
+          Ticket #{ticket.id}
         </div>
-
-        {err && <div style={{ color: "#fecaca", background: "rgba(127,29,29,.35)", border: "1px solid rgba(248,113,113,.35)", padding: "8px 12px", borderRadius: 7, marginBottom: 16, fontSize: 12 }}>{err}</div>}
+        <DialogTitle style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>
+          {ticket.titolo}
+        </DialogTitle>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ ...getPrioritaStyle(ticket.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{ticket.priorita}</span>
+          <span style={{ fontSize: 12, color: "var(--text-soft)" }}>{ticket.asset_name ?? "—"}</span>
+          <span style={{ fontSize: 12, color: "var(--text-soft)" }}>{ticket.fascia_oraria} · {ticket.durata_stimata_ore?.toFixed(1)}h</span>
+        </div>
+      </DialogHeader>
 
         {/* Stato */}
         <div style={{ marginBottom: 20 }}>
@@ -258,77 +220,62 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           <UploadAllegati ticketId={ticket.id} />
         </div>
 
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(75,85,99,.5)", color: "var(--text-secondary)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>
-            Annulla
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            style={{ padding: "8px 20px", background: "linear-gradient(135deg,#6366f1,#4f46e5)", border: "none", color: "#fff", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Salvataggio…" : "Salva"}
-          </button>
-        </div>
-      </div>
+      <DialogFooter showCloseButton={false}>
+        <Button variant="outline" onClick={onClose}>Annulla</Button>
+        <Button onClick={handleSave} disabled={saving}
+          style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)" }}>
+          {saving ? "Salvataggio…" : "Salva"}
+        </Button>
+      </DialogFooter>
 
       {/* Sub-dialog: stato asset alla chiusura */}
-      {showAssetDialog && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
-          onClick={() => setShowAssetDialog(false)}
+      <Dialog open={showAssetDialog} onOpenChange={(o) => !o && setShowAssetDialog(false)}>
+        <DialogContent
+          showCloseButton={false}
+          className="max-w-[420px]"
+          style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)" }}
         >
-          <div
-            style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 14, padding: "28px 30px", width: "min(420px, 90vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.7)" }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)", marginBottom: 8 }}>Chiusura ticket #{ticket.id}</div>
-            <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>
+          <DialogHeader>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)" }}>Chiusura ticket #{ticket.id}</div>
+            <DialogTitle style={{ fontSize: 15, fontWeight: 800 }}>
               L&apos;asset torna in servizio?
-            </h3>
-            <p style={{ margin: "0 0 22px", fontSize: 12, color: "var(--text-soft)", lineHeight: 1.5 }}>
-              Seleziona lo stato dell&apos;asset <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong> dopo la chiusura del ticket.
+            </DialogTitle>
+            <p style={{ margin: 0, fontSize: 12, color: "var(--text-soft)", lineHeight: 1.5 }}>
+              Seleziona lo stato dell&apos;asset <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong> dopo la chiusura.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              <button
-                onClick={() => { setShowAssetDialog(false); doSave("service"); }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}
-              >
-                <span style={{ fontSize: 18 }}>✅</span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#34d399" }}>Sì, torna in servizio</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset operativo — stato impostato a Service</div>
-                </div>
-              </button>
-              <button
-                onClick={() => { setShowAssetDialog(false); doSave("stopped"); }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}
-              >
-                <span style={{ fontSize: 18 }}>⏸️</span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#fbbf24" }}>Fermo temporaneamente</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset in attesa — stato impostato a Stopped</div>
-                </div>
-              </button>
-              <button
-                onClick={() => { setShowAssetDialog(false); doSave("out of service"); }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}
-              >
-                <span style={{ fontSize: 18 }}>🔴</span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#f87171" }}>No, fuori servizio</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset non operativo — stato impostato a Out of Service</div>
-                </div>
-              </button>
-            </div>
-            <button
-              onClick={() => { setShowAssetDialog(false); doSave(""); }}
-              style={{ width: "100%", padding: "8px", background: "transparent", border: "1px solid rgba(75,85,99,.4)", color: "var(--text-muted)", borderRadius: 7, cursor: "pointer", fontSize: 12 }}
-            >
-              Non modificare stato asset
+          </DialogHeader>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={() => { setShowAssetDialog(false); doSave("service"); }}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 18 }}>✅</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#34d399" }}>Sì, torna in servizio</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset operativo — stato impostato a Service</div>
+              </div>
+            </button>
+            <button onClick={() => { setShowAssetDialog(false); doSave("stopped"); }}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 18 }}>⏸️</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#fbbf24" }}>Fermo temporaneamente</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset in attesa — stato impostato a Stopped</div>
+              </div>
+            </button>
+            <button onClick={() => { setShowAssetDialog(false); doSave("out of service"); }}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 9, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 18 }}>🔴</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#f87171" }}>No, fuori servizio</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset non operativo — stato impostato a Out of Service</div>
+              </div>
             </button>
           </div>
-        </div>
-      )}
-    </div>
+          <Button variant="outline" className="w-full" onClick={() => { setShowAssetDialog(false); doSave(""); }}>
+            Non modificare stato asset
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </DialogContent>
   );
 }
 
@@ -337,16 +284,13 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 export default function TicketPage() {
   const [result, setResult] = useState<PagedResult | null>(null);
   const [archivio, setArchivio] = useState<PagedResult | null>(null);
+  const [kanbanTickets, setKanbanTickets] = useState<KanbanTicket[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [tab, setTab] = useState<"attivi" | "archivio">("attivi");
+  const [tab, setTab] = useState<"attivi" | "archivio" | "kanban">("attivi");
   const [page, setPage] = useState(1);
   const [pageArch, setPageArch] = useState(1);
   const LIMIT = 25;
 
-  const [sortCol, setSortCol] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [colFilters, setColFilters] = useState<Record<string, string>>({});
-  function handleColFilter(col: string, val: string) { setColFilters(prev => ({ ...prev, [col]: val })); }
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number } | null>(null);
@@ -363,7 +307,6 @@ export default function TicketPage() {
   const [fascia, setFascia] = useState("diurna");
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedFinish, setPlannedFinish] = useState("");
-  const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -374,6 +317,7 @@ export default function TicketPage() {
 
   useEffect(() => { loadAttivi(page); }, [page]);
   useEffect(() => { if (tab === "archivio") loadArchivio(pageArch); }, [tab, pageArch]);
+  useEffect(() => { if (tab === "kanban") loadKanban(); }, [tab]);
 
   useEffect(() => {
     function handler() { setCtxMenu(null); }
@@ -385,7 +329,7 @@ export default function TicketPage() {
     try {
       const d = await apiGet<PagedResult>(`/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ATTIVI.join(",")}`);
       setResult(d);
-    } catch { setError("Errore caricamento ticket."); }
+    } catch { notify.error("Errore caricamento ticket."); }
   }
 
   async function loadArchivio(p: number) {
@@ -395,11 +339,18 @@ export default function TicketPage() {
     } catch {}
   }
 
+  async function loadKanban() {
+    try {
+      const d = await apiGet<PagedResult>(`/tickets?page=1&limit=200&stato=${STATI_ATTIVI.join(",")}`);
+      setKanbanTickets(d.items);
+    } catch { notify.error("Errore caricamento kanban."); }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!titolo.trim()) { setError("Il titolo del ticket è obbligatorio."); return; }
-    if (!assetId || assetId === 0) { setError("Seleziona un asset valido."); return; }
-    if (durataOre <= 0) { setError("La durata deve essere maggiore di zero."); return; }
+    if (!titolo.trim()) { notify.error("Il titolo del ticket è obbligatorio."); return; }
+    if (!assetId || assetId === 0) { notify.error("Seleziona un asset valido."); return; }
+    if (durataOre <= 0) { notify.error("La durata deve essere maggiore di zero."); return; }
     try {
       await apiPost("/tickets", {
         titolo, asset_id: Number(assetId), priorita, stato, tipo, asset_stato: assetStato || null,
@@ -408,9 +359,9 @@ export default function TicketPage() {
         planned_finish: plannedFinish || null,
       });
       setTitolo(""); setPriorita("Media"); setTipo("CM"); setAssetStato(""); setStato("Aperto"); setDurataOre(2); setFascia("diurna");
-      setPlannedStart(""); setPlannedFinish(""); setError("");
+      setPlannedStart(""); setPlannedFinish("");
       loadAttivi(1); setPage(1);
-    } catch { setError("Errore nel salvataggio ticket."); }
+    } catch { notify.error("Errore nel salvataggio ticket."); }
   }
 
   async function handleStatoChange(ticketId: number, nuovoStato: string) {
@@ -418,7 +369,7 @@ export default function TicketPage() {
     try {
       await apiPut(`/tickets/${ticketId}`, { stato: nuovoStato });
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-    } catch { setError("Errore aggiornamento stato."); }
+    } catch { notify.error("Errore aggiornamento stato."); }
     finally { setUpdatingId(null); }
   }
 
@@ -428,14 +379,7 @@ export default function TicketPage() {
       await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: nuovoStato });
       setSelectedIds(new Set());
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-    } catch { setError("Errore aggiornamento bulk."); }
-  }
-
-  function handleSort(col: string) {
-    if (sortCol === col) {
-      if (sortDir === "asc") setSortDir("desc");
-      else { setSortCol(null); setSortDir("asc"); }
-    } else { setSortCol(col); setSortDir("asc"); }
+    } catch { notify.error("Errore aggiornamento bulk."); }
   }
 
   function toggleSelect(id: number) {
@@ -463,98 +407,112 @@ export default function TicketPage() {
   const tickets = result?.items ?? [];
   const archivioItems = archivio?.items ?? [];
 
-  function applySort<T extends Record<string, unknown>>(data: T[]): T[] {
-    let result = data;
-    for (const [col, val] of Object.entries(colFilters)) {
-      if (!val.trim()) continue;
-      const t = val.toLowerCase();
-      result = result.filter(item => String(item[col] ?? "").toLowerCase().includes(t));
-    }
-    if (sortCol) {
-      result = [...result].sort((a, b) => {
-        const cmp = String(a[sortCol] ?? "").localeCompare(String(b[sortCol] ?? ""), "it", { numeric: true });
-        return sortDir === "asc" ? cmp : -cmp;
-      });
-    }
-    return result;
-  }
-
-  const sortedTickets = useMemo(() => applySort(tickets as Record<string, unknown>[]) as Ticket[], [tickets, sortCol, sortDir, colFilters]);
-  const sortedArchivio = useMemo(() => applySort(archivioItems as Record<string, unknown>[]) as Ticket[], [archivioItems, sortCol, sortDir, colFilters]);
-
-  function TicketRow({ t }: { t: Ticket }) {
-    return (
-      <tr
-        onClick={() => setDetailTicket(t)}
-        onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id }); }}
-        style={{ background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined, cursor: "pointer" }}
-      >
-        <td style={{ width: 36 }} onClick={e => e.stopPropagation()}>
+  const ticketColumns: ColumnDef<Ticket>[] = [
+    {
+      id: "select",
+      header: () => (
+        <input
+          type="checkbox"
+          checked={tickets.length > 0 && tickets.every(t => selectedIds.has(t.id))}
+          onChange={() => toggleSelectAll(tickets)}
+          style={{ cursor: "pointer", accentColor: "#818cf8" }}
+        />
+      ),
+      cell: ({ row }) => (
+        <div onClick={e => e.stopPropagation()}>
           <input
             type="checkbox"
-            checked={selectedIds.has(t.id)}
-            onChange={() => toggleSelect(t.id)}
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => toggleSelect(row.original.id)}
             style={{ cursor: "pointer", accentColor: "#818cf8" }}
           />
-        </td>
-        <td>{t.id}</td>
-        <td>{t.titolo}</td>
-        <td>{t.asset_name ?? "—"}</td>
-        <td>
-          <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.08)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.1)" }}>{t.tipo}</span>
-          {t.diagnosi_eseguita && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>AI</span>}
-          {t.parent_id && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)", fontWeight: 700 }}>↳#{t.parent_id}</span>}
-        </td>
-        <td><span style={{ ...getPrioritaStyle(t.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{t.priorita}</span></td>
-        <td onClick={e => e.stopPropagation()}>
-          <StatusToggle 
-            size="sm"
-            currentValue={t.stato}
-            onChange={(s) => handleStatoChange(t.id, s)}
-            disabled={updatingId === t.id}
-            options={[
-              { value: "Aperto", label: "Ape", color: "#60a5fa" },
-              { value: "Pianificato", label: "Pia", color: "#a78bfa" },
-              { value: "In corso", label: "Cor", color: "#fbbf24" },
-              { value: "Chiuso", label: "Chi", color: "#34d399" },
-            ]}
-          />
-        </td>
-        <td>{t.fascia_oraria}</td>
-        <td style={{ fontSize: 11, color: "var(--text-soft)" }}>
-          {t.planned_start ? new Date(t.planned_start).toLocaleDateString("it-IT") : "—"}
-        </td>
-        <td style={{ fontSize: 11, color: t.execution_finish ? "#34d399" : "var(--text-soft)" }}>
-          {t.execution_finish ? new Date(t.execution_finish).toLocaleDateString("it-IT") : "—"}
-        </td>
-        <td onClick={e => e.stopPropagation()}>
-          <a href={`/ticket/${t.id}/diagnostic`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
+        </div>
+      ),
+      enableSorting: false,
+    },
+    { accessorKey: "id", header: "ID" },
+    { accessorKey: "titolo", header: "Titolo" },
+    {
+      accessorKey: "asset_name",
+      header: "Asset",
+      cell: ({ getValue }) => getValue<string>() ?? "—",
+    },
+    {
+      accessorKey: "tipo",
+      header: "Tipo",
+      cell: ({ row }) => {
+        const t = row.original;
+        return (
+          <>
+            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.08)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.1)" }}>{t.tipo}</span>
+            {t.diagnosi_eseguita && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>AI</span>}
+            {t.parent_id && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)", fontWeight: 700 }}>↳#{t.parent_id}</span>}
+          </>
+        );
+      },
+    },
+    {
+      accessorKey: "priorita",
+      header: "Priorità",
+      cell: ({ getValue }) => {
+        const p = getValue<string>();
+        return <span style={{ ...getPrioritaStyle(p), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{p}</span>;
+      },
+    },
+    {
+      accessorKey: "stato",
+      header: "Stato",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const t = row.original;
+        return (
+          <div onClick={e => e.stopPropagation()}>
+            <StatusToggle
+              size="sm"
+              currentValue={t.stato}
+              onChange={(s) => handleStatoChange(t.id, s)}
+              disabled={updatingId === t.id}
+              options={[
+                { value: "Aperto", label: "Ape", color: "#60a5fa" },
+                { value: "Pianificato", label: "Pia", color: "#a78bfa" },
+                { value: "In corso", label: "Cor", color: "#fbbf24" },
+                { value: "Chiuso", label: "Chi", color: "#34d399" },
+              ]}
+            />
+          </div>
+        );
+      },
+    },
+    { accessorKey: "fascia_oraria", header: "Fascia" },
+    {
+      accessorKey: "planned_start",
+      header: "Pianificato",
+      cell: ({ getValue }) => {
+        const v = getValue<string | null>();
+        return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>{v ? new Date(v).toLocaleDateString("it-IT") : "—"}</span>;
+      },
+    },
+    {
+      accessorKey: "execution_finish",
+      header: "Eseguito",
+      cell: ({ getValue }) => {
+        const v = getValue<string | null>();
+        return <span style={{ fontSize: 11, color: v ? "#34d399" : "var(--text-soft)" }}>{v ? new Date(v).toLocaleDateString("it-IT") : "—"}</span>;
+      },
+    },
+    {
+      id: "azioni",
+      header: "Azioni",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div onClick={e => e.stopPropagation()}>
+          <a href={`/ticket/${row.original.id}/diagnostic`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
             DIAGNOSTICA →
           </a>
-        </td>
-      </tr>
-    );
-  }
-
-  const currentItems = tab === "attivi" ? sortedTickets : sortedArchivio;
-
-  const theadCols = (items: Ticket[]) => (
-    <tr>
-      <th style={{ width: 36 }}>
-        <input type="checkbox" checked={items.length > 0 && items.every(t => selectedIds.has(t.id))} onChange={() => toggleSelectAll(items)} style={{ cursor: "pointer", accentColor: "#818cf8" }} />
-      </th>
-      <SortTh label="ID" col="id" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Titolo" col="titolo" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Asset" col="asset_name" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Tipo" col="tipo" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Priorità" col="priorita" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Stato" col="stato" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Fascia" col="fascia_oraria" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Pianificato" col="planned_start" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <SortTh label="Eseguito" col="execution_finish" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
-      <th>Azioni</th>
-    </tr>
-  );
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div>
@@ -563,7 +521,6 @@ export default function TicketPage() {
         <p className="page-subtitle">Ticket operativi che alimentano il planner automatico.</p>
       </div>
 
-      {error && <div style={{ color: "#fecaca", background: "rgba(127,29,29,0.35)", border: "1px solid rgba(248,113,113,0.35)", padding: "12px 14px", borderRadius: 12, marginBottom: 16 }}>{error}</div>}
 
       <div className="dark-card card-body mb-8">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -663,27 +620,28 @@ export default function TicketPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {(["attivi", "archivio"] as const).map(t => (
+        {(["attivi", "archivio", "kanban"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: "6px 18px", borderRadius: 6, border: "1px solid", fontSize: 13, cursor: "pointer", background: tab === t ? "rgba(99,102,241,0.2)" : "transparent", color: tab === t ? "#818cf8" : "var(--text-muted)", borderColor: tab === t ? "rgba(99,102,241,0.5)" : "rgba(75,85,99,0.4)" }}>
-            {t === "attivi" ? `Attivi (${result?.total ?? 0})` : `Archivio (${archivio?.total ?? 0})`}
+            {t === "attivi" ? `Attivi (${result?.total ?? 0})` : t === "archivio" ? `Archivio (${archivio?.total ?? 0})` : "Kanban"}
           </button>
         ))}
       </div>
 
       {tab === "attivi" && (
-        <>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>{theadCols(tickets)}</thead>
-              <tbody>
-                {currentItems.length === 0
-                  ? <tr><td colSpan={11} style={{ textAlign: "center", opacity: 0.6 }}>Nessun ticket attivo</td></tr>
-                  : currentItems.map(t => <TicketRow key={t.id} t={t} />)}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={page} pages={result?.pages ?? 1} onPage={p => setPage(p)} />
-        </>
+        <DataTable
+          data={tickets}
+          columns={ticketColumns}
+          manualPagination
+          pageCount={result?.pages ?? 1}
+          pageIndex={page - 1}
+          onPageChange={(p) => setPage(p + 1)}
+          emptyMessage="Nessun ticket attivo"
+          onRowClick={(t) => setDetailTicket(t)}
+          getRowProps={(t) => ({
+            onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id }); },
+            style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined },
+          })}
+        />
       )}
 
       {tab === "archivio" && (
@@ -691,18 +649,25 @@ export default function TicketPage() {
           <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 12 }}>
             Ticket chiusi ed eliminati — visibili all&apos;AI per analisi storiche.
           </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>{theadCols(archivioItems)}</thead>
-              <tbody>
-                {sortedArchivio.length === 0
-                  ? <tr><td colSpan={11} style={{ textAlign: "center", opacity: 0.6 }}>Nessun ticket archiviato</td></tr>
-                  : sortedArchivio.map(t => <TicketRow key={t.id} t={t} />)}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={pageArch} pages={archivio?.pages ?? 1} onPage={p => setPageArch(p)} />
+          <DataTable
+            data={archivioItems}
+            columns={ticketColumns}
+            manualPagination
+            pageCount={archivio?.pages ?? 1}
+            pageIndex={pageArch - 1}
+            onPageChange={(p) => setPageArch(p + 1)}
+            emptyMessage="Nessun ticket archiviato"
+            onRowClick={(t) => setDetailTicket(t)}
+            getRowProps={(t) => ({
+              onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id }); },
+              style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined },
+            })}
+          />
         </>
+      )}
+
+      {tab === "kanban" && (
+        <KanbanBoard tickets={kanbanTickets} onRefresh={loadKanban} />
       )}
 
       {/* Context menu */}
@@ -733,13 +698,15 @@ export default function TicketPage() {
       )}
 
       {/* Detail modal */}
-      {detailTicket && (
-        <DetailModal
-          ticket={detailTicket}
-          onClose={() => setDetailTicket(null)}
-          onSaved={handleSaved}
-        />
-      )}
+      <Dialog open={!!detailTicket} onOpenChange={(o) => !o && setDetailTicket(null)}>
+        {detailTicket && (
+          <DetailModal
+            ticket={detailTicket}
+            onClose={() => setDetailTicket(null)}
+            onSaved={handleSaved}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }

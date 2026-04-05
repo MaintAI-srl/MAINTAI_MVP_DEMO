@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE, apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
+import { notify } from "@/lib/toast";
 
 type Impianto = { 
   id: number; 
@@ -18,7 +19,6 @@ export default function ImpiantiPage() {
   const [latitude, setLatitude] = useState<string>("");
   const [longitude, setLongitude] = useState<string>("");
   const [editId, setEditId] = useState<number | null>(null);
-  const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [modalDelId, setModalDelId] = useState<number | null>(null);
@@ -41,7 +41,6 @@ export default function ImpiantiPage() {
     setDescrizione(imp.descrizione);
     setLatitude(imp.latitude ? String(imp.latitude) : "");
     setLongitude(imp.longitude ? String(imp.longitude) : "");
-    setError("");
   }
 
   function cancelEdit() {
@@ -50,12 +49,11 @@ export default function ImpiantiPage() {
     setDescrizione(""); 
     setLatitude(""); 
     setLongitude(""); 
-    setError("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nome.trim()) { setError("Il nome impianto è obbligatorio."); return; }
+    if (!nome.trim()) { notify.error("Il nome impianto è obbligatorio."); return; }
     try {
       const path = editId !== null ? `/impianti/${editId}` : `/impianti`;
       const payload = { 
@@ -73,7 +71,7 @@ export default function ImpiantiPage() {
       await load();
       cancelEdit();
     } catch (err: any) {
-      setError(err.message || "Errore salvataggio.");
+      notify.error(err.message || "Errore salvataggio.");
     } finally { setSaving(false); }
   }
 
@@ -110,7 +108,6 @@ export default function ImpiantiPage() {
           <code style={{ fontFamily: "monospace", fontSize: 12 }}>python -m uvicorn backend.main:app --reload</code>
         </div>
       )}
-      {error && <div style={{ color: "#fecaca", background: "rgba(127,29,29,.35)", border: "1px solid rgba(248,113,113,.35)", padding: "10px 14px", borderRadius: 8 }}>{error}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20, alignItems: "start" }}>
         {/* Form */}

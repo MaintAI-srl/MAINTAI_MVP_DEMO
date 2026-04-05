@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
 import StatusToggle from "../components/StatusToggle";
+import { DatePicker } from "@/components/ui/date-picker";
 import styles from "./scheduler.module.css";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -897,12 +898,7 @@ export default function SchedulerPage() {
                           </label>
                           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "#6ee7b7" }}>
                             Data Pianificata
-                            <input
-                              type="date"
-                              value={editDate}
-                              onChange={(e) => setEditDate(e.target.value)}
-                              style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.3)", borderRadius: 6, color: "#6ee7b7", padding: "5px 8px", fontSize: ".85rem" }}
-                            />
+                            <DatePicker value={editDate} onChange={setEditDate} placeholder="Seleziona data" />
                           </label>
                           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", color: "#6ee7b7" }}>
                             Ora Inizio

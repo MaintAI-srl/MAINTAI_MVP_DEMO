@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { API_BASE } from "../lib/api";
+import { notify } from "@/lib/toast";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   
   const auth = useAuth();
@@ -16,7 +16,6 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
 
     try {
@@ -43,7 +42,7 @@ export default function LoginPage() {
         router.push("/dashboard");
       }
     } catch (err: any) {
-      setError(err.message || "Errore durante il login");
+      notify.error(err.message || "Errore durante il login");
     } finally {
       setLoading(false);
     }
@@ -77,20 +76,6 @@ export default function LoginPage() {
           <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "14px" }}>Accesso Operatori</p>
         </div>
 
-        {error && (
-          <div style={{
-            background: "rgba(220, 38, 38, 0.1)",
-            border: "1px solid rgba(220, 38, 38, 0.3)",
-            color: "#fca5a5",
-            padding: "12px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            fontSize: "13px",
-            textAlign: "center"
-          }}>
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div>

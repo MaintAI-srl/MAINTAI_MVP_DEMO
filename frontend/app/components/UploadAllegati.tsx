@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE, apiGet, apiUpload } from "../lib/api";
+import { notify } from "@/lib/toast";
 
 type Allegato = {
   id: number;
@@ -19,7 +20,6 @@ type Props = {
 export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
   const [allegati, setAllegati] = useState<Allegato[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     loadAllegati();
@@ -39,7 +39,6 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
     if (!file) return;
 
     setUploading(true);
-    setError("");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -49,7 +48,7 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
       await loadAllegati();
       if (onUploadSuccess) onUploadSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore nel caricamento");
+      notify.error(err instanceof Error ? err.message : "Errore nel caricamento");
     } finally {
       setUploading(false);
       // Reset input
@@ -92,7 +91,6 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
         </label>
       </div>
 
-      {error && <div style={{ fontSize: 11, color: "#f87171", marginBottom: 8 }}>{error}</div>}
 
       {/* Galleria Allegati */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 8 }}>

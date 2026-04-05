@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import styles from "./manuali.module.css";
 import { apiGet, apiPatch, apiUpload } from "../lib/api";
+import { notify } from "@/lib/toast";
 
 type Asset = { id: number; name: string; categoria: string };
 
@@ -99,7 +100,6 @@ export default function ManualiPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingUpload, setLoadingUpload] = useState(false);
   const [loadingPiano, setLoadingPiano] = useState(false);
-  const [error, setError] = useState("");
 
   async function loadManuali() {
     setLoadingList(true);
@@ -107,7 +107,7 @@ export default function ManualiPage() {
       const data = await apiGet<Manuale[]>("/manuali");
       setManuali(data);
     } catch {
-      setError("Impossibile caricare l'elenco manuali.");
+      notify.error("Impossibile caricare l'elenco manuali.");
     } finally {
       setLoadingList(false);
     }
@@ -125,14 +125,13 @@ export default function ManualiPage() {
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
-    if (!uploadFile) { setError("Seleziona un file PDF."); return; }
+    if (!uploadFile) { notify.error("Seleziona un file PDF."); return; }
     if (assetMode === "new" && !newAssetName.trim()) {
-      setError("Inserisci il nome del nuovo asset.");
+      notify.error("Inserisci il nome del nuovo asset.");
       return;
     }
 
     setLoadingUpload(true);
-    setError("");
     setUploadResult(null);
 
     const formData = new FormData();
@@ -162,7 +161,7 @@ export default function ManualiPage() {
         setNewAssetName("");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore durante l'upload.");
+      notify.error(err instanceof Error ? err.message : "Errore durante l'upload.");
     } finally {
       setLoadingUpload(false);
     }
@@ -173,7 +172,7 @@ export default function ManualiPage() {
       await apiPatch(`/manuali/${manualeId}`, { stato: nuovoStato });
       setManuali(prev => prev.map(m => m.id === manualeId ? { ...m, stato: nuovoStato } : m));
     } catch {
-      setError("Errore aggiornamento stato manuale.");
+      notify.error("Errore aggiornamento stato manuale.");
     }
   }
 
@@ -184,7 +183,7 @@ export default function ManualiPage() {
       const data = await apiGet<PianoManuale>(`/manuali/${manualeId}/piano`);
       setSelectedManuale(data);
     } catch {
-      setError("Impossibile caricare il piano manutenzione.");
+      notify.error("Impossibile caricare il piano manutenzione.");
     } finally {
       setLoadingPiano(false);
     }
@@ -217,11 +216,6 @@ export default function ManualiPage() {
         </p>
       </div>
 
-      {error && (
-        <div style={{ color: "#fecaca", background: "rgba(127,29,29,0.35)", border: "1px solid rgba(248,113,113,0.35)", padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
-          {error}
-        </div>
-      )}
 
       {/* Upload */}
       <div className="dark-card card-body" style={{ marginBottom: 24 }}>
