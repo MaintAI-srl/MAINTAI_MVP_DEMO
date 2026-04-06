@@ -47,14 +47,25 @@ except ImportError as e:
     raise e
 
 async def email_poller_task():
-    """Task in background che preleva le email IMAP per generare i ticket ogni 5 minuti."""
+    """Task in background che preleva le email IMAP per generare i ticket ogni 5 minuti.
+
+    In caso di errori consecutivi usa backoff esponenziale (max 30 min) per evitare
+    di saturare il log e spammare server IMAP instabili.
+    """
+    _POLL_INTERVAL = 300  # 5 minuti nominali
+    _MAX_BACKOFF = 1800   # 30 minuti al massimo
+    consecutive_errors = 0
     while True:
         try:
-            # Eseguiamo la funzione in un thread per non bloccare l'event loop di FastAPI, dato che imap-tools è sincrono.
             await asyncio.to_thread(check_all_mailboxes)
+            consecutive_errors = 0
         except Exception as e:
-            print(f"Errore generale nel task email poller: {e}")
-        await asyncio.sleep(300) # Polling ogni 5 minuti
+            consecutive_errors += 1
+            backoff = min(_POLL_INTERVAL * (2 ** (consecutive_errors - 1)), _MAX_BACKOFF)
+            print(f"Errore email poller (tentativo #{consecutive_errors}): {e} — prossimo tentativo tra {backoff}s")
+            await asyncio.sleep(backoff)
+            continue
+        await asyncio.sleep(_POLL_INTERVAL)
 
 
 _DEFAULT_ORIGINS = [
@@ -123,6 +134,8 @@ def _ensure_columns() -> None:
         ("generated_plans", "deauthorization_reason",  "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorization_reason VARCHAR"),
         # scadenza: max planned_date dei workorder, calcolata alla conferma
         ("generated_plans", "scadenza",                "ALTER TABLE generated_plans ADD COLUMN {ifne}scadenza TIMESTAMP"),
+        # tecnici_assenze — isolamento multi-tenant
+        ("tecnici_assenze", "tenant_id",               "ALTER TABLE tecnici_assenze ADD COLUMN {ifne}tenant_id INTEGER"),
     ]
 
     # system_logs — tabella intera
@@ -258,14 +271,16 @@ app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 
+_origins = _load_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── Routers legacy (senza prefisso) — mantenuti per retrocompatibilità frontend ──
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
@@ -285,6 +300,17 @@ app.include_router(problem_analysis_router)
 app.include_router(tenants_router)
 app.include_router(email_config_router)
 app.include_router(planning_router)
+
+# ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
+# Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
+# Entrambi i path restano attivi finché la migrazione non è completa.
+_V1_ROUTERS = [
+    auth_router, dashboard_router, assets_router, tecnici_router, tickets_router,
+    scadenze_router, manuali_router, diagnostic_router, piani_router, impianti_router,
+    siti_router, problem_analysis_router, planning_router,
+]
+for _r in _V1_ROUTERS:
+    app.include_router(_r, prefix="/v1")
 
 # Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
 if not os.getenv("SUPABASE_URL"):

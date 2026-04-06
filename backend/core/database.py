@@ -23,7 +23,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", _SQLITE_DEFAULT)
 # Argomenti extra per la connessione (SQLite richiede check_same_thread=False)
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+# Pool parameters: ottimizzati per PostgreSQL su Render (concorrenza + stabilità)
+# SQLite usa StaticPool implicito → i parametri pool sono ignorati
+_pool_kwargs: dict = {}
+if not DATABASE_URL.startswith("sqlite"):
+    _pool_kwargs = {
+        "pool_size": 5,
+        "max_overflow": 10,
+        "pool_pre_ping": True,   # verifica connessioni stale prima dell'uso
+        "pool_recycle": 1800,    # ricicla connessioni ogni 30 min (evita timeout PostgreSQL)
+    }
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args, **_pool_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):

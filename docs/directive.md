@@ -384,6 +384,9 @@ Non fare mai queste cose:
 - omettere `tenant_id` su endpoint che fanno join su Asset/AttivitaManutenzione — il filtro va sul join root
 - lasciare catch vuoti (`catch {}` o `.catch(() => {})`) nel frontend — mostrare sempre un toast all'utente
 - fare `new Date(str).getTime()` senza validare che il risultato non sia `NaN` — aggiungere `if (isNaN(ts)) return "—"`
+- usare `allow_origins=["*"]` in produzione — leggere sempre da `CORS_ORIGINS` env var tramite `_load_origins()`
+- aggiungere nuove colonne al DB senza creare una migrazione Alembic — ogni nuova colonna deve avere sia la migrazione sia il fallback in `_ensure_columns()`
+- creare engine PostgreSQL senza `pool_pre_ping=True` e `pool_recycle` — le connessioni stale causano errori silenziosi dopo idle prolungato
 
 ---
 
