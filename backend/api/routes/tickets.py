@@ -2,6 +2,7 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel as PydanticModel
 
@@ -51,6 +52,51 @@ def get_tickets(
 ):
     stati = [s.strip() for s in stato.split(",")] if stato else None
     return ticket_repository.get_paginated(db, tenant_id=tenant_id, page=page, limit=limit, stati=stati, tecnico_id=tecnico_id)
+
+
+@router.get("/tickets/durata-media")
+def get_durata_media(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Restituisce la durata media stimata dei ticket chiusi raggruppata per tipo e
+    (opzionalmente) per asset. Utile per calibrare le stime future degli interventi.
+
+    Usa solo `durata_stimata_ore` dei ticket Chiusi — è il proxy disponibile
+    finché non esiste un campo `durata_reale_ore` nel modello dati.
+    Workaround esplicito: aggiornare con campo reale quando disponibile.
+    """
+    rows = (
+        db.query(
+            Ticket.tipo,
+            Ticket.asset_id,
+            func.avg(Ticket.durata_stimata_ore).label("durata_media"),
+            func.count(Ticket.id).label("campione"),
+        )
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato == "Chiuso",
+            Ticket.durata_stimata_ore.isnot(None),
+            Ticket.deleted_at.is_(None),
+        )
+        .group_by(Ticket.tipo, Ticket.asset_id)
+        .order_by(Ticket.tipo, Ticket.asset_id)
+        .limit(200)
+        .all()
+    )
+
+    return {
+        "stime": [
+            {
+                "tipo": row.tipo or "CM",
+                "asset_id": row.asset_id,
+                "durata_media_ore": round(row.durata_media, 2) if row.durata_media else None,
+                "campione": row.campione,
+            }
+            for row in rows
+        ]
+    }
 
 
 @router.get("/tickets/{ticket_id}")

@@ -143,6 +143,39 @@ def _competenza_richiesta(ticket: PlannerTicket) -> str:
     return ticket.tipo.strip().upper()
 
 
+def _skill_covers(
+    required: str,
+    tech_skills: List[str],
+    hierarchy: Dict[str, List[str]] | None = None,
+) -> bool:
+    """
+    Verifica se le competenze del tecnico coprono la competenza richiesta.
+
+    Supporta gerarchia opzionale: se `hierarchy` è fornita, una competenza
+    "superiore" nel tecnico può coprire una richiesta "inferiore".
+    Esempio: hierarchy={"SENIOR_MECH": ["MECCANICO"]} → un tecnico
+    SENIOR_MECH soddisfa un ticket che richiede MECCANICO.
+
+    Senza gerarchia (default) il check è una semplice inclusione.
+    Workaround esplicito: la gerarchia reale sarà configurabile dal
+    responsabile manutenzione in una futura versione con campo DB dedicato.
+    """
+    req = required.strip().upper()
+    normalized = [s.strip().upper() for s in tech_skills]
+
+    if req in normalized:
+        return True
+
+    if hierarchy:
+        # Cerca se una competenza del tecnico copre req tramite la gerarchia
+        for tech_skill in normalized:
+            covered = hierarchy.get(tech_skill, [])
+            if req in [c.upper() for c in covered]:
+                return True
+
+    return False
+
+
 def _has_limitation_mismatch(ticket_lims: List[str], tecnico_lims: List[str]) -> bool:
     """
     Verifica se c'è un conflitto esplicito tra le limitazioni del ticket e del tecnico.
@@ -185,7 +218,21 @@ class PlannerEngine:
         existing_assignments: List[PlannerAssignment],
         today: date,
         horizon_days: int = 7,
+        skill_hierarchy: Dict[str, List[str]] | None = None,
+        slot_minutes: int | None = None,
     ):
+        # slot_minutes: predisposizione futura a tracking slot (es. 30 min).
+        # Attualmente non utilizzato — la capacità è gestita a giornata.
+        # Non rimuovere: serve per la futura evoluzione senza refactor globale.
+        if slot_minutes is not None:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "PlannerEngine: slot_minutes=%d ricevuto ma non ancora implementato — "
+                "la capacità resta gestita a giornata (futura evoluzione).",
+                slot_minutes,
+            )
+        self.slot_minutes = slot_minutes
+        self.skill_hierarchy = skill_hierarchy
         self.tecnici = tecnici
         self.tickets = tickets
         self.existing_assignments = existing_assignments
@@ -269,10 +316,9 @@ class PlannerEngine:
             days_in_window += 1
 
             for tecnico in self.tecnici_attivi:
-                # HARD: skill check
+                # HARD: skill check (con supporto gerarchia opzionale)
                 comp = _competenza_richiesta(ticket)
-                tec_comp = [c.strip().upper() for c in tecnico.competenze]
-                if comp not in tec_comp:
+                if not _skill_covers(comp, tecnico.competenze, self.skill_hierarchy):
                     failure_reasons.add(REASON_NO_SKILL)
                     continue
 

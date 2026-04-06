@@ -44,6 +44,8 @@ class TicketRepository:
         query = db.query(Ticket).options(joinedload(Ticket.asset))
         if tenant_id is not None:
             query = query.filter(Ticket.tenant_id == tenant_id)
+        # Soft deletion: escludi i ticket cancellati logicamente
+        query = query.filter(Ticket.deleted_at.is_(None))
         if stati:
             query = query.filter(Ticket.stato.in_(stati))
         if tecnico_id:

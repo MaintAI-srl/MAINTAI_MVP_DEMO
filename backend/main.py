@@ -141,6 +141,10 @@ def _ensure_columns() -> None:
         ("tecnici_assenze", "tenant_id",               "ALTER TABLE tecnici_assenze ADD COLUMN {ifne}tenant_id INTEGER"),
         # ticket — audit trail
         ("ticket", "created_by",                       "ALTER TABLE ticket ADD COLUMN {ifne}created_by VARCHAR"),
+        # ticket — soft deletion
+        ("ticket", "deleted_at",                       "ALTER TABLE ticket ADD COLUMN {ifne}deleted_at TIMESTAMP"),
+        # ticket — multi-tecnico (numero tecnici richiesti, default 1)
+        ("ticket", "tecnici_richiesti",                "ALTER TABLE ticket ADD COLUMN {ifne}tecnici_richiesti INTEGER DEFAULT 1"),
     ]
 
     # system_logs — tabella intera

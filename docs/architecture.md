@@ -513,6 +513,65 @@ def create_ticket(..., payload: dict = Depends(get_current_user_payload)):
         db.commit()
 ```
 
+### Pattern: Soft Deletion
+```python
+# Aggiungere al modello ORM
+deleted_at = Column(DateTime, nullable=True)
+
+# Filtrare sempre nelle query lista
+query = query.filter(Ticket.deleted_at.is_(None))
+
+# Ogni nuova colonna → _ensure_columns() + migrazione Alembic
+("ticket", "deleted_at", "ALTER TABLE ticket ADD COLUMN {ifne}deleted_at TIMESTAMP"),
+```
+
+### Pattern: Indice unico parziale multi-tenant (PostgreSQL)
+```python
+# Solo in Alembic upgrade(), protetto da dialect check
+if bind.dialect.name == 'postgresql':
+    op.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_asset_tenant_codice
+        ON asset (tenant_id, codice)
+        WHERE codice IS NOT NULL
+    """)
+```
+
+### Pattern: Cache in-memoria con TTL
+```python
+_CACHE: Dict[Tuple[int, int], Tuple[float, Dict]] = {}
+_TTL = 300  # secondi
+
+def my_expensive_function(tenant_id: int, days: int) -> Dict:
+    cache_key = (tenant_id, days)
+    cached = _CACHE.get(cache_key)
+    if cached and time.monotonic() - cached[0] < _TTL:
+        return cached[1]
+    result = ...  # computazione reale
+    _CACHE[cache_key] = (time.monotonic(), result)
+    return result
+```
+
+### Pattern: Gerarchia Skill nel Planner
+```python
+# skill_hierarchy: Dict[str, List[str]] — competenza superiore → competenze coperte
+engine = PlannerEngine(
+    ...,
+    skill_hierarchy={"SENIOR_MECH": ["MECCANICO", "SALDATORE"]},
+)
+# Il check inline usa _skill_covers(req, tecnico.competenze, self.skill_hierarchy)
+```
+
+### Pattern: Endpoint statico prima del parametrico
+```python
+# CORRETTO: /tickets/durata-media definito PRIMA di /tickets/{ticket_id}
+# altrimenti FastAPI interpreta "durata-media" come valore di ticket_id
+@router.get("/tickets/durata-media")
+def get_durata_media(...): ...
+
+@router.get("/tickets/{ticket_id}")
+def get_ticket(...): ...
+```
+
 ### Pattern: N+1 su lista con aggregazione
 ```python
 # Corretto: 1+1 query per N manuali

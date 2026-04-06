@@ -385,6 +385,10 @@ Non fare mai queste cose:
 - lasciare catch vuoti (`catch {}` o `.catch(() => {})`) nel frontend — mostrare sempre un toast all'utente
 - fare `new Date(str).getTime()` senza validare che il risultato non sia `NaN` — aggiungere `if (isNaN(ts)) return "—"`
 - usare `allow_origins=["*"]` in produzione — leggere sempre da `CORS_ORIGINS` env var tramite `_load_origins()`
+- dimenticare il filtro `Ticket.deleted_at.is_(None)` nelle query lista — i soft-deleted devono essere invisibili
+- definire un endpoint statico DOPO uno parametrico con lo stesso prefisso (es. `/tickets/durata-media` dopo `/tickets/{id}`) — FastAPI lo intercetterebbe come parametro
+- omettere il bypass cache quando il contesto è personalizzato (asset_ids specificato) — cache errata causa cross-contesto data
+- usare gerarchia skill hardcoded inline — passarla come parametro `skill_hierarchy` al costruttore di `PlannerEngine`
 - aggiungere nuove colonne al DB senza creare una migrazione Alembic — ogni nuova colonna deve avere sia la migrazione sia il fallback in `_ensure_columns()`
 - creare engine PostgreSQL senza `pool_pre_ping=True` e `pool_recycle` — le connessioni stale causano errori silenziosi dopo idle prolungato
 - aggiungere endpoint AI senza rate limiting — usare `@limiter.limit("N/minute")` da `backend/core/rate_limiter.py`

@@ -99,3 +99,25 @@ Questo documento riassume le 35 proposte di miglioramento per l'evoluzione della
 9. **n.9 Indici Compositi**: Alembic `20260406002_add_composite_tenant_indexes.py` — 5 indici su `(tenant_id, stato/priorita/area/status)` per ticket, asset, generated_plans, tecnici.
 
 10. **n.10 Audit Trails**: Campo `ticket.created_by VARCHAR` aggiunto al modello ORM, ad `_ensure_columns()` e a migrazione Alembic `20260406003`. Popolato automaticamente dalla `POST /tickets` con l'username dal JWT.
+
+### Ciclo v2.0.8 (2026-04-06) — miglioramenti.md n.11-20
+
+11. **n.11 Soft Deletion**: Campo `ticket.deleted_at TIMESTAMP` aggiunto al modello ORM, a `_ensure_columns()` e a migrazione Alembic `20260406004`. `ticket_repository.get_paginated()` filtra automaticamente i record cancellati logicamente con `Ticket.deleted_at.is_(None)`.
+
+12. **n.12 Constraint Unicità Multi-tenant**: Migrazione Alembic `20260406004` aggiunge indice unico parziale `uq_asset_tenant_codice` su `(tenant_id, codice) WHERE codice IS NOT NULL` (solo PostgreSQL). Garantisce unicità codice per tenant senza bloccare asset senza codice.
+
+13. **n.13 Pydantic v2**: ✅ Già completamente migrato — tutti i modelli usano `model_config = ConfigDict(...)` senza `class Config` v1. Nessun intervento necessario.
+
+14. **n.14 Supporto Multi-Tecnico**: Campo `ticket.tecnici_richiesti INTEGER DEFAULT 1` aggiunto al modello ORM, a `_ensure_columns()` e a migrazione Alembic `20260406004`. Il dataclass `PlannerTicket.tecnici_richiesti=1` era già presente nel motore deterministico.
+
+15. **n.15 Gerarchia Skill**: Funzione `_skill_covers(required, tech_skills, hierarchy)` estratta dal check inline nel planner. Supporta gerarchia opzionale `Dict[str, List[str]]` passata come `skill_hierarchy` al costruttore di `PlannerEngine`. Il check inline è ora delegato a `_skill_covers(comp, tecnico.competenze, self.skill_hierarchy)`.
+
+16. **n.16 Tracking Slot (30 min)**: Parametro `slot_minutes: int | None = None` aggiunto al costruttore di `PlannerEngine`. Non ancora implementato — il sistema registra un warning e gestisce la capacità a giornata come prima. Predisposizione senza refactor globale.
+
+17. **n.17 Reason Code Gerarchici**: ✅ Già implementato — `REASON_PRIORITY = [NO_SKILL, LIMITATION_MISMATCH, TIME_WINDOW_CONFLICT, MULTI_TECH_NOT_FOUND, CAPACITY_EXCEEDED, NO_AVAILABILITY]` e `_pick_reason()` già presenti nel motore. Nessun intervento necessario.
+
+18. **n.18 Cache Context AI**: Cache in-memoria con TTL 5 minuti in `ai_planner_service.py` — dizionario globale `_CTX_CACHE: Dict[Tuple[int, int], Tuple[float, Dict]]`. Hit/miss loggati. Bypass automatico quando `asset_ids` è specificato (contesto personalizzato non globalizzabile).
+
+19. **n.19 Chatbot Manuali (RAG)**: Endpoint `POST /manuali/cerca` aggiunto in `manuali.py`. Ricerca keyword-search via SQL `ILIKE` su `nome_file` e `testo_raw`. Restituisce snippet di 160 caratteri attorno alla keyword trovata. Base per futura integrazione vettoriale RAG.
+
+20. **n.20 Stima Durata via ML**: Endpoint `GET /tickets/durata-media` aggiunto in `tickets.py`. Aggrega `AVG(durata_stimata_ore)` dei ticket Chiusi raggruppata per `(tipo, asset_id)` con dimensione campione. Usa `durata_stimata_ore` come proxy (workaround esplicito fino a campo `durata_reale_ore` futuro).

@@ -222,6 +222,64 @@ def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get
     return {"id": manuale.id, "nome": manuale.nome_file, "version": manuale.version or 1, "stato": manuale.stato or "attivo"}
 
 
+class RicercaManualeRequest(PydanticModel):
+    query: str
+
+
+@router.post("/manuali/cerca")
+def cerca_manuali(
+    data: RicercaManualeRequest,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Ricerca full-text sui manuali caricati: cerca la query nel nome file
+    e nel testo grezzo estratto dal PDF (testo_raw).
+
+    Base per futura integrazione RAG — al momento usa ILIKE SQL per
+    un'esperienza keyword-search immediata senza infrastruttura vettoriale.
+    Limite 20 risultati per risposta lean.
+    """
+    q = data.query.strip()
+    if not q:
+        raise AppError(status_code=400, message="Query non può essere vuota.")
+
+    pattern = f"%{q}%"
+
+    # Cerca nei nomi file + nel testo raw estratto dal PDF
+    manuali = (
+        db.query(Manuale)
+        .filter(
+            Manuale.tenant_id == tenant_id,
+            (Manuale.nome_file.ilike(pattern)) | (Manuale.testo_raw.ilike(pattern)),
+        )
+        .order_by(Manuale.id.desc())
+        .limit(20)
+        .all()
+    )
+
+    results = []
+    for m in manuali:
+        # Estrai snippet del contesto attorno alla keyword nel testo_raw
+        snippet = ""
+        if m.testo_raw:
+            testo_lower = m.testo_raw.lower()
+            idx = testo_lower.find(q.lower())
+            if idx >= 0:
+                start = max(0, idx - 80)
+                end = min(len(m.testo_raw), idx + 160)
+                snippet = m.testo_raw[start:end].replace("\n", " ").strip()
+
+        results.append({
+            "id": m.id,
+            "nome": m.nome_file,
+            "pagine": m.pagine or 0,
+            "snippet": snippet,
+        })
+
+    return {"query": q, "totale": len(results), "risultati": results}
+
+
 @router.get("/manuali/{manuale_id}/piano")
 def get_piano_manuale(manuale_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     manuale = db.query(Manuale).filter(Manuale.id == manuale_id, Manuale.tenant_id == tenant_id).first()

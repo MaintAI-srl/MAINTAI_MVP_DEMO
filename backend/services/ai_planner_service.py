@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import json
 import logging
+import time as _time
 from datetime import date, datetime, timedelta, time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,13 @@ from backend.services.weather_service import get_weather_forecast
 from backend.db.modelli import Ticket, Tecnico, Asset
 
 logger = logging.getLogger(__name__)
+
+# ── Cache in-memoria per collect_planning_context ────────────────────────────
+# Riduce latenza e consumo token per AI planning su tenant con dati statici.
+# TTL di 5 minuti: sufficiente a coprire retry rapidi senza esporre dati stale.
+# Chiave: (tenant_id, days) → (timestamp, result)
+_CTX_CACHE: Dict[Tuple[int, int], Tuple[float, Dict[str, Any]]] = {}
+_CTX_TTL_SECONDS = 300  # 5 minuti
 
 MARCO_SYSTEM_PROMPT = """Sei MARCO, un Planner Senior di Manutenzione Industriale con 20 anni di esperienza
 in impianti energetici, portuali e manifatturieri. Pianifichi interventi con la
@@ -188,7 +196,21 @@ async def collect_planning_context(
     """
     Raccoglie tutto il contesto necessario per la pianificazione AI:
     ticket aperti/pianificati, tecnici, asset, previsioni meteo.
+
+    Risultato cachato in memoria per 5 minuti per tenant+days.
+    Il cache si bypassa automaticamente quando asset_ids è specificato
+    (contesto filtrato per asset specifici, non globalizzabile).
     """
+    # Cache bypass se asset_ids è specificato (query personalizzata non globalizzabile)
+    cache_key: Tuple[int, int] | None = (tenant_id, days) if tenant_id and not asset_ids else None
+    if cache_key is not None:
+        cached = _CTX_CACHE.get(cache_key)
+        if cached is not None:
+            ts, result = cached
+            if _time.monotonic() - ts < _CTX_TTL_SECONDS:
+                logger.info("collect_planning_context: cache HIT (tenant=%d, days=%d)", tenant_id, days)
+                return result
+
     today = date.today()
     horizon_dates = [today + timedelta(days=i) for i in range(days)]
 
@@ -315,12 +337,19 @@ async def collect_planning_context(
             "orario_fine": tc.orario_fine or "17:00",
         })
 
-    return {
+    result = {
         "horizon_dates": [str(d) for d in horizon_dates],
         "tickets": tickets_data,
         "tecnici": tecnici_data,
         "weather_available": len(location_weather) > 0,
     }
+
+    # Salva in cache se applicabile
+    if cache_key is not None:
+        _CTX_CACHE[cache_key] = (_time.monotonic(), result)
+        logger.info("collect_planning_context: cache SET (tenant=%d, days=%d)", tenant_id, days)
+
+    return result
 
 
 async def generate_ai_plan(
