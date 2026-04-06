@@ -3,7 +3,7 @@ Router Planning — generazione, conferma, deautorizzazione e storico piani manu
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -34,6 +34,14 @@ class GeneratePlanRequest(BaseModel):
 
 class DeauthorizeRequest(BaseModel):
     reason: str
+
+
+class MoveTicketRequest(BaseModel):
+    ticket_id: int
+    new_date: Optional[str] = None         # "YYYY-MM-DD" — None = mantieni data corrente
+    new_start_hour: Optional[int] = None   # 0-23 — None = mantieni orario corrente
+    new_start_minute: Optional[int] = None # 0 o 30 — None = mantieni orario corrente
+    tecnico_id: Optional[int] = None       # None = mantieni tecnico corrente
 
 
 def _wo_count(plan: GeneratedPlan) -> int:
@@ -252,6 +260,159 @@ async def generate_plan(
         result["previous_efficiency_score"] = previous_score
         result["score_improved"] = (new_score or 0) >= previous_score
     return result
+
+
+@router.post("/move-ticket")
+def move_ticket_in_plan(
+    data: MoveTicketRequest,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Sposta un ticket pianificato a una nuova data/ora (e/o nuovo tecnico).
+
+    Chain-shift: se il ticket spostato si sovrappone ad altri ticket dello stesso
+    tecnico nella stessa giornata, questi vengono traslati in avanti automaticamente.
+
+    Aggiorna anche il plan_json dell'ultimo piano (draft o confirmed) per mantenere
+    la coerenza tra DB ticket e piano visualizzato.
+
+    Multi-tenancy: opera solo su ticket del tenant corrente.
+    """
+    ticket = db.query(Ticket).filter(
+        Ticket.id == data.ticket_id,
+        Ticket.tenant_id == tenant_id,
+        Ticket.deleted_at.is_(None),
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail=f"Ticket {data.ticket_id} non trovato")
+
+    # Calcola nuovi planned_start / planned_finish
+    current_start = ticket.planned_start
+    current_finish = ticket.planned_finish
+
+    if current_start and current_finish:
+        duration = current_finish - current_start
+    else:
+        # Fallback su durata_stimata_ore se i campi sono null
+        dur_h = ticket.durata_stimata_ore or 2.0
+        duration = timedelta(hours=float(dur_h))
+
+    # Risolvi nuova data
+    if data.new_date:
+        try:
+            new_d = datetime.strptime(data.new_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Formato data non valido: {data.new_date}")
+    elif current_start:
+        new_d = current_start.date()
+    else:
+        from datetime import date as date_type
+        new_d = date_type.today()
+
+    # Risolvi nuovo orario di inizio
+    if data.new_start_hour is not None and data.new_start_minute is not None:
+        new_start = datetime(new_d.year, new_d.month, new_d.day,
+                             data.new_start_hour, data.new_start_minute)
+    elif current_start:
+        new_start = datetime(new_d.year, new_d.month, new_d.day,
+                             current_start.hour, current_start.minute)
+    else:
+        new_start = datetime(new_d.year, new_d.month, new_d.day, 8, 0)
+
+    new_finish = new_start + duration
+
+    # Aggiorna tecnico se specificato
+    new_tecnico_id = data.tecnico_id if data.tecnico_id is not None else ticket.tecnico_id
+
+    # Aggiorna il ticket principale
+    ticket.planned_start = new_start
+    ticket.planned_finish = new_finish
+    ticket.tecnico_id = new_tecnico_id
+    if ticket.stato == "Aperto":
+        ticket.stato = "Pianificato"
+
+    updated_tickets = [{"id": ticket.id, "planned_start": new_start.isoformat(),
+                         "planned_finish": new_finish.isoformat(), "tecnico_id": new_tecnico_id}]
+
+    # ── Chain-shift: traslazione in avanti degli altri ticket sovrapposti ────
+    if new_tecnico_id:
+        day_start = datetime(new_d.year, new_d.month, new_d.day, 0, 0)
+        day_end = day_start + timedelta(days=1)
+
+        others = db.query(Ticket).filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.tecnico_id == new_tecnico_id,
+            Ticket.id != data.ticket_id,
+            Ticket.planned_start >= day_start,
+            Ticket.planned_start < day_end,
+            Ticket.stato == "Pianificato",
+            Ticket.deleted_at.is_(None),
+        ).order_by(Ticket.planned_start).all()
+
+        current_end = new_finish
+        for other in others:
+            if other.planned_start is None:
+                continue
+            if other.planned_start < current_end:
+                # Overlap: sposta in avanti
+                other_dur = (
+                    (other.planned_finish - other.planned_start)
+                    if other.planned_start and other.planned_finish
+                    else timedelta(hours=float(other.durata_stimata_ore or 2.0))
+                )
+                other.planned_start = current_end
+                other.planned_finish = current_end + other_dur
+                updated_tickets.append({
+                    "id": other.id,
+                    "planned_start": other.planned_start.isoformat(),
+                    "planned_finish": other.planned_finish.isoformat(),
+                    "tecnico_id": other.tecnico_id,
+                })
+                current_end = other.planned_finish
+
+    # ── Aggiorna plan_json dell'ultimo piano del tenant ───────────────────────
+    latest_plan = db.query(GeneratedPlan).filter(
+        GeneratedPlan.tenant_id == tenant_id,
+        GeneratedPlan.status.in_(["draft", "confirmed"]),
+    ).order_by(GeneratedPlan.id.desc()).first()
+
+    if latest_plan and latest_plan.plan_json:
+        plan_j = dict(latest_plan.plan_json)  # copia shallow
+        wos = list(plan_j.get("planned_workorders", []))
+        updated_ids = {u["id"] for u in updated_tickets}
+
+        for i, wo in enumerate(wos):
+            wo_id = wo.get("wo_id")
+            if wo_id not in updated_ids:
+                continue
+            u = next(u for u in updated_tickets if u["id"] == wo_id)
+            ps = datetime.fromisoformat(u["planned_start"])
+            pf = datetime.fromisoformat(u["planned_finish"])
+            dur_h = (pf - ps).total_seconds() / 3600
+            wos[i] = {
+                **wo,
+                "planned_date": ps.strftime("%Y-%m-%d"),
+                "planned_start_time": ps.strftime("%H:%M"),
+                "planned_end_time": pf.strftime("%H:%M"),
+                "time_slot": f"{ps.strftime('%H:%M')}-{pf.strftime('%H:%M')}",
+                "duration_hours": round(dur_h, 2),
+                "technician_id": u["tecnico_id"] or wo.get("technician_id"),
+            }
+
+        plan_j["planned_workorders"] = wos
+        latest_plan.plan_json = plan_j
+        db.add(latest_plan)
+
+    db.commit()
+
+    logger.info(
+        "move-ticket: ticket #%d spostato a %s %02d:%02d — %d ticket chain-shiftati",
+        data.ticket_id, new_d, new_start.hour, new_start.minute,
+        len(updated_tickets) - 1,
+    )
+
+    return {"updated_tickets": updated_tickets}
 
 
 @router.post("/evaluate")

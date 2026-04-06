@@ -492,6 +492,48 @@ Non abilitare la logica slot finché non esiste tracking orario reale nel DB.
 
 ---
 
+## UI PLANNING: REGOLE OBBLIGATORIE (ciclo v2.2.0)
+
+### Viste supportate
+- `"settimanale"`: calendario Outlook-style, ore in riga, giorni in colonna. Vista principale.
+- `"mensile"`: griglia CalendarioMensile con dots. Click su giorno → naviga alla settimana in vista settimanale.
+- La vista `"giornaliero"` è stata rimossa. Non reintrodurre tab/route per essa.
+
+### Drag-and-Drop nel calendario settimanale
+Il DnD sul calendario planning segue un contratto preciso:
+
+1. **Drag da pannello sinistro** (`ticket-{id}`): ticket non pianificati → drop su slot → `savePianificazioneManuale()` con planned_start/finish calcolati dallo slot.
+2. **Drag da WO nel calendario** (`wo||{woId}`): WO già pianificati → drop su slot → `moveTicket(woId, dateStr, startHour, startMinute)`.
+3. **La logica di chain-shift è ESCLUSIVAMENTE backend**: `POST /planning/move-ticket` sposta i ticket sovrapposti. Il frontend fa solo update ottimistico.
+4. **Double-click su WO** → `ReassignModal` → scelta tecnico → `reassignTecnico(woId, newTecnicoId)` → `POST /planning/move-ticket` con solo `tecnico_id`.
+
+### Formato ID Droppable
+Usare sempre `||` come separatore nei DroppableID che includono date ISO:
+```
+slot||2026-04-07||3   ← corretto
+slot-2026-04-07-3     ← sbagliato: split("-") produce 5 parti invece di 3
+```
+
+### Persistenza dopo ogni move
+Ogni spostamento DnD deve:
+1. Aggiornare `ticket.planned_start`, `ticket.planned_finish`, `ticket.tecnico_id` nel DB.
+2. Aggiornare il `plan_json` del `GeneratedPlan` attivo (draft o confirmed).
+3. Restituire i `updated_tickets` al frontend per sincronizzare lo stato locale.
+
+### PointerSensor activation constraint
+```tsx
+useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+```
+Obbligatorio quando si usa sia DnD che double-click sullo stesso elemento.
+Senza questa soglia, il drag intercetta il double-click.
+
+### Regola: nessuna logica di assegnazione nel frontend
+Il frontend non deve calcolare quale tecnico assegnare, quali orari sono liberi, o quali ticket sono in conflitto.
+Queste logiche restano nel backend (PlannerEngine o route move-ticket).
+Il frontend mostra l'esito e permette l'interazione visiva.
+
+---
+
 ## DIRETTIVA FINALE
 
 Il planner di MaintAI è una logica operativa reale, non un esercizio teorico.

@@ -3,11 +3,10 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut } from "../lib/api";
-import { DndContext, useDraggable, DragEndEvent, DragOverlay } from "@dnd-kit/core";
+import { DndContext, useDraggable, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 
 import BadgeEfficienza from "./components/BadgeEfficienza";
 import PannelloMotivazioni from "./components/PannelloMotivazioni";
-import GanttGiornaliero from "./components/GanttGiornaliero";
 import KanbanSettimanale from "./components/KanbanSettimanale";
 import CalendarioMensile from "./components/CalendarioMensile";
 import StoricoPiani from "./components/StoricoPiani";
@@ -34,7 +33,7 @@ interface TecnicoAPI {
   stato: string;
 }
 
-type VistaAttiva = "giornaliero" | "settimanale" | "mensile";
+type VistaAttiva = "settimanale" | "mensile";
 type Modalita = "manuale" | "ai";
 type EngineMode = "deterministic" | "ai";
 
@@ -305,7 +304,14 @@ export default function PlanningPage() {
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
   const [vistaAttiva, setVistaAttiva] = useState<VistaAttiva>("settimanale");
   const [modalita, setModalita] = useState<Modalita>("ai");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    // Lunedì della settimana corrente
+    const d = new Date();
+    const dow = d.getDay();
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [selectedMese, setSelectedMese] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [loading, setLoading] = useState(true);
   const [generando, setGenerando] = useState(false);
@@ -315,7 +321,7 @@ export default function PlanningPage() {
   const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
   const [valutando, setValutando] = useState(false);
   const [valutazioneScore, setValutazioneScore] = useState<number | null>(null);
-  const [activeDragTicketId, setActiveDragTicketId] = useState<number | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   // ── Mappe per lookup O(1) ──────────────────────────────────────────────────
   const ticketMap = useMemo(
@@ -476,12 +482,18 @@ export default function PlanningPage() {
   }
 
   // ── Assegnazione manuale ───────────────────────────────────────────────────
-  async function savePianificazioneManuale(ticketId: number, tecnicoId: number, data: string) {
+  async function savePianificazioneManuale(
+    ticketId: number,
+    tecnicoId: number,
+    data: string,
+    plannedStart?: string,
+    plannedFinish?: string,
+  ) {
     try {
       await apiPut(`/tickets/${ticketId}`, {
         tecnico_id: tecnicoId,
-        planned_start: `${data}T08:00:00`,
-        planned_finish: `${data}T17:00:00`,
+        planned_start: plannedStart ?? `${data}T08:00:00`,
+        planned_finish: plannedFinish ?? `${data}T17:00:00`,
         stato: "Pianificato",
       });
       toast.success(`Ticket #${ticketId} pianificato manualmente`);
@@ -491,19 +503,112 @@ export default function PlanningPage() {
     }
   }
 
-  // ── DnD: drag ticket → drop su riga tecnico nel Gantt ────────────────────
+  // ── Sposta ticket nel piano (DnD calendario settimanale) ───────────────────
+  async function moveTicket(
+    woId: number,
+    newDate: string,
+    startHour: number,
+    startMinute: number,
+    tecnicoId?: number,
+  ) {
+    // Aggiornamento ottimistico del piano locale
+    setPiano(prev => {
+      if (!prev?.plan_json) return prev;
+      const durH = (() => {
+        const wo = prev.plan_json.planned_workorders.find(w => w.wo_id === woId);
+        return wo?.duration_hours ?? 2;
+      })();
+      const endH = startHour + Math.floor((startMinute + durH * 60) / 60);
+      const endM = Math.round((startMinute + durH * 60) % 60);
+      const newStart = `${String(startHour).padStart(2,"0")}:${String(startMinute).padStart(2,"0")}`;
+      const newEnd = `${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}`;
+
+      const newWOs = prev.plan_json.planned_workorders.map(wo =>
+        wo.wo_id !== woId ? wo : {
+          ...wo,
+          planned_date: newDate,
+          planned_start_time: newStart,
+          planned_end_time: newEnd,
+          time_slot: `${newStart}-${newEnd}`,
+          ...(tecnicoId ? { technician_id: tecnicoId } : {}),
+        }
+      );
+      return { ...prev, plan_json: { ...prev.plan_json, planned_workorders: newWOs } };
+    });
+
+    try {
+      await apiPost("/planning/move-ticket", {
+        ticket_id: woId,
+        new_date: newDate,
+        new_start_hour: startHour,
+        new_start_minute: startMinute,
+        ...(tecnicoId ? { tecnico_id: tecnicoId } : {}),
+      });
+      loadData();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Errore spostamento ticket");
+      loadData(); // ripristina stato reale
+    }
+  }
+
+  // ── Riassegna tecnico (doppio clic nel calendario) ─────────────────────────
+  async function reassignTecnico(woId: number, newTecnicoId: number) {
+    try {
+      await apiPost("/planning/move-ticket", {
+        ticket_id: woId,
+        tecnico_id: newTecnicoId,
+      });
+      toast.success(`Ticket #${woId} riassegnato`);
+      loadData();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Errore riassegnazione");
+    }
+  }
+
+  // ── DnD: gestione drop su slot del calendario settimanale ────────────────
   function handleDragEnd(event: DragEndEvent) {
-    setActiveDragTicketId(null);
+    setActiveDragId(null);
     const { active, over } = event;
     if (!over) return;
-    const ticketId = Number(String(active.id).replace("ticket-", ""));
-    const tecnicoId = Number(String(over.id).replace("tecnico-", ""));
-    if (ticketId && tecnicoId && vistaAttiva === "giornaliero") {
-      savePianificazioneManuale(ticketId, tecnicoId, selectedDate);
-    } else if (ticketId && tecnicoId) {
-      // Se non in vista giornaliera, apri la modale per scegliere la data
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    if (!overId.startsWith("slot||")) return;
+
+    // Parsing ID slot: "slot||YYYY-MM-DD||slotIndex"
+    const parts = overId.split("||");
+    const dateStr = parts[1];
+    const slotIdx = Number(parts[2]);
+    if (!dateStr || isNaN(slotIdx)) return;
+
+    // Orario start dal slot index (ogni slot = 30 min, da 08:00)
+    const totalMinutes = slotIdx * 30;
+    const startHour = 8 + Math.floor(totalMinutes / 60);
+    const startMinute = totalMinutes % 60;
+
+    if (activeId.startsWith("ticket-")) {
+      // Ticket dal pannello manuale sinistro → inserimento nel piano
+      const ticketId = Number(activeId.replace("ticket-", ""));
       const ticket = ticketMap.get(ticketId);
-      if (ticket) setTicketDaPianificare(ticket);
+      if (!ticket) return;
+      const dur = ticket.durata_stimata_ore ?? 2;
+      const totalEndMin = totalMinutes + dur * 60;
+      const endH = 8 + Math.floor(totalEndMin / 60);
+      const endM = Math.round(totalEndMin % 60);
+      const startStr = `${dateStr}T${String(startHour).padStart(2,"0")}:${String(startMinute).padStart(2,"0")}:00`;
+      const finishStr = `${dateStr}T${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}:00`;
+      const firstTecnico = tecnici[0];
+      if (firstTecnico) {
+        savePianificazioneManuale(ticketId, firstTecnico.id, dateStr, startStr, finishStr);
+      } else {
+        // Nessun tecnico → apri modale
+        setTicketDaPianificare(ticket);
+      }
+    } else if (activeId.startsWith("wo||")) {
+      // WO già nel piano → spostamento
+      const woId = Number(activeId.replace("wo||", ""));
+      if (woId) moveTicket(woId, dateStr, startHour, startMinute);
     }
   }
 
@@ -543,11 +648,17 @@ export default function PlanningPage() {
     );
   }
 
+  // Sensor con soglia di distanza: evita che il click normale attivi il drag
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
   return (
     <DndContext
-      onDragStart={e => setActiveDragTicketId(Number(String(e.active.id).replace("ticket-", "")))}
+      sensors={sensors}
+      onDragStart={e => setActiveDragId(String(e.active.id))}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveDragTicketId(null)}
+      onDragCancel={() => setActiveDragId(null)}
     >
     <div style={{
       background: "#0a0f1e",
@@ -983,7 +1094,7 @@ export default function PlanningPage() {
             borderBottom: "1px solid #1f2937",
             paddingBottom: 0,
           }}>
-            {(["giornaliero", "settimanale", "mensile"] as VistaAttiva[]).map(v => (
+            {(["settimanale", "mensile"] as VistaAttiva[]).map(v => (
               <button
                 key={v}
                 onClick={() => setVistaAttiva(v)}
@@ -997,10 +1108,9 @@ export default function PlanningPage() {
                   color: vistaAttiva === v ? "#60a5fa" : "#6b7280",
                   borderBottom: vistaAttiva === v ? "2px solid #3b82f6" : "2px solid transparent",
                   transition: "color 150ms",
-                  textTransform: "capitalize",
                 }}
               >
-                {v === "giornaliero" ? "Giornaliero" : v === "settimanale" ? "Settimanale" : "Mensile"}
+                {v === "settimanale" ? "Settimana" : "Mese"}
               </button>
             ))}
 
@@ -1069,29 +1179,20 @@ export default function PlanningPage() {
                 <div style={{ fontSize: 15 }}>
                   {modalita === "ai"
                     ? "Clicca ⚡ Genera Piano AI per creare un piano ottimizzato"
-                    : "Seleziona un ticket dalla colonna sinistra per pianificarlo manualmente"}
+                    : "Trascina un ticket dalla colonna sinistra nel calendario settimanale"}
                 </div>
               </div>
             ) : (
               <>
-                {vistaAttiva === "giornaliero" && (
-                  <GanttGiornaliero
-                    wos={plannedWOs}
-                    tecnici={tecnici}
-                    ticketMap={ticketMap}
-                    selectedDate={selectedDate}
-                    onDateChange={setSelectedDate}
-                    onTicketDrop={modalita === "manuale" ? (ticketId, tecnicoId) => {
-                      savePianificazioneManuale(ticketId, tecnicoId, selectedDate);
-                    } : undefined}
-                  />
-                )}
-
                 {vistaAttiva === "settimanale" && (
                   <KanbanSettimanale
                     wos={plannedWOs}
                     ticketMap={ticketMap}
                     tecnicoMap={tecnicoMap}
+                    tecnici={tecnici}
+                    weekStart={weekStart}
+                    onWeekChange={setWeekStart}
+                    onReassignTecnico={reassignTecnico}
                   />
                 )}
 
@@ -1101,9 +1202,14 @@ export default function PlanningPage() {
                     ticketMap={ticketMap}
                     mese={selectedMese}
                     onMeseChange={setSelectedMese}
-                    onDayClick={(date) => {
-                      setSelectedDate(date);
-                      setVistaAttiva("giornaliero");
+                    onDayClick={(dateStr) => {
+                      // Vai alla settimana del giorno cliccato nella vista settimanale
+                      const d = new Date(dateStr + "T00:00:00");
+                      const dow = d.getDay();
+                      d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+                      d.setHours(0, 0, 0, 0);
+                      setWeekStart(d);
+                      setVistaAttiva("settimanale");
                     }}
                   />
                 )}
@@ -1136,20 +1242,36 @@ export default function PlanningPage() {
       `}</style>
 
       {/* DragOverlay: card floating durante il drag */}
-      <DragOverlay>
-        {activeDragTicketId !== null && (() => {
-          const t = ticketMap.get(activeDragTicketId);
-          if (!t) return null;
+      <DragOverlay dropAnimation={null}>
+        {activeDragId !== null && (() => {
           const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
           const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
-          const tipo = t.tipo ?? "CM";
+
+          let id: number | undefined;
+          let label = "";
+          let tipo = "CM";
+
+          if (activeDragId.startsWith("ticket-")) {
+            id = Number(activeDragId.replace("ticket-", ""));
+            const t = ticketMap.get(id);
+            tipo = t?.tipo ?? "CM";
+            label = t?.titolo ?? "—";
+          } else if (activeDragId.startsWith("wo||")) {
+            id = Number(activeDragId.replace("wo||", ""));
+            const wo = plannedWOs.find(w => w.wo_id === id);
+            const t = id ? ticketMap.get(id) : undefined;
+            tipo = t?.tipo ?? "CM";
+            label = t?.titolo ?? `WO #${id}`;
+          }
+
+          if (!id) return null;
           return (
             <div style={{
               background: "#1a2332",
               border: "2px solid #3b82f6",
               borderRadius: 6,
               padding: "8px 10px",
-              width: 240,
+              width: 220,
               boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
               pointerEvents: "none",
             }}>
@@ -1160,10 +1282,10 @@ export default function PlanningPage() {
                   color: tipoColor[tipo] ?? "#fcd34d",
                   padding: "1px 5px", borderRadius: 3,
                 }}>{tipo}</span>
-                <span style={{ fontSize: 10, color: "#6b7280" }}>#{t.id}</span>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>#{id}</span>
               </div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>
-                {t.titolo ?? "—"}
+                {label}
               </div>
             </div>
           );

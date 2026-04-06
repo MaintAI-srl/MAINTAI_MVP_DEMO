@@ -394,6 +394,10 @@ Non fare mai queste cose:
 - omettere il bypass cache quando il contesto è personalizzato (asset_ids specificato) — cache errata causa cross-contesto data
 - usare gerarchia skill hardcoded inline — passarla come parametro `skill_hierarchy` al costruttore di `PlannerEngine`
 - aggiungere nuove colonne al DB senza creare una migrazione Alembic — ogni nuova colonna deve avere sia la migrazione sia il fallback in `_ensure_columns()`
+- usare `-` come separatore nei Droppable ID quando il valore può contenere `-` (es. date ISO) — usare `||` come separatore per evitare collisioni: `slot||2026-04-07||3`
+- spostare logica di chain-shift nel frontend — il ricalcolo degli orari dei ticket sovrapposti va fatto nel backend (POST /planning/move-ticket)
+- fare DnD su calendario planning senza aggiornare plan_json — ogni move via UI deve persistere planned_start/finish nel DB e riscrivere plan_json del piano attivo
+- usare `PointerSensor` senza `activationConstraint: { distance: 8 }` quando si vuole preservare il double-click — senza la soglia di attivazione il drag parte subito e intercetta onDoubleClick
 - creare engine PostgreSQL senza `pool_pre_ping=True` e `pool_recycle` — le connessioni stale causano errori silenziosi dopo idle prolungato
 - aggiungere endpoint AI senza rate limiting — usare `@limiter.limit("N/minute")` da `backend/core/rate_limiter.py`
 - creare nuovi campi audit (`created_by`) senza popolarli nel route handler che crea il record

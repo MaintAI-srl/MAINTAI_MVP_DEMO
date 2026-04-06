@@ -147,6 +147,46 @@ Questo documento riassume le 35 proposte di miglioramento per l'evoluzione della
 - Aggiunto `joinedload(Asset.impianto)` sulla query asset per prevenire `DetachedInstanceError` in contesto async.
 - Spostato `from backend.services.weather_service import WeatherData` dal lazy import interno al top-level.
 - Log esplicito quando asset con vincolo meteo mancano di coordinate (`WARNING: N asset con vincolo meteo mancano di coordinate`).
+
+**UI planning manuale (planning/page.tsx + KanbanSettimanale.tsx):**
+- Aggiunto pannello sinistro con lista ticket da pianificare (draggabili nel calendario).
+- `DraggableTicket`: `useDraggable({ id: "ticket-{id}" })` per ticket manuali.
+- `DroppableSlot` nelle righe ora presente anche nel Gantt giornaliero per accettare drop dai ticket manuali.
+
+**Confronto score AI vs manuale (planning.py):**
+- `POST /planning/generate` restituisce `previous_efficiency_score` e `score_improved` nel response.
+- `POST /planning/evaluate`: calcola score live dai ticket Pianificato/Aperto, restituisce breakdown e motivations senza generare un piano.
+
+### Ciclo v2.2.0 (2026-04-06) — Outlook Week Calendar + DnD bidirezionale
+
+**Rimozione vista giornaliera (planning/page.tsx):**
+- Tab "Giornaliero" rimosso — solo `"settimanale"` e `"mensile"` rimasti.
+- Stato `selectedDate` → `weekStart: Date` per la navigazione settimanale.
+- `VistaAttiva` type ridotto a `"settimanale" | "mensile"`.
+- `CalendarioMensile.onDayClick` aggiornato: naviga alla settimana corretta in vista settimanale invece di aprire il giornaliero.
+
+**KanbanSettimanale.tsx — riscrittura completa (Outlook-style):**
+- Layout Outlook: righe = fasce orarie (08:00–17:00, `HOUR_HEIGHT=64px`), colonne = Lun–Ven.
+- `DroppableSlot` per ogni ora×giorno: `useDroppable({ id: \`slot||{dateStr}||{slotIdx}\` })`.
+  - Formato ID con `||` per evitare collisioni con le date che contengono `-`.
+  - Highlight blu quando `isOver`.
+- `WOBlock` draggable: `useDraggable({ id: \`wo||{wo_id}\` })`, `onDoubleClick` → modal riassegnazione.
+- `ReassignModal`: selector tecnico, chiamata `onReassignTecnico(woId, newTecnicoId)`.
+- `computeLanes()`: posiziona WO sovrapposti side-by-side via lane index.
+- Navigazione settimane con `←` `→` e pulsante "questa settimana".
+- Linea rossa "now" sul giorno corrente.
+- Props: `weekStart, onWeekChange, tecnici, onReassignTecnico`.
+
+**DnD bidirezionale + chain-shift (planning/page.tsx + planning.py):**
+- `moveTicket(woId, dateStr, startHour, startMinute)`: update ottimistico locale poi `POST /planning/move-ticket`.
+- `reassignTecnico(woId, newTecnicoId)`: chiama move-ticket con solo `tecnico_id`.
+- `handleDragEnd()`: distingue drag da `ticket-{id}` (manuale) vs `wo||{id}` (WO già pianificato).
+- `POST /planning/move-ticket` (backend):
+  - Aggiorna `ticket.planned_start/finish` e `ticket.tecnico_id`.
+  - Chain-shift: sposta in avanti i ticket del tecnico che si sovrappongono al nuovo orario.
+  - Aggiorna il `plan_json` del GeneratedPlan più recente (draft o confirmed).
+  - Restituisce `updated_tickets[]` con id/planned_start/planned_finish/tecnico_id.
+- `PointerSensor({ activationConstraint: { distance: 8 } })`: permette double-click senza attivare drag.
 - Campi diagnostici `weather_locations_count` e `weather_assets_no_coords` aggiunti al contesto pianificazione.
 
 **Pianificazione manuale con DnD (planning/page.tsx + GanttGiornaliero.tsx):**

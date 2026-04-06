@@ -643,6 +643,67 @@ task_count = counts.get(m.id, 0)
 task_count = db.query(AttivitaManutenzione).filter(...).count()  # dentro list comprehension
 ```
 
+### Pattern: POST /planning/move-ticket (chain-shift backend)
+```python
+class MoveTicketRequest(BaseModel):
+    ticket_id: int
+    new_date: Optional[str] = None          # "YYYY-MM-DD"
+    new_start_hour: Optional[int] = None    # 8-17
+    new_start_minute: Optional[int] = None  # 0-59
+    tecnico_id: Optional[int] = None
+
+@router.post("/planning/move-ticket")
+def move_ticket(req: MoveTicketRequest, db=Depends(get_db), tenant_id=Depends(get_current_tenant_id)):
+    # 1. Aggiorna planned_start/finish/tecnico_id nel DB
+    # 2. Chain-shift: trova ticket dello stesso tecnico nello stesso giorno che si sovrappongono
+    #    ordinati per planned_start, sposta in avanti
+    # 3. Aggiorna plan_json del GeneratedPlan più recente (draft o confirmed)
+    # 4. Restituisce updated_tickets[] con tutti i ticket modificati
+```
+**Regola**: la logica di chain-shift è backend-only. Il frontend applica update ottimistico locale e reverte in caso di errore.
+
+### Pattern: Outlook-style Week Calendar (KanbanSettimanale)
+```tsx
+// Struttura layout
+// Righe = ore (DAY_START=8 .. DAY_END=17, HOUR_HEIGHT=64px)
+// Colonne = giorni della settimana (Lun–Ven)
+// Ogni WO posizionato absolutamente: top = (startHour-8)*64 + (startMin/60)*64
+
+// Droppable slot ID — usare || per non confondere con date ISO
+const slotId = `slot||${dateStr}||${slotIndex}`;   // ✓ corretto
+const slotId = `slot-${dateStr}-${slotIndex}`;      // ✗ sbagliato — ambiguo con date
+
+// Draggable WO block
+const woId = `wo||${wo.wo_id}`;
+
+// Draggable manuale ticket
+const ticketId = `ticket-${ticket.id}`;
+
+// handleDragEnd distingue i due tipi
+if (activeId.startsWith("ticket-")) { /* inserimento manuale */ }
+if (activeId.startsWith("wo||")) { /* spostamento WO esistente */ }
+```
+
+### Pattern: PointerSensor con double-click
+```tsx
+// PointerSensor con distance constraint permette double-click senza attivare drag
+const sensors = useSensors(
+  useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+);
+// Il drag si attiva solo dopo 8px di movimento — onClick e onDoubleClick funzionano normalmente
+```
+
+### Pattern: computeLanes() per overlap WO
+```tsx
+// Assegna a ogni WO un "lane index" (0, 1, 2...) basato sugli overlap temporali
+// Ogni lane ha width = 100% / totalLanes
+function computeLanes(wos: PlannedWO[]): Map<number, { lane: number; totalLanes: number }> {
+  // Ordinare per start, assegnare lane incrementale se overlap
+  // WO senza overlap → lane 0, totalLanes 1
+  // 2 WO overlap → lane 0 e 1, totalLanes 2 per entrambi
+}
+```
+
 ---
 
 ## DIRETTIVA FINALE
