@@ -643,6 +643,34 @@ task_count = counts.get(m.id, 0)
 task_count = db.query(AttivitaManutenzione).filter(...).count()  # dentro list comprehension
 ```
 
+### Pattern: Rolling Analysis Engine (pure Python, no ORM)
+```python
+# backend/services/rolling_planner_engine.py
+# Struttura: RollingTicketInput → run_rolling_analysis() → RollingAnalysisResult
+# Nessuna dipendenza ORM — funzione pura, testabile in isolamento
+# Il bridge ORM→Input è nel route handler (planning.py::get_rolling_analysis)
+
+result = run_rolling_analysis(ticket_inputs, tecnici_input)
+# Restituisce: analyses[], ready_count, not_ready_count, kpi{}, warnings[]
+```
+Proxy documentati in ogni funzione pura:
+- `priority_class` ← `priorita` (Alta→P1, Media→P2, Bassa→P3) + BD override P1
+- `freeze_zone` ← `planned_start` vs `datetime.now(utc)` (FROZEN<24h, PROTECTED<48h, FLEXIBLE<72h, DYNAMIC<168h)
+- `pm_protected` ← `tipo=="PM"` + `prossima_scadenza` imminente o `stato=="Pianificato"`
+- `insertion_score` / `disruption_cost` ← score numerici 0-100 da campi esistenti
+- `materials/permits/access/job_plan ready` ← non valutabili, assunti True, documentato
+
+### Pattern: GET /planning/rolling-analysis
+```python
+@router.get("/rolling-analysis")
+def get_rolling_analysis(db=Depends(get_db), tenant_id=Depends(get_current_tenant_id)):
+    # Carica Ticket (Aperto+Pianificato) + AttivitaManutenzione.prossima_scadenza per asset
+    # Carica Tecnici attivi per skill check
+    # Costruisce RollingTicketInput[] e TecnicoInput[]
+    # Chiama run_rolling_analysis() — nessuna logica nel route handler
+    # Restituisce analisi serializzata
+```
+
 ### Pattern: POST /planning/move-ticket (chain-shift backend)
 ```python
 class MoveTicketRequest(BaseModel):

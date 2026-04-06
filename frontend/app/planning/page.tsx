@@ -10,6 +10,7 @@ import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import KanbanSettimanale from "./components/KanbanSettimanale";
 import CalendarioMensile from "./components/CalendarioMensile";
 import StoricoPiani from "./components/StoricoPiani";
+import RollingAnalysisPanel from "./components/RollingAnalysisPanel";
 
 import type {
   TicketData,
@@ -33,7 +34,7 @@ interface TecnicoAPI {
   stato: string;
 }
 
-type VistaAttiva = "settimanale" | "mensile";
+type VistaAttiva = "settimanale" | "mensile" | "rolling";
 type Modalita = "manuale" | "ai";
 type EngineMode = "deterministic" | "ai";
 
@@ -1094,7 +1095,7 @@ export default function PlanningPage() {
             borderBottom: "1px solid #1f2937",
             paddingBottom: 0,
           }}>
-            {(["settimanale", "mensile"] as VistaAttiva[]).map(v => (
+            {(["settimanale", "mensile", "rolling"] as VistaAttiva[]).map(v => (
               <button
                 key={v}
                 onClick={() => setVistaAttiva(v)}
@@ -1110,7 +1111,7 @@ export default function PlanningPage() {
                   transition: "color 150ms",
                 }}
               >
-                {v === "settimanale" ? "Settimana" : "Mese"}
+                {v === "settimanale" ? "Settimana" : v === "mensile" ? "Mese" : "◈ Rolling"}
               </button>
             ))}
 
@@ -1212,6 +1213,10 @@ export default function PlanningPage() {
                       setVistaAttiva("settimanale");
                     }}
                   />
+                )}
+
+                {vistaAttiva === "rolling" && (
+                  <RollingAnalysisPanel />
                 )}
               </>
             )}

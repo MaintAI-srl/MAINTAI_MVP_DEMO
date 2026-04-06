@@ -534,6 +534,50 @@ Il frontend mostra l'esito e permette l'interazione visiva.
 
 ---
 
+## ROLLING 7-DAY ENGINE (ciclo v2.3.0)
+
+### Principio fondamentale (rolling.md)
+Il sistema distingue PLANNING (preparazione) da SCHEDULING (collocazione temporale).
+Un ticket NON PUÒ entrare in schedulazione se non ha superato il Readiness Gate.
+
+### Freeze Zones
+```
+FROZEN_24    (0-24h):   piano bloccato — solo P1 con override motivato
+PROTECTED_48 (24-48h):  piano protetto — P1+P2 e PM critiche
+FLEXIBLE_72  (48-72h):  ottimizzazione guidata da readiness e logistica
+DYNAMIC_168  (72-168h): backlog libero, costruzione settimana futura
+```
+Le zone sono calcolate runtime da `planned_start` vs `now()` — nessun campo DB aggiuntivo.
+
+### Readiness Gate
+Bottleneck valutabili con campi DB esistenti:
+- `DURATION_UNRELIABLE`: `durata_stimata_ore` assente o = 0
+- `SKILL_MISSING`: nessun tecnico attivo con la competenza richiesta
+
+Bottleneck NON valutabili (campi mancanti nel DB v2.3.0):
+- `MATERIAL_MISSING`, `PERMIT_MISSING`, `ACCESS_MISSING`, `JOB_PLAN_MISSING` → assunti OK, documentato
+
+**Regola**: Non schedulare ticket NOT_READY. Esporli in backlog con bottleneck tracciabile.
+
+### Insertion Score / Disruption Cost
+- `insertion_score` (0-100): valore operativo del ticket nel piano → calcolato da priorità + tipo + PM protection
+- `disruption_cost` (0-100): costo di inserimento → calcolato dalla freeze_zone corrente del ticket
+- Regola ingresso: `insertion_score - disruption_cost > threshold_finestra`
+- Soglie: FROZEN=80, PROTECTED=50, FLEXIBLE=15, DYNAMIC=0
+
+### PM Protection
+Un ticket PM è protetto se:
+- `prossima_scadenza` (da AttivitaManutenzione) è entro l'orizzonte, OPPURE
+- `stato == "Pianificato"` (già inserito nel piano)
+Spostare un PM protetto da zona PROTECTED o FROZEN richiede override esplicito con motivazione.
+
+### Architettura rolling engine
+- `backend/services/rolling_planner_engine.py` — funzioni pure, no ORM, testabile
+- `GET /planning/rolling-analysis` — endpoint bridge ORM→Input→Engine→output
+- `RollingAnalysisPanel.tsx` — tab "◈ Rolling" nella pagina planning
+
+---
+
 ## DIRETTIVA FINALE
 
 Il planner di MaintAI è una logica operativa reale, non un esercizio teorico.

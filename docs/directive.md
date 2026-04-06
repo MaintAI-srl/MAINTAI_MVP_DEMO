@@ -398,6 +398,9 @@ Non fare mai queste cose:
 - spostare logica di chain-shift nel frontend — il ricalcolo degli orari dei ticket sovrapposti va fatto nel backend (POST /planning/move-ticket)
 - fare DnD su calendario planning senza aggiornare plan_json — ogni move via UI deve persistere planned_start/finish nel DB e riscrivere plan_json del piano attivo
 - usare `PointerSensor` senza `activationConstraint: { distance: 8 }` quando si vuole preservare il double-click — senza la soglia di attivazione il drag parte subito e intercetta onDoubleClick
+- implementare `rolling_planner_engine.py` senza documentare i proxy sui campi DB mancanti — ogni campo derivato da campo esistente deve avere un commento esplicito con la direttiva "Workaround: campo non presente nel DB, sostituire con campo reale quando disponibile"
+- invocare hook React dopo un early return (`if (loading) return ...`) — tutti gli hook (useState, useMemo, useSensors, useCallback) devono stare prima di qualsiasi early return
+- schedulare ticket `NOT_READY` — un ticket senza durata credibile o senza tecnici qualificati non deve essere inserito nel piano esecutivo; va esposto in backlog con bottleneck
 - creare engine PostgreSQL senza `pool_pre_ping=True` e `pool_recycle` — le connessioni stale causano errori silenziosi dopo idle prolungato
 - aggiungere endpoint AI senza rate limiting — usare `@limiter.limit("N/minute")` da `backend/core/rate_limiter.py`
 - creare nuovi campi audit (`created_by`) senza popolarli nel route handler che crea il record

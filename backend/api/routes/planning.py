@@ -19,6 +19,11 @@ from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant
 from backend.services.ai_planner_service import generate_ai_plan, calculate_plan_efficiency
 from backend.services.planner_engine_bridge import generate_deterministic_plan
+from backend.services.rolling_planner_engine import (
+    run_rolling_analysis,
+    RollingTicketInput,
+    TecnicoInput,
+)
 
 router = APIRouter(prefix="/planning", tags=["planning"])
 logger = get_logger(__name__)
@@ -743,3 +748,154 @@ def get_plan_history(
     # Calcola completion_pct in batch: una sola query per tutti i piani
     pct_map = _batch_completion_pct(plans, db)
     return [_plan_to_dict(p, completion_pct=pct_map.get(p.id)) for p in plans]
+
+
+@router.get("/rolling-analysis")
+def get_rolling_analysis(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Analisi Rolling 7-Day: readiness gate, freeze zones, insertion/disruption score, PM protection.
+
+    Valuta tutti i ticket aperti e pianificati del tenant rispetto all'orizzonte mobile di 7 giorni:
+    - Planning status (READY / NOT_READY) con bottleneck tracciabili
+    - Freeze zone corrente (FROZEN_24 / PROTECTED_48 / FLEXIBLE_72 / DYNAMIC_168 / non schedulato)
+    - Insertion score e disruption cost per ogni ticket
+    - Protezione PM in scadenza
+    - KPI aggregati: saturazione, compliance prevista, breakdown backlog per zona
+
+    Implementa docs/rolling.md — proxy documentati per campi non presenti nel DB v2.2.0.
+    """
+    from backend.db.modelli import AttivitaManutenzione
+    import re
+
+    # ── Carica ticket (aperti + pianificati) ──────────────────────────────────
+    tickets_orm = (
+        db.query(Ticket)
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato.in_(["Aperto", "Pianificato"]),
+        )
+        .limit(500)
+        .all()
+    )
+
+    # ── Carica scadenze PM (AttivitaManutenzione.prossima_scadenza per asset) ──
+    asset_ids = list({t.asset_id for t in tickets_orm if t.asset_id})
+    scadenze_map: dict = {}
+    if asset_ids:
+        scadenze_rows = (
+            db.query(
+                AttivitaManutenzione.asset_id,
+                AttivitaManutenzione.prossima_scadenza,
+            )
+            .filter(
+                AttivitaManutenzione.asset_id.in_(asset_ids),
+                AttivitaManutenzione.prossima_scadenza.isnot(None),
+            )
+            .order_by(AttivitaManutenzione.prossima_scadenza.asc())
+            .all()
+        )
+        # Prendi la scadenza più imminente per asset
+        for row in scadenze_rows:
+            if row.asset_id not in scadenze_map:
+                scadenze_map[row.asset_id] = row.prossima_scadenza
+
+    # ── Carica tecnici attivi ─────────────────────────────────────────────────
+    tecnici_orm = (
+        db.query(Tecnico)
+        .filter(
+            Tecnico.tenant_id == tenant_id,
+            Tecnico.stato.in_(["in servizio", "in_servizio"]),
+        )
+        .all()
+    )
+
+    def _split(raw):
+        if not raw:
+            return []
+        parts = re.split(r"[,;\s]+", raw.strip())
+        return [p.strip().upper() for p in parts if p.strip()]
+
+    tecnici_input = [
+        TecnicoInput(
+            id=t.id,
+            competenze=_split(t.competenze) + ["PM", "CM", "BD"],  # workaround bridge
+            stato=t.stato,
+        )
+        for t in tecnici_orm
+    ]
+
+    # ── Costruisci RollingTicketInput ─────────────────────────────────────────
+    ticket_inputs = [
+        RollingTicketInput(
+            ticket_id=t.id,
+            titolo=t.titolo or f"Ticket #{t.id}",
+            tipo=t.tipo or "CM",
+            priorita=t.priorita or "Media",
+            stato=t.stato or "Aperto",
+            durata_stimata_ore=float(t.durata_stimata_ore) if t.durata_stimata_ore else None,
+            planned_start=t.planned_start,
+            planned_finish=t.planned_finish,
+            tecnico_id=t.tecnico_id,
+            area=None,       # non direttamente sul ticket — futuro: join Asset
+            impianto_id=None,
+            asset_criticality=None,   # campo non presente nel DB
+            prossima_scadenza=scadenze_map.get(t.asset_id) if t.asset_id else None,
+        )
+        for t in tickets_orm
+    ]
+
+    if not ticket_inputs:
+        return {
+            "analyses": [],
+            "ready_count": 0,
+            "not_ready_count": 0,
+            "frozen_count": 0,
+            "protected_count": 0,
+            "flexible_count": 0,
+            "dynamic_count": 0,
+            "unscheduled_count": 0,
+            "pm_protected_count": 0,
+            "kpi": {},
+            "warnings": ["Nessun ticket aperto o pianificato trovato."],
+        }
+
+    # ── Esegui analisi ────────────────────────────────────────────────────────
+    result = run_rolling_analysis(ticket_inputs, tecnici_input)
+
+    # ── Serializza ────────────────────────────────────────────────────────────
+    return {
+        "analyses": [
+            {
+                "ticket_id":          a.ticket_id,
+                "titolo":             a.titolo,
+                "tipo":               a.tipo,
+                "rolling_type":       a.rolling_type,
+                "priorita":           a.priorita,
+                "priority_class":     a.priority_class,
+                "planning_status":    a.planning_status,
+                "bottlenecks":        a.bottlenecks,
+                "freeze_zone":        a.freeze_zone,
+                "pm_protected":       a.pm_protected,
+                "pm_protection_reason": a.pm_protection_reason,
+                "insertion_score":    a.insertion_score,
+                "disruption_cost":    a.disruption_cost,
+                "net_value":          a.net_value,
+                "can_enter":          a.can_enter,
+                "notes":              a.notes,
+            }
+            for a in result.analyses
+        ],
+        "ready_count":       result.ready_count,
+        "not_ready_count":   result.not_ready_count,
+        "frozen_count":      result.frozen_count,
+        "protected_count":   result.protected_count,
+        "flexible_count":    result.flexible_count,
+        "dynamic_count":     result.dynamic_count,
+        "unscheduled_count": result.unscheduled_count,
+        "pm_protected_count": result.pm_protected_count,
+        "kpi":     result.kpi,
+        "warnings": result.warnings,
+    }
