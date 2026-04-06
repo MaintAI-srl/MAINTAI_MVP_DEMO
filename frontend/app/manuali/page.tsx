@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import styles from "./manuali.module.css";
 import { apiGet, apiPatch, apiUpload } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { useApiQuery, invalidateQueries } from "@/lib/useApiQuery";
+import Skeleton from "../components/Skeleton";
 
 type Asset = { id: number; name: string; categoria: string };
 
@@ -74,6 +76,8 @@ const labelSt: React.CSSProperties = {
 
 export default function ManualiPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  // #21 useApiQuery: caching automatico + refetch on focus per la lista manuali
+  const { data: manualiRemote, loading: loadingList, refetch: reloadManuali } = useApiQuery<Manuale[]>("/manuali");
   const [manuali, setManuali] = useState<Manuale[]>([]);
   const [selectedManuale, setSelectedManuale] = useState<PianoManuale | null>(null);
   const [sortCol, setSortCol] = useState("");
@@ -94,21 +98,13 @@ export default function ManualiPage() {
   const [newAssetCategoria, setNewAssetCategoria] = useState("altro");
   const [newAssetArea, setNewAssetArea] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [loadingList, setLoadingList] = useState(true);
   const [loadingUpload, setLoadingUpload] = useState(false);
   const [loadingPiano, setLoadingPiano] = useState(false);
 
-  async function loadManuali() {
-    setLoadingList(true);
-    try {
-      const data = await apiGet<Manuale[]>("/manuali");
-      setManuali(data);
-    } catch {
-      notify.error("Impossibile caricare l'elenco manuali.");
-    } finally {
-      setLoadingList(false);
-    }
-  }
+  // Sincronizza i dati remoti nel local state (mantiene compatibilità con aggiornamenti ottimistici)
+  useEffect(() => {
+    if (manualiRemote) setManuali(manualiRemote);
+  }, [manualiRemote]);
 
   useEffect(() => {
     apiGet<Asset[]>("/assets")
@@ -117,7 +113,7 @@ export default function ManualiPage() {
         if (data.length > 0) setSelectedAssetId(data[0].id);
       })
       .catch(() => notify.error("Errore caricamento asset."));
-    loadManuali();
+    // Il caricamento manuali è gestito da useApiQuery (mount automatico)
   }, []);
 
   async function handleUpload(e: React.FormEvent) {
@@ -139,7 +135,9 @@ export default function ManualiPage() {
       const data = await apiUpload<UploadResult>("/manuali/upload", formData);
       setUploadResult(data);
       setUploadFile(null);
-      const [ar] = await Promise.all([apiGet<Asset[]>("/assets"), loadManuali()]);
+      // Invalida cache manuali → useApiQuery refetch automatico
+      invalidateQueries("/manuali");
+      const [ar] = await Promise.all([apiGet<Asset[]>("/assets"), reloadManuali()]);
       setAssets(ar);
       if (assetMode === "new" && data.asset_id) {
         setSelectedAssetId(data.asset_id);
@@ -363,7 +361,9 @@ export default function ManualiPage() {
           </div>
 
           {loadingList ? (
-            <div style={{ color: "var(--text-muted)", padding: "24px 0", textAlign: "center" }}>Caricamento...</div>
+            <div style={{ marginTop: 8 }}>
+              <Skeleton variant="table" rows={4} cols={5} />
+            </div>
           ) : manuali.length === 0 ? (
             <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>Nessun manuale caricato.</div>
           ) : (

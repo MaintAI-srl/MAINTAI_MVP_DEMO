@@ -64,6 +64,46 @@ const PAGE_LABELS: Record<string, string> = {
   "/profilo":       "Mio Profilo",
 };
 
+// ── Indicatore connessione — visibile a tutti gli utenti ─────────────────────
+function GlobalOfflineIndicator() {
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  if (isOnline) return null;
+
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: 0, left: 0, right: 0,
+      padding: "8px 16px",
+      background: "#7c2d12",
+      color: "#fef3c7",
+      fontSize: 12,
+      fontWeight: 700,
+      textAlign: "center",
+      zIndex: 9999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    }}>
+      <span>📡</span>
+      Modalità offline — alcune funzioni non disponibili. Dati visibili dal cache locale.
+    </div>
+  );
+}
+
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -71,6 +111,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [time, setTime] = useState("");
   const [theme, setTheme] = useState("dark");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ── Service Worker registration (#23 PWA, #26 Offline) ───────────────────
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js")
+        .then((reg) => {
+          console.log("[MaintAI] Service Worker registrato:", reg.scope);
+        })
+        .catch((err) => {
+          // Non-critical: log ma non interrompere l'app
+          console.warn("[MaintAI] Service Worker non registrato:", err);
+        });
+    }
+  }, []);
 
   const isTecnico = user?.ruolo === "tecnico";
   const isSuperadmin = user?.ruolo === "superadmin";
@@ -298,6 +352,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             },
           }}
         />
+        <GlobalOfflineIndicator />
       </body>
     </html>
   );

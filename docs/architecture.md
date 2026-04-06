@@ -561,6 +561,61 @@ engine = PlannerEngine(
 # Il check inline usa _skill_covers(req, tecnico.competenze, self.skill_hierarchy)
 ```
 
+### Pattern: useApiQuery per data fetching frontend
+```typescript
+// frontend/lib/useApiQuery.ts — zero dipendenze esterne
+import { useApiQuery, invalidateQueries } from "@/lib/useApiQuery";
+
+// In un componente: sostituisce useState + useEffect + apiGet per fetch di sola lettura
+const { data: manuali = [], loading, refetch } = useApiQuery<Manuale[]>("/manuali");
+
+// Dopo una mutazione (POST/PATCH): invalida la cache per refetch automatico
+invalidateQueries("/manuali");
+
+// Bypass cache e refetch immediato
+await refetch();
+```
+Regola: usare `useApiQuery` per tutti i GET di liste/dati statici. Mutazioni (POST/PUT/PATCH) restano con `apiPost/apiPut/apiPatch` + `invalidateQueries` dopo.
+
+### Pattern: Skeleton loading
+```tsx
+import Skeleton, { SkeletonStats, SkeletonTable } from "../components/Skeleton";
+
+// Prima del caricamento dati
+{loading ? <SkeletonStats count={4} /> : <KpiCards data={dashboard} />}
+{result === null ? <SkeletonTable rows={5} cols={6} /> : <DataTable data={result.items} />}
+
+// Mai usare "Caricamento..." come testo — sostituire sempre con Skeleton
+```
+
+### Pattern: Service Worker registration (PWA)
+```tsx
+// In layout.tsx, dentro useEffect mount-once
+useEffect(() => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js")
+      .catch(err => console.warn("[SW] non registrato:", err)); // non-critical
+  }
+}, []);
+// sw.js usa Network-First + fallback cache per GET cacheabili
+// NEVER_CACHE: auth, planning/generate, diagnostic, ws
+```
+
+### Pattern: GlobalOfflineIndicator
+```tsx
+// Aggiungere a layout.tsx per visibilità a tutti gli utenti
+function GlobalOfflineIndicator() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    window.addEventListener("online", () => setIsOnline(true));
+    window.addEventListener("offline", () => setIsOnline(false));
+  }, []);
+  if (isOnline) return null;
+  return <div style={{ position: "fixed", bottom: 0, ... }}>📡 Offline</div>;
+}
+```
+
 ### Pattern: Endpoint statico prima del parametrico
 ```python
 # CORRETTO: /tickets/durata-media definito PRIMA di /tickets/{ticket_id}

@@ -121,3 +121,17 @@ Questo documento riassume le 35 proposte di miglioramento per l'evoluzione della
 19. **n.19 Chatbot Manuali (RAG)**: Endpoint `POST /manuali/cerca` aggiunto in `manuali.py`. Ricerca keyword-search via SQL `ILIKE` su `nome_file` e `testo_raw`. Restituisce snippet di 160 caratteri attorno alla keyword trovata. Base per futura integrazione vettoriale RAG.
 
 20. **n.20 Stima Durata via ML**: Endpoint `GET /tickets/durata-media` aggiunto in `tickets.py`. Aggrega `AVG(durata_stimata_ore)` dei ticket Chiusi raggruppata per `(tipo, asset_id)` con dimensione campione. Usa `durata_stimata_ore` come proxy (workaround esplicito fino a campo `durata_reale_ore` futuro).
+
+### Ciclo v2.0.9 (2026-04-06) — miglioramenti.md n.21-26
+
+21. **n.21 TanStack Query (useApiQuery)**: Integrato `useApiQuery` (hook interno zero-dep con caching TTL, refetch-on-focus, invalidazione) in `manuali/page.tsx` — sostituisce `loadManuali()` + `useEffect` + `useState`. `invalidateQueries("/manuali")` richiamato dopo upload per refetch automatico. Il hook (`frontend/lib/useApiQuery.ts`) è l'implementazione nativa che copre le features core di TanStack Query senza aggiungere dipendenze esterne.
+
+22. **n.22 Skeleton Loading**: Componente `Skeleton.tsx` (già esistente con varianti block/text/card/table/stats) ora usato nei 3 principali percorsi desktop: `dashboard/page.tsx` → `<SkeletonStats count={4} />` durante il caricamento KPI; `ticket/page.tsx` → `<SkeletonTable rows={5} cols={6} />` mentre la prima pagina ticket carica; `manuali/page.tsx` → `<Skeleton variant="table" rows={4} cols={5} />` durante la lista.
+
+23. **n.23 Mobile First PWA**: Service worker `sw.js` ora registrato via `useEffect` in `layout.tsx` (primo mount, non-critico su errore). Manifest.json, viewport meta, apple-mobile-web-app-capable già presenti. La PWA è ora installabile su mobile e desktop.
+
+24. **n.24 Drag-and-Drop**: ✅ Già implementato — `KanbanBoard.tsx` con `@dnd-kit/core` e `useDraggable`/`useDroppable` già in `ticket/page.tsx`. Drag tra colonne Aperto→Pianificato→In corso con backend update via `PATCH /tickets/{id}`. Nessun intervento necessario.
+
+25. **n.25 Centralized Notification Manager**: ✅ Già implementato — `frontend/lib/toast.ts` (`notify.error/success/info/warning`), `frontend/lib/useNotifications.ts` (store persistente con `useSyncExternalStore`), `NotificationPanel.tsx` (campanella con badge contatore). Usato in tutte le pagine.
+
+26. **n.26 Supporto Offline**: Service worker `sw.js` registrato (vedi n.23) con strategia Network-First + fallback cache per GET su `/tickets`, `/assets`, `/tecnici/me`. Pagina offline HTML personalizzata quando né rete né cache. `GlobalOfflineIndicator` aggiunto a `layout.tsx` — visibile a tutti gli utenti (non solo mobile) quando la connessione viene persa.

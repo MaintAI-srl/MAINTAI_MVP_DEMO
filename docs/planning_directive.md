@@ -477,6 +477,21 @@ NON come `~... if locked_ids else True` (Python True non è una BinaryExpression
 
 ---
 
+## AGGIORNAMENTI PLANNER (ciclo v2.0.8)
+
+### _skill_covers() — funzione estratta
+Il check skill inline è stato estratto in `_skill_covers(required, tech_skills, hierarchy)`.
+Il parametro `skill_hierarchy: Dict[str, List[str]] | None` è ora passabile al costruttore di `PlannerEngine`.
+Senza gerarchia: check è semplice `required in tech_skills`. Con gerarchia: una competenza "superiore" del tecnico può coprire quella richiesta.
+Il bridge deve continuare a NON passare `skill_hierarchy` finché non esiste un campo DB reale per configurarla.
+
+### slot_minutes — parametro predisposto
+`PlannerEngine.__init__()` accetta `slot_minutes: int | None = None`.
+Se valorizzato, il motore logga un warning e continua a gestire la capacità a giornata.
+Non abilitare la logica slot finché non esiste tracking orario reale nel DB.
+
+---
+
 ## DIRETTIVA FINALE
 
 Il planner di MaintAI è una logica operativa reale, non un esercizio teorico.

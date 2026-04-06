@@ -5,6 +5,7 @@ import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import StatusToggle from "../components/StatusToggle";
+import Skeleton, { SkeletonStats } from "../components/Skeleton";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area,
@@ -196,6 +197,7 @@ function StatoDot({ stato }: { stato: string }) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
   const [trend, setTrend] = useState<TrendData | null>(null);
@@ -229,6 +231,7 @@ export default function DashboardPage() {
         if (kpiData) setKpiAsset(kpiData);
         setLastUpdate(new Date());
       } catch { notify.error("Errore di connessione al backend."); }
+      finally { setLoading(false); }
     }
     loadInitial();
   }, []);
@@ -318,14 +321,16 @@ export default function DashboardPage() {
       </div>
 
       {/* ── KPI Cards ───────────────────────────────────────────────────────── */}
-      {dashboard && (
+      {loading ? (
+        <SkeletonStats count={4} />
+      ) : dashboard ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           <KpiCard label="Asset totali" value={dashboard.assets} accent="#38bdf8" icon={<IconBox size={16} />} sub={`${dashboard.asset_stati?.service ?? 0} in servizio · ${dashboard.asset_stati?.stopped ?? 0} fermi · ${dashboard.asset_stati?.["out of service"] ?? 0} guasti`} />
           <KpiCard label="Tecnici attivi" value={`${dashboard.tecnici_disponibili}/${dashboard.tecnici}`} accent="#34d399" icon={<IconUsers size={16} />} sub="Disponibili oggi" />
           <KpiCard label="Ticket aperti" value={dashboard.ticket_aperti} accent="#fbbf24" icon={<IconTicket size={16} />} sub={`${dashboard.ticket_in_corso} in lavorazione · ${dashboard.ticket_chiusi} chiusi`} />
           <KpiCard label="Ticket pianificati" value={dashboard.ticket_pianificati} accent="#a78bfa" icon={<IconCalendar size={16} />} sub="Schedulati dal planner AI" />
         </div>
-      )}
+      ) : null}
 
       {/* ── MTBF + OEE Ring Cards ────────────────────────────────────────────── */}
       {kpiAsset && (

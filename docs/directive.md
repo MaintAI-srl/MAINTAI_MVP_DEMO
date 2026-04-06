@@ -386,6 +386,10 @@ Non fare mai queste cose:
 - fare `new Date(str).getTime()` senza validare che il risultato non sia `NaN` — aggiungere `if (isNaN(ts)) return "—"`
 - usare `allow_origins=["*"]` in produzione — leggere sempre da `CORS_ORIGINS` env var tramite `_load_origins()`
 - dimenticare il filtro `Ticket.deleted_at.is_(None)` nelle query lista — i soft-deleted devono essere invisibili
+- registrare il service worker a ogni render — usare `useEffect(fn, [])` con mount-once
+- lasciare il service worker `sw.js` senza registrazione — non viene mai attivato senza `navigator.serviceWorker.register()`
+- mostrare "Caricamento..." come testo — usare `<Skeleton>` per una UX professionale
+- usare `loadDati()` + `useState` + `useEffect` quando `useApiQuery` copre il pattern con caching automatico
 - definire un endpoint statico DOPO uno parametrico con lo stesso prefisso (es. `/tickets/durata-media` dopo `/tickets/{id}`) — FastAPI lo intercetterebbe come parametro
 - omettere il bypass cache quando il contesto è personalizzato (asset_ids specificato) — cache errata causa cross-contesto data
 - usare gerarchia skill hardcoded inline — passarla come parametro `skill_hierarchy` al costruttore di `PlannerEngine`

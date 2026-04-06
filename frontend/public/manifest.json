@@ -1,17 +1,41 @@
 {
   "name": "MaintAI Enterprise",
   "short_name": "MaintAI",
-  "description": "Enterprise Maintenance Management System",
+  "description": "Piattaforma enterprise per la gestione operativa della manutenzione",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#020617",
   "theme_color": "#3b82f6",
+  "lang": "it",
+  "categories": ["productivity", "business", "utilities"],
   "icons": [
     {
       "src": "/logo.png",
-      "sizes": "192x192 512x512",
+      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "I miei Ticket",
+      "short_name": "Ticket",
+      "url": "/ticket",
+      "icons": [{ "src": "/logo.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/logo.png", "sizes": "96x96" }]
     }
   ]
 }

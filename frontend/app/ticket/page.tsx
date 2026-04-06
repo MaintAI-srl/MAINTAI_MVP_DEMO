@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { SkeletonTable } from "../components/Skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
@@ -836,7 +837,11 @@ export default function TicketPage() {
         ))}
       </div>
 
-      {tab === "attivi" && (
+      {tab === "attivi" && result === null && (
+        <SkeletonTable rows={5} cols={6} />
+      )}
+
+      {tab === "attivi" && result !== null && (
         <DataTable
           data={tickets}
           columns={ticketColumns}
