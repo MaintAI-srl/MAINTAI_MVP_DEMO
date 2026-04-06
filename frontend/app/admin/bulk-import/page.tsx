@@ -174,17 +174,29 @@ export default function BulkImportPage() {
   // Download template
   async function downloadTemplate() {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/admin/bulk-import/template`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) { notify.error("Errore download template"); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "maintai_bulk_import_template.xlsx";
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const res = await fetch(`${API_BASE}/admin/bulk-import/template`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        let msg = `Errore ${res.status}`;
+        try { const e = await res.json(); msg = e?.detail?.message ?? e?.detail ?? msg; } catch { /* skip */ }
+        notify.error(`Errore download template: ${msg}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "maintai_bulk_import_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notify.success("Template scaricato");
+    } catch (err) {
+      notify.error(`Errore download template: ${err instanceof Error ? err.message : "rete non raggiungibile"}`);
+    }
   }
 
   // Preview
