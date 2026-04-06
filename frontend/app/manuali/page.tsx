@@ -116,7 +116,7 @@ export default function ManualiPage() {
         setAssets(data);
         if (data.length > 0) setSelectedAssetId(data[0].id);
       })
-      .catch(() => {});
+      .catch(() => notify.error("Errore caricamento asset."));
     loadManuali();
   }, []);
 

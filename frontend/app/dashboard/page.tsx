@@ -59,7 +59,9 @@ function IconActivity({ size = 20, color = "currentColor" }: { size?: number; co
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function formatDowntime(secondsFromBackend: number | null | undefined, statoChangedAt: string | null | undefined): string {
   if (!statoChangedAt) return "—";
-  const totalSec = Math.floor((Date.now() - new Date(statoChangedAt).getTime()) / 1000);
+  const ts = new Date(statoChangedAt).getTime();
+  if (isNaN(ts)) return "—";
+  const totalSec = Math.floor((Date.now() - ts) / 1000);
   if (totalSec < 0) return "—";
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);

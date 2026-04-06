@@ -100,7 +100,7 @@ export default function PianiPage() {
   useEffect(() => {
     apiGet<Asset[]>("/assets")
       .then(setAssets)
-      .catch(() => {});
+      .catch(() => notify.error("Errore caricamento asset."));
   }, []);
 
   useEffect(() => { setCurrentPage(1); }, [filterAsset, filterPriorita]);

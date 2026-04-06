@@ -2,6 +2,7 @@ import json
 
 from fastapi import APIRouter, UploadFile, File, Form, Depends
 from pydantic import BaseModel as PydanticModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
@@ -38,7 +39,7 @@ async def upload_manuale(
         db.commit()
         db.refresh(nuovo)
         resolved_asset_id = nuovo.id
-        logger.info(f"Nuovo asset creato automaticamente: id={nuovo.id} nome='{nuovo.nome}'")
+        logger.info("Nuovo asset creato automaticamente: id=%d nome='%s'", nuovo.id, nuovo.nome)
     else:
         resolved_asset_id = asset_id
         if resolved_asset_id:
@@ -54,7 +55,7 @@ async def upload_manuale(
             message="Nessun testo estratto dal PDF. Il file potrebbe essere scansionato o protetto.",
         )
 
-    logger.info(f"Upload manuale '{file.filename}' — {len(text)} caratteri estratti")
+    logger.info("Upload manuale '%s' — %d caratteri estratti", file.filename, len(text))
 
     parsed_json_str = parse_manual_with_ai(text, file.filename)
 
@@ -73,7 +74,7 @@ async def upload_manuale(
     try:
         parsed = json.loads(parsed_json_str)
     except Exception as exc:
-        logger.error(f"JSON parsing fallito per manuale {manuale.id}: {exc}")
+        logger.error("JSON parsing fallito per manuale %d: %s", manuale.id, exc)
         return {
             "id_manuale": manuale.id,
             "filename": file.filename,
@@ -162,7 +163,7 @@ async def upload_manuale(
             })
 
     db.commit()
-    logger.info(f"Manuale {manuale.id} salvato — {len(saved_tasks)} attività create, asset_id={asset_id}")
+    logger.info("Manuale %d salvato — %d attività create, asset_id=%s", manuale.id, len(saved_tasks), asset_id)
 
     return {
         "id_manuale": manuale.id,
@@ -183,16 +184,23 @@ class ManualePatch(PydanticModel):
 
 @router.get("/manuali")
 def list_manuali(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    manuali = db.query(Manuale).filter(Manuale.tenant_id == tenant_id).order_by(Manuale.id.desc()).all()
+    manuali = db.query(Manuale).filter(Manuale.tenant_id == tenant_id).order_by(Manuale.id.desc()).limit(200).all()
+    ids = [m.id for m in manuali]
+    counts: dict[int, int] = {}
+    if ids:
+        counts = dict(
+            db.query(AttivitaManutenzione.manuale_id, func.count(AttivitaManutenzione.id))
+            .filter(AttivitaManutenzione.manuale_id.in_(ids))
+            .group_by(AttivitaManutenzione.manuale_id)
+            .all()
+        )
     return [
         {
             "id": m.id,
             "nome": m.nome_file,
             "pagine": m.pagine or 0,
             "metodo": m.metodo_lettura or "",
-            "task_count": db.query(AttivitaManutenzione)
-                .filter(AttivitaManutenzione.manuale_id == m.id)
-                .count(),
+            "task_count": counts.get(m.id, 0),
             "version": m.version or 1,
             "stato": m.stato or "attivo",
         }

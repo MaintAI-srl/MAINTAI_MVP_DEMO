@@ -72,7 +72,7 @@ export default function AssetsPage() {
     loadAssets();
     apiGet<Impianto[]>("/impianti")
       .then(d => { if (Array.isArray(d)) setImpianti(d); })
-      .catch(() => {});
+      .catch(() => notify.error("Errore caricamento impianti."));
   }, []);
 
   useEffect(() => {
@@ -90,7 +90,9 @@ export default function AssetsPage() {
     try {
       const d = await apiGet<Asset[]>("/assets");
       setAssets(d);
-    } catch {}
+    } catch {
+      notify.error("Errore caricamento asset.");
+    }
   }
 
   function resetForm() {

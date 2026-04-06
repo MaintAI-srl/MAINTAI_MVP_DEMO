@@ -452,6 +452,50 @@ for item in items:
     count = db.query(func.count(Model.id)).filter(...).scalar()
 ```
 
+### Pattern: Endpoint con join — tenant_id sul join root
+Quando un endpoint fa join su una tabella "foglia" (es. `AttivitaManutenzione → Asset`), il filtro tenant deve stare sulla tabella radice del join, non sulla foglia:
+
+```python
+# Corretto: filtro tenant su Asset (radice del join)
+scadenze = db.query(AttivitaManutenzione).join(Asset).filter(
+    Asset.tenant_id == tenant_id,   # ← tenant sul join root
+    AttivitaManutenzione.prossima_scadenza <= limit,
+).limit(200).all()
+
+# Sbagliato: manca il filtro tenant → cross-tenant data leak
+scadenze = db.query(AttivitaManutenzione).join(Asset).filter(
+    AttivitaManutenzione.prossima_scadenza <= limit,
+).all()
+```
+
+### Pattern: Record figlio con tenant_id (esteso)
+Non solo i `Ticket` correttivi — TUTTI i record ORM con colonna `tenant_id` devono riceverla alla creazione:
+
+```python
+# Corretto
+nuova_assenza = TecnicoAssenza(
+    tecnico_id=tecnico_id,
+    ...
+    tenant_id=tenant_id,   # ← obbligatorio se il modello ha la colonna
+)
+```
+
+### Pattern: N+1 su lista con aggregazione
+```python
+# Corretto: 1+1 query per N manuali
+ids = [m.id for m in manuali]
+counts = dict(
+    db.query(AttivitaManutenzione.manuale_id, func.count(AttivitaManutenzione.id))
+    .filter(AttivitaManutenzione.manuale_id.in_(ids))
+    .group_by(AttivitaManutenzione.manuale_id)
+    .all()
+) if ids else {}
+task_count = counts.get(m.id, 0)
+
+# Sbagliato: N query in loop
+task_count = db.query(AttivitaManutenzione).filter(...).count()  # dentro list comprehension
+```
+
 ---
 
 ## DIRETTIVA FINALE

@@ -116,14 +116,18 @@ export default function TecniciPage() {
     try {
       const d = await apiGet<Tecnico[]>("/tecnici");
       setTecnici(d);
-    } catch {}
+    } catch {
+      notify.error("Errore caricamento tecnici.");
+    }
   }
 
   async function loadStats() {
     try {
       const d = await apiGet<OreStats>("/tecnici/statistiche");
       setStats(d);
-    } catch {}
+    } catch {
+      notify.error("Errore caricamento statistiche.");
+    }
   }
 
   function resetForm() {

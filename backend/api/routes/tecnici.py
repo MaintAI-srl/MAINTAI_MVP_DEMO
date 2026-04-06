@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
+from backend.db.modelli import TecnicoAssenza, Tecnico
 from backend.repositories.tecnico_repository import tecnico_repository
-from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate
+from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate, TecnicoAssenzaCreate, TecnicoAssenzaResponse
 
 router = APIRouter()
 
@@ -112,8 +113,6 @@ def delete_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_id: in
 
 
 # ── Assenze Tecnici ────────────────────────────────────────────────────────
-from backend.db.modelli import TecnicoAssenza, Tecnico
-from backend.schemas.schemas import TecnicoAssenzaCreate, TecnicoAssenzaResponse
 
 @router.get("/tecnici/{tecnico_id}/assenze", response_model=list[TecnicoAssenzaResponse])
 def get_assenze_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
@@ -121,7 +120,7 @@ def get_assenze_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_i
     t = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tecnico non trovato")
-    assenze = db.query(TecnicoAssenza).filter(TecnicoAssenza.tecnico_id == tecnico_id).all()
+    assenze = db.query(TecnicoAssenza).filter(TecnicoAssenza.tecnico_id == tecnico_id).limit(200).all()
     return assenze
 
 @router.post("/tecnici/{tecnico_id}/assenze", response_model=TecnicoAssenzaResponse, status_code=201)
@@ -137,6 +136,7 @@ def create_assenza_tecnico(tecnico_id: int, assenza: TecnicoAssenzaCreate, db: S
         data_fine=assenza.data_fine,
         tipo_assenza=assenza.tipo_assenza,
         note=assenza.note,
+        tenant_id=tenant_id,
     )
     db.add(nuova_assenza)
     db.commit()

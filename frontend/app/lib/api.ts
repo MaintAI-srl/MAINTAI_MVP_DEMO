@@ -86,9 +86,9 @@ async function request<T>(
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearTimeout(id);
-    if (error.name === "AbortError") {
+    if (error instanceof Error && error.name === "AbortError") {
       throw new Error("Il server ha impiegato troppo tempo a rispondere. Riprova (Render potrebbe essere in avvio).");
     }
     throw error;

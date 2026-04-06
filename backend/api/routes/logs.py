@@ -21,10 +21,13 @@ def get_logs(
         
     if not os.path.exists(LOG_FILE):
         return {"logs": [], "message": "Nessun log trovato."}
-    
-    with open(LOG_FILE, "r") as f:
-        content = f.readlines()
-        
+
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            content = f.readlines()
+    except OSError:
+        return {"logs": [], "message": "Impossibile leggere il file di log."}
+
     last_lines = content[-lines:] if len(content) > lines else content
     return {"logs": [line.strip() for line in last_lines if line.strip()]}
 
@@ -34,8 +37,11 @@ def clear_logs(payload: dict = Depends(get_current_user_payload)):
         raise HTTPException(status_code=403, detail="Accesso negato")
 
     if os.path.exists(LOG_FILE):
-        os.remove(LOG_FILE)
-        return {"status": "success", "message": "Log cancellati correttamente."}
+        try:
+            os.remove(LOG_FILE)
+            return {"status": "success", "message": "Log cancellati correttamente."}
+        except OSError as e:
+            return {"status": "error", "message": f"Impossibile cancellare il file di log: {e}"}
     return {"status": "error", "message": "File di log non trovato."}
 
 @router.get("/system-logs")

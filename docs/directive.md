@@ -379,6 +379,11 @@ Non fare mai queste cose:
 - fare import lazy dentro funzioni salvo casi eccezionali — metti sempre gli import a top-level
 - usare `f"SELECT ... {var}"` o f-string con SQL raw — usa parametri binding o allowlist
 - calcolare completion_pct in loop N+1 — usa batch query con set lookup O(1)
+- usare f-string nei log (`logger.info(f"...")`) — usa sempre `%s` lazy formatting (`logger.info("...", arg)`)
+- creare record ORM figli senza `tenant_id` (es. `TecnicoAssenza`) quando il modello ha la colonna
+- omettere `tenant_id` su endpoint che fanno join su Asset/AttivitaManutenzione — il filtro va sul join root
+- lasciare catch vuoti (`catch {}` o `.catch(() => {})`) nel frontend — mostrare sempre un toast all'utente
+- fare `new Date(str).getTime()` senza validare che il risultato non sia `NaN` — aggiungere `if (isNaN(ts)) return "—"`
 
 ---
 

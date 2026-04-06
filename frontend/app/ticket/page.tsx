@@ -465,7 +465,9 @@ export default function TicketPage() {
     try {
       const d = await apiGet<PagedResult>(`/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ARCHIVIO.join(",")}`);
       setArchivio(d);
-    } catch {}
+    } catch {
+      notify.error("Errore caricamento archivio ticket.");
+    }
   }
 
   async function loadKanban() {
