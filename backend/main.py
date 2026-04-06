@@ -11,9 +11,11 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     except Exception:
         pass
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
+from backend.core.rate_limiter import limiter as _limiter, RATE_LIMITING_AVAILABLE as _RATE_LIMITING_AVAILABLE
 
 try:
     from backend.api.routes.assets import router as assets_router
@@ -35,6 +37,7 @@ try:
     from backend.api.routes.logs import router as logs_router
     from backend.api.routes.email_config import router as email_config_router
     from backend.api.routes.planning import router as planning_router
+    from backend.api.routes.ws_routes import router as ws_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -136,6 +139,8 @@ def _ensure_columns() -> None:
         ("generated_plans", "scadenza",                "ALTER TABLE generated_plans ADD COLUMN {ifne}scadenza TIMESTAMP"),
         # tecnici_assenze — isolamento multi-tenant
         ("tecnici_assenze", "tenant_id",               "ALTER TABLE tecnici_assenze ADD COLUMN {ifne}tenant_id INTEGER"),
+        # ticket — audit trail
+        ("ticket", "created_by",                       "ALTER TABLE ticket ADD COLUMN {ifne}created_by VARCHAR"),
     ]
 
     # system_logs — tabella intera
@@ -271,6 +276,13 @@ app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 
+# Rate limiting — attivo solo se slowapi è installato
+if _RATE_LIMITING_AVAILABLE:
+    from slowapi.errors import RateLimitExceeded
+    from slowapi import _rate_limit_exceeded_handler
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 _origins = _load_origins()
 app.add_middleware(
     CORSMiddleware,
@@ -300,6 +312,7 @@ app.include_router(problem_analysis_router)
 app.include_router(tenants_router)
 app.include_router(email_config_router)
 app.include_router(planning_router)
+app.include_router(ws_router)  # WebSocket real-time updates
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.

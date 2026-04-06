@@ -87,3 +87,15 @@ Questo documento riassume le 35 proposte di miglioramento per l'evoluzione della
 4. **n.4 Email Poller backoff**: Backoff esponenziale su errori consecutivi (5min → 10min → 20min → max 30min). Framework completo (APScheduler/Taskiq) rimane futuro.
 
 5. **n.5 API Versioning**: Tutti i router registrati anche sotto prefisso `/v1` mantenendo path legacy invariati. Migrazione graduale del frontend a `/v1/` rimane pendente.
+
+### Ciclo v2.0.7 (2026-04-06) — miglioramenti.md n.6-10
+
+6. **n.6 WebSockets**: Aggiunto `backend/services/ws_manager.py` (ConnectionManager per-tenant, in-memory) e `backend/api/routes/ws_routes.py` con endpoint `/ws/ticket-updates?token=<JWT>`. Broadcast real-time disponibile per future integrazioni frontend.
+
+7. **n.7 Rate Limiting**: Aggiunto `slowapi` a `requirements.txt` e `backend/core/rate_limiter.py` con no-op stub se non installato. Endpoint `POST /planning/generate` limitato a 10 req/min. Gli altri endpoint AI possono essere aggiunti gradualmente.
+
+8. **n.8 Error Handling**: `generic_error_handler` arricchito con method + path + exception type nel log. I messaggi all'utente rimangono generici (no stack trace in produzione).
+
+9. **n.9 Indici Compositi**: Alembic `20260406002_add_composite_tenant_indexes.py` — 5 indici su `(tenant_id, stato/priorita/area/status)` per ticket, asset, generated_plans, tecnici.
+
+10. **n.10 Audit Trails**: Campo `ticket.created_by VARCHAR` aggiunto al modello ORM, ad `_ensure_columns()` e a migrazione Alembic `20260406003`. Popolato automaticamente dalla `POST /tickets` con l'username dal JWT.

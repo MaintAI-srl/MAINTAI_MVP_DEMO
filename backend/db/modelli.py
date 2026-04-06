@@ -183,6 +183,9 @@ class Ticket(Base):
     is_continuation = Column(Boolean, default=False)
     planned_start_time = Column(Time, nullable=True)
 
+    # Audit trail — username JWT di chi ha creato il ticket
+    created_by = Column(String, nullable=True)
+
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
     children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic", cascade="all, delete-orphan")

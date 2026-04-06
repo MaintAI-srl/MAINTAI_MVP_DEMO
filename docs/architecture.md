@@ -480,6 +480,39 @@ nuova_assenza = TecnicoAssenza(
 )
 ```
 
+### Pattern: Rate limiting endpoint AI
+```python
+from backend.core.rate_limiter import limiter
+
+@router.post("/generate")
+@limiter.limit("10/minute")
+async def generate_plan(request: Request, ...):  # Request obbligatorio per slowapi
+    ...
+```
+Il `limiter` è un no-op se `slowapi` non è installato — sicuro in tutti gli ambienti.
+
+### Pattern: WebSocket con isolamento tenant
+```python
+# ws_manager.py — ConnectionManager per-tenant
+class ConnectionManager:
+    def __init__(self):
+        self._connections: Dict[int, List[WebSocket]] = {}  # tenant_id → websockets
+
+    async def broadcast_to_tenant(self, tenant_id: int, event: str, payload: dict):
+        # Invia solo ai client del tenant corretto
+```
+
+### Pattern: Audit trail su creazione record
+```python
+@router.post("/tickets")
+def create_ticket(..., payload: dict = Depends(get_current_user_payload)):
+    ticket = ticket_repository.create(db, data, tenant_id)
+    username = payload.get("sub") or payload.get("username")
+    if username:
+        ticket.created_by = username
+        db.commit()
+```
+
 ### Pattern: N+1 su lista con aggregazione
 ```python
 # Corretto: 1+1 query per N manuali

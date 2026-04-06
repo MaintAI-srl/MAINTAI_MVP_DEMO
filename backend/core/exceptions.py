@@ -20,9 +20,14 @@ async def app_error_handler(request: Request, exc: AppError):
 
 
 async def generic_error_handler(request: Request, exc: Exception):
-    logger.error("ERRORE INTERNO DEL SERVER:")
+    logger.error(
+        "ERRORE INTERNO — %s %s — %s",
+        request.method,
+        str(request.url.path),
+        type(exc).__name__,
+    )
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"error": True, "message": "Errore interno del server"}
+        content={"error": True, "message": "Errore interno del server"},
     )

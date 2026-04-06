@@ -6,12 +6,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
+from backend.core.rate_limiter import limiter
 from backend.core.security import get_current_tenant_id, get_current_user_payload
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
@@ -160,7 +161,9 @@ def _plan_to_dict(plan: GeneratedPlan, completion_pct: Optional[float] = None) -
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/generate")
+@limiter.limit("10/minute")
 async def generate_plan(
+    request: Request,
     data: GeneratePlanRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),

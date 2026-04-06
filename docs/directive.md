@@ -387,6 +387,9 @@ Non fare mai queste cose:
 - usare `allow_origins=["*"]` in produzione — leggere sempre da `CORS_ORIGINS` env var tramite `_load_origins()`
 - aggiungere nuove colonne al DB senza creare una migrazione Alembic — ogni nuova colonna deve avere sia la migrazione sia il fallback in `_ensure_columns()`
 - creare engine PostgreSQL senza `pool_pre_ping=True` e `pool_recycle` — le connessioni stale causano errori silenziosi dopo idle prolungato
+- aggiungere endpoint AI senza rate limiting — usare `@limiter.limit("N/minute")` da `backend/core/rate_limiter.py`
+- creare nuovi campi audit (`created_by`) senza popolarli nel route handler che crea il record
+- aggiungere WebSocket routing senza `ConnectionManager` isolato per tenant — il WS manager deve mantenere isolamento tra tenant
 
 ---
 

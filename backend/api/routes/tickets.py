@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel as PydanticModel
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, get_current_user_payload
 from backend.repositories.ticket_repository import ticket_repository, _ticket_to_dict
 from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.logging_config import get_logger
@@ -62,8 +62,18 @@ def get_ticket(ticket_id: int, db: Session = Depends(get_db), tenant_id: int = D
 
 
 @router.post("/tickets")
-def create_ticket(data: TicketCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def create_ticket(
+    data: TicketCreate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    payload: dict = Depends(get_current_user_payload),
+):
     ticket = ticket_repository.create(db, data, tenant_id)
+    # Audit trail: registra l'username di chi ha creato il ticket
+    username = payload.get("sub") or payload.get("username") or payload.get("email")
+    if username:
+        ticket.created_by = username
+        db.commit()
     return _ticket_to_dict(ticket)
 
 

@@ -19,3 +19,4 @@ supabase
 python-multipart
 imap-tools
 cryptography
+slowapi
