@@ -10,7 +10,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 function getToken(): string | null {
   try {
-    return localStorage.getItem("token") ?? sessionStorage.getItem("token");
+    return localStorage.getItem("maintai_jwt") ?? sessionStorage.getItem("maintai_jwt");
   } catch {
     return null;
   }
