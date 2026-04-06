@@ -621,6 +621,11 @@ export default function PlanningPage() {
     [deferredWOs, ticketMap]
   );
 
+  // ── Sensor DnD (deve stare prima di qualsiasi early return) ──────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
   // ── Ticket da mostrare nel pannello sinistro in modalità manuale ──────────
   // In modalità manuale mostra TUTTI i ticket (non solo quelli rimandati dall'AI)
   const ticketsPerPannelloManuale = useMemo(() => {
@@ -647,11 +652,6 @@ export default function PlanningPage() {
       </div>
     );
   }
-
-  // Sensor con soglia di distanza: evita che il click normale attivi il drag
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
 
   return (
     <DndContext
