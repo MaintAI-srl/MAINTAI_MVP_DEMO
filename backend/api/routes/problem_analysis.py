@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
+from backend.core.security import get_current_tenant_id
 from backend.core.exceptions import AppError
 from backend.core.logging_config import get_logger
 from backend.db.modelli import Ticket, Asset
@@ -14,14 +15,24 @@ logger = get_logger(__name__)
 def analyze_ticket_problem(
     ticket_id: int,
     payload: ProblemAnalysisRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    # Filtro tenant_id: impedisce accesso cross-tenant
+    ticket = db.query(Ticket).filter(
+        Ticket.id == ticket_id,
+        Ticket.tenant_id == tenant_id,
+    ).first()
 
     if not ticket:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 
-    asset = db.query(Asset).filter(Asset.id == ticket.asset_id).first() if ticket.asset_id else None
+    asset = None
+    if ticket.asset_id:
+        asset = db.query(Asset).filter(
+            Asset.id == ticket.asset_id,
+            Asset.tenant_id == tenant_id,
+        ).first()
 
     ticket_dict = {
         "titolo": ticket.titolo,
@@ -32,13 +43,10 @@ def analyze_ticket_problem(
         "fascia": ticket.fascia_oraria,
     }
 
-    asset_dict = {
-        "name": asset.nome,
-        
-    } if asset else None
+    asset_dict = {"name": asset.nome} if asset else None
 
     try:
-        logger.info(f"Problem analysis start — ticket {ticket_id}, method {payload.method}")
+        logger.info("Problem analysis start — ticket %s, method %s, tenant %s", ticket_id, payload.method, tenant_id)
 
         analysis = analyze_problem_with_ai(
             ticket=ticket_dict,
@@ -47,7 +55,7 @@ def analyze_ticket_problem(
             method=payload.method
         )
 
-        logger.info(f"Problem analysis OK — ticket {ticket_id}")
+        logger.info("Problem analysis OK — ticket %s", ticket_id)
 
         return {
             "ticket_id": ticket.id,
@@ -58,5 +66,5 @@ def analyze_ticket_problem(
         }
 
     except Exception as exc:
-        logger.error(f"Problem analysis error — ticket {ticket_id}: {exc}")
+        logger.error("Problem analysis error — ticket %s: %s", ticket_id, exc)
         raise AppError(status_code=500, message=f"Errore analisi AI: {str(exc)}")

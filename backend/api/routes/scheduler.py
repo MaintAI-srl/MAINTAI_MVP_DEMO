@@ -169,6 +169,9 @@ async def run_scheduler_and_persist(db: Session, start: date | None = None, tena
     if tenant_id:
         _split_long_tickets(db, tenant_id)
 
+    # assets_meta caricato localmente (era undefined nella versione precedente → NameError)
+    assets_meta = _load_assets(db, tenant_id) if tenant_id else {}
+
     forecast = await _get_forecast(db, tenant_id) if tenant_id else {"error": "no tenant"}
     result = generate_plan(
         _load_tickets(db, tenant_id) if tenant_id else [],
