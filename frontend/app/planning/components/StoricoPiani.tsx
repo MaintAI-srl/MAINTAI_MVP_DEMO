@@ -323,6 +323,22 @@ function RigaPiano({
                     </span>
                   </div>
                 )}
+                {piano.scadenza && (
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>
+                    Scadenza: <span style={{ color: new Date(piano.scadenza) < new Date() ? "#fca5a5" : "#86efac", fontWeight: 600 }}>
+                      {new Date(piano.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                    </span>
+                  </div>
+                )}
+                {piano.completion_pct !== null && piano.completion_pct !== undefined && (
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
+                    Completamento:{" "}
+                    <span style={{
+                      color: piano.completion_pct >= 80 ? "#86efac" : piano.completion_pct >= 40 ? "#fcd34d" : "#60a5fa",
+                      fontWeight: 700,
+                    }}>{piano.completion_pct}%</span>
+                  </div>
+                )}
                 {piano.deauthorized_at && (
                   <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>
                     Deautorizzato: <span style={{ color: "#fca5a5" }}>

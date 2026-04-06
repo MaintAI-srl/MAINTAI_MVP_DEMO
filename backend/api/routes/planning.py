@@ -3,8 +3,8 @@ Router Planning — generazione, conferma, deautorizzazione e storico piani manu
 """
 from __future__ import annotations
 
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, get_current_user_payload
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
-from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico
+from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant
 from backend.services.ai_planner_service import generate_ai_plan
 from backend.services.planner_engine_bridge import generate_deterministic_plan
 
@@ -77,7 +77,7 @@ def _compute_completion_pct(plan: GeneratedPlan, db: Session) -> Optional[float]
     Percentuale di completamento del piano: ticket con stato 'Chiuso' / totale pianificati.
     Calcolata dinamicamente — non è un campo DB, ma un valore derivato dallo stato
     attuale dei ticket.
-    Ritorna None se il piano non ha WO pianificati o non è confermato.
+    Ritorna None se il piano non è confermato o non ha WO pianificati.
     """
     if plan.status not in ("confirmed", "deauthorized"):
         return None
@@ -90,6 +90,47 @@ def _compute_completion_pct(plan: GeneratedPlan, db: Session) -> Optional[float]
         Ticket.tenant_id == plan.tenant_id,
     ).scalar() or 0
     return round((chiusi / len(wo_ids)) * 100, 1)
+
+
+def _batch_completion_pct(plans: List[GeneratedPlan], db: Session) -> Dict[int, Optional[float]]:
+    """
+    Calcola completion_pct per una lista di piani con una sola query DB invece di N.
+    Raggruppa tutti i wo_ids dei piani eleggibili, esegue un COUNT per ticket_id,
+    poi distribuisce i conteggi per piano.
+
+    Usato in get_plan_history per evitare N+1 queries.
+    """
+    # Piano → lista di wo_ids (solo piani che meritano il calcolo)
+    plan_wo_map: Dict[int, List[int]] = {}
+    for p in plans:
+        if p.status in ("confirmed", "deauthorized"):
+            wo_ids = _wo_ids_principali(p)
+            if wo_ids:
+                plan_wo_map[p.id] = wo_ids
+
+    if not plan_wo_map:
+        return {p.id: None for p in plans}
+
+    # Tutti gli id univoci da cercare
+    all_wo_ids = list({wid for ids in plan_wo_map.values() for wid in ids})
+
+    # Una sola query: ticket chiusi tra tutti i WO id (tenant non necessario se wo_ids sono già filtrati per tenant)
+    chiusi_rows = db.query(Ticket.id).filter(
+        Ticket.id.in_(all_wo_ids),
+        Ticket.stato == "Chiuso",
+    ).all()
+    chiusi_set = {row[0] for row in chiusi_rows}
+
+    result: Dict[int, Optional[float]] = {}
+    for p in plans:
+        wo_ids = plan_wo_map.get(p.id)
+        if wo_ids is None:
+            # draft o nessun WO
+            result[p.id] = None if p.status == "draft" else 0.0
+        else:
+            n_chiusi = sum(1 for wid in wo_ids if wid in chiusi_set)
+            result[p.id] = round((n_chiusi / len(wo_ids)) * 100, 1)
+    return result
 
 
 def _plan_to_dict(plan: GeneratedPlan, completion_pct: Optional[float] = None) -> dict:
@@ -275,11 +316,14 @@ def confirm_plan(
                 logger.info("Asset %s impostato in stato Fermo", asset_id)
 
         # Assegna plan_number progressivo con lock per evitare race condition
-        # with_for_update() blocca le righe fino al commit, impedendo assegnazioni doppie
+        # 1. Lock a riga sul Tenant per serializzare le conferme dello stesso tenant
+        db.query(Tenant).filter(Tenant.id == tenant_id).with_for_update().first()
+
+        # 2. Query aggregata per il massimo numero (ora sicura grazie al lock sopra)
         max_num = db.query(func.max(GeneratedPlan.plan_number)).filter(
             GeneratedPlan.tenant_id == tenant_id,
             GeneratedPlan.plan_number.isnot(None),
-        ).with_for_update().scalar()
+        ).scalar()
         plan.plan_number = (max_num or 0) + 1
 
         # Scadenza: ultima data pianificata tra i workorder del piano
@@ -287,7 +331,7 @@ def confirm_plan(
 
         # Segna piano come confermato
         plan.status = "confirmed"
-        plan.confirmed_at = datetime.utcnow()
+        plan.confirmed_at = datetime.now(timezone.utc)
         plan.confirmed_by = confirmed_by
 
         db.commit()
@@ -338,7 +382,7 @@ def deauthorize_plan(
         raise HTTPException(status_code=400, detail="Solo i piani confermati possono essere deautorizzati")
 
     plan.status = "deauthorized"
-    plan.deauthorized_at = datetime.utcnow()
+    plan.deauthorized_at = datetime.now(timezone.utc)
     plan.deauthorized_by = payload.get("sub", "sconosciuto")
     plan.deauthorization_reason = data.reason.strip()
 
@@ -438,10 +482,6 @@ def get_plan_history(
         .all()
     )
 
-    # Calcola completion_pct in batch: una query per piano (max 50 piani)
-    # Ogni piano ha un insieme di wo_ids; contiamo i Ticket chiusi per ciascuno.
-    result_list = []
-    for p in plans:
-        completion_pct = _compute_completion_pct(p, db)
-        result_list.append(_plan_to_dict(p, completion_pct=completion_pct))
-    return result_list
+    # Calcola completion_pct in batch: una sola query per tutti i piani
+    pct_map = _batch_completion_pct(plans, db)
+    return [_plan_to_dict(p, completion_pct=pct_map.get(p.id)) for p in plans]

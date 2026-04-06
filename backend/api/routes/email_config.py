@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 from backend.core.dependencies import get_db
@@ -28,8 +28,7 @@ class EmailConfigOut(BaseModel):
     default_asset_id: Optional[int] = None
     tenant_id: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _test_imap(server: str, port: int, email: str, password: str, timeout: int = 15) -> None:

@@ -348,3 +348,68 @@ def test_TC09b_assenza_totale():
     assert len(result.assignments) == 0
     assert len(result.unassigned) == 1
     assert result.unassigned[0].ticket_id == 110
+
+
+# ── TC-10: Ticket locked escluso dalla pianificazione ────────────────────────
+
+def test_TC10_locked_ticket_escluso():
+    """
+    Un ticket con assegnazione locked NON deve essere ripianificato.
+    Deve solo contribuire al consumo di capacità del tecnico.
+    """
+    tecnico = make_tecnico(id=1, competenze=["PM"], ore_giornaliere=8)
+
+    # Ticket 99: locked — 6h assegnate al tecnico 1 oggi
+    locked_assignment = PlannerAssignment(
+        ticket_id=99,
+        tecnico_id=1,
+        start=datetime(TODAY.year, TODAY.month, TODAY.day, 8, 0),
+        end=datetime(TODAY.year, TODAY.month, TODAY.day, 14, 0),
+        locked=True,
+    )
+
+    # Ticket 101: da pianificare — 2h (entra nelle 2h residue di oggi)
+    ticket = make_ticket(id=101, tipo="PM", durata=2.0)
+
+    result = run([tecnico], [ticket], assignments=[locked_assignment])
+
+    # Ticket 99 NON deve apparire nelle assignments del risultato corrente
+    ids_assegnati = [a.ticket_id for a in result.assignments]
+    assert 99 not in ids_assegnati, "Il ticket locked non deve essere in assignments"
+    assert len(result.unassigned) == 0, "Il ticket 101 deve essere pianificato"
+
+    # Ticket 101 deve essere assegnato nelle ore residue (14:00-16:00)
+    a101 = next(a for a in result.assignments if a.ticket_id == 101)
+    assert a101.tecnico_id == 1
+    assert a101.start.hour == 14, f"Deve iniziare alle 14:00, inizia alle {a101.start.hour}"
+    assert a101.start.date() == TODAY
+
+
+# ── TC-11: Ordinamento priorità — BD pianificato prima di PM ─────────────────
+
+def test_TC11_priority_ordering_BD_before_PM():
+    """
+    Due ticket: uno BD Alta priorità, uno PM Media.
+    Con un solo tecnico con capacità limitata (solo 3h/giorno, orizzonte 1 giorno),
+    il ticket BD deve essere pianificato e il PM rimandato.
+    """
+    tecnico = make_tecnico(id=1, competenze=["PM", "BD"], ore_giornaliere=3)
+
+    ticket_bd = make_ticket(id=201, tipo="BD", durata=3.0, priorita="Alta")
+    ticket_pm = make_ticket(id=202, tipo="PM", durata=3.0, priorita="Media")
+
+    # Ticket in ordine inverso: PM prima, BD dopo — il planner deve riordinare
+    result = run([tecnico], [ticket_pm, ticket_bd], horizon=1)
+
+    # Con 3h totali e 2 ticket da 3h, solo 1 può essere pianificato
+    assert len(result.assignments) == 1, "Solo 1 ticket può essere pianificato con 3h/giorno"
+    assert len(result.unassigned) == 1
+
+    # Deve essere pianificato il BD (priorità più alta)
+    assert result.assignments[0].ticket_id == 201, (
+        f"BD (id=201) deve essere pianificato, ma è stato pianificato {result.assignments[0].ticket_id}"
+    )
+    # Il PM deve essere rimandato
+    assert result.unassigned[0].ticket_id == 202, (
+        f"PM (id=202) deve essere rimandato, ma è rimandato {result.unassigned[0].ticket_id}"
+    )

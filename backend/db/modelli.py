@@ -322,7 +322,7 @@ class GeneratedPlan(Base):
     __tablename__ = "generated_plans"
 
     id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
     status = Column(String, default="draft")    # draft | confirmed | deauthorized
     horizon_days = Column(Integer, default=7)
     plan_json = Column(JSON)

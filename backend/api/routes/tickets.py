@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel as PydanticModel
 
@@ -70,8 +70,7 @@ def create_ticket(data: TicketCreate, db: Session = Depends(get_db), tenant_id: 
 @router.patch("/tickets/bulk-status")
 def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     if data.stato not in STATI_VALIDI:
-        from fastapi import HTTPException as _HTTPException
-        raise _HTTPException(
+        raise HTTPException(
             status_code=400,
             detail=f"Stato non valido: '{data.stato}'. Valori ammessi: {sorted(STATI_VALIDI)}",
         )

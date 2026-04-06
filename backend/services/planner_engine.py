@@ -109,10 +109,18 @@ class PlannerResult:
 
 # ── Helper Functions ──────────────────────────────────────────────────────────
 
-def _parse_time(t_str: str) -> time:
-    """Converte 'HH:MM' in datetime.time."""
-    hh, mm = t_str.split(":")
-    return time(int(hh), int(mm))
+def _parse_time(t_str: str, fallback: time = time(8, 0)) -> time:
+    """
+    Converte 'HH:MM' in datetime.time.
+    Se il formato è invalido restituisce il fallback (default 08:00)
+    per evitare crash su configurazioni malformate dei tecnici.
+    """
+    try:
+        parts = t_str.split(":")
+        return time(int(parts[0]), int(parts[1]))
+    except (ValueError, IndexError, AttributeError):
+        logger.warning("_parse_time: formato invalido '%s', uso fallback %s", t_str, fallback)
+        return fallback
 
 
 def _priorita_score(p: str) -> int:
@@ -430,11 +438,23 @@ class PlannerEngine:
         is_cont: bool,
         parent_id: Optional[int] = None,
     ) -> Assignment:
-        """Crea un Assignment calcolando start/end in base alle ore già consumate."""
+        """
+        Crea un Assignment calcolando start/end in base alle ore già consumate.
+        L'end viene clampato all'orario di fine del tecnico per evitare overflow
+        visivo sul Gantt (la capacità è già garantita dalle hard rules).
+        """
         ore_usate = self.ore_consumate[tecnico.id].get(giorno, 0.0)
         start_float = _ore_start_di_giorno(tecnico.orario_inizio) + ore_usate
+        end_float = start_float + durata
+
+        # Clamp end all'orario di fine del tecnico (es. 17:00 = 17.0)
+        fine_t = _parse_time(tecnico.orario_fine, fallback=time(17, 0))
+        fine_float = fine_t.hour + fine_t.minute / 60.0
+        if end_float > fine_float:
+            end_float = fine_float
+
         start_dt = _datetime_for(giorno, start_float)
-        end_dt = _datetime_for(giorno, start_float + durata)
+        end_dt = _datetime_for(giorno, end_float)
         return Assignment(
             ticket_id=ticket.id,
             tecnico_id=tecnico.id,

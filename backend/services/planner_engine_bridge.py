@@ -205,8 +205,10 @@ async def generate_deterministic_plan(
     # ── Carica ticket pianificabili (Aperto, oppure Pianificato senza assegnazione) ──
     ticket_query = db.query(Ticket).filter(
         Ticket.stato.in_(["Aperto", "Pianificato"]),
-        ~Ticket.id.in_(locked_ids) if locked_ids else True,
     )
+    if locked_ids:
+        # Escludi i ticket già assegnati (locked implicito) dalla coda pianificabile
+        ticket_query = ticket_query.filter(~Ticket.id.in_(locked_ids))
     if tenant_id:
         ticket_query = ticket_query.filter(Ticket.tenant_id == tenant_id)
     if asset_ids:
