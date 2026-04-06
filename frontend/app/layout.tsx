@@ -41,9 +41,10 @@ const NAV = [
   {
     section: "ADMIN",
     items: [
-      { href: "/admin/tenants", label: "Clienti", icon: "◈", superadminOnly: true },
-      { href: "/admin/logs",    label: "Log Sistema", icon: "📋", adminOnly: true },
-      { href: "/admin/email",   label: "Integrazione Email", icon: "✉️", adminOnly: true },
+      { href: "/admin/tenants",     label: "Clienti", icon: "◈", superadminOnly: true },
+      { href: "/admin/bulk-import", label: "Import Massivo", icon: "⬆", superadminOnly: true },
+      { href: "/admin/logs",        label: "Log Sistema", icon: "📋", adminOnly: true },
+      { href: "/admin/email",       label: "Integrazione Email", icon: "✉️", adminOnly: true },
     ],
   },
 ];
@@ -58,9 +59,10 @@ const PAGE_LABELS: Record<string, string> = {
   "/ticket":     "Ticket",
   "/manuali":    "Manuali",
   "/piani":          "Piano di Manutenzione",
-  "/admin/tenants":  "Gestione Clienti",
-  "/admin/logs":     "Log di Sistema",
-  "/admin/email":    "Integrazione Email-to-Ticket",
+  "/admin/tenants":     "Gestione Clienti",
+  "/admin/bulk-import": "Import Massivo",
+  "/admin/logs":        "Log di Sistema",
+  "/admin/email":       "Integrazione Email-to-Ticket",
   "/profilo":       "Mio Profilo",
 };
 

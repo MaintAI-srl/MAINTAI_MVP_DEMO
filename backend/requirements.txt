@@ -20,3 +20,4 @@ python-multipart
 imap-tools
 cryptography
 slowapi
+openpyxl

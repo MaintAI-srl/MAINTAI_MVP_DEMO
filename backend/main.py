@@ -38,6 +38,7 @@ try:
     from backend.api.routes.email_config import router as email_config_router
     from backend.api.routes.planning import router as planning_router
     from backend.api.routes.ws_routes import router as ws_router
+    from backend.api.routes.bulk_import import router as bulk_import_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -317,6 +318,7 @@ app.include_router(tenants_router)
 app.include_router(email_config_router)
 app.include_router(planning_router)
 app.include_router(ws_router)  # WebSocket real-time updates
+app.include_router(bulk_import_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
