@@ -332,6 +332,11 @@ class GeneratedPlan(Base):
     confirmed_at = Column(DateTime, nullable=True)
     confirmed_by = Column(String, nullable=True)  # username di chi ha confermato
 
+    # Scadenza piano: ultima data pianificata tra i workorder del piano.
+    # Calcolata al momento della conferma dal max(planned_date) dei planned_workorders.
+    # Workaround: non esiste "deadline esplicita utente" — derivata dal piano stesso.
+    scadenza = Column(DateTime, nullable=True)
+
     # Deautorizzazione (solo flag admin, non modifica i ticket)
     deauthorized_at = Column(DateTime, nullable=True)
     deauthorized_by = Column(String, nullable=True)

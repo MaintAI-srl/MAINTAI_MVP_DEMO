@@ -53,6 +53,43 @@ function efficienzaBadge(score: number | undefined) {
   );
 }
 
+function completamentoBadge(pct: number | null | undefined, status: string) {
+  if (status === "draft" || pct === null || pct === undefined) {
+    return <span style={{ color: "#4b5563", fontSize: 12 }}>—</span>;
+  }
+  const color = pct >= 80 ? "#86efac" : pct >= 40 ? "#fcd34d" : "#60a5fa";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 90 }}>
+      <div style={{
+        flex: 1, height: 6, background: "#1f2937", borderRadius: 3, overflow: "hidden",
+      }}>
+        <div style={{
+          width: `${Math.min(pct, 100)}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 3,
+          transition: "width 0.3s",
+        }} />
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 30 }}>
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
+function scadenzaCell(scadenza: string | null | undefined) {
+  if (!scadenza) return <span style={{ color: "#4b5563", fontSize: 12 }}>—</span>;
+  const d = new Date(scadenza);
+  const formatted = d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const isExpired = d < new Date();
+  return (
+    <span style={{ fontSize: 12, color: isExpired ? "#fca5a5" : "#e2e8f0", fontVariantNumeric: "tabular-nums" }}>
+      {formatted}
+    </span>
+  );
+}
+
 // ── Modale deautorizzazione ────────────────────────────────────────────────────
 function ModaleDeautorizza({
   piano,
@@ -198,6 +235,12 @@ function RigaPiano({
         <td style={{ ...tdStyle, textAlign: "center" }}>
           {efficienzaBadge(piano.efficiency_score)}
         </td>
+        <td style={{ ...tdStyle }}>
+          {scadenzaCell(piano.scadenza)}
+        </td>
+        <td style={{ ...tdStyle }}>
+          {completamentoBadge(piano.completion_pct, piano.status)}
+        </td>
         <td style={{ ...tdStyle, textAlign: "center" }}>
           {statusBadge(piano.status)}
         </td>
@@ -230,7 +273,7 @@ function RigaPiano({
       {/* Riga espansa */}
       {espanso && (
         <tr style={{ background: "#0d1420" }}>
-          <td colSpan={7} style={{ padding: "12px 20px 16px" }}>
+          <td colSpan={9} style={{ padding: "12px 20px 16px" }}>
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
               {/* Colonna sinistra — pianificati */}
               <div style={{ flex: "1 1 220px" }}>
@@ -398,6 +441,8 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
                 <th style={thStyle}>APPROVATO DA</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>N° TICKET</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>EFFICIENZA</th>
+                <th style={thStyle}>SCADENZA</th>
+                <th style={thStyle}>COMPLETAMENTO</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>STATO</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>AZIONI</th>
               </tr>

@@ -807,7 +807,7 @@ export default function PlanningPage() {
                 marginLeft: "auto",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 10,
                 fontSize: 11,
                 color: "#6b7280",
                 paddingBottom: 10,
@@ -825,6 +825,27 @@ export default function PlanningPage() {
                 </span>
                 Piano {piano.horizon_days}gg ·{" "}
                 {new Date(piano.created_at).toLocaleDateString("it-IT")}
+                {piano.scadenza && (
+                  <span style={{ color: "#9ca3af" }}>
+                    · scade{" "}
+                    <span style={{ color: new Date(piano.scadenza) < new Date() ? "#fca5a5" : "#e2e8f0", fontWeight: 600 }}>
+                      {new Date(piano.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                    </span>
+                  </span>
+                )}
+                {piano.completion_pct !== null && piano.completion_pct !== undefined && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ width: 48, height: 5, background: "#1f2937", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        width: `${Math.min(piano.completion_pct, 100)}%`,
+                        height: "100%",
+                        background: piano.completion_pct >= 80 ? "#86efac" : piano.completion_pct >= 40 ? "#fcd34d" : "#60a5fa",
+                        borderRadius: 3,
+                      }} />
+                    </div>
+                    <span style={{ color: "#9ca3af" }}>{piano.completion_pct}% chiusi</span>
+                  </span>
+                )}
               </div>
             )}
           </div>

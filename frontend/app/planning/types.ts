@@ -82,12 +82,16 @@ export interface GeneratedPlan {
   plan_label: string | null;
   confirmed_at: string | null;
   confirmed_by: string | null;
+  /** Ultima data pianificata tra i workorder del piano. Derivata al confirm. */
+  scadenza: string | null;
   deauthorized_at: string | null;
   deauthorized_by: string | null;
   deauthorization_reason: string | null;
   wo_count: number;
   efficiency_score: number | undefined;
   tenant_id: number | null;
+  /** Percentuale ticket Chiusi su totale pianificati nel piano. Calcolata dinamicamente. */
+  completion_pct: number | null;
 }
 
 // Colori per tipo ticket

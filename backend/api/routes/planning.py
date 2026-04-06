@@ -43,7 +43,56 @@ def _wo_count(plan: GeneratedPlan) -> int:
     return len([w for w in wos if not w.get("is_continuation", False)])
 
 
-def _plan_to_dict(plan: GeneratedPlan) -> dict:
+def _wo_ids_principali(plan: GeneratedPlan) -> List[int]:
+    """Restituisce la lista di wo_id pianificati (escludendo continuazioni)."""
+    if not plan.plan_json:
+        return []
+    return [
+        w["wo_id"] for w in plan.plan_json.get("planned_workorders", [])
+        if not w.get("is_continuation", False) and w.get("wo_id")
+    ]
+
+
+def _compute_scadenza(plan_json: dict) -> Optional[datetime]:
+    """
+    Calcola la scadenza del piano: data massima (planned_date) tra tutti i WO.
+    Workaround: il modello non ha una deadline esplicita utente — viene derivata
+    dall'ultimo giorno pianificato nel piano.
+    """
+    wos = plan_json.get("planned_workorders", [])
+    dates = []
+    for w in wos:
+        pd = w.get("planned_date")
+        end_t = w.get("planned_end_time", "17:00")
+        if pd:
+            try:
+                dates.append(datetime.fromisoformat(f"{pd}T{end_t}:00"))
+            except ValueError:
+                pass
+    return max(dates) if dates else None
+
+
+def _compute_completion_pct(plan: GeneratedPlan, db: Session) -> Optional[float]:
+    """
+    Percentuale di completamento del piano: ticket con stato 'Chiuso' / totale pianificati.
+    Calcolata dinamicamente — non è un campo DB, ma un valore derivato dallo stato
+    attuale dei ticket.
+    Ritorna None se il piano non ha WO pianificati o non è confermato.
+    """
+    if plan.status not in ("confirmed", "deauthorized"):
+        return None
+    wo_ids = _wo_ids_principali(plan)
+    if not wo_ids:
+        return 0.0
+    chiusi = db.query(func.count(Ticket.id)).filter(
+        Ticket.id.in_(wo_ids),
+        Ticket.stato == "Chiuso",
+        Ticket.tenant_id == plan.tenant_id,
+    ).scalar() or 0
+    return round((chiusi / len(wo_ids)) * 100, 1)
+
+
+def _plan_to_dict(plan: GeneratedPlan, completion_pct: Optional[float] = None) -> dict:
     """Serializza un GeneratedPlan includendo tutti i campi storico."""
     pn = plan.plan_number
     return {
@@ -56,12 +105,14 @@ def _plan_to_dict(plan: GeneratedPlan) -> dict:
         "plan_json": plan.plan_json or {},
         "confirmed_at": plan.confirmed_at.isoformat() if plan.confirmed_at else None,
         "confirmed_by": plan.confirmed_by,
+        "scadenza": plan.scadenza.isoformat() if plan.scadenza else None,
         "deauthorized_at": plan.deauthorized_at.isoformat() if plan.deauthorized_at else None,
         "deauthorized_by": plan.deauthorized_by,
         "deauthorization_reason": plan.deauthorization_reason,
         "wo_count": _wo_count(plan),
         "tenant_id": plan.tenant_id,
         "efficiency_score": (plan.plan_json or {}).get("efficiency_score"),
+        "completion_pct": completion_pct,
     }
 
 
@@ -231,6 +282,9 @@ def confirm_plan(
         ).with_for_update().scalar()
         plan.plan_number = (max_num or 0) + 1
 
+        # Scadenza: ultima data pianificata tra i workorder del piano
+        plan.scadenza = _compute_scadenza(plan_data)
+
         # Segna piano come confermato
         plan.status = "confirmed"
         plan.confirmed_at = datetime.utcnow()
@@ -248,11 +302,13 @@ def confirm_plan(
         db_error("PLANNING", f"Errore durante conferma piano #{plan_id}: {exc}", tenant_id=tenant_id)
         raise HTTPException(status_code=500, detail=f"Errore durante la conferma del piano: {exc}")
 
+    completion_pct = _compute_completion_pct(plan, db)
     logger.info(
-        "AI Planning: piano %s confermato da %s (PIANO-%03d)",
+        "AI Planning: piano %s confermato da %s (PIANO-%03d) scadenza=%s",
         plan_id, plan.confirmed_by, plan.plan_number,
+        plan.scadenza.strftime("%Y-%m-%d") if plan.scadenza else "n/a",
     )
-    return _plan_to_dict(plan)
+    return _plan_to_dict(plan, completion_pct=completion_pct)
 
 
 @router.post("/deauthorize/{plan_id}")
@@ -311,7 +367,8 @@ def get_current_plan(
     )
     if not plan:
         return None
-    return _plan_to_dict(plan)
+    completion_pct = _compute_completion_pct(plan, db)
+    return _plan_to_dict(plan, completion_pct=completion_pct)
 
 
 @router.get("/status")
@@ -380,4 +437,11 @@ def get_plan_history(
         .limit(50)
         .all()
     )
-    return [_plan_to_dict(p) for p in plans]
+
+    # Calcola completion_pct in batch: una query per piano (max 50 piani)
+    # Ogni piano ha un insieme di wo_ids; contiamo i Ticket chiusi per ciascuno.
+    result_list = []
+    for p in plans:
+        completion_pct = _compute_completion_pct(p, db)
+        result_list.append(_plan_to_dict(p, completion_pct=completion_pct))
+    return result_list

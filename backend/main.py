@@ -121,6 +121,8 @@ def _ensure_columns() -> None:
         ("generated_plans", "deauthorized_at",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_at TIMESTAMP"),
         ("generated_plans", "deauthorized_by",         "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorized_by VARCHAR"),
         ("generated_plans", "deauthorization_reason",  "ALTER TABLE generated_plans ADD COLUMN {ifne}deauthorization_reason VARCHAR"),
+        # scadenza: max planned_date dei workorder, calcolata alla conferma
+        ("generated_plans", "scadenza",                "ALTER TABLE generated_plans ADD COLUMN {ifne}scadenza TIMESTAMP"),
     ]
 
     # system_logs — tabella intera
@@ -161,7 +163,8 @@ def _ensure_columns() -> None:
             confirmed_by VARCHAR,
             deauthorized_at TIMESTAMP,
             deauthorized_by VARCHAR,
-            deauthorization_reason VARCHAR
+            deauthorization_reason VARCHAR,
+            scadenza TIMESTAMP
         )
     """
     gp_sqlite = """
@@ -177,7 +180,8 @@ def _ensure_columns() -> None:
             confirmed_by VARCHAR,
             deauthorized_at DATETIME,
             deauthorized_by VARCHAR,
-            deauthorization_reason VARCHAR
+            deauthorization_reason VARCHAR,
+            scadenza DATETIME
         )
     """
 
