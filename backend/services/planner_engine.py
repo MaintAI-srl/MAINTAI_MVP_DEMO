@@ -433,46 +433,88 @@ class PlannerEngine:
                     return True
             return False  # nessun giorno con abbastanza ore libere
 
-        # Ticket splittabile: frammenta su più giorni contigui
+        # Ticket splittabile: frammenta su più giorni contigui.
+        # Regola: stesso tecnico preferito; se non disponibile nel giorno di continuazione,
+        # si cerca il primo tecnico alternativo qualificato con ore libere per quel giorno.
+        # I frammenti NON si sovrappongono mai: ogni frammento occupa la prima fascia
+        # libera del giorno assegnato, calcolata via ore_consumate al momento del commit.
         ore_rimanenti = durata_totale
         primo = True
         fragments: List[Assignment] = []
         ore_delta: Dict[Tuple, float] = {}  # (tecnico_id, giorno) → ore da aggiungere
+        tecnici_usati_per_split: Dict[date, PlannerTecnico] = {}  # giorno → tecnico effettivo
 
         for giorno in self.horizon:
             if giorno < giorno_start:
                 continue
             if ore_rimanenti <= 0:
                 break
-            ore_libere = tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno, 0.0)
-            if ore_libere <= 0:
-                continue
+
+            # Calcola ore libere del tecnico primario
+            ore_libere_primario = tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno, 0.0)
+
+            if ore_libere_primario > 0:
+                tecnico_giorno = tecnico
+                ore_libere = ore_libere_primario
+            elif not primo:
+                # Primo frammento già allocato: cerca alternativa per le continuazioni
+                tecnico_giorno = None
+                ore_libere = 0.0
+                comp = _competenza_richiesta(ticket)
+                for alt in self.tecnici_attivi:
+                    if alt.id == tecnico.id:
+                        continue
+                    # Stesso skill e nessuna limitazione incompatibile
+                    if not _skill_covers(comp, alt.competenze, self.skill_hierarchy):
+                        continue
+                    if _has_limitation_mismatch(ticket.limitazioni, alt.limitazioni):
+                        continue
+                    alt_ore = alt.ore_giornaliere - self.ore_consumate[alt.id].get(giorno, 0.0)
+                    if alt_ore > 0:
+                        tecnico_giorno = alt
+                        ore_libere = alt_ore
+                        break
+                if tecnico_giorno is None:
+                    continue  # Nessun tecnico disponibile in questo giorno: salta al successivo
+            else:
+                continue  # Primo frammento e tecnico primario pieno: salta
+
             da_allocare = min(ore_rimanenti, ore_libere)
             a = self._make_assignment(
-                ticket, tecnico, giorno, da_allocare,
+                ticket, tecnico_giorno, giorno, da_allocare,
                 is_cont=not primo,
                 parent_id=ticket.id if not primo else None,
             )
             fragments.append(a)
-            ore_delta[(tecnico.id, giorno)] = ore_delta.get((tecnico.id, giorno), 0.0) + da_allocare
+            ore_delta[(tecnico_giorno.id, giorno)] = ore_delta.get((tecnico_giorno.id, giorno), 0.0) + da_allocare
+            tecnici_usati_per_split[giorno] = tecnico_giorno
             ore_rimanenti -= da_allocare
             primo = False
 
         if ore_rimanenti > 0:
-            # Non è stato possibile allocare tutto nell'orizzonte con questo tecnico
+            # Non è stato possibile allocare tutto nell'orizzonte
             return False
 
-        # Commit
+        # Commit: aggiorna ore_consumate e impianto_cache per ogni tecnico effettivo usato
         for a in fragments:
             result.assignments.append(a)
         for (tid, ggg), h in ore_delta.items():
             self.ore_consumate[tid][ggg] += h
-            self._mark_impianto(ticket.impianto_id, tecnico.id, ggg)
+        for ggg, t_eff in tecnici_usati_per_split.items():
+            self._mark_impianto(ticket.impianto_id, t_eff.id, ggg)
 
-        result.explanation_log.append(
-            f"[OK-SPLIT] Ticket #{ticket.id} → Tecnico #{tecnico.id}, "
-            f"{len(fragments)} frammenti ({durata_totale:.1f}h totali)"
-        )
+        # Log multi-tecnico se sono stati usati tecnici diversi
+        tecnici_ids_usati = list({a.tecnico_id for a in fragments})
+        if len(tecnici_ids_usati) > 1:
+            result.explanation_log.append(
+                f"[OK-SPLIT-MULTI] Ticket #{ticket.id} → {len(fragments)} frammenti su tecnici "
+                f"{tecnici_ids_usati} ({durata_totale:.1f}h totali)"
+            )
+        else:
+            result.explanation_log.append(
+                f"[OK-SPLIT] Ticket #{ticket.id} → Tecnico #{tecnico.id}, "
+                f"{len(fragments)} frammenti ({durata_totale:.1f}h totali)"
+            )
         return True
 
     def _make_assignment(

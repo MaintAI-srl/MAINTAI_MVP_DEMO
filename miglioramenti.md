@@ -135,3 +135,31 @@ Questo documento riassume le 35 proposte di miglioramento per l'evoluzione della
 25. **n.25 Centralized Notification Manager**: ✅ Già implementato — `frontend/lib/toast.ts` (`notify.error/success/info/warning`), `frontend/lib/useNotifications.ts` (store persistente con `useSyncExternalStore`), `NotificationPanel.tsx` (campanella con badge contatore). Usato in tutte le pagine.
 
 26. **n.26 Supporto Offline**: Service worker `sw.js` registrato (vedi n.23) con strategia Network-First + fallback cache per GET su `/tickets`, `/assets`, `/tecnici/me`. Pagina offline HTML personalizzata quando né rete né cache. `GlobalOfflineIndicator` aggiunto a `layout.tsx` — visibile a tutti gli utenti (non solo mobile) quando la connessione viene persa.
+
+### Ciclo v2.1.0 (2026-04-06) — fix planner + UX planning manuale
+
+**Fix ticket spezzati (planner_engine.py):**
+- `_try_allocate()`: le continuazioni di ticket splittabili ora cercano il tecnico primario prima; se non disponibile in un dato giorno, trovano il primo tecnico alternativo qualificato (stessa competenza, nessuna limitazione incompatibile, ore libere > 0). Nessuna sovrapposizione temporale: ogni frammento parte dalla prima fascia libera del giorno assegnato, calcolata via `ore_consumate`.
+- Log aggiornato: `[OK-SPLIT-MULTI]` quando i frammenti usano tecnici diversi.
+- 12/12 test unitari ancora verdi.
+
+**Fix meteo (ai_planner_service.py):**
+- Aggiunto `joinedload(Asset.impianto)` sulla query asset per prevenire `DetachedInstanceError` in contesto async.
+- Spostato `from backend.services.weather_service import WeatherData` dal lazy import interno al top-level.
+- Log esplicito quando asset con vincolo meteo mancano di coordinate (`WARNING: N asset con vincolo meteo mancano di coordinate`).
+- Campi diagnostici `weather_locations_count` e `weather_assets_no_coords` aggiunti al contesto pianificazione.
+
+**Pianificazione manuale con DnD (planning/page.tsx + GanttGiornaliero.tsx):**
+- Modalità **Manuale**: pannello sinistro ora mostra TUTTI i ticket (Aperto + Pianificato) ordinati per priorità/tipo, non solo i deferred dall'AI.
+- Ogni ticket nel pannello è **draggable** con `@dnd-kit/core` (`DraggableTicket`). Trascina sul Gantt giornaliero → assegna al tecnico di quella riga.
+- `GanttGiornaliero`: overlay droppable assoluto per ogni riga tecnico (z-index 1, sotto i blocchi WO). Evidenza visiva blu quando `isOver`.
+- `DragOverlay` floating card durante il trascinamento.
+- Pulsante **📊 Valutazione Piano** in modalità manuale → chiama `POST /planning/evaluate`, mostra score nel toast e nel bottone.
+
+**Backend nuovi endpoint:**
+- `POST /planning/evaluate`: calcola efficiency_score del piano manuale corrente (ticket Pianificati + Aperti) usando la stessa formula del motore AI. Ritorna score, breakdown, motivazioni.
+- `POST /planning/generate`: ora include `previous_efficiency_score` e `score_improved` nella risposta se esiste un piano confermato precedente.
+
+**AI vs Manuale:**
+- Frontend confronta automaticamente lo score del piano AI generato con l'eventuale piano confermato precedente.
+- Se il nuovo piano AI ha score inferiore → toast warning "Piano AI score X inferiore al piano precedente Y — puoi modificarlo manualmente o scartarlo."

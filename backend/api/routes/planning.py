@@ -17,7 +17,7 @@ from backend.core.security import get_current_tenant_id, get_current_user_payloa
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant
-from backend.services.ai_planner_service import generate_ai_plan
+from backend.services.ai_planner_service import generate_ai_plan, calculate_plan_efficiency
 from backend.services.planner_engine_bridge import generate_deterministic_plan
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -213,6 +213,15 @@ async def generate_plan(
         db_error("PLANNING", f"Eccezione durante generazione piano: {exc}", tenant_id=tenant_id)
         raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
 
+    # Recupera score del piano confermato precedente per confronto nel frontend
+    previous_confirmed = db.query(GeneratedPlan).filter(
+        GeneratedPlan.tenant_id == tenant_id,
+        GeneratedPlan.status == "confirmed",
+    ).order_by(GeneratedPlan.id.desc()).first()
+    previous_score: Optional[float] = None
+    if previous_confirmed and previous_confirmed.plan_json:
+        previous_score = previous_confirmed.plan_json.get("efficiency_score")
+
     new_plan = GeneratedPlan(
         status="draft",
         horizon_days=data.days,
@@ -225,18 +234,103 @@ async def generate_plan(
 
     n_wo = len(plan_json.get("planned_workorders", []))
     n_def = len(plan_json.get("deferred_workorders", []))
+    new_score = plan_json.get("efficiency_score")
     logger.info(
-        "Planning [%s]: piano generato — id=%s WO=%s rimandati=%s",
-        effective_mode, new_plan.id, n_wo, n_def,
+        "Planning [%s]: piano generato — id=%s WO=%s rimandati=%s score=%s",
+        effective_mode, new_plan.id, n_wo, n_def, new_score,
     )
     db_info(
         "PLANNING",
         f"Piano #{new_plan.id} generato [{effective_mode}] — {n_wo} pianificati, {n_def} rimandati",
-        extra={"efficiency_score": plan_json.get("efficiency_score")},
+        extra={"efficiency_score": new_score},
         tenant_id=tenant_id,
     )
 
-    return _plan_to_dict(new_plan)
+    result = _plan_to_dict(new_plan)
+    # Campi extra per confronto AI vs piano manuale/precedente (usati dal frontend)
+    if previous_score is not None:
+        result["previous_efficiency_score"] = previous_score
+        result["score_improved"] = (new_score or 0) >= previous_score
+    return result
+
+
+@router.post("/evaluate")
+def evaluate_manual_plan(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Calcola l'efficiency_score del piano manuale corrente (ticket in stato Pianificato).
+    Usa la stessa formula del motore AI per rendere i punteggi confrontabili.
+    Utile per il pulsante 'Valutazione Piano' in modalità manuale.
+    """
+    from datetime import date as date_type
+
+    planned_tickets = db.query(Ticket).filter(
+        Ticket.tenant_id == tenant_id,
+        Ticket.stato == "Pianificato",
+        Ticket.deleted_at.is_(None),
+    ).limit(500).all()
+
+    open_tickets = db.query(Ticket).filter(
+        Ticket.tenant_id == tenant_id,
+        Ticket.stato == "Aperto",
+        Ticket.deleted_at.is_(None),
+    ).limit(500).all()
+
+    tecnici = db.query(Tecnico).filter(
+        Tecnico.tenant_id == tenant_id,
+        Tecnico.stato == "in servizio",
+    ).all()
+
+    planned_wos = []
+    for t in planned_tickets:
+        if not t.tecnico_id:
+            continue
+        start_str = t.planned_start.strftime("%H:%M") if t.planned_start else "08:00"
+        end_str = t.planned_finish.strftime("%H:%M") if t.planned_finish else "17:00"
+        date_str = t.planned_start.strftime("%Y-%m-%d") if t.planned_start else str(date_type.today())
+        dur = (
+            (t.planned_finish - t.planned_start).total_seconds() / 3600
+            if t.planned_start and t.planned_finish
+            else (t.durata_stimata_ore or 2.0)
+        )
+        planned_wos.append({
+            "wo_id": t.id,
+            "technician_id": t.tecnico_id,
+            "planned_date": date_str,
+            "time_slot": f"{start_str}-{end_str}",
+            "planned_start_time": start_str,
+            "planned_end_time": end_str,
+            "duration_hours": dur,
+            "motivation": "Pianificazione manuale",
+            "warnings": [],
+            "is_continuation": getattr(t, "is_continuation", False) or False,
+            "parent_wo_id": getattr(t, "parent_ticket_id", None),
+            "tipo": t.tipo or "CM",
+        })
+
+    deferred_wos = [{"wo_id": t.id, "reason": "Non pianificato manualmente"} for t in open_tickets]
+
+    plan_json_eval = {
+        "planned_workorders": planned_wos,
+        "deferred_workorders": deferred_wos,
+        "fermo_assets": [],
+        "global_warnings": [],
+    }
+
+    tecnici_data = [{"id": t.id, "ore_giornaliere": t.ore_giornaliere or 8} for t in tecnici]
+    total_backlog = len(planned_wos) + len(deferred_wos)
+
+    efficiency = calculate_plan_efficiency(plan_json_eval, tecnici_data, total_backlog)
+
+    return {
+        "efficiency_score": efficiency.get("efficiency_score", 0),
+        "efficiency_breakdown": efficiency.get("efficiency_breakdown", {}),
+        "efficiency_motivations": efficiency.get("efficiency_motivations", []),
+        "ticket_pianificati": len(planned_wos),
+        "ticket_aperti": len(open_tickets),
+    }
 
 
 @router.post("/confirm/{plan_id}")

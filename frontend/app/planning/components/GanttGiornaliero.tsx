@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import type { PlannedWO, TicketData, TecnicoData } from "../types";
 import { tipoStyle, timeToCol } from "../types";
 
@@ -10,6 +11,41 @@ interface Props {
   ticketMap: Map<number, TicketData>;
   selectedDate: string;           // "YYYY-MM-DD"
   onDateChange: (d: string) => void;
+  onTicketDrop?: (ticketId: number, tecnicoId: number) => void;  // DnD manuale
+}
+
+// Overlay droppable per riga tecnico — non interferisce con il CSS grid
+function DroppableTecnicoRow({
+  tecnicoId,
+  top,
+  height,
+  left,
+}: {
+  tecnicoId: number;
+  top: number;
+  height: number;
+  left: number;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `tecnico-${tecnicoId}` });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        position: "absolute",
+        top,
+        left,
+        right: 0,
+        height,
+        zIndex: 1,
+        background: isOver ? "rgba(59,130,246,0.12)" : "transparent",
+        outline: isOver ? "2px dashed #3b82f6" : "none",
+        outlineOffset: -2,
+        borderRadius: 4,
+        transition: "background 100ms",
+        pointerEvents: "auto",
+      }}
+    />
+  );
 }
 
 // 18 slot da 08:00 a 17:00 in incrementi di 30 minuti
@@ -39,7 +75,7 @@ function nextDay(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate, onDateChange }: Props) {
+export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate, onDateChange, onTicketDrop }: Props) {
   const [tooltip, setTooltip] = useState<{ wo: PlannedWO; x: number; y: number } | null>(null);
 
   // Filtra WOs per il giorno selezionato
@@ -315,6 +351,17 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
               })
             )}
           </div>
+
+          {/* Overlay droppable per DnD manuale — visibili solo se onTicketDrop è fornito */}
+          {onTicketDrop && displayTecnici.map((tc, rowIdx) => (
+            <DroppableTecnicoRow
+              key={`drop-${tc.id}`}
+              tecnicoId={tc.id}
+              top={HEADER_H + rowIdx * ROW_H}
+              height={ROW_H}
+              left={LABEL_W}
+            />
+          ))}
 
           {/* Linea ora corrente */}
           {isToday && nowMinutesFrom8 >= 0 && nowMinutesFrom8 <= 540 && (

@@ -10,10 +10,10 @@ import time as _time
 from datetime import date, datetime, timedelta, time
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from backend.services.ai.openai_service import get_openai_client, get_openai_model
-from backend.services.weather_service import get_weather_forecast
+from backend.services.weather_service import get_weather_forecast, WeatherData
 from backend.db.modelli import Ticket, Tecnico, Asset
 
 logger = logging.getLogger(__name__)
@@ -231,8 +231,10 @@ async def collect_planning_context(
     tecnici = tecnico_query.all()
 
     # --- Asset dai ticket ---
+    # joinedload(Asset.impianto) garantisce che la relazione sia caricata nella stessa query
+    # ed evita DetachedInstanceError quando si accede a asset.impianto dentro una funzione async.
     asset_ids_from_tickets = list({t.asset_id for t in tickets if t.asset_id})
-    asset_query = db.query(Asset).filter(Asset.id.in_(asset_ids_from_tickets))
+    asset_query = db.query(Asset).options(joinedload(Asset.impianto)).filter(Asset.id.in_(asset_ids_from_tickets))
     assets = asset_query.all()
     asset_map: Dict[int, Asset] = {a.id: a for a in assets}
 
@@ -241,16 +243,33 @@ async def collect_planning_context(
     location_weather: Dict[str, Dict[str, Any]] = {}
     unique_locations: Dict[str, tuple] = {}
 
+    assets_senza_coordinate: List[str] = []
     for asset in assets:
         lat = asset.latitude
         lon = asset.longitude
-        # Fallback: coordinate dell'impianto
+        # Fallback: coordinate dell'impianto (precaricato con joinedload)
         if (lat is None or lon is None) and asset.impianto:
             lat = asset.impianto.latitude
             lon = asset.impianto.longitude
         if lat is not None and lon is not None:
             key = f"{round(lat,3)}_{round(lon,3)}"
             unique_locations[key] = (lat, lon)
+        elif asset.weather_constraint and asset.weather_constraint != "NONE":
+            # Asset con vincolo meteo ma senza coordinate: impossibile validare
+            assets_senza_coordinate.append(f"{asset.nome or asset.id} (vincolo: {asset.weather_constraint})")
+
+    if assets_senza_coordinate:
+        logger.warning(
+            "collect_planning_context: %d asset con vincolo meteo mancano di coordinate — "
+            "la valutazione meteo non sarà possibile: %s",
+            len(assets_senza_coordinate),
+            ", ".join(assets_senza_coordinate),
+        )
+    if unique_locations:
+        logger.info(
+            "collect_planning_context: recupero meteo per %d location uniche su orizzonte %d giorni",
+            len(unique_locations), days,
+        )
 
     for loc_key, (lat, lon) in unique_locations.items():
         location_weather[loc_key] = {}
@@ -286,7 +305,6 @@ async def collect_planning_context(
         # Calcola vincoli meteo per ogni giorno dell'orizzonte
         day_constraints = {}
         if asset and asset.weather_constraint:
-            from backend.services.weather_service import WeatherData
             for d in horizon_dates:
                 wd_raw = weather_by_date.get(str(d))
                 if wd_raw and wd_raw.get("available"):
@@ -342,6 +360,9 @@ async def collect_planning_context(
         "tickets": tickets_data,
         "tecnici": tecnici_data,
         "weather_available": len(location_weather) > 0,
+        # Diagnostica meteo: utile per UI e debug
+        "weather_locations_count": len(unique_locations),
+        "weather_assets_no_coords": assets_senza_coordinate,
     }
 
     # Salva in cache se applicabile

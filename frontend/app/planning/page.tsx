@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { DndContext, useDraggable, DragEndEvent, DragOverlay } from "@dnd-kit/core";
 
 import BadgeEfficienza from "./components/BadgeEfficienza";
 import PannelloMotivazioni from "./components/PannelloMotivazioni";
@@ -100,6 +101,82 @@ function BacklogBar({
       <div style={{ fontSize: 10, color: "#6b7280" }}>
         {count} ticket · {ore.toFixed(1)}h stimate
       </div>
+    </div>
+  );
+}
+
+// ── Ticket draggabile per pianificazione manuale ──────────────────────────────
+function DraggableTicket({
+  ticket,
+  onClickPlan,
+}: {
+  ticket: TicketData;
+  onClickPlan: (t: TicketData) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `ticket-${ticket.id}`,
+    data: { ticketId: ticket.id },
+  });
+
+  const tipo = ticket.tipo ?? "CM";
+  const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
+  const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
+  const prioBorder: Record<string, string> = { Alta: "#ef4444", Media: "#f59e0b", Bassa: "#6b7280" };
+
+  const style: React.CSSProperties = {
+    background: "#1a2332",
+    border: `1px solid ${isDragging ? "#3b82f6" : "#2a3748"}`,
+    borderRadius: 6,
+    padding: "8px 10px",
+    marginBottom: 6,
+    cursor: isDragging ? "grabbing" : "grab",
+    opacity: isDragging ? 0.4 : 1,
+    position: "relative" as const,
+    transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
+    boxShadow: isDragging ? "0 4px 16px rgba(59,130,246,0.3)" : undefined,
+    userSelect: "none" as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, alignItems: "center" }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          background: tipoBg[tipo] ?? "#78350f44",
+          color: tipoColor[tipo] ?? "#fcd34d",
+          padding: "1px 5px", borderRadius: 3,
+        }}>{tipo}</span>
+        <span style={{
+          fontSize: 9, fontWeight: 700,
+          color: prioBorder[ticket.priorita ?? "Bassa"],
+          textTransform: "uppercase" as const,
+          letterSpacing: "0.05em",
+        }}>{ticket.priorita ?? "—"}</span>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2, lineHeight: 1.3 }}>
+        #{ticket.id} {ticket.titolo ?? "—"}
+      </div>
+      {ticket.durata_stimata_ore && (
+        <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>
+          {ticket.durata_stimata_ore}h stimate
+        </div>
+      )}
+      <button
+        onPointerDown={e => e.stopPropagation()}
+        onClick={e => { e.stopPropagation(); onClickPlan(ticket); }}
+        style={{
+          width: "100%",
+          background: "#1f2937",
+          border: "1px solid #374151",
+          color: "#9ca3af",
+          borderRadius: 4,
+          padding: "4px 8px",
+          fontSize: 10,
+          cursor: "pointer",
+        }}
+      >
+        ✏ Pianifica
+      </button>
     </div>
   );
 }
@@ -236,6 +313,9 @@ export default function PlanningPage() {
   const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
+  const [valutando, setValutando] = useState(false);
+  const [valutazioneScore, setValutazioneScore] = useState<number | null>(null);
+  const [activeDragTicketId, setActiveDragTicketId] = useState<number | null>(null);
 
   // ── Mappe per lookup O(1) ──────────────────────────────────────────────────
   const ticketMap = useMemo(
@@ -319,13 +399,56 @@ export default function PlanningPage() {
   async function generateAIPlan() {
     setGenerando(true);
     try {
-      const res = await apiPost<GeneratedPlan>("/planning/generate", { days: 7, mode: engineMode });
-      setPiano(res);
-      toast.success("Piano AI generato con successo");
+      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number; score_improved?: boolean }>(
+        "/planning/generate", { days: 7, mode: engineMode }
+      );
+      const newScore = (res.plan_json as any)?.efficiency_score as number | undefined;
+      const prevScore = res.previous_efficiency_score;
+
+      // Confronto con piano confermato precedente
+      if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
+        toast.warning(
+          `Piano AI generato (score: ${Math.round(newScore)}) — inferiore al piano precedente (${Math.round(prevScore)}). Puoi modificarlo manualmente o scartarlo.`,
+          { duration: 8000 }
+        );
+      } else {
+        toast.success(
+          newScore !== undefined
+            ? `Piano AI generato — score ${Math.round(newScore)}`
+            : "Piano AI generato con successo"
+        );
+      }
+      // Strip extra fields from GeneratedPlan to avoid TypeScript issues
+      const { previous_efficiency_score: _p, score_improved: _s, ...cleanRes } = res as any;
+      setPiano(cleanRes as GeneratedPlan);
+      setValutazioneScore(null);
     } catch (e: any) {
       toast.error(e?.message ?? "Errore generazione piano AI");
     } finally {
       setGenerando(false);
+    }
+  }
+
+  // ── Valutazione piano manuale ──────────────────────────────────────────────
+  async function valutaPianoManuale() {
+    setValutando(true);
+    try {
+      const res = await apiPost<{
+        efficiency_score: number;
+        efficiency_breakdown: Record<string, number>;
+        efficiency_motivations: any[];
+        ticket_pianificati: number;
+        ticket_aperti: number;
+      }>("/planning/evaluate", {});
+      setValutazioneScore(res.efficiency_score);
+      toast.success(
+        `Valutazione completata — Score: ${Math.round(res.efficiency_score)} · ${res.ticket_pianificati} pianificati, ${res.ticket_aperti} aperti`,
+        { duration: 6000 }
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? "Errore valutazione piano");
+    } finally {
+      setValutando(false);
     }
   }
 
@@ -368,6 +491,22 @@ export default function PlanningPage() {
     }
   }
 
+  // ── DnD: drag ticket → drop su riga tecnico nel Gantt ────────────────────
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveDragTicketId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const ticketId = Number(String(active.id).replace("ticket-", ""));
+    const tecnicoId = Number(String(over.id).replace("tecnico-", ""));
+    if (ticketId && tecnicoId && vistaAttiva === "giornaliero") {
+      savePianificazioneManuale(ticketId, tecnicoId, selectedDate);
+    } else if (ticketId && tecnicoId) {
+      // Se non in vista giornaliera, apri la modale per scegliere la data
+      const ticket = ticketMap.get(ticketId);
+      if (ticket) setTicketDaPianificare(ticket);
+    }
+  }
+
   // ── Ticket non pianificati nell'AI (backlog del piano) ────────────────────
   const nonPianificatiEnriched = useMemo(
     () => deferredWOs.map(d => ({
@@ -376,6 +515,21 @@ export default function PlanningPage() {
     })),
     [deferredWOs, ticketMap]
   );
+
+  // ── Ticket da mostrare nel pannello sinistro in modalità manuale ──────────
+  // In modalità manuale mostra TUTTI i ticket (non solo quelli rimandati dall'AI)
+  const ticketsPerPannelloManuale = useMemo(() => {
+    return tickets
+      .filter(t => t.stato === "Aperto" || t.stato === "Pianificato")
+      .sort((a, b) => {
+        const pScore = { Alta: 3, Media: 2, Bassa: 1 };
+        const pa = pScore[a.priorita as keyof typeof pScore] ?? 1;
+        const pb = pScore[b.priorita as keyof typeof pScore] ?? 1;
+        if (pb !== pa) return pb - pa;
+        const tScore = { BD: 3, CM: 2, PM: 1 };
+        return (tScore[b.tipo as keyof typeof tScore] ?? 1) - (tScore[a.tipo as keyof typeof tScore] ?? 1);
+      });
+  }, [tickets]);
 
   if (loading) {
     return (
@@ -390,6 +544,11 @@ export default function PlanningPage() {
   }
 
   return (
+    <DndContext
+      onDragStart={e => setActiveDragTicketId(Number(String(e.active.id).replace("ticket-", "")))}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragTicketId(null)}
+    >
     <div style={{
       background: "#0a0f1e",
       minHeight: "100vh",
@@ -537,6 +696,33 @@ export default function PlanningPage() {
             🔍 DB
           </button>
 
+          {/* Bottone Valutazione Piano — solo in modalità manuale */}
+          {modalita === "manuale" && (
+            <button
+              onClick={valutaPianoManuale}
+              disabled={valutando}
+              style={{
+                background: valutando ? "#1f2937" : "#065f46",
+                border: "1px solid #059669",
+                color: valutando ? "#6b7280" : "#86efac",
+                borderRadius: 8,
+                padding: "9px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: valutando ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {valutando ? "Valutando..." : (
+                valutazioneScore !== null
+                  ? `📊 Score: ${Math.round(valutazioneScore)}`
+                  : "📊 Valutazione Piano"
+              )}
+            </button>
+          )}
+
           {/* Bottone Genera AI */}
           {modalita === "ai" && (
             <button
@@ -674,79 +860,96 @@ export default function PlanningPage() {
           {/* Divider */}
           <div style={{ height: 1, background: "#1f2937", margin: "16px 0 0" }} />
 
-          {/* Non pianificati (deferred dal piano AI) */}
+          {/* Pannello ticket — contenuto diverso per manuale vs AI */}
           <div style={{ flex: 1, padding: "12px 16px", overflowY: "auto" }}>
-            <div style={{
-              fontSize: 11, fontWeight: 700, color: "#6b7280",
-              letterSpacing: "0.08em", marginBottom: 12,
-              display: "flex", justifyContent: "space-between",
-            }}>
-              <span>NON PIANIFICATI</span>
-              {nonPianificatiEnriched.length > 0 && (
-                <span style={{
-                  background: "#7f1d1d44", color: "#fca5a5",
-                  border: "1px solid #ef444455",
-                  borderRadius: 3, padding: "1px 6px",
+            {modalita === "manuale" ? (
+              <>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: "#6b7280",
+                  letterSpacing: "0.08em", marginBottom: 4,
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
                 }}>
-                  {nonPianificatiEnriched.length}
-                </span>
-              )}
-            </div>
-
-            {nonPianificatiEnriched.length === 0 ? (
-              <div style={{ fontSize: 12, color: "#374151", textAlign: "center", padding: "20px 0" }}>
-                {piano ? "Tutti i ticket sono stati pianificati ✓" : "Genera un piano per vedere i ticket non pianificati"}
-              </div>
-            ) : (
-              nonPianificatiEnriched.map(({ wo_id, reason, ticket }) => {
-                const tipo = ticket?.tipo ?? "CM";
-                const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
-                const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
-                return (
-                  <div key={wo_id} style={{
-                    background: "#1a2332",
-                    border: "1px solid #2a3748",
-                    borderRadius: 6,
-                    padding: "10px 10px",
-                    marginBottom: 8,
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700,
-                        background: tipoBg[tipo] ?? "#78350f44",
-                        color: tipoColor[tipo] ?? "#fcd34d",
-                        padding: "1px 5px", borderRadius: 3,
-                      }}>{tipo}</span>
-                      <span style={{ fontSize: 10, color: "#6b7280" }}>#{wo_id}</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>
-                      {ticket?.titolo ?? "—"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, fontStyle: "italic" }}>
-                      {reason}
-                    </div>
-                    {ticket && modalita === "manuale" && (
-                      <button
-                        onClick={() => setTicketDaPianificare(ticket)}
-                        style={{
-                          width: "100%",
-                          background: "#1f2937",
-                          border: "1px solid #374151",
-                          color: "#9ca3af",
-                          borderRadius: 4,
-                          padding: "5px 8px",
-                          fontSize: 11,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Pianifica Manualmente
-                      </button>
-                    )}
+                  <span>TICKET DA PIANIFICARE</span>
+                  <span style={{
+                    background: "#1e3a5f44", color: "#60a5fa",
+                    border: "1px solid #3b82f655",
+                    borderRadius: 3, padding: "1px 6px",
+                  }}>{ticketsPerPannelloManuale.length}</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#4b5563", marginBottom: 10 }}>
+                  Trascina sul Gantt o clicca ✏ Pianifica
+                </div>
+                {ticketsPerPannelloManuale.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "#374151", textAlign: "center", padding: "20px 0" }}>
+                    Nessun ticket aperto o pianificato
                   </div>
-                );
-              })
-            )}
+                ) : (
+                  ticketsPerPannelloManuale.map(ticket => (
+                    <DraggableTicket
+                      key={ticket.id}
+                      ticket={ticket}
+                      onClickPlan={setTicketDaPianificare}
+                    />
+                  ))
+                )}
+              </>
+            ) : (
+              <>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: "#6b7280",
+                  letterSpacing: "0.08em", marginBottom: 12,
+                  display: "flex", justifyContent: "space-between",
+                }}>
+                  <span>NON PIANIFICATI</span>
+                  {nonPianificatiEnriched.length > 0 && (
+                    <span style={{
+                      background: "#7f1d1d44", color: "#fca5a5",
+                      border: "1px solid #ef444455",
+                      borderRadius: 3, padding: "1px 6px",
+                    }}>
+                      {nonPianificatiEnriched.length}
+                    </span>
+                  )}
+                </div>
 
+                {nonPianificatiEnriched.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "#374151", textAlign: "center", padding: "20px 0" }}>
+                    {piano ? "Tutti i ticket sono stati pianificati ✓" : "Genera un piano per vedere i ticket non pianificati"}
+                  </div>
+                ) : (
+                  nonPianificatiEnriched.map(({ wo_id, reason, ticket }) => {
+                    const tipo = ticket?.tipo ?? "CM";
+                    const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
+                    const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
+                    return (
+                      <div key={wo_id} style={{
+                        background: "#1a2332",
+                        border: "1px solid #2a3748",
+                        borderRadius: 6,
+                        padding: "10px 10px",
+                        marginBottom: 8,
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700,
+                            background: tipoBg[tipo] ?? "#78350f44",
+                            color: tipoColor[tipo] ?? "#fcd34d",
+                            padding: "1px 5px", borderRadius: 3,
+                          }}>{tipo}</span>
+                          <span style={{ fontSize: 10, color: "#6b7280" }}>#{wo_id}</span>
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>
+                          {ticket?.titolo ?? "—"}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, fontStyle: "italic" }}>
+                          {reason}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -878,6 +1081,9 @@ export default function PlanningPage() {
                     ticketMap={ticketMap}
                     selectedDate={selectedDate}
                     onDateChange={setSelectedDate}
+                    onTicketDrop={modalita === "manuale" ? (ticketId, tecnicoId) => {
+                      savePianificazioneManuale(ticketId, tecnicoId, selectedDate);
+                    } : undefined}
                   />
                 )}
 
@@ -928,6 +1134,42 @@ export default function PlanningPage() {
           to { transform: rotate(360deg); }
         }
       `}</style>
+
+      {/* DragOverlay: card floating durante il drag */}
+      <DragOverlay>
+        {activeDragTicketId !== null && (() => {
+          const t = ticketMap.get(activeDragTicketId);
+          if (!t) return null;
+          const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
+          const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
+          const tipo = t.tipo ?? "CM";
+          return (
+            <div style={{
+              background: "#1a2332",
+              border: "2px solid #3b82f6",
+              borderRadius: 6,
+              padding: "8px 10px",
+              width: 240,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              pointerEvents: "none",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  background: tipoBg[tipo] ?? "#78350f44",
+                  color: tipoColor[tipo] ?? "#fcd34d",
+                  padding: "1px 5px", borderRadius: 3,
+                }}>{tipo}</span>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>#{t.id}</span>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>
+                {t.titolo ?? "—"}
+              </div>
+            </div>
+          );
+        })()}
+      </DragOverlay>
     </div>
+    </DndContext>
   );
 }
