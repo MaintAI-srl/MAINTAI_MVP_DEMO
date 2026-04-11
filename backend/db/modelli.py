@@ -198,8 +198,13 @@ class Ticket(Base):
     # Pianificazione manuale - ignora AI planner
     is_manual_plan = Column(Boolean, default=False)
 
+    # Riferimento al Piano di Manutenzione reale
+    piano_manutenzione_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True)
+    origine_piano = Column(String, nullable=True) # "manuale", "excel", "manuale_interno_piano"
+
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
+    piano_manutenzione = relationship("PianoManutenzione", back_populates="tickets")
     children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic", cascade="all, delete-orphan")
     parent = relationship("Ticket", foreign_keys="Ticket.parent_id", remote_side="Ticket.id", back_populates="children")
     analisi = relationship("AnalisiGuasto", back_populates="ticket", cascade="all, delete-orphan")
@@ -317,6 +322,30 @@ class EmailConfig(Base):
 
     tenant = relationship("Tenant")
     default_asset = relationship("Asset")
+
+
+class PianoManutenzione(Base):
+    """Contenitore strutturato del Piano di Manutenzione reale."""
+    __tablename__ = "piani_manutenzione"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    nome_codificato = Column(String, nullable=False, index=True) # es. "PM-2026-0001"
+    progressivo = Column(Integer, nullable=False, index=True)
+    descrizione = Column(Text, nullable=True)
+    stato = Column(String, default="attivo")
+    
+    # Relazioni (collegamenti come da specifica)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True)
+    impianto_id = Column(Integer, ForeignKey("impianti.id"), nullable=True)
+    sito_id = Column(Integer, ForeignKey("siti.id"), nullable=True)
+    manuale_id = Column(Integer, ForeignKey("manuali.id"), nullable=True)
+
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    # I ticket aggregati in questo piano
+    tickets = relationship("Ticket", back_populates="piano_manutenzione", cascade="all, delete-orphan")
 
 
 class SystemLog(Base):

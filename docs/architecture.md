@@ -146,6 +146,23 @@ Questi workaround sono accettabili solo se:
 
 ---
 
+## PIANI DI MANUTENZIONE
+
+Un Piano di Manutenzione è un'entità aggregatrice indipendente (`PianoManutenzione`).
+Non è una derivazione di ticket o una lista in memoria.
+
+### Struttura
+Ogni `PianoManutenzione`:
+1. Viene registrato a DB (Tabella `piani_manutenzione`)
+2. Assegna obbligatoriamente un `nome_codificato` e un `progressivo` alfanumerico
+3. Rappresenta il contenitore principale. I Ticket vi sono agganciati tramite FK (`piano_manutenzione_id`).
+4. Indica chiaramente da dove provengono i suoi ticket figli tramite il campo `origine_piano` (`manuale` [pdf processato], `excel`, o `manuale_interno_piano`).
+
+### Regola architetturale
+Operare sempre sui `PianoManutenzione` per aggregazioni globali di intervento e mai fare query libere ai ticket se il comportamento desiderato è quello di iterare un Piano programmato.
+
+---
+
 ## ARCHITETTURA DEL PLANNER
 
 Il planner è una componente architetturale protetta.

@@ -27,6 +27,8 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "parent_id": t.parent_id,
         "diagnosi_eseguita": t.diagnosi_eseguita or False,
         "is_manual_plan": getattr(t, "is_manual_plan", False),
+        "piano_manutenzione_id": getattr(t, "piano_manutenzione_id", None),
+        "origine_piano": getattr(t, "origine_piano", None),
         "tenant_id": t.tenant_id,
     }
 
@@ -147,6 +149,10 @@ class TicketRepository:
             ticket.planned_start = data.planned_start
         if "is_manual_plan" in data.model_fields_set:
             ticket.is_manual_plan = data.is_manual_plan
+        if "piano_manutenzione_id" in data.model_fields_set:
+            ticket.piano_manutenzione_id = data.piano_manutenzione_id
+        if "origine_piano" in data.model_fields_set:
+            ticket.origine_piano = data.origine_piano
 
         # Ricalcolo sempre planned_finish se planned_start e durata sono presenti
         if ticket.planned_start and ticket.durata_stimata_ore:

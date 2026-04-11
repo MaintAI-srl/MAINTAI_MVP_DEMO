@@ -35,6 +35,12 @@ Se un campo richiesto dalla specifica non esiste nel DB attuale:
 
 ---
 
+## PIANO DI MANUTENZIONE
+
+Il "Piano di Manutenzione" referenziato nel sistema va trattato come l'entità database persistente `piani_manutenzione` a cui i singoli `ticket` afferiscono. Le aggregazioni di planning non devono basarsi su raggruppamenti astratti ma usare campi dedicati come `piano_manutenzione_id` da `ticket`. 
+
+---
+
 ## MODELLO DATI: REGOLE DI MAPPING OBBLIGATORIE
 
 ## Tecnici

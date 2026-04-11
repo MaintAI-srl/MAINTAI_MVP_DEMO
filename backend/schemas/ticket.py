@@ -16,6 +16,8 @@ class TicketCreate(BaseModel):
     tecnico_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
+    piano_manutenzione_id: int | None = None
+    origine_piano: str | None = None
 
 
 class TicketUpdate(BaseModel):
@@ -32,6 +34,8 @@ class TicketUpdate(BaseModel):
     execution_finish: Optional[datetime] = None
     eliminazione_note: str | None = None  # Motivo eliminazione (obbligatorio lato UI)
     is_manual_plan: bool | None = None
+    piano_manutenzione_id: int | None = None
+    origine_piano: str | None = None
 
 
 class TicketResponse(BaseModel):
@@ -55,3 +59,5 @@ class TicketResponse(BaseModel):
     parent_id: int | None = None
     diagnosi_eseguita: bool = False
     is_manual_plan: bool = False
+    piano_manutenzione_id: int | None = None
+    origine_piano: str | None = None

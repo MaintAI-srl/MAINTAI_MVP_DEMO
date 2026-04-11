@@ -39,6 +39,7 @@ try:
     from backend.api.routes.planning import router as planning_router
     from backend.api.routes.ws_routes import router as ws_router
     from backend.api.routes.bulk_import import router as bulk_import_router
+    from backend.api.routes.piano_manutenzione import router as piano_manutenzione_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -153,6 +154,9 @@ def _ensure_columns() -> None:
         ("ticket", "eliminazione_note",                "ALTER TABLE ticket ADD COLUMN {ifne}eliminazione_note TEXT"),
         # ticket — manual plan
         ("ticket", "is_manual_plan",                   "ALTER TABLE ticket ADD COLUMN {ifne}is_manual_plan BOOLEAN DEFAULT FALSE"),
+        # ticket — piani_manutenzione
+        ("ticket", "piano_manutenzione_id",            "ALTER TABLE ticket ADD COLUMN {ifne}piano_manutenzione_id INTEGER"),
+        ("ticket", "origine_piano",                    "ALTER TABLE ticket ADD COLUMN {ifne}origine_piano VARCHAR"),
     ]
 
     # system_logs — tabella intera
@@ -326,6 +330,7 @@ app.include_router(email_config_router)
 app.include_router(planning_router)
 app.include_router(ws_router)  # WebSocket real-time updates
 app.include_router(bulk_import_router)
+app.include_router(piano_manutenzione_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
@@ -333,7 +338,7 @@ app.include_router(bulk_import_router)
 _V1_ROUTERS = [
     auth_router, dashboard_router, assets_router, tecnici_router, tickets_router,
     scadenze_router, manuali_router, diagnostic_router, piani_router, impianti_router,
-    siti_router, problem_analysis_router, planning_router,
+    siti_router, problem_analysis_router, planning_router, piano_manutenzione_router,
 ]
 for _r in _V1_ROUTERS:
     app.include_router(_r, prefix="/v1")
