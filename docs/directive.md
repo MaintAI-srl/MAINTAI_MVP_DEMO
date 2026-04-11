@@ -420,6 +420,10 @@ Non fare mai queste cose:
 - navigare alla pagina scadenze senza usare `router.push("/scadenze")` da `NotificationPanel` — usare `useRouter` di next/navigation (non window.location) per navigazione SPA
 - usare `.toISOString().slice(0, 16)` per popolare un `<input type="datetime-local">` — `.toISOString()` restituisce UTC, ma il campo mostra/riceve ora locale; usare i getter locali (`getFullYear`, `getMonth`, `getDate`, `getHours`, `getMinutes`) o un helper `toDatetimeLocal()` dedicato
 - calcolare `planned_finish = planned_start + durata` con `new Date(str).toISOString()` — produrrebbe un orario UTC che il browser mostra come ora locale errata; usare `addHoursToDatetimeLocal(str, ore)` che lavora interamente in ora locale senza conversioni UTC
+- implementare il calendario settimanale del planner con sole 5 colonne (Lun-Ven) — il planner settimanale deve mostrare tutti e 7 i giorni; il sabato e la domenica devono avere sfondo visivamente distinto (`#0b1422` vs `#0f172a`) ma essere pienamente operativi
+- usare DragOverlay vuoto o assente durante il drag nel Kanban o nel planner — quando un elemento è trascinato deve essere visibile un ghost card (DragOverlay) chiaramente leggibile con colori tipo-ticket, titolo e durata; l'elemento originale deve avere opacity ridotta (≤0.3) per indicare il "placeholder"
+- lasciare i DroppableSlot senza feedback visivo chiaro — quando `isOver=true` usare sfondo `rgba(59,130,246,0.25)` + outline `2px dashed #60a5fa` + label "Rilascia qui"
+- implementare ModalePianificaManuale con solo campo data senza ora — il modale di pianificazione manuale deve includere: tecnico, data, ora inizio (con preset 08:00–16:00), durata auto-calcolata, e badge "PIANIFICATO MANUALMENTE"; il salvataggio deve inviare `is_manual_plan: true` al backend
 
 ---
 

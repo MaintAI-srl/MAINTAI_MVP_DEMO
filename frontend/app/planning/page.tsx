@@ -182,6 +182,17 @@ function DraggableTicket({
 }
 
 // ── Modale assegnazione manuale ────────────────────────────────────────────────
+const SLOT_PRESETS = [
+  { label: "08:00", h: 8 },
+  { label: "09:00", h: 9 },
+  { label: "10:00", h: 10 },
+  { label: "11:00", h: 11 },
+  { label: "13:00", h: 13 },
+  { label: "14:00", h: 14 },
+  { label: "15:00", h: 15 },
+  { label: "16:00", h: 16 },
+];
+
 function ModalePianificaManuale({
   ticket,
   tecnici,
@@ -190,41 +201,93 @@ function ModalePianificaManuale({
 }: {
   ticket: TicketData;
   tecnici: TecnicoData[];
-  onSave: (ticketId: number, tecnicoId: number, data: string) => void;
+  onSave: (ticketId: number, tecnicoId: number, data: string, plannedStart?: string, plannedFinish?: string) => void;
   onClose: () => void;
 }) {
   const [tecnicoId, setTecnicoId] = useState<number>(tecnici[0]?.id ?? 0);
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const [oraInizio, setOraInizio] = useState(8); // 08:00 default
+  const durata = ticket.durata_stimata_ore || 1;
+
+  const fineDecimale = oraInizio + durata;
+  const oraFineH = Math.floor(fineDecimale);
+  const oraFineM = Math.round((fineDecimale - oraFineH) * 60);
+  const oraFineLabel = `${String(oraFineH).padStart(2, "0")}:${String(oraFineM).padStart(2, "0")}`;
+
+  const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
+  const tipo = ticket.tipo ?? "CM";
+
+  function handleSave() {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const startStr = `${data}T${pad(oraInizio)}:00:00`;
+    const finishStr = `${data}T${oraFineLabel}:00`;
+    onSave(ticket.id, tecnicoId, data, startStr, finishStr);
+    onClose();
+  }
 
   return (
     <div style={{
       position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.7)",
+      background: "rgba(0,0,0,0.75)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 1000,
+      backdropFilter: "blur(4px)",
     }} onClick={onClose}>
       <div
         style={{
           background: "#111827",
           border: "1px solid #1f2937",
-          borderRadius: 12,
-          padding: 24,
-          width: 360,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.6)",
+          borderRadius: 16,
+          padding: 28,
+          width: 420,
+          boxShadow: "0 32px 80px rgba(0,0,0,0.7)",
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb", marginBottom: 4 }}>
-          Pianifica Manualmente
-        </div>
-        <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
-          #{ticket.id} — {ticket.titolo}
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#f9fafb" }}>
+              Pianifica Manualmente
+            </div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+              #{ticket.id} — {ticket.titolo}
+            </div>
+          </div>
+          <span style={{
+            fontSize: 10, fontWeight: 800,
+            color: tipoColor[tipo] ?? "#fcd34d",
+            background: "rgba(255,255,255,0.06)",
+            border: `1px solid ${tipoColor[tipo] ?? "#fcd34d"}44`,
+            borderRadius: 4,
+            padding: "3px 8px",
+          }}>{tipo}</span>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Riepilogo durata */}
+        <div style={{
+          background: "#1a2332",
+          border: "1px solid #2a3748",
+          borderRadius: 8,
+          padding: "10px 14px",
+          marginBottom: 18,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            Durata stimata:
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#fcd34d" }}>
+            {durata}h → {String(oraInizio).padStart(2,"0")}:00 – {oraFineLabel}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Tecnico */}
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>
-              Tecnico
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em" }}>
+              TECNICO
             </label>
             <select
               value={tecnicoId}
@@ -234,8 +297,8 @@ function ModalePianificaManuale({
                 background: "#1f2937",
                 border: "1px solid #374151",
                 color: "#f9fafb",
-                borderRadius: 6,
-                padding: "8px 10px",
+                borderRadius: 8,
+                padding: "9px 12px",
                 fontSize: 13,
               }}
             >
@@ -247,9 +310,10 @@ function ModalePianificaManuale({
             </select>
           </div>
 
+          {/* Data */}
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>
-              Data pianificata
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em" }}>
+              DATA
             </label>
             <input
               type="date"
@@ -260,37 +324,98 @@ function ModalePianificaManuale({
                 background: "#1f2937",
                 border: "1px solid #374151",
                 color: "#f9fafb",
-                borderRadius: 6,
-                padding: "8px 10px",
+                borderRadius: 8,
+                padding: "9px 12px",
                 fontSize: 13,
                 boxSizing: "border-box",
               }}
             />
           </div>
+
+          {/* Ora inizio con preset rapidi */}
+          <div>
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em" }}>
+              ORA INIZIO
+            </label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {SLOT_PRESETS.map(p => (
+                <button
+                  key={p.h}
+                  onClick={() => setOraInizio(p.h)}
+                  style={{
+                    fontSize: 11,
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#374151"}`,
+                    background: oraInizio === p.h ? "#1e3a5f" : "#1f2937",
+                    color: oraInizio === p.h ? "#60a5fa" : "#9ca3af",
+                    fontWeight: oraInizio === p.h ? 700 : 400,
+                    transition: "all 100ms",
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="time"
+              value={`${String(oraInizio).padStart(2, "0")}:00`}
+              onChange={e => {
+                const [h] = e.target.value.split(":");
+                setOraInizio(parseInt(h ?? "8", 10));
+              }}
+              style={{
+                width: "100%",
+                background: "#1f2937",
+                border: "1px solid #374151",
+                color: "#f9fafb",
+                borderRadius: 8,
+                padding: "9px 12px",
+                fontSize: 13,
+                boxSizing: "border-box",
+                colorScheme: "dark",
+              }}
+            />
+          </div>
+
+          {/* Badge pianificazione manuale */}
+          <div style={{
+            background: "rgba(234,179,8,0.08)",
+            border: "1px solid rgba(234,179,8,0.3)",
+            borderRadius: 8,
+            padding: "8px 12px",
+            fontSize: 11,
+            color: "#eab308",
+            fontWeight: 600,
+          }}>
+            ⚡ Il ticket verrà marcato come <strong>PIANIFICATO MANUALMENTE</strong> e trattato come vincolo dall'AI
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           <button onClick={onClose} style={{
             flex: 1, background: "#1f2937",
             border: "1px solid #374151", color: "#9ca3af",
-            borderRadius: 6, padding: "9px 0",
+            borderRadius: 8, padding: "10px 0",
             cursor: "pointer", fontSize: 13,
           }}>Annulla</button>
           <button
-            onClick={() => { onSave(ticket.id, tecnicoId, data); onClose(); }}
+            onClick={handleSave}
             style={{
-              flex: 1,
-              background: "#065f46",
+              flex: 2,
+              background: "linear-gradient(135deg, #065f46, #059669)",
               border: "1px solid #059669",
-              color: "#86efac",
-              borderRadius: 6,
-              padding: "9px 0",
+              color: "#ecfdf5",
+              borderRadius: 8,
+              padding: "10px 0",
               cursor: "pointer",
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 700,
+              boxShadow: "0 4px 16px rgba(5,150,105,0.3)",
             }}
           >
-            Salva
+            ✓ Pianifica — {String(oraInizio).padStart(2,"0")}:00–{oraFineLabel}
           </button>
         </div>
       </div>
@@ -496,6 +621,7 @@ export default function PlanningPage() {
         planned_start: plannedStart ?? `${data}T08:00:00`,
         planned_finish: plannedFinish ?? `${data}T17:00:00`,
         stato: "Pianificato",
+        is_manual_plan: true,
       });
       toast.success(`Ticket #${ticketId} pianificato manualmente`);
       loadData();
@@ -1246,51 +1372,66 @@ export default function PlanningPage() {
         }
       `}</style>
 
-      {/* DragOverlay: card floating durante il drag */}
+      {/* DragOverlay: card floating visibile durante il drag */}
       <DragOverlay dropAnimation={null}>
         {activeDragId !== null && (() => {
-          const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
+          const tipoBg: Record<string, string> = { BD: "#7f1d1d", PM: "#14532d", CM: "#78350f" };
           const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
+          const tipoBorder: Record<string, string> = { BD: "#ef4444", PM: "#22c55e", CM: "#f59e0b" };
 
           let id: number | undefined;
           let label = "";
           let tipo = "CM";
+          let durata = 0;
 
           if (activeDragId.startsWith("ticket-")) {
             id = Number(activeDragId.replace("ticket-", ""));
             const t = ticketMap.get(id);
             tipo = t?.tipo ?? "CM";
             label = t?.titolo ?? "—";
+            durata = t?.durata_stimata_ore ?? 0;
           } else if (activeDragId.startsWith("wo||")) {
             id = Number(activeDragId.replace("wo||", ""));
-            const wo = plannedWOs.find(w => w.wo_id === id);
             const t = id ? ticketMap.get(id) : undefined;
             tipo = t?.tipo ?? "CM";
             label = t?.titolo ?? `WO #${id}`;
+            durata = t?.durata_stimata_ore ?? 0;
           }
 
           if (!id) return null;
+          const borderCol = tipoBorder[tipo] ?? "#3b82f6";
           return (
             <div style={{
-              background: "#1a2332",
-              border: "2px solid #3b82f6",
-              borderRadius: 6,
-              padding: "8px 10px",
-              width: 220,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              background: `${tipoBg[tipo] ?? "#1a2332"}cc`,
+              border: `2px solid ${borderCol}`,
+              borderRadius: 8,
+              padding: "10px 14px",
+              width: 240,
+              boxShadow: `0 12px 40px rgba(0,0,0,0.7), 0 0 20px ${borderCol}44`,
               pointerEvents: "none",
+              backdropFilter: "blur(4px)",
+              transform: "rotate(2deg)",
             }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "center" }}>
                 <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  background: tipoBg[tipo] ?? "#78350f44",
+                  fontSize: 11, fontWeight: 800,
                   color: tipoColor[tipo] ?? "#fcd34d",
-                  padding: "1px 5px", borderRadius: 3,
+                  padding: "2px 7px", borderRadius: 4,
+                  background: `${tipoBg[tipo] ?? "#1a2332"}`,
+                  border: `1px solid ${borderCol}55`,
                 }}>{tipo}</span>
-                <span style={{ fontSize: 10, color: "#6b7280" }}>#{id}</span>
+                <span style={{ fontSize: 10, color: "#9ca3af" }}>#{id}</span>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", lineHeight: 1.3, marginBottom: 4 }}>
                 {label}
+              </div>
+              {durata > 0 && (
+                <div style={{ fontSize: 10, color: tipoColor[tipo] ?? "#fcd34d", fontWeight: 600 }}>
+                  {durata}h stimate
+                </div>
+              )}
+              <div style={{ fontSize: 9, color: "#60a5fa", marginTop: 6, fontWeight: 600 }}>
+                ↓ Rilascia nello slot desiderato
               </div>
             </div>
           );

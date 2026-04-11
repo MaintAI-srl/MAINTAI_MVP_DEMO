@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DndContext, DragEndEvent, useDroppable, useDraggable } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from "@dnd-kit/core";
 import { apiPatch } from "../lib/api";
 import { notify } from "@/lib/toast";
 
@@ -30,7 +30,7 @@ const PRIO_COLORS: Record<string, string> = {
   alta: "#f87171", media: "#fbbf24", bassa: "#34d399",
 };
 
-function KanbanCard({ ticket }: { ticket: KanbanTicket }) {
+function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOverlay?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: ticket.id });
 
   return (
@@ -39,19 +39,22 @@ function KanbanCard({ ticket }: { ticket: KanbanTicket }) {
       {...listeners}
       {...attributes}
       style={{
-        background: "var(--bg-elevated)",
-        border: "1px solid var(--border)",
+        background: isOverlay ? "var(--bg-elevated)" : "var(--bg-elevated)",
+        border: isOverlay ? "2px solid #60a5fa" : "1px solid var(--border)",
         borderRadius: 12,
         padding: "14px",
         cursor: isDragging ? "grabbing" : "grab",
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.25 : 1,
         display: "flex",
         flexDirection: "column",
         gap: 10,
-        boxShadow: isDragging ? "0 12px 32px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.1)",
+        boxShadow: isOverlay
+          ? "0 20px 60px rgba(0,0,0,0.7), 0 0 24px rgba(96,165,250,0.4)"
+          : isDragging ? "0 12px 32px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.1)",
         userSelect: "none",
         touchAction: "none",
-        transition: "box-shadow 0.2s, border-color 0.2s",
+        transition: isDragging ? "none" : "box-shadow 0.2s, border-color 0.2s",
+        transform: isOverlay ? "rotate(2deg) scale(1.02)" : undefined,
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.4 }}>
@@ -102,8 +105,10 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
     <div
       ref={setNodeRef}
       style={{
-        background: isOver ? colors.bg : "var(--bg-card)",
-        border: `1px solid ${isOver ? colors.header : "var(--border)"}`,
+        background: isOver
+          ? `color-mix(in srgb, ${colors.bg} 60%, #0f172a)`
+          : "var(--bg-card)",
+        border: `${isOver ? "2px" : "1px"} solid ${isOver ? colors.header : "var(--border)"}`,
         borderRadius: 16,
         padding: "20px 16px",
         display: "flex",
@@ -112,7 +117,8 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
         minHeight: "70vh",
         maxHeight: "70vh",
         overflowY: "auto",
-        transition: "background 0.2s, border-color 0.2s",
+        transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
+        boxShadow: isOver ? `0 0 32px ${colors.header}44, inset 0 0 20px ${colors.header}11` : "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, position: "sticky", top: 0, background: "inherit", zIndex: 10, paddingBottom: 8 }}>
@@ -122,7 +128,19 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
           {tickets.length}
         </span>
       </div>
-      {tickets.length === 0 ? (
+      {isOver && (
+        <div style={{
+          fontSize: 12, fontWeight: 700, textAlign: "center",
+          color: colors.header, padding: "10px 0",
+          border: `2px dashed ${colors.header}88`,
+          borderRadius: 10, marginBottom: 8,
+          background: `${colors.bg}`,
+          animation: "pulse 1s ease-in-out infinite",
+        }}>
+          ↓ Rilascia qui per {stato.toLowerCase()}
+        </div>
+      )}
+      {tickets.length === 0 && !isOver ? (
         <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", padding: "40px 0", fontStyle: "italic", border: "1px dashed var(--border)", borderRadius: 12 }}>
           Nessun ticket {stato.toLowerCase()}
         </div>
@@ -188,10 +206,17 @@ interface KanbanBoardProps {
 export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
   const [local, setLocal] = useState<KanbanTicket[]>(tickets);
   const [pianificaRequest, setPianificaRequest] = useState<{ ticketId: number; durataOre: number } | null>(null);
+  const [activeTicket, setActiveTicket] = useState<KanbanTicket | null>(null);
 
   useEffect(() => { setLocal(tickets); }, [tickets]);
 
+  function handleDragStart({ active }: DragStartEvent) {
+    const t = local.find(t => t.id === active.id) ?? null;
+    setActiveTicket(t);
+  }
+
   async function handleDragEnd({ active, over }: DragEndEvent) {
+    setActiveTicket(null);
     if (!over) return;
     const ticketId = Number(active.id);
     const nuovoStato = String(over.id);
@@ -247,19 +272,32 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
 
   return (
     <>
-      <DndContext onDragEnd={handleDragEnd}>
+      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveTicket(null)}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           {COLS.map(stato => (
             <KanbanColumn key={stato} stato={stato} tickets={byStato[stato]} />
           ))}
         </div>
+
+        {/* DragOverlay: card floating ad alta visibilità durante il drag */}
+        <DragOverlay dropAnimation={null}>
+          {activeTicket ? <KanbanCard ticket={activeTicket} isOverlay={true} /> : null}
+        </DragOverlay>
       </DndContext>
+
       {pianificaRequest && (
         <KanbanPianificaModal
           onConfirm={confirmPianifica}
           onCancel={() => setPianificaRequest(null)}
         />
       )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
     </>
   );
 }

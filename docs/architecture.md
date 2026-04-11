@@ -909,3 +909,41 @@ const effectiveExpandedSiti = treeSearch
   : expandedSiti;
 ```
 Questo evita di dover gestire l'espansione come stato separato durante la ricerca.
+### Pattern: Calendario settimanale PianoAI — 7 giorni obbligatori
+
+Il componente `KanbanSettimanale` mostra tutti e 7 i giorni della settimana (Lun-Dom).
+- `getWeekDays` usa `length: 7`
+- `gridTemplateColumns`: `${HOUR_LABEL_W}px repeat(7, minmax(110px, 1fr))`
+- Sabato e domenica hanno sfondo distinto: column `#0b1422` vs lavorativi `#0f172a`
+- Header weekend: sfondo `#162032` con label "weekend" aggiuntiva
+- Il testo del periodo usa `weekDays[6]` come ultimo giorno
+
+### Pattern: DragOverlay ad alta visibilità nel Planner
+
+Sia `KanbanBoard` che `planning/page.tsx` usano `DragOverlay` di `@dnd-kit/core`.
+- L'elemento originale durante il drag ha `opacity: 0.3` (placeholder visivo)
+- Il `DragOverlay` mostra un ghost card con: colori tipo-ticket, titolo, durata, label "Rilascia nello slot desiderato"
+- Il ghost card ha `transform: rotate(2deg)` e `boxShadow` amplificato per differenziarsi dalla board
+- In `KanbanBoard`: `handleDragStart` salva `activeTicket` in state; `DragOverlay` renderizza `<KanbanCard isOverlay={true} />`
+
+### Pattern: DroppableSlot con feedback "Rilascia qui"
+
+I DroppableSlot nel calendario settimanale mostrano feedback esplicito quando `isOver=true`:
+```tsx
+background: isOver ? "rgba(59,130,246,0.25)" : "transparent"
+outline: isOver ? "2px dashed #60a5fa" : "none"
+// + label centrata "➕ Rilascia qui" visible solo quando isOver
+```
+
+### Pattern: ModalePianificaManuale con ora inizio e preset
+
+Il modale di pianificazione manuale (da `planning/page.tsx`) include:
+1. Select tecnico
+2. Input date
+3. Preset ore rapidi (08:00, 09:00, 10:00, 11:00, 13:00, 14:00, 15:00, 16:00)
+4. Input time per ora personalizzata
+5. Riepilogo automatico "08:00 → 10:00" calcolato da `oraInizio + durata_stimata_ore`
+6. Badge "⚡ PIANIFICATO MANUALMENTE" con spiegazione del vincolo AI
+7. Bottone Salva mostra lo slot selezionato: "✓ Pianifica — 08:00–10:00"
+
+Il save invia `is_manual_plan: true` al backend insieme a `planned_start`/`planned_finish` con ora esatta.
