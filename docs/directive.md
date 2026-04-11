@@ -415,6 +415,8 @@ Non fare mai queste cose:
 - usare join INNER quando la relazione è nullable (es. `AttivitaManutenzione.asset_id` nullable) — usare `join(..., isouter=True)` per non escludere record senza relazione
 - caricare ticket da tab notifiche senza distinguere tra scadenze PM e ticket operativi attivi — il NotificationPanel usa due tab separate (Scadenze / Attività) con polling indipendente
 - navigare alla pagina scadenze senza usare `router.push("/scadenze")` da `NotificationPanel` — usare `useRouter` di next/navigation (non window.location) per navigazione SPA
+- usare `.toISOString().slice(0, 16)` per popolare un `<input type="datetime-local">` — `.toISOString()` restituisce UTC, ma il campo mostra/riceve ora locale; usare i getter locali (`getFullYear`, `getMonth`, `getDate`, `getHours`, `getMinutes`) o un helper `toDatetimeLocal()` dedicato
+- calcolare `planned_finish = planned_start + durata` con `new Date(str).toISOString()` — produrrebbe un orario UTC che il browser mostra come ora locale errata; usare `addHoursToDatetimeLocal(str, ore)` che lavora interamente in ora locale senza conversioni UTC
 
 ---
 

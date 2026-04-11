@@ -58,18 +58,35 @@ function getPrioritaStyle(p: string): React.CSSProperties {
   }
 }
 
-/** Converte ISO string → valore compatibile con datetime-local input */
+const _pad = (n: number) => String(n).padStart(2, "0");
+
+/** Converte ISO string UTC → valore in ora LOCALE compatibile con datetime-local input */
 function toDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  // "YYYY-MM-DDTHH:mm"
-  return d.toISOString().slice(0, 16);
+  // Usa getters locali (non UTC) per mostrare l'ora corretta nel fuso dell'utente
+  return `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
 }
 
-/** Ora corrente come stringa datetime-local */
+/** Ora corrente come stringa datetime-local (ora locale) */
 function nowDatetimeLocal(): string {
-  return new Date().toISOString().slice(0, 16);
+  const d = new Date();
+  return `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+}
+
+/**
+ * Aggiunge `hours` ore a una stringa datetime-local "YYYY-MM-DDTHH:mm"
+ * e restituisce una nuova stringa datetime-local in ora locale.
+ * Non usa .toISOString() per evitare conversioni UTC errate.
+ */
+function addHoursToDatetimeLocal(dtLocal: string, hours: number): string {
+  if (!dtLocal) return "";
+  // new Date("YYYY-MM-DDTHH:mm") senza timezone viene trattato come LOCAL time
+  const d = new Date(dtLocal);
+  if (isNaN(d.getTime())) return "";
+  const end = new Date(d.getTime() + Math.round(hours * 3600000));
+  return `${end.getFullYear()}-${_pad(end.getMonth() + 1)}-${_pad(end.getDate())}T${_pad(end.getHours())}:${_pad(end.getMinutes())}`;
 }
 
 const dtInput: React.CSSProperties = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
@@ -206,17 +223,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [stato, setStato] = useState(ticket.stato);
   const [assetStato, setAssetStato] = useState(ticket.asset_stato ?? "");
   const [plannedStart, setPlannedStart] = useState(toDatetimeLocal(ticket.planned_start));
-  const [plannedFinish, setPlannedFinish] = useState(ticket?.planned_finish?.slice(0, 16) || "");
+  const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
   const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
 
-  // Auto-calcolo fine pianificata
+  // Auto-calcolo fine pianificata — usa helper locale per evitare bug timezone
   useEffect(() => {
     if (plannedStart && durataOre) {
-      const start = new Date(plannedStart);
       const hours = parseFloat(durataOre.toString());
-      if (!isNaN(start.getTime()) && !isNaN(hours)) {
-        const end = new Date(start.getTime() + hours * 3600000);
-        setPlannedFinish(end.toISOString().slice(0, 16));
+      if (!isNaN(hours) && hours > 0) {
+        setPlannedFinish(addHoursToDatetimeLocal(plannedStart, hours));
       }
     }
   }, [plannedStart, durataOre]);
@@ -247,10 +262,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
     setPlannedStart(start);
     if (start) {
       if (stato === "Aperto") setStato("Pianificato");
-      // Auto-calcola fine basata su durata corrente
-      const d = new Date(start);
-      d.setMinutes(d.getMinutes() + durataOre * 60);
-      setPlannedFinish(d.toISOString().slice(0, 16));
+      // Auto-calcola fine basata su durata corrente (ora locale, no UTC drift)
+      setPlannedFinish(addHoursToDatetimeLocal(start, durataOre));
     }
   }
 
@@ -258,9 +271,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   function handleDurataChange(v: number) {
     setDurataOre(v);
     if (plannedStart) {
-      const d = new Date(plannedStart);
-      d.setMinutes(d.getMinutes() + v * 60);
-      setPlannedFinish(d.toISOString().slice(0, 16));
+      setPlannedFinish(addHoursToDatetimeLocal(plannedStart, v));
     }
   }
 
@@ -273,7 +284,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
     } else {
       d.setMinutes(d.getMinutes() + 15); // Un po' di margine
     }
-    handlePlannedChange(d.toISOString().slice(0, 16));
+    // Usa ora locale (non UTC) per l'input datetime-local
+    handlePlannedChange(`${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`);
   }
 
   async function doSave(assetStatoOverride?: string, elimNoteOverride?: string) {

@@ -802,6 +802,37 @@ const newFinish = new Date(new Date(start).getTime() + hours * 3600000).toISOStr
 ```
 `plannedFinish` non è mai editato direttamente dall'utente — è sempre derivato.
 
+### Pattern: datetime-local e timezone — regola obbligatoria
+
+`<input type="datetime-local">` lavora in **ora locale** del browser. Mai usare `.toISOString().slice(0, 16)` per popolare questi campi — `.toISOString()` produce UTC e crea uno sfasamento orario che fa risultare `planned_finish < planned_start` nelle timezone positive (es. UTC+2).
+
+**Helper corretti da usare:**
+```typescript
+const _pad = (n: number) => String(n).padStart(2, "0");
+
+// UTC ISO string → stringa datetime-local (ora locale)
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);   // new Date(ISO with Z) = UTC corretto
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+}
+
+// Aggiunge ore a una stringa datetime-local → nuova stringa datetime-local (ora locale)
+function addHoursToDatetimeLocal(dtLocal: string, hours: number): string {
+  if (!dtLocal) return "";
+  const d = new Date(dtLocal);  // senza Z → locale, corretto
+  const end = new Date(d.getTime() + Math.round(hours * 3600000));
+  return `${end.getFullYear()}-${_pad(end.getMonth()+1)}-${_pad(end.getDate())}T${_pad(end.getHours())}:${_pad(end.getMinutes())}`;
+}
+
+// Salvataggio al backend: converte locale → UTC correttamente
+body.planned_start = plannedStart ? new Date(plannedStart).toISOString() : null;
+// new Date("YYYY-MM-DDTHH:mm") senza Z → trattato come locale → .toISOString() → UTC ✓
+```
+
+**Regola**: tutti i calcoli `planned_finish = planned_start + durata` nel frontend devono usare `addHoursToDatetimeLocal`, mai `.toISOString().slice(0, 16)`.
+
 ### Pattern: Creazione manuale AttivitaManutenzione (Piano Base senza PDF)
 
 ```python
