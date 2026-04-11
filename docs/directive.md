@@ -383,6 +383,8 @@ Non fare mai queste cose:
 - usare `f"SELECT ... {var}"` o f-string con SQL raw — usa parametri binding o allowlist
 - calcolare completion_pct in loop N+1 — usa batch query con set lookup O(1)
 - usare f-string nei log (`logger.info(f"...")`) — usa sempre `%s` lazy formatting (`logger.info("...", arg)`)
+- usare apiPost con FormData nel frontend — apiPost imposta application/json mandando in crash il parser multipart; usare apiUpload
+- omettere endpoint di importazione pesanti (AI/OCR) da SLOW_ENDPOINTS — causa timeout (504/AbortError) su file grandi
 - creare record ORM figli senza `tenant_id` (es. `TecnicoAssenza`) quando il modello ha la colonna
 - omettere `tenant_id` su endpoint che fanno join su Asset/AttivitaManutenzione — il filtro va sul join root
 - lasciare catch vuoti (`catch {}` o `.catch(() => {})`) nel frontend — mostrare sempre un toast all'utente

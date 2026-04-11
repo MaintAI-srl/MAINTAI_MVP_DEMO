@@ -415,6 +415,8 @@ Non fare mai queste cose:
 - spostare la logica vera del planner nel frontend
 - sacrificare stabilità per “pulizia” teorica
 - nascondere i workaround invece di documentarli
+- usare apiPost con FormData — apiPost imposta application/json, rompendo il multipart; usare apiUpload
+- omettere nuovi endpoint AI/OCR da SLOW_ENDPOINTS — causa timeout prematuri su file pesanti
 - omettere `Depends(get_current_tenant_id)` su qualsiasi endpoint che accede a dati di dominio
 - creare record ORM senza `tenant_id=tenant_id` quando il modello ha la colonna
 - usare raw SQL con variabili non sanitizzate (SQL injection)
@@ -595,6 +597,20 @@ invalidateQueries("/manuali");
 // Bypass cache e refetch immediato
 await refetch();
 ```
+
+### Pattern: Upload di File (Multipart/FormData)
+Per l'upload di file (PDF, Excel) che richiede `FormData` e `multipart/form-data`, **mai** usare `apiPost`. Usare `apiUpload` che:
+1. Non imposta `Content-Type: application/json` (permettendo al browser di settare il boundary corretto).
+2. Gestisce timeout lunghi (120s) necessari per OCR e analisi AI.
+
+Esempio:
+```typescript
+const fd = new FormData();
+fd.append("file", file);
+const res = await apiUpload("/endpoint/import", fd);
+```
+**Regola**: Ogni endpoint che processa PDF o Excel via AI deve anche essere aggiunto alla regex `SLOW_ENDPOINTS` in `api.ts`.
+
 Regola: usare `useApiQuery` per tutti i GET di liste/dati statici. Mutazioni (POST/PUT/PATCH) restano con `apiPost/apiPut/apiPatch` + `invalidateQueries` dopo.
 
 ### Pattern: Skeleton loading
