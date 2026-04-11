@@ -749,3 +749,108 @@ Questo significa:
 - più trasparenza nella logica del planner
 
 Se una modifica sembra elegante ma rende il prodotto più fragile, più opaco o meno fedele al modello reale, non è una buona modifica.
+
+---
+
+## PATTERN ARCHITETTURALI APPRESI (ciclo v2.3.1)
+
+### Pattern: PATCH endpoint separato dal bulk-status
+
+Il router FastAPI registra prima le route letterali e poi quelle parametriche.
+Il nuovo endpoint `PATCH /tickets/{ticket_id}` deve essere definito **dopo** il path letterale `PATCH /tickets/bulk-status`, altrimenti FastAPI interpreta `"bulk-status"` come valore di `ticket_id`.
+
+```python
+# CORRETTO
+@router.patch("/tickets/bulk-status")
+def bulk_update_status(...): ...
+
+@router.patch("/tickets/{ticket_id}")
+def patch_ticket(...): ...
+```
+
+Questo endpoint accetta un `TicketUpdate` parziale e non richiede tutti i campi. Differenza rispetto al PUT:
+- `PUT /tickets/{id}` → aggiornamento completo, tipicamente da DetailModal
+- `PATCH /tickets/{id}` → aggiornamento parziale, usato da Kanban DnD e StatusToggle inline
+
+### Pattern: log_to_db — firma corretta
+
+`log_to_db` crea la propria sessione DB internamente. Non riceve `db` come parametro.
+
+```python
+# CORRETTO
+log_to_db("WARNING", "TICKETS", f"Ticket #{ticket_id} eliminato da {username}.", tenant_id=tenant_id)
+
+# SBAGLIATO — causa TypeError
+log_to_db(db, "WARNING", f"...")
+```
+
+### Pattern: Intercetto "Pianificato" su tutti i percorsi UI
+
+Qualsiasi UI path che può impostare `stato = "Pianificato"` su un ticket **deve** richiedere e passare `planned_start` al backend. I percorsi da proteggere sono:
+1. StatusToggle in tabella → `handleStatoChange()` centralizzato
+2. Azione bulk → `bulkUpdateStatus()` centralizzato
+3. DetailModal save → validazione in `handleSave()` prima della chiamata API
+4. Kanban DnD → `handleDragEnd()` con modale data prima di `apiPatch`
+
+Il backend accetta ma non impone questa regola — la validazione è UI-layer per UX.
+
+### Pattern: Calcolo durata → planned_finish in DetailModal
+
+Quando `durataOre` o `plannedStart` cambiano, `plannedFinish` viene ricalcolato in modo derivato:
+```typescript
+const newFinish = new Date(new Date(start).getTime() + hours * 3600000).toISOString();
+```
+`plannedFinish` non è mai editato direttamente dall'utente — è sempre derivato.
+
+### Pattern: Creazione manuale AttivitaManutenzione (Piano Base senza PDF)
+
+```python
+att = AttivitaManutenzione(
+    descrizione=data.descrizione,
+    frequenza_giorni=data.frequenza_giorni,
+    durata_ore=data.durata_ore,
+    priorita=data.priorita,
+    asset_id=data.asset_id,   # nullable
+    codice=data.codice,       # nullable — identificativo opzionale utente
+    origine="Manuale",        # distingue da "PDF" o "Email"
+    manuale_id=None,          # nessun manuale — campo nullable in SQLAlchemy
+    tenant_id=tenant_id,
+)
+```
+Il campo `manuale_id` in `AttivitaManutenzione` è nullable anche se non dichiarato esplicitamente con `nullable=True` — in SQLAlchemy il default è nullable. Non forzare mai un manuale fittizio per creare attività manuali.
+
+### Pattern: Endpoint DELETE con scollegamento figlio prima di eliminare
+
+```python
+# Prima di eliminare: scollega i record figlio (non eliminarli)
+db.query(Ticket).filter(
+    Ticket.attivita_manutenzione_id == attivita_id,
+    Ticket.tenant_id == tenant_id,
+).update({"attivita_manutenzione_id": None})
+
+db.delete(att)
+db.commit()
+```
+Questo pattern preserva la storia dei ticket pur rimuovendo l'attività-piano collegata.
+
+### Pattern: Calendario eventi multi-tipo (scadenze + ticket)
+
+`GET /scadenze/calendario` restituisce un array `eventi[]` unificato con campo `tipo: "scadenza" | "ticket"`.
+Il frontend raggruppa per `data` (ISO date) e disegna dots colorati per giorno.
+Click su giorno → mostra dettaglio nel pannello laterale con filtro per tipo.
+
+### Pattern: NotificationPanel multi-tab
+
+Il campanellino mostra il totale `scadenze.length + ticketsAssegnati.length`.
+Due tab interne: "Scadenze PM" (da `/scadenze/imminenti?days=15`) e "Attività" (da `/tickets?stato=...`).
+Il footer ha link diretti a `/scadenze` e `/ticket` via `useRouter` (non `window.location`).
+
+### Pattern: Tree search con auto-expand
+
+Quando una ricerca è attiva nel tree siti/impianti/asset, i nodi matchati vengono espansi automaticamente usando un set calcolato invece dello stato `expandedSiti/expandedImpianti`:
+```typescript
+const effectiveExpandedSiti = treeSearch
+  ? new Set(filtered.map(s => s.id))
+  : expandedSiti;
+```
+Questo evita di dover gestire l'espansione come stato separato durante la ricerca.

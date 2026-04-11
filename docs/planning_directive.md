@@ -585,3 +585,43 @@ Il planner di MaintAI è una logica operativa reale, non un esercizio teorico.
 Deve lavorare con i dati veri che esistono oggi, dichiarare in modo esplicito i workaround, rispettare i ticket già assegnati, applicare hard rules prima delle soft rules, gestire split coerenti e produrre output spiegabili.
 
 Se una modifica rende il planner più “semplice” ma meno fedele al modello reale, meno tracciabile o meno utile operativamente, allora è una cattiva modifica.
+
+---
+
+## REGOLE UI PLANNING — STATO “PIANIFICATO” (ciclo v2.3.1)
+
+### Regola assoluta: planned_start obbligatorio
+
+Un ticket non può assumere stato `”Pianificato”` senza che `planned_start` sia valorizzato.
+Questa regola è applicata lato frontend su ogni percorso che può modificare lo stato:
+
+| Percorso UI | Implementazione |
+|---|---|
+| Toggle stato in tabella | `handleStatoChange()` intercetta → `PianificaQuickModal` |
+| Azione bulk nella barra selezione | `bulkUpdateStatus()` intercetta → `PianificaQuickModal` |
+| Salvataggio DetailModal | `handleSave()` valida → `notify.error` se manca |
+| Drag-and-drop Kanban | `handleDragEnd()` intercetta → `KanbanPianificaModal` |
+
+Il backend non deve essere responsabile di questa validazione UI.
+Il backend persiste semplicemente ciò che riceve — la correttezza semantica del workflow è frontend-layer.
+
+### Regola: planned_finish derivato da durata
+
+Quando il piano viene aggiornato, `planned_finish = planned_start + durata_stimata_ore * 3600s`.
+`planned_finish` non è mai campo libero — è sempre derivato e ricalcolato automaticamente.
+
+### Pattern: Calendario Scadenze PM — fonte dati
+
+Il calendario scadenze aggrega due sorgenti:
+1. `AttivitaManutenzione.prossima_scadenza` — data di scadenza prevista dal piano periodico
+2. `Ticket.planned_start` dove `tipo=="PM"` e `stato in [Aperto, Pianificato, In corso]`
+
+Entrambe le fonti usano `prossima_scadenza >= now - 30gg` per includere scadenze recentemente passate (visibilità ritardo).
+
+Le query usano sempre `join(Asset, isouter=True)` perché `asset_id` è nullable — un inner join escluderebbe attività senza asset.
+
+### Regola: kanban apiPatch endpoint
+
+Il Kanban DnD usa `apiPatch('/tickets/{id}', payload)`.
+Questo richiede che il backend abbia `PATCH /tickets/{ticket_id}` definito **e** che stia **dopo** `PATCH /tickets/bulk-status` nella dichiarazione del router.
+Non rimuovere o spostare questi endpoint senza verificare l'ordine di routing FastAPI.

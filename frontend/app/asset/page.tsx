@@ -663,6 +663,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 export default function AssetPage() {
   const [siti, setSiti] = useState<SitoNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [treeSearch, setTreeSearch] = useState("");
   const [expandedSiti, setExpandedSiti] = useState<Set<number>>(new Set());
   const [expandedImpianti, setExpandedImpianti] = useState<Set<number>>(new Set());
 
@@ -722,26 +723,52 @@ export default function AssetPage() {
           <div style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>Siti & Asset</div>
           <button style={{ ...btnPrimary, fontSize: "11px", padding: "4px 10px" }} onClick={() => setModalNuovoSito(true)}>+ Sito</button>
         </div>
+        {/* Barra di ricerca albero */}
+        <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
+          <input
+            value={treeSearch}
+            onChange={e => setTreeSearch(e.target.value)}
+            placeholder="Cerca sito, impianto, asset..."
+            style={{ width: "100%", background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", borderRadius: "6px", color: "var(--text-primary)", padding: "6px 10px", fontSize: "12px", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+          />
+        </div>
 
         {loading && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Caricamento...</div>}
         {!loading && siti.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Nessun sito. Clicca "+ Sito".</div>}
 
         <div style={{ padding: "8px 0" }}>
-          {siti.map(sito => (
-            <div key={sito.id}>
+          {(() => {
+            const term = treeSearch.trim().toLowerCase();
+            const sitiToShow = !term ? siti : siti.filter(s =>
+              s.nome.toLowerCase().includes(term) ||
+              s.impianti.some(i => i.nome.toLowerCase().includes(term) || i.assets.some(a => a.nome.toLowerCase().includes(term)))
+            );
+            // Se c'è una ricerca, espandi tutto automaticamente
+            const effectiveExpandedSiti = term ? new Set(sitiToShow.map(s => s.id)) : expandedSiti;
+            const effectiveExpandedImpianti = term ? new Set(sitiToShow.flatMap(s => s.impianti.map(i => i.id))) : expandedImpianti;
+            return sitiToShow.map(sito => {
+              const sitoParsed = !term ? sito : {
+                ...sito,
+                impianti: sito.impianti.filter(i => i.nome.toLowerCase().includes(term) || sito.nome.toLowerCase().includes(term) || i.assets.some(a => a.nome.toLowerCase().includes(term))).map(i => ({
+                  ...i,
+                  assets: sito.nome.toLowerCase().includes(term) || i.nome.toLowerCase().includes(term) ? i.assets : i.assets.filter(a => a.nome.toLowerCase().includes(term))
+                }))
+              };
+          return (
+            <div key={sitoParsed.id}>
               {/* Sito */}
               <div onClick={() => clickSito(sito)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 12px", cursor: "pointer", background: selType === "sito" && selSito?.id === sito.id ? "var(--blue-glow)" : "transparent", borderLeft: selType === "sito" && selSito?.id === sito.id ? "3px solid var(--blue)" : "3px solid transparent", userSelect: "none" }}>
-                <span style={{ fontSize: "11px", color: "var(--text-secondary)", width: "12px", flexShrink: 0 }}>{expandedSiti.has(sito.id) ? "▼" : "▶"}</span>
+                <span style={{ fontSize: "11px", color: "var(--text-secondary)", width: "12px", flexShrink: 0 }}>{effectiveExpandedSiti.has(sito.id) ? "▼" : "▶"}</span>
                 <span style={{ fontSize: "13px" }}>📍</span>
                 <span style={{ fontSize: "13px", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sito.nome}</span>
                 <span title="Aggiungi impianto" onClick={e => { e.stopPropagation(); setModalNuovoImpianto({ sitoId: sito.id, sitoNome: sito.nome }); }} style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.8 }}>+</span>
               </div>
 
               {/* Impianti */}
-              {expandedSiti.has(sito.id) && sito.impianti.map(imp => (
+              {effectiveExpandedSiti.has(sito.id) && sitoParsed.impianti.map(imp => (
                 <div key={imp.id}>
                   <div onClick={e => clickImpianto(imp, e)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px 6px 28px", cursor: "pointer", background: selType === "impianto" && selImpianto?.id === imp.id ? "var(--blue-glow)" : "transparent", borderLeft: selType === "impianto" && selImpianto?.id === imp.id ? "3px solid var(--blue)" : "3px solid transparent", userSelect: "none" }}>
-                    <span style={{ fontSize: "11px", color: "var(--text-secondary)", width: "12px", flexShrink: 0 }}>{expandedImpianti.has(imp.id) ? "▼" : "▶"}</span>
+                    <span style={{ fontSize: "11px", color: "var(--text-secondary)", width: "12px", flexShrink: 0 }}>{effectiveExpandedImpianti.has(imp.id) ? "▼" : "▶"}</span>
                     <span style={{ fontSize: "12px" }}>⚙</span>
                     <span style={{ fontSize: "12px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{imp.nome}</span>
                     <span title="Genera asset multipli" onClick={e => { e.stopPropagation(); setModalGeneraAsset({ impiantoId: imp.id, impiantoNome: imp.nome }); }} style={{ fontSize: "11px", color: "var(--amber)", cursor: "pointer", padding: "0 3px" }}>⚡</span>
@@ -749,7 +776,7 @@ export default function AssetPage() {
                   </div>
 
                   {/* Asset */}
-                  {expandedImpianti.has(imp.id) && imp.assets.map(a => (
+                  {effectiveExpandedImpianti.has(imp.id) && imp.assets.map(a => (
                     <div key={a.id} onClick={e => clickAsset(a.id, e)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 12px 5px 48px", cursor: "pointer", background: selType === "asset" && selAssetId === a.id ? "var(--blue-glow)" : "transparent", borderLeft: selType === "asset" && selAssetId === a.id ? "3px solid var(--blue)" : "3px solid transparent", userSelect: "none" }}>
                       <span style={{ fontSize: "12px" }}>🔧</span>
                       <span style={{ fontSize: "12px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nome}</span>
@@ -761,7 +788,7 @@ export default function AssetPage() {
                 </div>
               ))}
             </div>
-          ))}
+          ); }); })()}
         </div>
       </div>
 

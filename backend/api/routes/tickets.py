@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,6 +12,7 @@ from backend.repositories.ticket_repository import ticket_repository, _ticket_to
 from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.logging_config import get_logger
 from backend.core.exceptions import AppError
+from backend.core.logger_db import log_to_db
 from backend.db.modelli import Ticket, AttivitaManutenzione
 
 router = APIRouter()
@@ -25,6 +26,8 @@ MAX_ALLEGATO_BYTES = 20 * 1024 * 1024  # 20 MB
 class BulkStatusUpdate(PydanticModel):
     ids: list[int]
     stato: str
+    planned_start: Optional[datetime] = None
+    planned_finish: Optional[datetime] = None
 
 
 def _aggiorna_scadenza_piano(db: Session, ticket: Ticket):
@@ -130,19 +133,63 @@ def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), te
             status_code=400,
             detail=f"Stato non valido: '{data.stato}'. Valori ammessi: {sorted(STATI_VALIDI)}",
         )
+    update_dict: dict = {"stato": data.stato}
+    if data.planned_start:
+        update_dict["planned_start"] = data.planned_start
+    if data.planned_finish:
+        update_dict["planned_finish"] = data.planned_finish
+    # Se torna Aperto, azzera pianificazione
+    if data.stato == "Aperto":
+        update_dict["planned_start"] = None
+        update_dict["planned_finish"] = None
     updated = db.query(Ticket).filter(
         Ticket.id.in_(data.ids),
         Ticket.tenant_id == tenant_id,
-    ).update({"stato": data.stato}, synchronize_session=False)
+    ).update(update_dict, synchronize_session=False)
     db.commit()
     return {"updated": updated, "stato": data.stato}
 
 
-@router.put("/tickets/{ticket_id}")
-def update_ticket(ticket_id: int, data: TicketUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+@router.patch("/tickets/{ticket_id}")
+def patch_ticket(
+    ticket_id: int,
+    data: TicketUpdate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    payload: dict = Depends(get_current_user_payload),
+):
+    """PATCH parziale per singolo ticket (usato da Kanban e aggiornamenti veloci)."""
     result = ticket_repository.update(db, ticket_id, data, tenant_id)
     if not result:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
+
+    if data.stato == "Eliminato" and data.eliminazione_note:
+        username = payload.get("sub") or payload.get("username") or "sistema"
+        log_to_db("WARNING", "TICKETS", f"Ticket #{ticket_id} eliminato da '{username}'. Motivo: {data.eliminazione_note}", tenant_id=tenant_id)
+
+    if data.stato == "Chiuso":
+        ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
+        if ticket_orm:
+            _aggiorna_scadenza_piano(db, ticket_orm)
+
+    return result
+
+
+@router.put("/tickets/{ticket_id}")
+def update_ticket(
+    ticket_id: int,
+    data: TicketUpdate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    payload: dict = Depends(get_current_user_payload),
+):
+    result = ticket_repository.update(db, ticket_id, data, tenant_id)
+    if not result:
+        raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
+
+    if data.stato == "Eliminato" and data.eliminazione_note:
+        username = payload.get("sub") or payload.get("username") or "sistema"
+        log_to_db("WARNING", "TICKETS", f"Ticket #{ticket_id} eliminato da '{username}'. Motivo: {data.eliminazione_note}", tenant_id=tenant_id)
 
     if data.stato == "Chiuso":
         ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)

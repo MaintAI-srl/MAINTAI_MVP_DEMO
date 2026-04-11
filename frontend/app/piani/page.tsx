@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { apiGet, apiPost, apiPut } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
 import { notify } from "@/lib/toast";
 
 type Asset = { id: number; name: string; categoria: string };
@@ -17,6 +17,7 @@ type Attivita = {
   manuale_id: number | null;
   origine: string;
   ticket_id: number | null;
+  codice: string | null;
 };
 
 function prioritaStyle(p: string): React.CSSProperties {
@@ -97,6 +98,19 @@ export default function PianiPage() {
   const [saving, setSaving] = useState(false);
   const [generatingId, setGeneratingId] = useState<number | null>(null);
 
+  // Nuova attività manuale
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newDescrizione, setNewDescrizione] = useState("");
+  const [newCodice, setNewCodice] = useState("");
+  const [newFrequenza, setNewFrequenza] = useState("");
+  const [newDurata, setNewDurata] = useState("");
+  const [newPriorita, setNewPriorita] = useState("Media");
+  const [newAssetId, setNewAssetId] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Elimina attività
+  const [confirmDelId, setConfirmDelId] = useState<number | null>(null);
+
   useEffect(() => {
     apiGet<Asset[]>("/assets")
       .then(setAssets)
@@ -170,6 +184,40 @@ export default function PianiPage() {
     }
   }
 
+  async function createAttivita() {
+    if (!newDescrizione.trim()) { notify.error("La descrizione è obbligatoria."); return; }
+    setCreating(true);
+    try {
+      await apiPost("/piani", {
+        descrizione: newDescrizione.trim(),
+        codice: newCodice.trim() || null,
+        frequenza_giorni: newFrequenza ? Number(newFrequenza) : null,
+        durata_ore: newDurata ? Number(newDurata) : null,
+        priorita: newPriorita,
+        asset_id: newAssetId ? Number(newAssetId) : null,
+      });
+      setShowNewForm(false);
+      setNewDescrizione(""); setNewCodice(""); setNewFrequenza(""); setNewDurata(""); setNewPriorita("Media"); setNewAssetId("");
+      notify.success("Attività creata.");
+      await loadPiani(currentPage);
+    } catch {
+      notify.error("Errore durante la creazione.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function deleteAttivita(id: number) {
+    try {
+      await apiDelete(`/piani/${id}`);
+      setConfirmDelId(null);
+      notify.success("Attività eliminata.");
+      await loadPiani(currentPage);
+    } catch {
+      notify.error("Errore durante l'eliminazione.");
+    }
+  }
+
   function handleSort(col: string) {
     if (sortCol === col) {
       if (sortDir === "asc") setSortDir("desc");
@@ -205,7 +253,13 @@ export default function PianiPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <button 
+          <button
+            onClick={() => setShowNewForm(v => !v)}
+            style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", fontWeight: 600, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}
+          >
+            <span>+</span> Nuova attività
+          </button>
+          <button
             onClick={() => {
               const token = localStorage.getItem("maintai_jwt");
               const url = new URL(`${window.location.origin === "http://localhost:3000" ? "http://localhost:8000" : "https://maintai-v3.onrender.com"}/piani/export`);
@@ -229,6 +283,50 @@ export default function PianiPage() {
       {generaMsg && (
         <div style={{ color: "#86efac", background: "rgba(22,163,74,0.15)", border: "1px solid rgba(34,197,94,0.3)", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 13 }}>
           {generaMsg}
+        </div>
+      )}
+
+      {/* Form nuova attività manuale */}
+      {showNewForm && (
+        <div style={{ background: "var(--bg-card)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 14, padding: "20px 24px", marginBottom: 20, borderTop: "2px solid #6366f1" }}>
+          <h3 style={{ margin: "0 0 16px", fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Nuova attività di manutenzione</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1.5fr", gap: 12, alignItems: "end" }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>Descrizione *</div>
+              <input className="input" value={newDescrizione} onChange={e => setNewDescrizione(e.target.value)} placeholder="Es. Controllo livello olio" style={{ fontSize: 12 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>Codice</div>
+              <input className="input" value={newCodice} onChange={e => setNewCodice(e.target.value)} placeholder="Es. PM-001" style={{ fontSize: 12 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>Freq. (gg)</div>
+              <input className="input" type="number" value={newFrequenza} onChange={e => setNewFrequenza(e.target.value)} placeholder="90" style={{ fontSize: 12 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>Durata (h)</div>
+              <input className="input" type="number" step="0.5" value={newDurata} onChange={e => setNewDurata(e.target.value)} placeholder="2" style={{ fontSize: 12 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>Priorità</div>
+              <select className="select" value={newPriorita} onChange={e => setNewPriorita(e.target.value)} style={{ fontSize: 12 }}>
+                {PRIORITA_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>Asset</div>
+              <select className="select" value={newAssetId} onChange={e => setNewAssetId(e.target.value)} style={{ fontSize: 12 }}>
+                <option value="">— nessuno —</option>
+                {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button onClick={createAttivita} disabled={creating} style={{ padding: "7px 20px", background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: creating ? "not-allowed" : "pointer", opacity: creating ? 0.7 : 1 }}>
+              {creating ? "Salvataggio..." : "Crea attività"}
+            </button>
+            <button onClick={() => setShowNewForm(false)} style={{ padding: "7px 16px", background: "transparent", border: "1px solid rgba(148,163,184,.2)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 12 }}>Annulla</button>
+          </div>
         </div>
       )}
 
@@ -296,6 +394,7 @@ export default function PianiPage() {
                   <SortTh label="Durata (h)" col="durata_ore" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
                   <SortTh label="Priorità" col="priorita" sortCol={sortCol} sortDir={sortDir} colFilters={colFilters} onSort={handleSort} onFilter={handleColFilter} />
                   <th>Ticket</th>
+                  <th>Codice</th>
                   <th></th>
                 </tr>
               </thead>
@@ -361,6 +460,7 @@ export default function PianiPage() {
                       <td style={{ color: "var(--text-muted)", fontSize: 11 }}>
                         {a.ticket_id ? `#${a.ticket_id}` : "—"}
                       </td>
+                      <td style={{ color: "var(--text-muted)", fontSize: 11 }}>{a.codice || "—"}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <button
                           onClick={() => saveEdit(a.id)}
@@ -404,12 +504,19 @@ export default function PianiPage() {
                           </button>
                         )}
                       </td>
-                      <td>
+                      <td style={{ color: "var(--text-muted)", fontSize: 11 }}>{a.codice || "—"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
                         <button
                           onClick={() => startEdit(a)}
-                          style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4 }}
+                          style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4, marginRight: 4 }}
                         >
                           Modifica
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelId(a.id)}
+                          style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", background: "transparent", cursor: "pointer", borderRadius: 4 }}
+                        >
+                          Elimina
                         </button>
                       </td>
                     </tr>
@@ -421,6 +528,23 @@ export default function PianiPage() {
         )}
         <Pagination page={currentPage} pages={result?.pages ?? 1} onPage={p => setCurrentPage(p)} />
       </div>
+
+      {/* Modal conferma elimina */}
+      {confirmDelId !== null && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={() => setConfirmDelId(null)}>
+          <div style={{ background: "var(--bg-surface)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 14, padding: "28px", width: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 20, marginBottom: 12 }}>⚠️</div>
+            <h2 style={{ margin: "0 0 10px", fontSize: 16, fontWeight: 800 }}>Elimina attività</h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 22, lineHeight: 1.6 }}>
+              L'attività verrà eliminata definitivamente. I ticket già generati verranno scollegati ma non eliminati.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelId(null)} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+              <button onClick={() => deleteAttivita(confirmDelId)} style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.4)", color: "#f87171", padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail panel */}
       {detailActivity && (

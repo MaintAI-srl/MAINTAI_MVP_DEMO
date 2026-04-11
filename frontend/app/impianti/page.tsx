@@ -32,6 +32,7 @@ const labelStyle: React.CSSProperties = {
 
 export default function ImpiantiPage() {
   const [impianti, setImpianti] = useState<Impianto[]>([]);
+  const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
   const [descrizione, setDescrizione] = useState("");
   const [latitude, setLatitude] = useState<string>("");
@@ -190,15 +191,25 @@ export default function ImpiantiPage() {
 
         {/* Lista */}
         <div style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "22px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>Impianti registrati</h2>
             <span style={{ fontSize: 11, background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{impianti.length}</span>
           </div>
-          {impianti.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>Nessun impianto registrato.</div>
-          ) : (
+          {/* Barra di ricerca */}
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per nome impianto..."
+            style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.15)", borderRadius: 8, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box" }}
+          />
+          {(() => {
+            const term = search.trim().toLowerCase();
+            const filtered = term ? impianti.filter(i => i.nome.toLowerCase().includes(term) || (i.descrizione || "").toLowerCase().includes(term)) : impianti;
+            return filtered.length === 0 ? (
+              <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>{impianti.length === 0 ? "Nessun impianto registrato." : "Nessun impianto corrisponde alla ricerca."}</div>
+            ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {impianti.map(imp => (
+              {filtered.map(imp => (
                 <div key={imp.id} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, transition: "background 0.15s" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 9, background: "linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.1))", border: "1px solid rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#818cf8", flexShrink: 0 }}>
                     {imp.id}
@@ -217,7 +228,8 @@ export default function ImpiantiPage() {
                 </div>
               ))}
             </div>
-          )}
+          );
+          })()}
         </div>
       </div>
 

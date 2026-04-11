@@ -12,12 +12,22 @@ from backend.db.modelli import AttivitaManutenzione, Asset, Ticket
 router = APIRouter()
 
 
+class AttivitaCreate(BaseModel):
+    descrizione: str
+    frequenza_giorni: Optional[int] = None
+    durata_ore: Optional[float] = None
+    priorita: str = "Media"
+    asset_id: Optional[int] = None
+    codice: Optional[str] = None
+
+
 class AttivitaUpdate(BaseModel):
     descrizione: Optional[str] = None
     frequenza_giorni: Optional[int] = None
     durata_ore: Optional[float] = None
     priorita: Optional[str] = None
     asset_id: Optional[int] = None
+    codice: Optional[str] = None
 
 
 class GeneraTicketRequest(BaseModel):
@@ -36,6 +46,7 @@ def _to_dict(a: AttivitaManutenzione, asset_name: str | None, ticket_id: int | N
         "manuale_id": a.manuale_id,
         "origine": a.origine or "",
         "ticket_id": ticket_id,
+        "codice": getattr(a, "codice", None),
     }
 
 
@@ -76,6 +87,64 @@ def list_piani(
     }
 
 
+@router.post("/piani")
+def create_attivita(
+    data: AttivitaCreate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Crea un'attività di manutenzione manualmente (senza PDF manuale)."""
+    if data.asset_id:
+        check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
+
+    att = AttivitaManutenzione(
+        descrizione=data.descrizione,
+        frequenza_giorni=data.frequenza_giorni,
+        durata_ore=data.durata_ore,
+        priorita=data.priorita,
+        asset_id=data.asset_id,
+        codice=data.codice,
+        origine="Manuale",
+        manuale_id=None,
+        tenant_id=tenant_id,
+    )
+    db.add(att)
+    db.commit()
+    db.refresh(att)
+
+    asset_name = None
+    if att.asset_id:
+        asset = db.query(Asset).filter(Asset.id == att.asset_id).first()
+        asset_name = asset.nome if asset else None
+
+    return _to_dict(att, asset_name)
+
+
+@router.delete("/piani/{attivita_id}")
+def delete_attivita(
+    attivita_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Elimina un'attività di manutenzione (e l'eventuale ticket associato viene scollegato, non eliminato)."""
+    att = db.query(AttivitaManutenzione).filter(
+        AttivitaManutenzione.id == attivita_id,
+        AttivitaManutenzione.tenant_id == tenant_id,
+    ).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attività non trovata")
+
+    # Scollega i ticket associati (non li elimina — preserva la storia)
+    db.query(Ticket).filter(
+        Ticket.attivita_manutenzione_id == attivita_id,
+        Ticket.tenant_id == tenant_id,
+    ).update({"attivita_manutenzione_id": None})
+
+    db.delete(att)
+    db.commit()
+    return {"deleted": attivita_id}
+
+
 @router.put("/piani/{attivita_id}")
 def update_attivita(attivita_id: int, data: AttivitaUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     att = db.query(AttivitaManutenzione).filter(
@@ -97,6 +166,8 @@ def update_attivita(attivita_id: int, data: AttivitaUpdate, db: Session = Depend
         if data.asset_id:
             check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
         att.asset_id = data.asset_id
+    if data.codice is not None:
+        att.codice = data.codice
 
     db.commit()
     db.refresh(att)
@@ -180,7 +251,7 @@ from fastapi.responses import StreamingResponse
 def export_piani(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     attivita = db.query(AttivitaManutenzione).filter(
         AttivitaManutenzione.tenant_id == tenant_id
-    ).join(Asset).all()
+    ).join(Asset, isouter=True).limit(5000).all()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')

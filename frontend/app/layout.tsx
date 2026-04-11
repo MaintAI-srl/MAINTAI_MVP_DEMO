@@ -36,6 +36,7 @@ const NAV = [
       { href: "/tecnici",   label: "Tecnici",      icon: "◎" },
       { href: "/manuali",   label: "Manuali",      icon: "◧" },
       { href: "/piani",     label: "Piani Base",   icon: "◩" },
+      { href: "/scadenze",  label: "Scadenze PM",  icon: "📅" },
     ],
   },
   {
@@ -59,6 +60,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/ticket":     "Ticket",
   "/manuali":    "Manuali",
   "/piani":          "Piano di Manutenzione",
+  "/scadenze":       "Calendario Scadenze PM",
   "/admin/tenants":     "Gestione Clienti",
   "/admin/bulk-import": "Import Massivo",
   "/admin/logs":        "Log di Sistema",

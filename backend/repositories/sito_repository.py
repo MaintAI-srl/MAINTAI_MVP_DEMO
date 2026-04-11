@@ -27,7 +27,7 @@ class SitoRepository:
         query = db.query(Sito)
         if tenant_id is not None:
             query = query.filter(Sito.tenant_id == tenant_id)
-        return [_to_dict(s) for s in query.order_by(Sito.nome).all()]
+        return [_to_dict(s) for s in query.order_by(Sito.nome).limit(500).all()]
 
     def get_by_id(self, db: Session, sito_id: int, tenant_id: int | None) -> dict | None:
         query = db.query(Sito).filter(Sito.id == sito_id)
@@ -153,7 +153,7 @@ class SitoRepository:
         query = db.query(Sito)
         if tenant_id is not None:
             query = query.filter(Sito.tenant_id == tenant_id)
-        siti = query.order_by(Sito.nome).all()
+        siti = query.order_by(Sito.nome).limit(200).all()
         result = []
         for sito in siti:
             tree = self.get_tree(db, sito.id, tenant_id)

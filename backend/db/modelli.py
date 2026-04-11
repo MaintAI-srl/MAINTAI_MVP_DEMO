@@ -219,13 +219,14 @@ class AttivitaManutenzione(Base):
     __tablename__ = "attivita_manutenzione"
 
     id = Column(Integer, primary_key=True, index=True)
-    asset_id = Column(Integer, ForeignKey("asset.id"))
-    manuale_id = Column(Integer, ForeignKey("manuali.id"))
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True)
+    manuale_id = Column(Integer, ForeignKey("manuali.id"), nullable=True)
     descrizione = Column(Text)
     frequenza_giorni = Column(Integer)
     durata_ore = Column(Float)
     priorita = Column(String)
     origine = Column(String)
+    codice = Column(String, nullable=True, index=True)  # Codice univoco piano — Null per attività da manuale
     ultima_esecuzione = Column(DateTime, nullable=True)
     prossima_scadenza = Column(DateTime, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

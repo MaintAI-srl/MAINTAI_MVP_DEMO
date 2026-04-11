@@ -24,13 +24,13 @@ class TecnicoRepository:
         query = db.query(Tecnico)
         if tenant_id is not None:
             query = query.filter(Tecnico.tenant_id == tenant_id)
-        return [self._to_dict(t) for t in query.all()]
+        return [self._to_dict(t) for t in query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()]
 
     def get_disponibili(self, db: Session, tenant_id: int | None) -> list[dict]:
         query = db.query(Tecnico).filter(Tecnico.stato == "in servizio")
         if tenant_id is not None:
             query = query.filter(Tecnico.tenant_id == tenant_id)
-        return [self._to_dict(t) for t in query.all()]
+        return [self._to_dict(t) for t in query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()]
 
     def get_by_id(self, db: Session, tecnico_id: int, tenant_id: int | None) -> dict | None:
         query = db.query(Tecnico).filter(Tecnico.id == tecnico_id)

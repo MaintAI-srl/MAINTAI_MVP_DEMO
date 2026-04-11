@@ -30,6 +30,7 @@ class TicketUpdate(BaseModel):
     planned_finish: Optional[datetime] = None
     execution_start: Optional[datetime] = None
     execution_finish: Optional[datetime] = None
+    eliminazione_note: str | None = None  # Motivo eliminazione (obbligatorio lato UI)
 
 
 class TicketResponse(BaseModel):

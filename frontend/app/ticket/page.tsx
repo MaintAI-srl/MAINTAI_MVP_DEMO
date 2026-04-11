@@ -75,6 +75,63 @@ function nowDatetimeLocal(): string {
 const dtInput: React.CSSProperties = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
 const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", display: "block", marginBottom: 5 };
 
+// ── Modal: richiesta data pianificazione ─────────────────────────────────────
+function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string) => void; onCancel: () => void }) {
+  const todayAt8 = (() => { const d = new Date(); d.setHours(8, 0, 0, 0); return d.toISOString().slice(0, 16); })();
+  const tomorrowAt8 = (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.toISOString().slice(0, 16); })();
+  const [date, setDate] = useState(todayAt8);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 380, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: "#a78bfa", marginBottom: 6 }}>Pianifica intervento</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Seleziona data e ora di inizio — lo stato cambierà in <strong style={{ color: "#a78bfa" }}>Pianificato</strong>.</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <button onClick={() => setDate(todayAt8)} style={{ fontSize: 11, padding: "5px 12px", background: date === todayAt8 ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)", color: date === todayAt8 ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${date === todayAt8 ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>Oggi 08:00</button>
+          <button onClick={() => setDate(tomorrowAt8)} style={{ fontSize: 11, padding: "5px 12px", background: date === tomorrowAt8 ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)", color: date === tomorrowAt8 ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${date === tomorrowAt8 ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>Domani 08:00</button>
+        </div>
+        <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
+          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "9px 13px", fontSize: 13, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
+        <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button disabled={!date} onClick={() => date && onConfirm(date)}
+            style={{ padding: "8px 22px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 8, cursor: date ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13, opacity: date ? 1 : 0.5 }}>
+            Pianifica
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal: conferma eliminazione con motivo obbligatorio ─────────────────────
+function EliminaConfirmModal({ onConfirm, onCancel }: { onConfirm: (reason: string) => void; onCancel: () => void }) {
+  const [reason, setReason] = useState("");
+  const valid = reason.trim().length >= 5;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#111827", border: "1px solid rgba(248,113,113,0.4)", borderRadius: 16, padding: "28px", width: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16 }}>🗑️</div>
+        <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Elimina ticket</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>Inserisci il motivo dell&apos;eliminazione. Il dato viene salvato nel log di sistema per tracciabilità.</div>
+        <textarea value={reason} onChange={e => setReason(e.target.value)}
+          placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..."
+          rows={3} autoFocus
+          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+        {!valid && reason.length > 0 && (
+          <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>Inserisci almeno 5 caratteri.</div>
+        )}
+        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button disabled={!valid} onClick={() => valid && onConfirm(reason.trim())}
+            style={{ padding: "8px 22px", background: valid ? "linear-gradient(135deg,#ef4444,#dc2626)" : "rgba(255,255,255,0.05)", color: valid ? "#fff" : "var(--text-disabled)", border: "none", borderRadius: 8, cursor: valid ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13 }}>
+            Conferma Eliminazione
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ButtonPicker: sostituisce i <select> per valori a scelta limitata ────────
 // Ogni opzione è un pulsante colorato; quello attivo è evidenziato con bordo e sfondo.
 
@@ -136,8 +193,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
   const [executionStart, setExecutionStart] = useState(toDatetimeLocal(ticket.execution_start));
   const [executionFinish, setExecutionFinish] = useState(toDatetimeLocal(ticket.execution_finish));
+  const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
   const [saving, setSaving] = useState(false);
   const [showAssetDialog, setShowAssetDialog] = useState(false);
+  const [showEliminaDialog, setShowEliminaDialog] = useState(false);
+  const [eliminaNote, setEliminaNote] = useState("");
 
   // Automazione: Cambio Stato
   function handleStatoChange(s: string) {
@@ -158,9 +218,19 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
     setPlannedStart(start);
     if (start) {
       if (stato === "Aperto") setStato("Pianificato");
-      // Auto-calcola fine basata su durata stimata
+      // Auto-calcola fine basata su durata corrente
       const d = new Date(start);
-      d.setMinutes(d.getMinutes() + (ticket.durata_stimata_ore || 1) * 60);
+      d.setMinutes(d.getMinutes() + durataOre * 60);
+      setPlannedFinish(d.toISOString().slice(0, 16));
+    }
+  }
+
+  // Quando la durata cambia, ricalcola planned_finish se c'è un inizio
+  function handleDurataChange(v: number) {
+    setDurataOre(v);
+    if (plannedStart) {
+      const d = new Date(plannedStart);
+      d.setMinutes(d.getMinutes() + v * 60);
       setPlannedFinish(d.toISOString().slice(0, 16));
     }
   }
@@ -177,13 +247,14 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
     handlePlannedChange(d.toISOString().slice(0, 16));
   }
 
-  async function doSave(assetStatoOverride?: string) {
+  async function doSave(assetStatoOverride?: string, elimNoteOverride?: string) {
     setSaving(true);
     try {
-      const body: Record<string, string | null> = { stato };
+      const body: Record<string, unknown> = { stato, durata_stimata_ore: durataOre };
       const as = assetStatoOverride !== undefined ? assetStatoOverride : assetStato;
       if (as) body.asset_stato = as;
-      
+      if (elimNoteOverride) body.eliminazione_note = elimNoteOverride;
+
       body.planned_start = plannedStart ? new Date(plannedStart).toISOString() : null;
       body.planned_finish = plannedFinish ? new Date(plannedFinish).toISOString() : null;
       body.execution_start = executionStart ? new Date(executionStart).toISOString() : null;
@@ -198,6 +269,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   function handleSave() {
+    // Pianificato richiede data obbligatoriamente
+    if (stato === "Pianificato" && !plannedStart) {
+      notify.error("Inserisci la data di inizio pianificazione per portare il ticket in 'Pianificato'.");
+      return;
+    }
     // Validazione date: fine non può precedere inizio
     if (plannedStart && plannedFinish && new Date(plannedFinish) < new Date(plannedStart)) {
       notify.error("La data di fine pianificazione non può precedere quella di inizio.");
@@ -207,6 +283,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       notify.error("La data di fine esecuzione non può precedere quella di inizio.");
       return;
     }
+    if (stato === "Eliminato") { setShowEliminaDialog(true); return; }
     if (stato === "Chiuso") setShowAssetDialog(true);
     else doSave();
   }
@@ -290,17 +367,39 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
                 <button onClick={() => quickPlan(1, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>DOMANI</button>
              </div>
           </div>
-          
+
+          {/* Durata prevista */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8, display: "block" }}>Durata Prevista</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="number" min={0.1} step={0.5} value={durataOre}
+                onChange={e => handleDurataChange(parseFloat(e.target.value) || 1)}
+                style={{ ...dtInput, width: 80 }} />
+              <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0 }}>ore</span>
+              {[1, 2, 4, 8].map(h => (
+                <button key={h} onClick={() => handleDurataChange(h)}
+                  style={{ fontSize: 11, padding: "3px 9px", background: durataOre === h ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)", color: durataOre === h ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${durataOre === h ? "rgba(167,139,250,0.35)" : "rgba(255,255,255,0.07)"}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                  {h}h
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Inizio Pianificato</label>
-              <input type="datetime-local" style={dtInput} value={plannedStart} onChange={e => handlePlannedChange(e.target.value)} />
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>
+                Inizio Pianificato {stato === "Pianificato" && !plannedStart && <span style={{ color: "#f87171" }}>*</span>}
+              </label>
+              <input type="datetime-local" style={{ ...dtInput, borderColor: stato === "Pianificato" && !plannedStart ? "rgba(248,113,113,0.5)" : undefined }} value={plannedStart} onChange={e => handlePlannedChange(e.target.value)} />
             </div>
             <div>
               <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Fine Pianificata</label>
               <input type="datetime-local" style={dtInput} value={plannedFinish} onChange={e => setPlannedFinish(e.target.value)} />
             </div>
           </div>
+          {stato === "Pianificato" && !plannedStart && (
+            <div style={{ fontSize: 11, color: "#f87171", marginTop: 8 }}>La data di inizio è obbligatoria per lo stato Pianificato.</div>
+          )}
         </div>
 
         {/* Sezione Esecuzione Dinamica */}
@@ -357,6 +456,35 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           {saving ? "Salvataggio…" : "Salva Modifiche"}
         </Button>
       </div>
+
+      {/* Sub-dialog: motivo eliminazione */}
+      <Dialog open={showEliminaDialog} onOpenChange={(o) => !o && setShowEliminaDialog(false)}>
+        <DialogContent showCloseButton={false} className="max-w-[420px]"
+          style={{ background: "#0d1829", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 16, zIndex: 10000 }}>
+          <DialogHeader>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#f87171", fontWeight: 700 }}>Eliminazione ticket #{ticket.id}</div>
+            <DialogTitle style={{ fontSize: 18, fontWeight: 800 }}>Motivo eliminazione</DialogTitle>
+            <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
+              Il motivo è obbligatorio e verrà salvato nel log di sistema per tracciabilità.
+            </p>
+          </DialogHeader>
+          <textarea value={eliminaNote} onChange={e => setEliminaNote(e.target.value)}
+            placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..." rows={3} autoFocus
+            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+          {eliminaNote.trim().length > 0 && eliminaNote.trim().length < 5 && (
+            <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>Inserisci almeno 5 caratteri.</div>
+          )}
+          <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+            <Button variant="ghost" onClick={() => { setShowEliminaDialog(false); setEliminaNote(""); }} style={{ color: "var(--text-muted)" }}>Annulla</Button>
+            <Button
+              disabled={eliminaNote.trim().length < 5}
+              onClick={() => { if (eliminaNote.trim().length >= 5) { setShowEliminaDialog(false); doSave(undefined, eliminaNote.trim()); } }}
+              style={{ background: eliminaNote.trim().length >= 5 ? "linear-gradient(135deg,#ef4444,#dc2626)" : "rgba(255,255,255,0.05)", color: eliminaNote.trim().length >= 5 ? "#fff" : "var(--text-disabled)", fontWeight: 700 }}>
+              Conferma Eliminazione
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Sub-dialog: stato asset alla chiusura */}
       <Dialog open={showAssetDialog} onOpenChange={(o) => !o && setShowAssetDialog(false)}>
@@ -425,6 +553,8 @@ export default function TicketPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number; statoCorrente: string } | null>(null);
   const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
+  const [pianificaModal, setPianificaModal] = useState<{ onConfirm: (date: string) => void } | null>(null);
+  const [eliminaModal, setEliminaModal] = useState<{ onConfirm: (reason: string) => void } | null>(null);
 
   // New ticket form
   const [titolo, setTitolo] = useState("");
@@ -497,14 +627,42 @@ export default function TicketPage() {
   }
 
   async function handleStatoChange(ticketId: number, nuovoStato: string) {
+    if (nuovoStato === "Pianificato") {
+      const t = tickets.find(t => t.id === ticketId) || archivioItems.find(t => t.id === ticketId);
+      const durataOre = t?.durata_stimata_ore || 1;
+      setPianificaModal({
+        onConfirm: async (plannedDate: string) => {
+          setPianificaModal(null);
+          setUpdatingId(ticketId);
+          try {
+            const start = new Date(plannedDate).toISOString();
+            const end = new Date(new Date(plannedDate).getTime() + durataOre * 3600000).toISOString();
+            await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end });
+            await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
+          } catch { notify.error("Errore aggiornamento stato."); }
+          finally { setUpdatingId(null); }
+        }
+      });
+      return;
+    }
+    if (nuovoStato === "Eliminato") {
+      setEliminaModal({
+        onConfirm: async (reason: string) => {
+          setEliminaModal(null);
+          setUpdatingId(ticketId);
+          try {
+            await apiPut(`/tickets/${ticketId}`, { stato: "Eliminato", eliminazione_note: reason });
+            await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
+          } catch { notify.error("Errore aggiornamento stato."); }
+          finally { setUpdatingId(null); }
+        }
+      });
+      return;
+    }
     setUpdatingId(ticketId);
     try {
       const body: Record<string, string | null> = { stato: nuovoStato };
-      // Se torna Aperto, azzera le date di pianificazione
-      if (nuovoStato === "Aperto") {
-        body.planned_start = null;
-        body.planned_finish = null;
-      }
+      if (nuovoStato === "Aperto") { body.planned_start = null; body.planned_finish = null; }
       await apiPut(`/tickets/${ticketId}`, body);
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { notify.error("Errore aggiornamento stato."); }
@@ -513,6 +671,34 @@ export default function TicketPage() {
 
   async function bulkUpdateStatus(nuovoStato: string) {
     if (selectedIds.size === 0) return;
+    if (nuovoStato === "Pianificato") {
+      setPianificaModal({
+        onConfirm: async (plannedDate: string) => {
+          setPianificaModal(null);
+          try {
+            const start = new Date(plannedDate).toISOString();
+            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start });
+            setSelectedIds(new Set());
+            await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
+          } catch { notify.error("Errore aggiornamento bulk."); }
+        }
+      });
+      return;
+    }
+    if (nuovoStato === "Eliminato") {
+      setEliminaModal({
+        onConfirm: async (reason: string) => {
+          setEliminaModal(null);
+          try {
+            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Eliminato" });
+            setSelectedIds(new Set());
+            await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
+            notify.info(`${selectedIds.size} ticket eliminati. Motivo: ${reason}`);
+          } catch { notify.error("Errore aggiornamento bulk."); }
+        }
+      });
+      return;
+    }
     try {
       await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: nuovoStato });
       setSelectedIds(new Set());
@@ -935,6 +1121,22 @@ export default function TicketPage() {
           />
         )}
       </Dialog>
+
+      {/* Modal pianificazione rapida (cambi stato → Pianificato) */}
+      {pianificaModal && (
+        <PianificaQuickModal
+          onConfirm={pianificaModal.onConfirm}
+          onCancel={() => setPianificaModal(null)}
+        />
+      )}
+
+      {/* Modal conferma eliminazione */}
+      {eliminaModal && (
+        <EliminaConfirmModal
+          onConfirm={eliminaModal.onConfirm}
+          onCancel={() => setEliminaModal(null)}
+        />
+      )}
     </div>
   );
 }

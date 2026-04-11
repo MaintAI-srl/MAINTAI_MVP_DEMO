@@ -405,6 +405,16 @@ Non fare mai queste cose:
 - aggiungere endpoint AI senza rate limiting — usare `@limiter.limit("N/minute")` da `backend/core/rate_limiter.py`
 - creare nuovi campi audit (`created_by`) senza popolarli nel route handler che crea il record
 - aggiungere WebSocket routing senza `ConnectionManager` isolato per tenant — il WS manager deve mantenere isolamento tra tenant
+- consentire cambio stato ticket a "Pianificato" senza richiedere `planned_start` — il frontend deve intercettare con un modal di selezione data prima di inviare la PUT/PATCH; senza data lo stato non cambia
+- eliminare ticket senza conferma + motivo obbligatorio (`eliminazione_note` ≥ 5 char) — il motivo va loggato via `log_to_db` sul backend; il pulsante rimane disabilitato finché il campo è vuoto
+- implementare drag & drop Kanban che chiama un endpoint inesistente — il KanbanBoard deve puntare a `PATCH /tickets/{id}` (endpoint dedicato, separato da bulk-status); "Pianificato" intercettato con modal data prima della call API
+- omettere `planned_start`/`planned_finish` dal payload `BulkStatusUpdate` quando lo stato target è "Pianificato" — estendere il modello Pydantic e il handler per accettare e propagare le date su update massivi
+- creare `AttivitaManutenzione` senza `tenant_id` o con `manuale_id` non-null obbligatorio quando si crea manualmente — il campo `manuale_id` è nullable e la creazione manuale imposta `origine="Manuale"` e `manuale_id=None`
+- aggiungere campi nuovi a modelli ORM senza aggiungere l'entry corrispondente in `_ensure_columns()` di `main.py` — ogni nuova colonna deve avere sia il fallback DDL sia la migrazione Alembic
+- definire endpoint DELETE su una risorsa senza scollegare prima i record figlio — verificare sempre le relazioni (es. ticket collegati ad AttivitaManutenzione) e gestirle prima della delete
+- usare join INNER quando la relazione è nullable (es. `AttivitaManutenzione.asset_id` nullable) — usare `join(..., isouter=True)` per non escludere record senza relazione
+- caricare ticket da tab notifiche senza distinguere tra scadenze PM e ticket operativi attivi — il NotificationPanel usa due tab separate (Scadenze / Attività) con polling indipendente
+- navigare alla pagina scadenze senza usare `router.push("/scadenze")` da `NotificationPanel` — usare `useRouter` di next/navigation (non window.location) per navigazione SPA
 
 ---
 

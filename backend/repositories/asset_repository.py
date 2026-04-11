@@ -84,7 +84,7 @@ class AssetRepository:
         query = db.query(Asset).options(joinedload(Asset.impianto).joinedload(Impianto.sito))
         if tenant_id is not None:
             query = query.filter(Asset.tenant_id == tenant_id)
-        assets = query.all()
+        assets = query.order_by(Asset.nome).limit(2000).all()
         return [_to_dict(a) for a in assets]
 
     def get_by_id(self, db: Session, asset_id: int, tenant_id: int | None) -> dict | None:
