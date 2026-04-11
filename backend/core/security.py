@@ -5,96 +5,145 @@ import jwt
 import bcrypt
 from fastapi import HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 _logger = logging.getLogger(__name__)
 
-_DEFAULT_JWT_SECRET = "super-secret-key-maintai-v2"
-_DEFAULT_ENCRYPTION_KEY = "uO7U_6N-XyP2UvY_YyS7y8s5Y-Y9u8s7Y8s5Y-Y9u8s="
+# ── JWT_SECRET ────────────────────────────────────────────────────────────────
+# Obbligatoria. Nessun fallback. Il server non parte se manca.
+# Generare con: python -c "import secrets; print(secrets.token_hex(32))"
 
-SECRET_KEY = os.getenv("JWT_SECRET", _DEFAULT_JWT_SECRET)
+_jwt_secret_raw = os.getenv("JWT_SECRET", "").strip()
+if not _jwt_secret_raw:
+    raise RuntimeError(
+        "\n"
+        "FATAL: variabile d'ambiente JWT_SECRET non impostata o vuota.\n"
+        "Il backend non può avviarsi senza una chiave JWT sicura.\n"
+        "\n"
+        "Per generarla eseguire:\n"
+        "  python -c \"import secrets; print(secrets.token_hex(32))\"\n"
+        "\n"
+        "Quindi impostare JWT_SECRET=<valore> nelle variabili d'ambiente\n"
+        "(Render dashboard → Environment → Add variable).\n"
+    )
+
+SECRET_KEY: str = _jwt_secret_raw
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 giorni
 
-if SECRET_KEY == _DEFAULT_JWT_SECRET:
-    _logger.warning(
-        "SECURITY: JWT_SECRET non impostato nelle env var — si sta usando la chiave di default. "
-        "In produzione impostare JWT_SECRET con un valore casuale sicuro."
+
+# ── ENCRYPTION_KEY ────────────────────────────────────────────────────────────
+# Obbligatoria. Deve essere una chiave Fernet valida (base64url, 32 byte).
+# Nessun fallback. Il server non parte se manca o è malformata.
+# Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+_encryption_key_raw = os.getenv("ENCRYPTION_KEY", "").strip()
+if not _encryption_key_raw:
+    raise RuntimeError(
+        "\n"
+        "FATAL: variabile d'ambiente ENCRYPTION_KEY non impostata o vuota.\n"
+        "Il backend non può avviarsi senza una chiave di cifratura per le password IMAP.\n"
+        "\n"
+        "Per generarla eseguire:\n"
+        "  python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"\n"
+        "\n"
+        "Quindi impostare ENCRYPTION_KEY=<valore> nelle variabili d'ambiente.\n"
     )
 
-# Carica la chiave di cifratura simmetrica dall'ambiente (32 bytes base64)
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", _DEFAULT_ENCRYPTION_KEY)
-if ENCRYPTION_KEY == _DEFAULT_ENCRYPTION_KEY:
-    _logger.warning(
-        "SECURITY: ENCRYPTION_KEY non impostata nelle env var — si sta usando la chiave di default. "
-        "In produzione impostare ENCRYPTION_KEY con una chiave Fernet generata via Fernet.generate_key()."
+try:
+    fernet = Fernet(
+        _encryption_key_raw.encode()
+        if isinstance(_encryption_key_raw, str)
+        else _encryption_key_raw
     )
+except Exception as _fernet_exc:
+    raise RuntimeError(
+        "\n"
+        f"FATAL: ENCRYPTION_KEY non è una chiave Fernet valida: {_fernet_exc}\n"
+        "\n"
+        "La chiave deve essere generata con:\n"
+        "  python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"\n"
+        "\n"
+        "Non usare stringhe arbitrarie — il formato Fernet richiede base64url di 32 byte.\n"
+    ) from _fernet_exc
 
-if ENCRYPTION_KEY:
-    fernet = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
-else:
-    fernet = None
+
+# ── OAuth2 ───────────────────────────────────────────────────────────────────
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+
+# ── Password hashing ─────────────────────────────────────────────────────────
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
 
 def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
-# --- ENCRYPTION (PER PERSISTENZA) ---
+
+# ── Fernet encryption (persistenza password IMAP) ────────────────────────────
 
 def encrypt_data(plain_text: str) -> str:
-    """Cifra una stringa usando Fernet. Utile per password IMAP."""
-    if not fernet:
-        return plain_text # Fallback poco sicuro se manca la chiave
+    """Cifra una stringa usando Fernet. Usato per le password IMAP."""
     return fernet.encrypt(plain_text.encode()).decode()
 
+
 def decrypt_data(encrypted_text: str) -> str:
-    """Decifra una stringa usando Fernet."""
-    if not fernet or not encrypted_text:
+    """Decifra una stringa cifrata con Fernet."""
+    if not encrypted_text:
         return encrypted_text
     try:
         return fernet.decrypt(encrypted_text.encode()).decode()
-    except Exception:
-        return encrypted_text # Se non è cifrata o la chiave è errata, restituisci l'originale
+    except (InvalidToken, Exception):
+        # La stringa non è cifrata o è corrotta — restituisce l'originale
+        # (supporto legacy per password salvate in chiaro prima della cifratura)
+        return encrypted_text
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+
+# ── JWT ──────────────────────────────────────────────────────────────────────
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expire = datetime.now(timezone.utc) + (
+        expires_delta if expires_delta else timedelta(minutes=15)
+    )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def decode_access_token(token: str):
+
+def decode_access_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token scaduto")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token scaduto"
+        )
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido"
+        )
 
-def get_current_user_payload(token: str = Depends(oauth2_scheme)):
+
+def get_current_user_payload(token: str = Depends(oauth2_scheme)) -> dict:
     return decode_access_token(token)
+
+
+# ── Tenant resolution ────────────────────────────────────────────────────────
 
 def get_current_tenant_id(
     payload: dict = Depends(get_current_user_payload),
-    x_tenant_id: str | None = Header(None, alias="X-Tenant-Id")
+    x_tenant_id: str | None = Header(None, alias="X-Tenant-Id"),
 ) -> int | None:
     """
-    Estrae il tenant_id dal token JWT o dall'header X-Tenant-Id (solo per superadmin).
+    Estrae il tenant_id dal token JWT o dall'header X-Tenant-Id (solo superadmin).
     """
     tid = payload.get("tenant_id")
     ruolo = payload.get("ruolo")
 
     if ruolo == "superadmin":
-        # Il superadmin può forzare un tenant tramite header
         if x_tenant_id:
             try:
                 return int(x_tenant_id)
@@ -109,8 +158,9 @@ def get_current_tenant_id(
         )
     return int(tid)
 
+
 def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dict:
-    """Verifica che l'utente sia superadmin. Usato per la gestione tenant."""
+    """Verifica che l'utente sia superadmin."""
     if payload.get("ruolo") != "superadmin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -118,18 +168,23 @@ def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dic
         )
     return payload
 
+
+# ── Object-level authorization ───────────────────────────────────────────────
+
 def check_tenant_ownership(db, model, object_id: int, tenant_id: int):
     """
-    Verifica che un oggetto di un dato modello esista e appartenga al tenant corrente.
-    Se non esiste o appartiene a un altro tenant, solleva un 404 (Security by Obscurity).
+    Verifica che un oggetto esista e appartenga al tenant corrente.
+    Solleva 404 per non rivelare l'esistenza di risorse di altri tenant.
     """
     if tenant_id is None:
-        return # Skip check for superadmin if they are ignoring tenant
-    
-    obj = db.query(model).filter(model.id == object_id, model.tenant_id == tenant_id).first()
+        return  # Superadmin senza contesto tenant: skip check
+
+    obj = db.query(model).filter(
+        model.id == object_id, model.tenant_id == tenant_id
+    ).first()
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{model.__name__} non trovato o accesso non autorizzato."
+            detail=f"{model.__name__} non trovato o accesso non autorizzato.",
         )
     return obj
