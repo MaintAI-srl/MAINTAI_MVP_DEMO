@@ -5,7 +5,7 @@ from datetime import datetime
 
 class TicketCreate(BaseModel):
     titolo: str = Field(..., min_length=1)
-    asset_id: int
+    asset_id: Optional[int] = None
     priorita: str
     tipo: str = "CM"
     stato: str

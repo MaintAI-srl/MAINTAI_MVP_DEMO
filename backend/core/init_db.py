@@ -5,7 +5,7 @@ from backend.core.database import engine, Base
 from backend.db.modelli import (  # noqa: F401
     Tenant, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
-    Utente, TecnicoAssenza, TicketAllegato, EmailConfig
+    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan
 )
 
 
@@ -85,9 +85,8 @@ def init_db():
                 tenant_id=tenant_id,
             ))
         else:
-            # Forza sempre ruolo superadmin e tenant corretto
+            # Forza ruolo superadmin, ma NON resettare la password
             admin.ruolo = "superadmin"
-            admin.password_hash = get_password_hash("admin")
             if not admin.tenant_id:
                 admin.tenant_id = tenant_id
         db.commit()

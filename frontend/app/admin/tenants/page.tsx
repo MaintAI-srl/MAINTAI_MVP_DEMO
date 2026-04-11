@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useRouter } from "next/navigation";
+import { notify } from "@/lib/toast";
 
 type Tenant = {
   id: number;
@@ -115,6 +116,11 @@ export default function TenantsPage() {
   const [userError, setUserError] = useState("");
   const [userSaving, setUserSaving] = useState(false);
 
+  // Reset password utente
+  const [resetPwd, setResetPwd] = useState<{ tenantId: number; userId: number; username: string } | null>(null);
+  const [resetPwdVal, setResetPwdVal] = useState("");
+  const [resetPwdSaving, setResetPwdSaving] = useState(false);
+
   useEffect(() => {
     if (user && user.ruolo !== "superadmin") router.push("/dashboard");
   }, [user, router]);
@@ -191,6 +197,22 @@ export default function TenantsPage() {
       setUserError(err.message || "Errore");
     } finally {
       setUserSaving(false);
+    }
+  };
+
+  const handleResetPwd = async () => {
+    if (!resetPwd) return;
+    if (resetPwdVal.length < 4) { notify.error("Password troppo corta (min 4 caratteri)"); return; }
+    setResetPwdSaving(true);
+    try {
+      await apiPut(`/tenants/${resetPwd.tenantId}/utenti/${resetPwd.userId}/password`, { new_password: resetPwdVal });
+      notify.success(`Password di "${resetPwd.username}" aggiornata`);
+      setResetPwd(null);
+      setResetPwdVal("");
+    } catch (err: any) {
+      notify.error(err.message || "Errore reset password");
+    } finally {
+      setResetPwdSaving(false);
     }
   };
 
@@ -333,6 +355,12 @@ export default function TenantsPage() {
                           {!u.is_active && (
                             <span style={{ fontSize: "11px", color: "var(--red)" }}>disabilitato</span>
                           )}
+                          <button
+                            style={{ ...btnSm, fontSize: "11px", padding: "3px 10px" }}
+                            onClick={() => { setResetPwd({ tenantId: t.id, userId: u.id, username: u.username }); setResetPwdVal(""); }}
+                          >
+                            🔑 Reset pwd
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -375,6 +403,37 @@ export default function TenantsPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal reset password */}
+      {resetPwd && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#111827", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "28px", width: 380, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
+            <div style={{ fontWeight: 800, fontSize: "16px", color: "#f87171", marginBottom: "6px" }}>Reset Password</div>
+            <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "20px" }}>
+              Nuova password per <strong style={{ color: "var(--text-primary)" }}>{resetPwd.username}</strong>
+            </div>
+            <input
+              type="password"
+              autoFocus
+              value={resetPwdVal}
+              onChange={e => setResetPwdVal(e.target.value)}
+              placeholder="Nuova password (min 4 caratteri)"
+              style={{ ...inp, marginBottom: "20px" }}
+              onKeyDown={e => { if (e.key === "Enter") handleResetPwd(); if (e.key === "Escape") setResetPwd(null); }}
+            />
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button style={{ ...btnSm, flex: 1, padding: "10px" }} onClick={() => setResetPwd(null)}>Annulla</button>
+              <button
+                style={{ flex: 2, padding: "10px", background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
+                disabled={resetPwdSaving || resetPwdVal.length < 4}
+                onClick={handleResetPwd}
+              >
+                {resetPwdSaving ? "Salvo..." : "Conferma Reset"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

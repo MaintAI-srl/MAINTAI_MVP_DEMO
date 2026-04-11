@@ -58,13 +58,12 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db), _: dict = D
     if existing_user:
         raise HTTPException(status_code=409, detail=f"Username '{data.admin_username}' già in uso")
 
-    # Crea tenant
+    # Crea tenant e admin in un'unica transazione atomica
     tenant = Tenant(nome=data.nome, slug=data.slug, is_active=True)
     db.add(tenant)
-    db.commit()
+    db.flush()  # assegna tenant.id senza committare
     db.refresh(tenant)
 
-    # Crea utente admin per il tenant
     admin = Utente(
         username=data.admin_username,
         password_hash=get_password_hash(data.admin_password),
@@ -72,7 +71,7 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db), _: dict = D
         tenant_id=tenant.id,
     )
     db.add(admin)
-    db.commit()
+    db.commit()  # commit unico: tenant + admin insieme
 
     return _to_response(tenant, db)
 
@@ -142,3 +141,23 @@ def list_utenti_tenant(tenant_id: int, db: Session = Depends(get_db), _: dict = 
     """Lista utenti di un tenant (solo superadmin)."""
     utenti = db.query(Utente).filter(Utente.tenant_id == tenant_id).all()
     return [{"id": u.id, "username": u.username, "ruolo": u.ruolo, "is_active": u.is_active} for u in utenti]
+
+
+@router.put("/{tenant_id}/utenti/{user_id}/password")
+def reset_user_password(
+    tenant_id: int,
+    user_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_superadmin),
+):
+    """Resetta la password di un utente (solo superadmin)."""
+    user = db.query(Utente).filter(Utente.id == user_id, Utente.tenant_id == tenant_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    new_password = data.get("new_password", "").strip()
+    if len(new_password) < 4:
+        raise HTTPException(status_code=422, detail="La password deve essere di almeno 4 caratteri")
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+    return {"ok": True, "message": f"Password di '{user.username}' aggiornata"}
