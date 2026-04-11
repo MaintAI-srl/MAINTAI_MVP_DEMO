@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
@@ -22,6 +22,7 @@ class DiagnosticReply(BaseModel):
 @limiter.limit("5/minute")
 def start_session(
     ticket_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):

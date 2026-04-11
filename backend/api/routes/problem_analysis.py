@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 def analyze_ticket_problem(
     ticket_id: int,
     payload: ProblemAnalysisRequest,
+    request: Request,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
