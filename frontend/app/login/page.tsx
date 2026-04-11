@@ -25,6 +25,7 @@ export default function LoginPage() {
 
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
+        credentials: "include",   // necessario per ricevere il cookie HttpOnly
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formBody,
       });
@@ -34,7 +35,7 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-      auth.login(data.access_token, data.username, data.ruolo, data.userid, data.tenant_id, data.tenant_nome);
+      auth.login(data.username, data.ruolo, data.userid, data.tenant_id, data.tenant_nome);
 
       if (data.ruolo === "tecnico") {
         router.push("/mobile");

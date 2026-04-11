@@ -3,11 +3,6 @@ export const API_BASE =
 
 type RequestOptions = Omit<RequestInit, "method" | "body">;
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("maintai_jwt");
-}
-
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 // Endpoint che chiamano AI (OpenAI) — timeout lungo
@@ -35,24 +30,21 @@ async function request<T>(
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutForPath(path));
 
-  const token = getToken();
-  const authHeader: Record<string, string> = token
-    ? { Authorization: `Bearer ${token}` }
-    : {};
-
   // Supporto per il cambio contesto tenant (solo superadmin)
+  const extraHeaders: Record<string, string> = {};
   if (typeof window !== "undefined") {
     const tenantContext = localStorage.getItem("maintai_tenant_context");
     if (tenantContext) {
-      authHeader["X-Tenant-Id"] = tenantContext;
+      extraHeaders["X-Tenant-Id"] = tenantContext;
     }
   }
 
   const init: RequestInit = {
     method,
+    credentials: "include",   // invia il cookie HttpOnly maintai_jwt
     headers: {
       "Content-Type": "application/json",
-      ...authHeader,
+      ...extraHeaders,
       ...options.headers,
     },
     signal: controller.signal,
@@ -118,14 +110,13 @@ export function apiDelete<T>(path: string, options?: RequestOptions): Promise<T>
 
 /** Helper per upload multipart (no Content-Type automatico, il browser lo imposta) */
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
-  const token = getToken();
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), 120000); // 2 min per PDF grossi
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",   // invia il cookie HttpOnly maintai_jwt
       body: formData,
       signal: controller.signal,
     });

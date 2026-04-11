@@ -1,16 +1,22 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.db.modelli import Utente
-from backend.core.security import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user_payload
+from backend.core.security import (
+    verify_password, get_password_hash, create_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user_payload,
+    COOKIE_NAME, COOKIE_MAX_AGE, COOKIE_SECURE, COOKIE_SAMESITE,
+)
+from backend.core.rate_limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
 
     user = (
         db.query(Utente)
@@ -46,8 +52,19 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         expires_delta=access_token_expires,
     )
 
+    # Emette il JWT come cookie HttpOnly (non accessibile da JS)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=access_token,
+        max_age=COOKIE_MAX_AGE,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
     return {
-        "access_token": access_token,
+        "access_token": access_token,   # mantenuto per compatibilità API client / Swagger
         "token_type": "bearer",
         "ruolo": user.ruolo,
         "username": user.username,
@@ -77,6 +94,18 @@ def get_me(payload: dict = Depends(get_current_user_payload), db: Session = Depe
     }
 
 
+@router.post("/logout")
+def logout(response: Response):
+    """Cancella il cookie JWT (logout)."""
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+    )
+    return {"message": "Logout effettuato"}
+
+
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
@@ -94,6 +123,9 @@ def change_password(
 
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Password attuale errata")
+
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=422, detail="La nuova password deve essere di almeno 8 caratteri")
 
     user.password_hash = get_password_hash(data.new_password)
     db.commit()

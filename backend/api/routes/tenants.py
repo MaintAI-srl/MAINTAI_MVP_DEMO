@@ -116,6 +116,8 @@ def add_utente_to_tenant(
 
     if not username or not password:
         raise HTTPException(status_code=422, detail="username e password obbligatori")
+    if len(password) < 8:
+        raise HTTPException(status_code=422, detail="La password deve essere di almeno 8 caratteri")
     if ruolo not in ("responsabile", "tecnico"):
         raise HTTPException(status_code=422, detail="ruolo deve essere 'responsabile' o 'tecnico'")
 
@@ -156,8 +158,8 @@ def reset_user_password(
     if not user:
         raise HTTPException(status_code=404, detail="Utente non trovato")
     new_password = data.get("new_password", "").strip()
-    if len(new_password) < 4:
-        raise HTTPException(status_code=422, detail="La password deve essere di almeno 4 caratteri")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=422, detail="La password deve essere di almeno 8 caratteri")
     user.password_hash = get_password_hash(new_password)
     db.commit()
     return {"ok": True, "message": f"Password di '{user.username}' aggiornata"}

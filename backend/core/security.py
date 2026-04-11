@@ -3,9 +3,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 import jwt
 import bcrypt
-from fastapi import HTTPException, status, Depends, Header
+from fastapi import HTTPException, Request, status, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy.orm import Session, joinedload
 
 _logger = logging.getLogger(__name__)
 
@@ -68,9 +69,35 @@ except Exception as _fernet_exc:
     ) from _fernet_exc
 
 
-# ── OAuth2 ───────────────────────────────────────────────────────────────────
+# ── Cookie settings ──────────────────────────────────────────────────────────
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+COOKIE_NAME = "maintai_jwt"
+COOKIE_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60  # secondi
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").strip().lower() != "false"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "none")  # "none" per cross-origin prod
+
+
+# ── Token extraction (cookie-first, Authorization header fallback) ────────────
+
+# Mantenuto per compatibilità Swagger UI e API client
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+async def _extract_token(
+    request: Request,
+    bearer: str | None = Depends(oauth2_scheme),
+) -> str:
+    """Estrae il JWT: priorità al cookie HttpOnly, fallback su Authorization: Bearer."""
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        return token
+    if bearer:
+        return bearer
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Non autenticato",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 # ── Password hashing ─────────────────────────────────────────────────────────
@@ -127,8 +154,43 @@ def decode_access_token(token: str) -> dict:
         )
 
 
-def get_current_user_payload(token: str = Depends(oauth2_scheme)) -> dict:
-    return decode_access_token(token)
+def _db_for_security():
+    """Generatore DB per use interno a security.py (import lazy per evitare circolari)."""
+    from backend.core.dependencies import get_db
+    yield from get_db()
+
+
+def _check_user_active(payload: dict, db: Session) -> None:
+    """Verifica che l'utente e il suo tenant siano attivi ad ogni richiesta autenticata."""
+    from backend.db.modelli import Utente
+    username = payload.get("sub")
+    if not username:
+        return
+    user = (
+        db.query(Utente)
+        .options(joinedload(Utente.tenant))
+        .filter(Utente.username == username)
+        .first()
+    )
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Utente disabilitato. Contattare l'amministratore.",
+        )
+    if user.tenant and not user.tenant.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account sospeso. Contattare l'amministratore.",
+        )
+
+
+def get_current_user_payload(
+    token: str = Depends(_extract_token),
+    db: Session = Depends(_db_for_security),
+) -> dict:
+    payload = decode_access_token(token)
+    _check_user_active(payload, db)
+    return payload
 
 
 # ── Tenant resolution ────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.services.ai.openai_service import get_openai_client, get_openai_model
 from backend.services.weather_service import get_weather_forecast, WeatherData
 from backend.db.modelli import Ticket, Tecnico, Asset
+from backend.services.ai.anonymization_service import anonymizer
 
 logger = logging.getLogger(__name__)
 
@@ -455,15 +456,35 @@ async def generate_ai_plan(
             "global_warnings": ["Nessun tecnico in servizio trovato nel sistema."],
         }
 
+    # ── Anonymizzazione GDPR prima dell'invio a OpenAI ───────────────────────
+    # I nomi reali dei tecnici vengono sostituiti con token Tecnico-{id}.
+    # titolo e descrizione dei ticket vengono mascherati (email, telefoni, nomi).
+    _tecnico_names = [tc["nome"] for tc in context["tecnici"] if tc.get("nome")]
+    _sensitive_words = [w for name in _tecnico_names for w in name.split() if len(w) > 2]
+
+    anon_tecnici = [
+        {**tc, "nome": f"Tecnico-{tc['id']}"}
+        for tc in context["tecnici"]
+    ]
+    anon_tickets = [
+        {
+            **t,
+            "titolo": anonymizer.mask_text(t.get("titolo") or "", _sensitive_words),
+            "descrizione": anonymizer.mask_text(t.get("descrizione") or "", _sensitive_words),
+        }
+        for t in context["tickets"]
+    ]
+    # ─────────────────────────────────────────────────────────────────────────
+
     user_message = f"""Genera un piano manutenzione ottimizzato per i prossimi {days} giorni.
 
 ORIZZONTE TEMPORALE: {context['horizon_dates'][0]} → {context['horizon_dates'][-1]}
 
 TECNICI DISPONIBILI:
-{json.dumps(context['tecnici'], ensure_ascii=False, indent=2)}
+{json.dumps(anon_tecnici, ensure_ascii=False, indent=2)}
 
 WORK ORDERS DA PIANIFICARE (ticket):
-{json.dumps(context['tickets'], ensure_ascii=False, indent=2)}
+{json.dumps(anon_tickets, ensure_ascii=False, indent=2)}
 
 WORK ORDERS GIA' PIANIFICATI (locked_tickets - consumano orario ma NON DEVONO ASSOLUTAMENTE essere restituiti nell'output!):
 {json.dumps(context['locked_tickets'], ensure_ascii=False, indent=2)}
