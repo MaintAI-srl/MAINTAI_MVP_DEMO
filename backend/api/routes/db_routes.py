@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from backend.core.security import get_current_tenant_id, require_superadmin
 from backend.db.modelli import Asset, Manuale
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Allowlist di nomi tabella validi per l'endpoint diagnostico schema.
 # Impedisce SQL injection tramite table_name non sanitizzato.
@@ -31,7 +33,6 @@ def get_table_schema(
     Diagnostica (solo superadmin): mostra le colonne di una tabella.
     table_name è validato contro un allowlist per prevenire SQL injection.
     """
-    # Sanitizzazione: solo nomi presenti nell'allowlist, solo caratteri alfanumerici+underscore
     name_clean = re.sub(r"[^a-zA-Z0-9_]", "", table_name).lower()
     if name_clean not in _TABELLE_CONSENTITE:
         raise HTTPException(
@@ -53,34 +54,39 @@ def force_migrate(_payload: dict = Depends(require_superadmin)):
     return {"status": "ok", "message": "Migrazioni eseguite"}
 
 
-@router.post("/db/reset-emergency")
-def reset_emergency(secret: str = Query(...)):
-    """
-    Reset di emergenza senza JWT — richiede ADMIN_SECRET dall'env.
-    Usa: POST /db/reset-emergency?secret=<valore>
-    Imposta ADMIN_SECRET nelle env var di Render.
-    """
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret or secret != admin_secret:
-        raise HTTPException(status_code=403, detail="Secret non valido.")
-    from backend.core.init_db import init_db
-    Base.metadata.drop_all(bind=engine)
-    init_db()
-    return {"status": "ok", "message": "DB resettato. Login: admin/admin (superadmin)"}
-
-
 @router.post("/db/reset")
 def reset_database(_payload: dict = Depends(require_superadmin)):
     """
-    DISTRUTTIVO — solo superadmin.
+    DISTRUTTIVO — solo superadmin + flag ALLOW_DB_RESET=true nell'ambiente.
+
     Droppa tutte le tabelle e le ricrea vuote con seed di default.
+    Disabilitato per default. In produzione mantenere ALLOW_DB_RESET non impostata
+    o impostata a qualsiasi valore diverso da "true".
     """
+    allow = os.getenv("ALLOW_DB_RESET", "").strip().lower()
+    if allow != "true":
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Operazione non consentita in questo ambiente. "
+                "Per abilitare impostare ALLOW_DB_RESET=true nelle variabili d'ambiente."
+            ),
+        )
+
+    username = _payload.get("sub") or _payload.get("username") or "superadmin"
+    logger.warning(
+        "DB RESET eseguito da '%s' — tutte le tabelle verranno eliminate e ricreate.",
+        username,
+    )
+
     from backend.core.init_db import init_db
     Base.metadata.drop_all(bind=engine)
     init_db()
+
+    logger.warning("DB RESET completato da '%s'.", username)
     return {
         "status": "ok",
-        "message": "Database resettato. Utenti seed: admin/admin (superadmin), tecnico/tecnico."
+        "message": "Database resettato. Utenti seed: admin/admin (superadmin), tecnico/tecnico.",
     }
 
 
@@ -90,8 +96,9 @@ def crea_asset_db(
     area: str,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _payload: dict = Depends(require_superadmin),
 ):
-    """Crea un asset di test (richiede autenticazione, filtrato per tenant)."""
+    """Crea un asset di test (solo superadmin, filtrato per tenant)."""
     nuovo_asset = Asset(nome=nome, area=area, note="", tenant_id=tenant_id)
     db.add(nuovo_asset)
     db.commit()
