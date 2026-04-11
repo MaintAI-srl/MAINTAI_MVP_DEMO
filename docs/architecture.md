@@ -648,6 +648,10 @@ task_count = db.query(AttivitaManutenzione).filter(...).count()  # dentro list c
 # backend/services/rolling_planner_engine.py
 # Struttura: RollingTicketInput → run_rolling_analysis() → RollingAnalysisResult
 # Nessuna dipendenza ORM — funzione pura, testabile in isolamento
+
+### Pattern: Manual Planning Override
+Le azioni manuali del planner o dell'utente (ticket portati a "Pianificato" da UI) aggiornano il DB con la flag `is_manual_plan=True` e ricalcolano server-side la data fine: `planned_finish = planned_start + durata_stimata_ore`.
+I ticket manuali sono passati ai motori di planning (deterministico o AI) esclusivamente come assegnazioni "locked" (`locked_assignments`) e non vengono restituiti dalle api come varianti ri-schedulabili. Questo assicura che AI Planner rispetti in toto il planner manuale ignorandolo nelle mosse, ma consumi correttamente il monte ore.
 # Il bridge ORM→Input è nel route handler (planning.py::get_rolling_analysis)
 
 result = run_rolling_analysis(ticket_inputs, tecnici_input)

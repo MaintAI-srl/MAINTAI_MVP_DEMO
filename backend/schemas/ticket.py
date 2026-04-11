@@ -31,6 +31,7 @@ class TicketUpdate(BaseModel):
     execution_start: Optional[datetime] = None
     execution_finish: Optional[datetime] = None
     eliminazione_note: str | None = None  # Motivo eliminazione (obbligatorio lato UI)
+    is_manual_plan: bool | None = None
 
 
 class TicketResponse(BaseModel):
@@ -53,3 +54,4 @@ class TicketResponse(BaseModel):
     execution_finish: Optional[datetime] = None
     parent_id: int | None = None
     diagnosi_eseguita: bool = False
+    is_manual_plan: bool = False

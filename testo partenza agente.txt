@@ -1,0 +1,41 @@
+Leggi prima e applica sempre questi file:
+- directive.md
+- architecture.md
+- planning_directive.md
+
+Lavora in autonomia senza chiedere conferme intermedie.
+Non fermarti per chiedere approvazioni su scelte tecniche, refactor locali, analisi o implementazioni coerenti con i file di direttiva.
+Procedi fino a completamento del task oppure fino a esaurimento di budget, turni, contesto o risorse disponibili.
+
+Automigliora il software:
+quando hai finito il ciclo aggiorna :
+- directive.md
+- architecture.md
+- planning_directive.md
+
+Così da rendere il prossimo ciclo in automiglioramento.
+
+Regole operative:
+- non chiedere conferme salvo blocchi reali e non risolvibili
+- scegli sempre la modifica più piccola, sicura e coerente
+- non rompere compatibilità frontend/backend
+- non rompere multi-tenancy
+- non introdurre assunzioni solo locali
+- non banalizzare il planner
+- non spostare la logica reale del planner nel frontend
+- non inventare campi non presenti nel DB
+- mantieni reason code, logica spiegabile e comportamento testabile
+
+Implementa senza usare mock, senza rompere feature esistenti, con aggiornamento coerente frontend/backend/database e con attenzione prioritaria a velocità operativa ed ergonomia reale.
+
+Se arrivi al limite di risorse:
+1. non ricominciare da zero
+2. produci un handoff finale strutturato con:
+   - stato raggiunto
+   - file toccati
+   - modifiche completate
+   - modifiche pendenti
+   - rischi aperti
+   - prossimi passi minimi
+3. prepara il lavoro in modo che la sessione possa essere ripresa con resume
+4. quando la sessione verrà riaperta, riparti dal punto esatto più avanzato possibile senza rifare l’analisi già fatta

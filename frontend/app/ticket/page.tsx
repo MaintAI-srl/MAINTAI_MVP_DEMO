@@ -29,6 +29,7 @@ type Ticket = {
   execution_finish?: string | null;
   parent_id?: number | null;
   diagnosi_eseguita?: boolean;
+  is_manual_plan?: boolean;
 };
 
 type Asset = { id: number; name: string };
@@ -296,6 +297,9 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       if (as) body.asset_stato = as;
       if (elimNoteOverride) body.eliminazione_note = elimNoteOverride;
 
+      if (stato === "Pianificato") body.is_manual_plan = true;
+      if (stato === "Aperto") body.is_manual_plan = false;
+
       body.planned_start = plannedStart ? new Date(plannedStart).toISOString() : null;
       body.planned_finish = plannedFinish ? new Date(plannedFinish).toISOString() : null;
       body.execution_start = executionStart ? new Date(executionStart).toISOString() : null;
@@ -378,6 +382,12 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{ticket.asset_name ?? "Asset non specificato"}</span>
           <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
           <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{ticket.tipo} · {ticket.durata_stimata_ore?.toFixed(1)}h</span>
+          {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
+            <>
+              <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
+              <span style={{ fontSize: 10, padding: "2px 6px", background: "rgba(234,179,8,0.2)", border: "1px solid rgba(234,179,8,0.4)", borderRadius: 4, color: "#eab308", fontWeight: 700, textTransform: "uppercase" }}>PIANIFICATO MANUALMENTE</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -477,6 +487,9 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
              <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6, padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
                 {ticket.descrizione}
              </div>
+             {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
+               <div style={{ fontSize: 9, color: "#eab308", marginTop: 4, fontWeight: 700 }}>MANUALE</div>
+             )}
           </div>
         )}
 
@@ -678,7 +691,7 @@ export default function TicketPage() {
           try {
             const start = new Date(plannedDate).toISOString();
             const end = new Date(new Date(plannedDate).getTime() + durataOre * 3600000).toISOString();
-            await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end });
+            await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, is_manual_plan: true });
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
           } catch { notify.error("Errore aggiornamento stato."); }
           finally { setUpdatingId(null); }
@@ -702,8 +715,8 @@ export default function TicketPage() {
     }
     setUpdatingId(ticketId);
     try {
-      const body: Record<string, string | null> = { stato: nuovoStato };
-      if (nuovoStato === "Aperto") { body.planned_start = null; body.planned_finish = null; }
+      const body: Record<string, string | null | boolean> = { stato: nuovoStato };
+      if (nuovoStato === "Aperto") { body.planned_start = null; body.planned_finish = null; body.is_manual_plan = false; }
       await apiPut(`/tickets/${ticketId}`, body);
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { notify.error("Errore aggiornamento stato."); }
@@ -718,7 +731,7 @@ export default function TicketPage() {
           setPianificaModal(null);
           try {
             const start = new Date(plannedDate).toISOString();
-            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start });
+            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start, is_manual_plan: true });
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
           } catch { notify.error("Errore aggiornamento bulk."); }

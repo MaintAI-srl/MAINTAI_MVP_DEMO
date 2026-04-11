@@ -14,6 +14,7 @@ interface CalendarEvent {
   priorita: string;
   stato?: string;
   urgenza: "alta" | "media";
+  is_manual_plan?: boolean;
 }
 
 const DAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -204,7 +205,7 @@ export default function ScadenzePage() {
                         borderRadius: "4px",
                         background: color + "15",
                         color: color,
-                        borderLeft: `3px solid ${color}`,
+                        borderLeft: `3px solid ${ev.is_manual_plan ? "#eab308" : color}`,
                         whiteSpace: "nowrap",
                         textOverflow: "ellipsis",
                         overflow: "hidden",
@@ -213,9 +214,9 @@ export default function ScadenzePage() {
                       }}
                       onMouseEnter={e => e.currentTarget.style.transform = "translateX(2px)"}
                       onMouseLeave={e => e.currentTarget.style.transform = "translateX(0)"}
-                      title={`${ev.asset_nome ? `[${ev.asset_nome}] ` : ''}${ev.descrizione}`}
+                      title={`${ev.asset_nome ? `[${ev.asset_nome}] ` : ''}${ev.descrizione}${ev.is_manual_plan ? ' (Manuale)' : ''}`}
                       >
-                        {ev.tipo === "scadenza" ? "⏰" : "🔧"} {ev.descrizione}
+                        {ev.tipo === "scadenza" ? "⏰" : (ev.is_manual_plan ? "⚡" : "🔧")} {ev.descrizione}
                       </div>
                     );
                   })}

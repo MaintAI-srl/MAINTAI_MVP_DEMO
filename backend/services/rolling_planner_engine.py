@@ -93,8 +93,9 @@ class RollingTicketInput:
     tecnico_id: Optional[int]
     area: Optional[str]
     impianto_id: Optional[int]
-    asset_criticality: Optional[str]   # campo futuro — può essere None
-    prossima_scadenza: Optional[datetime]  # da AttivitaManutenzione se collegata
+    asset_criticality: Optional[str]  # Bassa | Media | Alta
+    prossima_scadenza: Optional[datetime]
+    is_manual_plan: bool = False  # da AttivitaManutenzione se collegata
 
 
 @dataclass

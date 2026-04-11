@@ -151,6 +151,8 @@ def _ensure_columns() -> None:
         ("attivita_manutenzione", "nome",              "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}nome VARCHAR"),
         # ticket — note eliminazione
         ("ticket", "eliminazione_note",                "ALTER TABLE ticket ADD COLUMN {ifne}eliminazione_note TEXT"),
+        # ticket — manual plan
+        ("ticket", "is_manual_plan",                   "ALTER TABLE ticket ADD COLUMN {ifne}is_manual_plan BOOLEAN DEFAULT FALSE"),
     ]
 
     # system_logs — tabella intera

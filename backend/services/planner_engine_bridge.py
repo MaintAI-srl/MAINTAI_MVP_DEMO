@@ -192,10 +192,13 @@ async def generate_deterministic_plan(
     horizon_end = today + timedelta(days=days - 1)
 
     # ── Carica ticket locked (già pianificati: non devono essere ripianificati) ─
-    # Workaround: locked implicito = tecnico_id AND planned_start valorizzati
+    # Workaround: locked implicito = tecnico_id AND planned_start valorizzati, OPPURE ticket manuale
+    from sqlalchemy import or_
     locked_query = db.query(Ticket).filter(
-        Ticket.tecnico_id.isnot(None),
-        Ticket.planned_start.isnot(None),
+        or_(
+            Ticket.tecnico_id.isnot(None) & Ticket.planned_start.isnot(None),
+            Ticket.is_manual_plan.is_(True)
+        )
     )
     if tenant_id:
         locked_query = locked_query.filter(Ticket.tenant_id == tenant_id)

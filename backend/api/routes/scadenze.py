@@ -95,6 +95,7 @@ def get_calendario_scadenze(
             "priorita": t.priorita or "Media",
             "stato": t.stato,
             "urgenza": "alta" if t.priorita and t.priorita.lower() == "alta" else "media",
+            "is_manual_plan": getattr(t, "is_manual_plan", False),
         }
         for t in pm_tickets
     ]

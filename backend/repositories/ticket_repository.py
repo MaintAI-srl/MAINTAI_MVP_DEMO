@@ -26,6 +26,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "execution_finish": t.execution_finish.isoformat() if t.execution_finish else None,
         "parent_id": t.parent_id,
         "diagnosi_eseguita": t.diagnosi_eseguita or False,
+        "is_manual_plan": getattr(t, "is_manual_plan", False),
         "tenant_id": t.tenant_id,
     }
 
@@ -86,7 +87,7 @@ class TicketRepository:
             # Auto-calc planned_finish
             if ticket.planned_start and ticket.durata_stimata_ore:
                 from datetime import timedelta
-                ticket.planned_finish = ticket.planned_start + timedelta(hours=ticket.durata_stimata_ore)
+                ticket.planned_finish = ticket.planned_start + timedelta(hours=float(ticket.durata_stimata_ore))
             
             db.add(ticket)
             db.commit()
@@ -144,13 +145,16 @@ class TicketRepository:
             ticket.tecnico_id = data.tecnico_id
         if "planned_start" in data.model_fields_set:
             ticket.planned_start = data.planned_start
-        if "planned_finish" in data.model_fields_set:
-            ticket.planned_finish = data.planned_finish
-        
-        # Auto-ricalcolo planned_finish se non fornito esplicitamente ma abbiamo start e durata
-        if (ticket.planned_start and ticket.durata_stimata_ore) and ("planned_start" in data.model_fields_set or "durata_stimata_ore" in data.model_fields_set) and ("planned_finish" not in data.model_fields_set):
+        if "is_manual_plan" in data.model_fields_set:
+            ticket.is_manual_plan = data.is_manual_plan
+
+        # Ricalcolo sempre planned_finish se planned_start e durata sono presenti
+        if ticket.planned_start and ticket.durata_stimata_ore:
             from datetime import timedelta
-            ticket.planned_finish = ticket.planned_start + timedelta(hours=ticket.durata_stimata_ore)
+            ticket.planned_finish = ticket.planned_start + timedelta(hours=float(ticket.durata_stimata_ore))
+        elif not ticket.planned_start:
+            ticket.planned_finish = None
+
         if "execution_start" in data.model_fields_set:
             ticket.execution_start = data.execution_start
         if "execution_finish" in data.model_fields_set:

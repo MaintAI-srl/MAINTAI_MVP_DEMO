@@ -843,6 +843,7 @@ def get_rolling_analysis(
             impianto_id=None,
             asset_criticality=None,   # campo non presente nel DB
             prossima_scadenza=scadenze_map.get(t.asset_id) if t.asset_id else None,
+            is_manual_plan=getattr(t, "is_manual_plan", False),
         )
         for t in tickets_orm
     ]

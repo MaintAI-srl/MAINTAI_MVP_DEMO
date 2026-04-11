@@ -214,6 +214,9 @@ Reason code possibile:
 
 ### HARD RULE 5 — Nessuna modifica dei locked
 Le assegnazioni già considerate locked devono concorrere al consumo capacità e non devono essere toccate.
+Un ticket è `locked` se:
+1. Ha `tecnico_id` e `planned_start` valorizzati, oppure
+2. Ha la flag `is_manual_plan` impostata a True (ticket spostato manualmente dal planner UI o ticket editato esplicitamente dall'utente).
 
 ---
 

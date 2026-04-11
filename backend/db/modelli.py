@@ -195,6 +195,9 @@ class Ticket(Base):
     # Note eliminazione — motivo obbligatorio alla cancellazione
     eliminazione_note = Column(Text, nullable=True)
 
+    # Pianificazione manuale - ignora AI planner
+    is_manual_plan = Column(Boolean, default=False)
+
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
     children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic", cascade="all, delete-orphan")

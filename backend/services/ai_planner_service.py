@@ -253,7 +253,20 @@ async def collect_planning_context(
         ticket_query = ticket_query.filter(Ticket.tenant_id == tenant_id)
     if asset_ids:
         ticket_query = ticket_query.filter(Ticket.asset_id.in_(asset_ids))
-    tickets = ticket_query.all()
+    all_tickets = ticket_query.all()
+
+    # Separiamo i ticket manuali (da considerare come locked e non ripianificabili)
+    tickets = []
+    locked_tickets = []
+    for t in all_tickets:
+        is_locked = getattr(t, "is_manual_plan", False) or (t.tecnico_id is not None and t.planned_start is not None)
+         # I ticket già pianificati sono considerati locked in AI engine per non rigenerarli! Wait, l'AI è stateless e riceve ticket pianificati da riorganizzare
+         # secondo l'implementazione attuale. Ma la directive dice: "Un ticket con tecnico_id e planned_start va considerato locked implicito."
+         # Seguiamo la directive alla lettera:
+        if is_locked:
+            locked_tickets.append(t)
+        else:
+            tickets.append(t)
 
     # --- Tecnici ---
     tecnico_query = db.query(Tecnico).filter(Tecnico.stato == "in servizio")
@@ -375,6 +388,17 @@ async def collect_planning_context(
             "weather_by_day": day_constraints,
         })
 
+    locked_data = []
+    for t in locked_tickets:
+        locked_data.append({
+            "id": t.id,
+            "tecnico_id": t.tecnico_id,
+            "planned_start": str(t.planned_start) if t.planned_start else None,
+            "planned_finish": str(t.planned_finish) if t.planned_finish else None,
+            "durata_stimata_ore": t.durata_stimata_ore,
+            "is_manual_plan": getattr(t, "is_manual_plan", False)
+        })
+
     tecnici_data = []
     for tc in tecnici:
         tecnici_data.append({
@@ -389,6 +413,7 @@ async def collect_planning_context(
     result = {
         "horizon_dates": [str(d) for d in horizon_dates],
         "tickets": tickets_data,
+        "locked_tickets": locked_data,
         "tecnici": tecnici_data,
         "weather_available": len(location_weather) > 0,
         # Diagnostica meteo: utile per UI e debug
@@ -439,6 +464,9 @@ TECNICI DISPONIBILI:
 
 WORK ORDERS DA PIANIFICARE (ticket):
 {json.dumps(context['tickets'], ensure_ascii=False, indent=2)}
+
+WORK ORDERS GIA' PIANIFICATI (locked_tickets - consumano orario ma NON DEVONO ASSOLUTAMENTE essere restituiti nell'output!):
+{json.dumps(context['locked_tickets'], ensure_ascii=False, indent=2)}
 
 NOTE METEO:
 - Dati meteo disponibili: {'SI' if context['weather_available'] else 'NO — pianifica comunque, aggiungi warning generali'}

@@ -14,6 +14,7 @@ export type KanbanTicket = {
   stato: string;
   planned_start?: string | null;
   durata_stimata_ore?: number;
+  is_manual_plan?: boolean;
 };
 
 const COLS = ["Aperto", "Pianificato", "In corso", "Chiuso"] as const;
@@ -81,6 +82,11 @@ function KanbanCard({ ticket }: { ticket: KanbanTicket }) {
         {ticket.planned_start && (
           <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 600 }}>
             📅 {new Date(ticket.planned_start).toLocaleDateString("it-IT", { day: '2-digit', month: 'short' })}
+          </span>
+        )}
+        {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
+          <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(234,179,8,0.1)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)", fontWeight: 700 }}>
+            ⚡ MANUALE
           </span>
         )}
       </div>
@@ -202,7 +208,9 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     setLocal(l => l.map(t => t.id === ticketId ? { ...t, stato: nuovoStato } : t));
 
     try {
-      await apiPatch(`/tickets/${ticketId}`, { stato: nuovoStato });
+      const body: Record<string, string | boolean> = { stato: nuovoStato };
+      if (nuovoStato === "Aperto") body.is_manual_plan = false;
+      await apiPatch(`/tickets/${ticketId}`, body);
       onRefresh();
     } catch {
       setLocal(prev);
@@ -219,10 +227,10 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     const end = new Date(new Date(date).getTime() + durataOre * 3600000).toISOString();
 
     const prev = local;
-    setLocal(l => l.map(t => t.id === ticketId ? { ...t, stato: "Pianificato", planned_start: start } : t));
+    setLocal(l => l.map(t => t.id === ticketId ? { ...t, stato: "Pianificato", planned_start: start, is_manual_plan: true } : t));
 
     try {
-      await apiPatch(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end });
+      await apiPatch(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, is_manual_plan: true });
       onRefresh();
     } catch (err: any) {
       setLocal(prev);
