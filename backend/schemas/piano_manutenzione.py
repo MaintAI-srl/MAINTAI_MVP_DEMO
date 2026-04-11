@@ -12,8 +12,15 @@ class PianoManutenzioneBase(BaseModel):
     sito_id: Optional[int] = None
     manuale_id: Optional[int] = None
 
-class PianoManutenzioneCreate(PianoManutenzioneBase):
-    pass
+class PianoManutenzioneCreate(BaseModel):
+    nome_codificato: Optional[str] = None
+    progressivo: Optional[int] = None
+    descrizione: Optional[str] = None
+    stato: Optional[str] = "attivo"
+    asset_id: Optional[int] = None
+    impianto_id: Optional[int] = None
+    sito_id: Optional[int] = None
+    manuale_id: Optional[int] = None
 
 class PianoManutenzioneUpdate(BaseModel):
     nome_codificato: Optional[str] = None

@@ -57,18 +57,14 @@ export default function PianiManutenzionePage() {
 
   async function handleSubmitCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!newCodice.trim()) {
-      notify.error("Codice obbligatorio");
-      return;
-    }
+    setLoading(true);
     
     try {
-      const payload = {
-        nome_codificato: newCodice,
-        progressivo: piani.length + 1,
-        descrizione: newDescrizione || null,
+      const payload: any = {
         stato: "attivo"
       };
+      if (newCodice.trim()) payload.nome_codificato = newCodice.trim();
+      if (newDescrizione.trim()) payload.descrizione = newDescrizione.trim();
       await apiPost("/piani-manutenzione", payload);
       notify.success("Piano di manutenzione creato!");
       setShowNewForm(false);
@@ -107,6 +103,30 @@ export default function PianiManutenzionePage() {
     }
   }
 
+  const [importing, setImporting] = useState(false);
+
+  async function handleImport(type: 'pdf' | 'excel', file: File) {
+    if (!selectedPiano) return;
+    setImporting(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const endpoint = `/piani-manutenzione/${selectedPiano.id}/import-${type}`;
+      // Usiamo una fetch diretta per i multipart o apiPost se supporta FormData
+      // Assumiamo apiPost supporti FormData come visto in altri moduli (es. manuali)
+      const res: any = await apiPost(endpoint, formData);
+      if (res.success) {
+        notify.success(`Importazione ${type.toUpperCase()} completata: ${res.created} attività aggiunte.`);
+        await openDetail(selectedPiano);
+      }
+    } catch (err: any) {
+      notify.error(`Errore durante l'importazione: ${err.message || 'Errore generico'}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div style={{ padding: "24px 32px", maxWidth: 1300, margin: "0 auto", color: "var(--text-primary)", display: "flex", gap: "24px", height: "100%" }}>
       
@@ -125,18 +145,20 @@ export default function PianiManutenzionePage() {
         {showNewForm && (
           <form onSubmit={handleSubmitCreate} style={{ padding: 16, borderBottom: "1px solid var(--border)", background: "rgba(59,130,246,0.05)", display: "flex", flexDirection: "column", gap: 12 }}>
             <input 
-              placeholder="Nome codificato (es. PM-2026-A)" 
+              placeholder="Codice (opzionale - es. PM-2026-A)" 
               value={newCodice} onChange={e => setNewCodice(e.target.value)} 
               style={{ padding: 10, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", outline: "none" }}
             />
             <input 
-              placeholder="Descrizione opzionale" 
+              placeholder="Descrizione (opzionale)" 
               value={newDescrizione} onChange={e => setNewDescrizione(e.target.value)} 
               style={{ padding: 10, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", outline: "none" }}
             />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button type="button" onClick={() => setShowNewForm(false)} style={{ padding: "8px 12px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", cursor: "pointer", fontSize: 12 }}>Annulla</button>
-              <button type="submit" style={{ padding: "8px 12px", background: "var(--blue)", border: "none", borderRadius: 6, color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Salva</button>
+              <button type="submit" disabled={loading} style={{ padding: "8px 12px", background: "var(--blue)", border: "none", borderRadius: 6, color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 12, opacity: loading ? 0.5 : 1 }}>
+                {loading ? "Creazione..." : "Salva Piano"}
+              </button>
             </div>
           </form>
         )}
@@ -177,12 +199,38 @@ export default function PianiManutenzionePage() {
                 <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{selectedPiano.nome_codificato}</h2>
                 <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>Struttura a database persistente</div>
               </div>
-              <button 
-                 onClick={() => deletePiano(selectedPiano.id)}
-                 style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)", padding: "6px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}
-              >
-                Elimina Piano
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button 
+                  onClick={() => deletePiano(selectedPiano.id)}
+                  style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)", padding: "6px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}
+                >
+                  Elimina Piano
+                </button>
+              </div>
+            </div>
+
+            <div style={{ padding: 16, borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.02)" }}>
+              <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12, textTransform: "uppercase", fontWeight: 700 }}>Importa Attività</h3>
+              <div style={{ display: "flex", gap: 12 }}>
+                <label style={{ 
+                  flex: 1, padding: "12px", border: "1px dashed var(--border)", borderRadius: 8, textAlign: "center", cursor: importing ? "default" : "pointer", 
+                  background: "var(--bg-elevated)", opacity: importing ? 0.5 : 1, transition: "all 0.2s" 
+                }}>
+                  <div style={{ fontSize: 20 }}>📄</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>PDF (AI/OCR)</div>
+                  <input type="file" accept=".pdf" hidden onChange={e => e.target.files?.[0] && handleImport('pdf', e.target.files[0])} disabled={importing} />
+                </label>
+                
+                <label style={{ 
+                  flex: 1, padding: "12px", border: "1px dashed var(--border)", borderRadius: 8, textAlign: "center", cursor: importing ? "default" : "pointer", 
+                  background: "var(--bg-elevated)", opacity: importing ? 0.5 : 1, transition: "all 0.2s" 
+                }}>
+                  <div style={{ fontSize: 20 }}>📊</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>Excel / CSV</div>
+                  <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => e.target.files?.[0] && handleImport('excel', e.target.files[0])} disabled={importing} />
+                </label>
+              </div>
+              {importing && <div style={{ fontSize: 11, color: "var(--blue)", marginTop: 8, textAlign: "center", fontWeight: 600 }}>Elaborazione in corso... Attendere operazione AI/OCR.</div>}
             </div>
             
             <div style={{ padding: 16 }}>

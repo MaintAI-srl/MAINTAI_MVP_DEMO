@@ -151,12 +151,15 @@ Questi workaround sono accettabili solo se:
 Un Piano di Manutenzione è un'entità aggregatrice indipendente (`PianoManutenzione`).
 Non è una derivazione di ticket o una lista in memoria.
 
-### Struttura
+### Struttura e Automazione
 Ogni `PianoManutenzione`:
-1. Viene registrato a DB (Tabella `piani_manutenzione`)
-2. Assegna obbligatoriamente un `nome_codificato` e un `progressivo` alfanumerico
+1. Viene registrato a DB (Tabella `piani_manutenzione`).
+2. Genera automaticamente un `progressivo` (sequenziale per tenant) e un `nome_codificato` (formato `PM-YYYY-NNN`) se non forniti.
 3. Rappresenta il contenitore principale. I Ticket vi sono agganciati tramite FK (`piano_manutenzione_id`).
-4. Indica chiaramente da dove provengono i suoi ticket figli tramite il campo `origine_piano` (`manuale` [pdf processato], `excel`, o `manuale_interno_piano`).
+4. Supporta l'importazione diretta tramite endpoint dedicati:
+   - `POST /import-pdf`: Processing AI/OCR per estrazione task da manuali tecnici.
+   - `POST /import-excel`: Caricamento massivo da file CSV/XLSX con mapping flessibile.
+5. Indica l'origine del ticket tramite `origine_piano` (`manuale`, `excel`, `manuale_interno_piano`).
 
 ### Regola architetturale
 Operare sempre sui `PianoManutenzione` per aggregazioni globali di intervento e mai fare query libere ai ticket se il comportamento desiderato è quello di iterare un Piano programmato.

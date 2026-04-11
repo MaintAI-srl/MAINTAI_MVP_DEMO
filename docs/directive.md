@@ -144,8 +144,8 @@ Refactor solo se migliora davvero chiarezza, stabilità, manutenibilità, estend
 ### 10. Parti sempre dalla struttura esistente
 Non ricostruire moduli interi se basta una correzione mirata o una estensione coerente.
 
-### 11. Il Piano di Manutenzione è Persistente
-Il termine "Piano di Manutenzione" fa riferimento alla tabella `piani_manutenzione`. Usa questa vera entità a database (creabile e raggruppabile) rispetto alla logica fittizia di trattare i ticket slegati come un piano inesistente, o di simulare piani solo limitati alla vista frontend. I ticket hanno campi `piano_manutenzione_id` e `origine_piano`.
+### 11. Il Piano di Manutenzione è Persistente e Automatico
+Il termine "Piano di Manutenzione" fa riferimento alla tabella `piani_manutenzione`. Usa questa vera entità a database. Il sistema deve autogenerare progressivi e nomi codificati (es. PM-2026-001) se non forniti. I ticket creati via import (PDF AI/OCR o Excel) devono essere agganciati al piano con `origine_piano` coerente.
 
 ---
 

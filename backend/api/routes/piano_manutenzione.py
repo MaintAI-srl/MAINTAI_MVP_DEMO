@@ -1,8 +1,12 @@
 import math
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+import datetime
+import json
+import io
+import csv
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
@@ -42,18 +46,44 @@ def create_piano(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id)
 ):
-    # Verify uniqueness of nome_codificato per tenant, though non strict
+    # Generazione automatica progressivo se non fornito
+    prog = data.progressivo
+    if prog is None:
+        max_prog = db.query(func.max(PianoManutenzione.progressivo)).filter(
+            PianoManutenzione.tenant_id == tenant_id
+        ).scalar()
+        prog = (max_prog or 0) + 1
+
+    # Generazione automatica nome_codificato se non fornito
+    nome = data.nome_codificato
+    if not nome:
+        anno = datetime.datetime.now().year
+        nome = f"PM-{anno}-{prog:03d}"
+
+    # Verify uniqueness of nome_codificato per tenant
     exist = db.query(PianoManutenzione).filter(
-        PianoManutenzione.nome_codificato == data.nome_codificato,
+        PianoManutenzione.nome_codificato == nome,
         PianoManutenzione.tenant_id == tenant_id
     ).first()
     if exist:
-        raise HTTPException(status_code=400, detail="Codice piano già esistente per questo tenant")
+        # Se generato automaticamente e esiste, proviamo a incrementare finché non è unico
+        if not data.nome_codificato:
+            attempts = 0
+            while exist and attempts < 100:
+                prog += 1
+                nome = f"PM-{anno}-{prog:03d}"
+                exist = db.query(PianoManutenzione).filter(
+                    PianoManutenzione.nome_codificato == nome,
+                    PianoManutenzione.tenant_id == tenant_id
+                ).first()
+                attempts += 1
+        else:
+            raise HTTPException(status_code=400, detail="Codice piano già esistente per questo tenant")
 
     piano = PianoManutenzione(
         tenant_id=tenant_id,
-        nome_codificato=data.nome_codificato,
-        progressivo=data.progressivo,
+        nome_codificato=nome,
+        progressivo=prog,
         descrizione=data.descrizione,
         stato=data.stato,
         asset_id=data.asset_id,
@@ -156,3 +186,147 @@ def assign_ticket_to_piano(
     db.commit()
     
     return {"success": True, "ticket_id": ticket_id, "piano_id": piano_id}
+
+
+@router.post("/piani-manutenzione/{piano_id}/import-pdf")
+async def import_pdf_to_piano(
+    piano_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id)
+):
+    """Importa attività da un PDF (con OCR fallback) e le aggiunge come ticket al piano."""
+    from backend.services.pdf_service import smart_read_pdf
+    from backend.services.ai.manuals_ai_service import parse_manual_with_ai
+    
+    piano = db.query(PianoManutenzione).filter(
+        PianoManutenzione.id == piano_id,
+        PianoManutenzione.tenant_id == tenant_id
+    ).first()
+    if not piano:
+        raise HTTPException(status_code=404, detail="Piano non trovato")
+
+    content = await file.read()
+    result = smart_read_pdf(content)
+    text = result.get("text", "")
+
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF (anche con OCR).")
+
+    parsed_json_str = parse_manual_with_ai(text, file.filename)
+    try:
+        parsed = json.loads(parsed_json_str)
+    except Exception:
+        raise HTTPException(status_code=500, detail="L'AI non ha restituito un formato valido.")
+
+    plans = parsed.get("plans", [])
+    created_count = 0
+    
+    # Priority map
+    prio_map = {"high": "Alta", "medium": "Media", "low": "Bassa"}
+
+    for plan in plans:
+        # Frequenza giorni da label o parsing AI
+        freg_days = None
+        if plan.get("frequency"):
+            freg_days = plan["frequency"].get("value")
+            # simplificata
+            unit = (plan["frequency"].get("unit") or "days").lower()
+            if "week" in unit: freg_days = (freg_days or 1) * 7
+            if "month" in unit: freg_days = (freg_days or 1) * 30
+            if "year" in unit: freg_days = (freg_days or 1) * 365
+
+        durata = plan.get("estimated_duration_hours") or 1.0
+        priorita = prio_map.get((plan.get("priority") or "medium").lower(), "Media")
+        
+        for task_desc in plan.get("tasks", []):
+            if not task_desc: continue
+            
+            # Crea direttamente il ticket
+            ticket = Ticket(
+                titolo=task_desc[:150],
+                descrizione=task_desc,
+                priorita=priorita,
+                tipo="PM",
+                stato="Aperto",
+                durata_stimata_ore=durata,
+                fascia_oraria="diurna",
+                asset_id=piano.asset_id,
+                tenant_id=tenant_id,
+                piano_manutenzione_id=piano.id,
+                origine_piano="manuale"
+            )
+            db.add(ticket)
+            created_count += 1
+    
+    db.commit()
+    return {"success": True, "created": created_count, "method": result.get("method")}
+
+
+@router.post("/piani-manutenzione/{piano_id}/import-excel")
+async def import_excel_to_piano(
+    piano_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id)
+):
+    """Importa attività da Excel/CSV e le aggiunge come ticket al piano."""
+    piano = db.query(PianoManutenzione).filter(
+        PianoManutenzione.id == piano_id,
+        PianoManutenzione.tenant_id == tenant_id
+    ).first()
+    if not piano:
+        raise HTTPException(status_code=404, detail="Piano non trovato")
+
+    content = await file.read()
+    filename = file.filename.lower()
+    
+    rows = []
+    if filename.endswith(".csv"):
+        stream = io.StringIO(content.decode("utf-8", errors="ignore"))
+        reader = csv.DictReader(stream, delimiter=";")
+        rows = list(reader)
+    else:
+        # XLSX support via openpyxl
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(io.BytesIO(content), data_only=True)
+            ws = wb.active
+            header = [str(cell.value).strip().lower() if cell.value else "" for cell in ws[1]]
+            for i in range(2, ws.max_row + 1):
+                row_data = {}
+                for col_idx, col_name in enumerate(header):
+                    if col_name:
+                        row_data[col_name] = ws.cell(row=i, column=col_idx+1).value
+                if any(row_data.values()):
+                    rows.append(row_data)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Errore lettura Excel: {str(e)}")
+
+    created_count = 0
+    for r in rows:
+        # Mapping flessibile
+        titolo = r.get("titolo") or r.get("attività") or r.get("descrizione")
+        if not titolo: continue
+        
+        durata = r.get("durata") or r.get("ore") or 1.0
+        priorita = r.get("priorità") or r.get("priorita") or "Media"
+        
+        ticket = Ticket(
+            titolo=str(titolo)[:150],
+            descrizione=str(titolo),
+            priorita=str(priorita).capitalize() if priorita else "Media",
+            tipo="PM",
+            stato="Aperto",
+            durata_stimata_ore=float(durata) if durata else 1.0,
+            fascia_oraria="diurna",
+            asset_id=piano.asset_id,
+            tenant_id=tenant_id,
+            piano_manutenzione_id=piano.id,
+            origine_piano="excel"
+        )
+        db.add(ticket)
+        created_count += 1
+        
+    db.commit()
+    return {"success": True, "created": created_count}
