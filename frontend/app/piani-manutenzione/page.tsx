@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiDelete, apiUpload } from "../lib/api";
 import { notify } from "@/lib/toast";
 
 type PianoManutenzione = {
@@ -113,9 +113,8 @@ export default function PianiManutenzionePage() {
 
     try {
       const endpoint = `/piani-manutenzione/${selectedPiano.id}/import-${type}`;
-      // Usiamo una fetch diretta per i multipart o apiPost se supporta FormData
-      // Assumiamo apiPost supporti FormData come visto in altri moduli (es. manuali)
-      const res: any = await apiPost(endpoint, formData);
+      // Usiamo apiUpload per gestire correttamente il multipart e il timeout lungo
+      const res: any = await apiUpload(endpoint, formData);
       if (res.success) {
         notify.success(`Importazione ${type.toUpperCase()} completata: ${res.created} attività aggiunte.`);
         await openDetail(selectedPiano);
@@ -124,6 +123,48 @@ export default function PianiManutenzionePage() {
       notify.error(`Errore durante l'importazione: ${err.message || 'Errore generico'}`);
     } finally {
       setImporting(false);
+    }
+  }
+
+  // Manual Ticket State
+  const [showManualTicketForm, setShowManualTicketForm] = useState(false);
+  const [manualTitolo, setManualTitolo] = useState("");
+  const [manualDesc, setManualDesc] = useState("");
+  const [manualPrio, setManualPrio] = useState("Media");
+  const [manualDurata, setManualDurata] = useState("1.0");
+
+  async function handleCreateManualTicket(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedPiano) return;
+    if (!manualTitolo.trim()) {
+       notify.error("Titolo obbligatorio");
+       return;
+    }
+    setLoading(true);
+    try {
+      const payload = {
+        titolo: manualTitolo.trim(),
+        descrizione: manualDesc.trim() || null,
+        priorita: manualPrio,
+        durata_stimata_ore: parseFloat(manualDurata) || 1.0,
+        asset_id: selectedPiano.asset_id,
+        sito_id: selectedPiano.sito_id,
+        tipo: "PM",
+        stato: "Aperto",
+        fascia_oraria: "diurna",
+        piano_manutenzione_id: selectedPiano.id,
+        origine_piano: "manuale_interno_piano"
+      };
+      await apiPost("/tickets", payload);
+      notify.success("Ticket aggiunto al piano!");
+      setShowManualTicketForm(false);
+      setManualTitolo("");
+      setManualDesc("");
+      await openDetail(selectedPiano);
+    } catch (err) {
+      notify.error("Errore durante la creazione del ticket");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -231,6 +272,56 @@ export default function PianiManutenzionePage() {
                 </label>
               </div>
               {importing && <div style={{ fontSize: 11, color: "var(--blue)", marginTop: 8, textAlign: "center", fontWeight: 600 }}>Elaborazione in corso... Attendere operazione AI/OCR.</div>}
+            </div>
+
+            <div style={{ padding: 16, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h3 style={{ fontSize: 12, color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 700, margin: 0 }}>Gestione Attività</h3>
+                {!showManualTicketForm && (
+                  <button 
+                    onClick={() => setShowManualTicketForm(true)}
+                    style={{ fontSize: 11, background: "rgba(59,130,246,0.1)", color: "var(--blue)", border: "1px solid rgba(59,130,246,0.2)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontWeight: 700 }}
+                  >
+                    + Aggiungi Ticket Manuale
+                  </button>
+                )}
+              </div>
+
+              {showManualTicketForm && (
+                <form onSubmit={handleCreateManualTicket} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                  <input 
+                    placeholder="Titolo attività..." 
+                    value={manualTitolo} onChange={e => setManualTitolo(e.target.value)}
+                    style={{ padding: 8, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", fontSize: 13 }}
+                  />
+                  <textarea 
+                    placeholder="Descrizione estesa (opzionale)..." 
+                    value={manualDesc} onChange={e => setManualDesc(e.target.value)}
+                    style={{ padding: 8, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", fontSize: 13, minHeight: 60, fontFamily: "inherit" }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select 
+                      value={manualPrio} onChange={e => setManualPrio(e.target.value)}
+                      style={{ flex: 1, padding: 8, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", fontSize: 12 }}
+                    >
+                      <option value="Alta">Alta</option>
+                      <option value="Media">Media</option>
+                      <option value="Bassa">Bassa</option>
+                    </select>
+                    <input 
+                      type="number" step="0.5" placeholder="Ore"
+                      value={manualDurata} onChange={e => setManualDurata(e.target.value)}
+                      style={{ width: 80, padding: 8, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", fontSize: 12 }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" onClick={() => setShowManualTicketForm(false)} style={{ padding: "6px 10px", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)", fontSize: 11, cursor: "pointer" }}>Annulla</button>
+                    <button type="submit" disabled={loading} style={{ padding: "6px 10px", background: "var(--blue)", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                      {loading ? "Salvataggio..." : "Crea Ticket"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
             
             <div style={{ padding: 16 }}>

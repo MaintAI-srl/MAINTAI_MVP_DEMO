@@ -130,7 +130,7 @@ function DraggableTicket({
     padding: "8px 10px",
     marginBottom: 6,
     cursor: isDragging ? "grabbing" : "grab",
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.3 : 1,
     position: "relative" as const,
     transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
     boxShadow: isDragging ? "0 4px 16px rgba(59,130,246,0.3)" : undefined,

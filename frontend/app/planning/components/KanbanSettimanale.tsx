@@ -33,7 +33,7 @@ function startOfWeek(d: Date): Date {
 }
 
 function getWeekDays(weekStart: Date): Date[] {
-  return Array.from({ length: 5 }, (_, i) => {
+  return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
     return d;
@@ -117,13 +117,31 @@ function DroppableSlot({ id, top }: { id: string; top: number }) {
         left: 0, right: 0,
         top, height: slotH,
         zIndex: 1,
-        background: isOver ? "rgba(59,130,246,0.15)" : "transparent",
-        outline: isOver ? "1px dashed #3b82f6" : "none",
-        borderRadius: 3,
+        background: isOver ? "rgba(59,130,246,0.25)" : "transparent",
+        outline: isOver ? "2px dashed #60a5fa" : "none",
+        borderRadius: 4,
         pointerEvents: "auto",
-        transition: "background 80ms",
+        transition: "background 60ms, outline 60ms",
+        boxShadow: isOver ? "inset 0 0 0 1px rgba(96,165,250,0.5)" : "none",
       }}
-    />
+    >
+      {isOver && (
+        <div style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          fontSize: 10,
+          color: "#60a5fa",
+          fontWeight: 700,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.05em",
+        }}>
+          ➕ Rilascia qui
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -171,11 +189,14 @@ function WOBlock({
         color: stile.text,
         overflow: "hidden",
         cursor: isDragging ? "grabbing" : "grab",
-        opacity: isDragging ? 0.35 : 1,
+        opacity: isDragging ? 0.7 : 1,
         zIndex: isDragging ? 50 : 3,
         userSelect: "none",
         transform: transform ? `translate(${transform.x}px,${transform.y}px)` : undefined,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+        boxShadow: isDragging
+          ? "0 8px 32px rgba(59,130,246,0.5), 0 2px 8px rgba(0,0,0,0.5)"
+          : "0 2px 8px rgba(0,0,0,0.35)",
+        outline: isDragging ? "2px solid rgba(96,165,250,0.7)" : "none",
         transition: isDragging ? "none" : "filter 100ms",
       }}
       title="Trascina per spostare · Doppio clic per riassegnare tecnico"
@@ -296,7 +317,7 @@ export default function KanbanSettimanale({
 
   // Intestazione settimana
   const firstDay = weekDays[0];
-  const lastDay = weekDays[4];
+  const lastDay = weekDays[6];
   const periodLabel = `${String(firstDay.getDate()).padStart(2,"0")} ${MESI[firstDay.getMonth()].slice(0,3)} — ${String(lastDay.getDate()).padStart(2,"0")} ${MESI[lastDay.getMonth()].slice(0,3)} ${lastDay.getFullYear()}`;
 
   return (
@@ -340,9 +361,9 @@ export default function KanbanSettimanale({
       <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid #1f2937" }}>
         <div style={{
           display: "grid",
-          gridTemplateColumns: `${HOUR_LABEL_W}px repeat(5, minmax(120px, 1fr))`,
+          gridTemplateColumns: `${HOUR_LABEL_W}px repeat(7, minmax(110px, 1fr))`,
           gridTemplateRows: `${HEADER_H}px ${TOTAL_H}px`,
-          minWidth: 700,
+          minWidth: 900,
           background: "#0f172a",
         }}>
 
@@ -358,12 +379,13 @@ export default function KanbanSettimanale({
           {weekDays.map((day, i) => {
             const { dow, day: dayNum, mon } = formatDayHeader(day);
             const isToday = dateToStr(day) === todayStr;
+            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
             return (
               <div key={i} style={{
                 gridRow: 1,
                 gridColumn: i + 2,
-                background: "#1e293b",
-                borderRight: i < 4 ? "1px solid #1f2937" : "none",
+                background: isWeekend ? "#162032" : "#1e293b",
+                borderRight: i < 6 ? "1px solid #1f2937" : "none",
                 borderBottom: "1px solid #334155",
                 borderTop: isToday ? "3px solid #3b82f6" : "3px solid transparent",
                 display: "flex",
@@ -372,13 +394,16 @@ export default function KanbanSettimanale({
                 justifyContent: "center",
                 gap: 2,
               }}>
-                <div style={{ fontSize: 10, color: isToday ? "#3b82f6" : "#64748b", fontWeight: 600, letterSpacing: "0.08em" }}>
+                <div style={{ fontSize: 10, color: isToday ? "#3b82f6" : isWeekend ? "#94a3b8" : "#64748b", fontWeight: 600, letterSpacing: "0.08em" }}>
                   {dow.toUpperCase()}
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: isToday ? "#60a5fa" : "#e2e8f0" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: isToday ? "#60a5fa" : isWeekend ? "#cbd5e1" : "#e2e8f0" }}>
                   {dayNum}
                 </div>
-                <div style={{ fontSize: 10, color: "#475569" }}>{mon}</div>
+                <div style={{ fontSize: 10, color: isWeekend ? "#64748b" : "#475569" }}>{mon}</div>
+                {isWeekend && (
+                  <div style={{ fontSize: 9, color: "#475569", marginTop: 1 }}>weekend</div>
+                )}
               </div>
             );
           })}
@@ -413,6 +438,7 @@ export default function KanbanSettimanale({
             const dayWOs = wosByDate.get(dateStr) ?? [];
             const laneMap = computeLanes(dayWOs);
             const isToday = dateStr === todayStr;
+            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
 
             // Ora corrente (linea rossa)
             const now = new Date();
@@ -428,8 +454,8 @@ export default function KanbanSettimanale({
                   gridColumn: colIdx + 2,
                   position: "relative",
                   height: TOTAL_H,
-                  borderRight: colIdx < 4 ? "1px solid #1e293b" : "none",
-                  background: isToday ? "#0f1a2a" : "#0f172a",
+                  borderRight: colIdx < 6 ? "1px solid #1e293b" : "none",
+                  background: isToday ? "#0f1a2a" : isWeekend ? "#0b1422" : "#0f172a",
                 }}
               >
                 {/* Linee orizzontali ore */}
