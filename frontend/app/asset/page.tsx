@@ -341,6 +341,7 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
   sito: SitoNode; onModifica: () => void; onElimina: () => void;
   onAddImpianto: () => void; onSelectImpianto: (imp: ImpiantoNode) => void;
 }) {
+  const [localSearch, setLocalSearch] = useState("");
   return (
     <div style={{ padding: "24px", height: "100%", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
@@ -369,12 +370,20 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
         </div>
       )}
       {sito.descrizione && <div style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>{sito.descrizione}</div>}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Impianti ({sito.n_impianti})</div>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "16px" }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>Impianti ({sito.n_impianti})</div>
+        <div style={{ flex: 1, maxWidth: "300px" }}>
+          <input 
+            placeholder="Filtra impianti..." 
+            onChange={(e) => setLocalSearch(e.target.value)}
+            style={{ ...inputStyle, padding: "5px 10px", fontSize: "12px" }} 
+          />
+        </div>
         <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }} onClick={onAddImpianto}>+ Impianto</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {sito.impianti.map(imp => (
+        {sito.impianti.filter(i => !localSearch || i.nome.toLowerCase().includes(localSearch.toLowerCase())).map(imp => (
           <div key={imp.id} onClick={() => onSelectImpianto(imp)}
             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "border-color 0.15s" }}
             onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--blue)")}
@@ -403,6 +412,7 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
   impianto: ImpiantoNode; onModifica: () => void; onElimina: () => void;
   onAddAsset: () => void; onGeneraAsset: () => void; onSelectSito: () => void;
 }) {
+  const [localSearch, setLocalSearch] = useState("");
   return (
     <div style={{ padding: "24px", height: "100%", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
@@ -424,15 +434,23 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
         <StatBox label="Ticket aperti" value={impianto.ticket_aperti} color={impianto.ticket_aperti > 0 ? "var(--amber)" : "var(--green)"} />
       </div>
       {impianto.descrizione && <div style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>{impianto.descrizione}</div>}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Asset ({impianto.n_asset})</div>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "16px" }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>Asset ({impianto.n_asset})</div>
+        <div style={{ flex: 1, maxWidth: "300px" }}>
+          <input 
+            placeholder="Filtra asset..." 
+            onChange={(e) => setLocalSearch(e.target.value)}
+            style={{ ...inputStyle, padding: "5px 10px", fontSize: "12px" }} 
+          />
+        </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button style={{ ...btnSecondary, fontSize: "12px", padding: "5px 10px" }} onClick={onGeneraAsset}>⚡ Genera multipli</button>
           <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }} onClick={onAddAsset}>+ Asset</button>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {impianto.assets.map(a => (
+        {impianto.assets.filter(a => !localSearch || a.nome.toLowerCase().includes(localSearch.toLowerCase())).map(a => (
           <div key={a.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: "13px" }}>🔧 {a.nome}</div>

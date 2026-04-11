@@ -16,12 +16,13 @@ export type KanbanTicket = {
   durata_stimata_ore?: number;
 };
 
-const COLS = ["Aperto", "Pianificato", "In corso"] as const;
+const COLS = ["Aperto", "Pianificato", "In corso", "Chiuso"] as const;
 
 const COL_COLORS: Record<string, { border: string; header: string; bg: string }> = {
   "Aperto":      { border: "rgba(96,165,250,0.3)",  header: "#60a5fa", bg: "rgba(96,165,250,0.04)"  },
   "Pianificato": { border: "rgba(167,139,250,0.3)", header: "#a78bfa", bg: "rgba(167,139,250,0.04)" },
   "In corso":    { border: "rgba(251,191,36,0.3)",  header: "#fbbf24", bg: "rgba(251,191,36,0.04)"  },
+  "Chiuso":      { border: "rgba(52,211,153,0.3)",  header: "#34d399", bg: "rgba(52,211,153,0.04)"  },
 };
 
 const PRIO_COLORS: Record<string, string> = {
@@ -39,46 +40,47 @@ function KanbanCard({ ticket }: { ticket: KanbanTicket }) {
       style={{
         background: "var(--bg-elevated)",
         border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: "12px 14px",
+        borderRadius: 12,
+        padding: "14px",
         cursor: isDragging ? "grabbing" : "grab",
         opacity: isDragging ? 0.5 : 1,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
-        boxShadow: isDragging ? "0 8px 24px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.1)",
+        gap: 10,
+        boxShadow: isDragging ? "0 12px 32px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.1)",
         userSelect: "none",
         touchAction: "none",
+        transition: "box-shadow 0.2s, border-color 0.2s",
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.4 }}>
         {ticket.titolo}
       </div>
       {ticket.asset_name && (
-        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-          📦 {ticket.asset_name}
+        <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ opacity: 0.7 }}>📦</span> {ticket.asset_name}
         </div>
       )}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
         <span style={{
-          fontSize: 10, padding: "2px 6px", borderRadius: 4, fontWeight: 600,
+          fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 700, textTransform: "uppercase",
           color: PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)",
-          background: `${PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)"}20`,
-          border: `1px solid ${PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)"}40`,
+          background: `${PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)"}15`,
+          border: `1px solid ${PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)"}30`,
         }}>
           {ticket.priorita}
         </span>
-        <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 600 }}>
           {ticket.fascia_oraria}
         </span>
         {ticket.durata_stimata_ore && (
-          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>
+          <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", fontWeight: 600 }}>
             {ticket.durata_stimata_ore}h
           </span>
         )}
         {ticket.planned_start && (
-          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
-            📅 {new Date(ticket.planned_start).toLocaleDateString("it-IT")}
+          <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 600 }}>
+            📅 {new Date(ticket.planned_start).toLocaleDateString("it-IT", { day: '2-digit', month: 'short' })}
           </span>
         )}
       </div>
@@ -95,26 +97,28 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
       ref={setNodeRef}
       style={{
         background: isOver ? colors.bg : "var(--bg-card)",
-        border: `1px solid ${isOver ? colors.border : "var(--border)"}`,
-        borderRadius: 14,
-        padding: 16,
+        border: `1px solid ${isOver ? colors.header : "var(--border)"}`,
+        borderRadius: 16,
+        padding: "20px 16px",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
-        minHeight: 200,
-        transition: "background 0.15s, border-color 0.15s",
+        gap: 12,
+        minHeight: "70vh",
+        maxHeight: "70vh",
+        overflowY: "auto",
+        transition: "background 0.2s, border-color 0.2s",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: colors.header, display: "inline-block" }} />
-        <span style={{ fontWeight: 700, fontSize: 13, color: colors.header }}>{stato}</span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, position: "sticky", top: 0, background: "inherit", zIndex: 10, paddingBottom: 8 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: colors.header, boxShadow: `0 0 10px ${colors.header}40` }} />
+        <span style={{ fontWeight: 800, fontSize: 14, color: colors.header, textTransform: "uppercase", letterSpacing: "0.5px" }}>{stato}</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "rgba(255,255,255,0.08)", padding: "2px 10px", borderRadius: 20 }}>
           {tickets.length}
         </span>
       </div>
       {tickets.length === 0 ? (
-        <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", padding: "24px 0" }}>
-          Nessun ticket
+        <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", padding: "40px 0", fontStyle: "italic", border: "1px dashed var(--border)", borderRadius: 12 }}>
+          Nessun ticket {stato.toLowerCase()}
         </div>
       ) : (
         tickets.map(t => <KanbanCard key={t.id} ticket={t} />)
@@ -125,31 +129,44 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
 
 // Modal date picker per pianificazione da Kanban
 function KanbanPianificaModal({ onConfirm, onCancel }: { onConfirm: (date: string) => void; onCancel: () => void }) {
-  const todayAt8 = (() => { const d = new Date(); d.setHours(8, 0, 0, 0); return d.toISOString().slice(0, 16); })();
-  const tomorrowAt8 = (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.toISOString().slice(0, 16); })();
-  const [date, setDate] = useState(todayAt8);
+  const getISO = (days: number, hours: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(hours, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  };
+  const [date, setDate] = useState(getISO(0, 8));
+
+  const presets = [
+    { label: "Oggi 08:00", d: 0, h: 8 },
+    { label: "Oggi 14:00", d: 0, h: 14 },
+    { label: "Domani 08:00", d: 1, h: 8 },
+    { label: "Lunedì prox", d: (8 - new Date().getDay()) % 7 || 7, h: 8 },
+  ];
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 360, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
-        <div style={{ fontWeight: 800, fontSize: 17, color: "#a78bfa", marginBottom: 6 }}>Pianifica intervento</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18 }}>Data e ora di inizio pianificazione.</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setDate(todayAt8)}
-            style={{ fontSize: 11, padding: "5px 12px", background: date === todayAt8 ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)", color: date === todayAt8 ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${date === todayAt8 ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
-            Oggi 08:00
-          </button>
-          <button onClick={() => setDate(tomorrowAt8)}
-            style={{ fontSize: 11, padding: "5px 12px", background: date === tomorrowAt8 ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)", color: date === tomorrowAt8 ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${date === tomorrowAt8 ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
-            Domani 08:00
-          </button>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(6px)" }}>
+      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 20, padding: "32px", width: 400, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: "#a78bfa", marginBottom: 8, textAlign: "center" }}>Pianifica intervento</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 24, textAlign: "center" }}>Trascina i ticket per organizzarli nel tempo.</div>
+        
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
+          {presets.map(p => (
+            <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
+              style={{ fontSize: 10, padding: "6px 12px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>
+              {p.label}
+            </button>
+          ))}
         </div>
+
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "9px 13px", fontSize: 13, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
-        <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
+        
+        <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Annulla</button>
           <button disabled={!date} onClick={() => date && onConfirm(date)}
-            style={{ padding: "8px 22px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 8, cursor: date ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13, opacity: date ? 1 : 0.5 }}>
-            Pianifica
+            style={{ flex: 2, padding: "12px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 12, cursor: date ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: "0 4px 12px rgba(124,58,237,0.3)" }}>
+            Conferma Pianificazione
           </button>
         </div>
       </div>
@@ -207,22 +224,23 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     try {
       await apiPatch(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end });
       onRefresh();
-    } catch {
+    } catch (err: any) {
       setLocal(prev);
-      notify.error("Errore nella pianificazione del ticket.");
+      notify.error(err?.message || "Errore nella pianificazione del ticket.");
     }
   }
 
   const byStato: Record<string, KanbanTicket[]> = {
-    "Aperto": local.filter(t => t.stato === "Aperto"),
+    "Aperto":      local.filter(t => t.stato === "Aperto"),
     "Pianificato": local.filter(t => t.stato === "Pianificato"),
-    "In corso": local.filter(t => t.stato === "In corso"),
+    "In corso":    local.filter(t => t.stato === "In corso"),
+    "Chiuso":      local.filter(t => t.stato === "Chiuso"),
   };
 
   return (
     <>
       <DndContext onDragEnd={handleDragEnd}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           {COLS.map(stato => (
             <KanbanColumn key={stato} stato={stato} tickets={byStato[stato]} />
           ))}

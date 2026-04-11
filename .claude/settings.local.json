@@ -86,7 +86,11 @@
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vIiwicnVvbG8iOiJyZXNwb25zYWJpbGUiLCJ1c2VyaWQiOjk5OSwidGVuYW50X2lkIjoxLCJpc19kZW1vIjp0cnVlLCJleHAiOjE3NzYwMjEzMTN9.EymDNGg-AQqf8OZeJvWxeYZtzXBcCHttKFRwE4NSwfc\" __NEW_LINE_ace0742833f7dd5d__ echo \"=== /planning/status ===\" curl -s https://maintai-v3.onrender.com/planning/status -H \"Authorization: Bearer $TOKEN\")",
       "Bash(head -5 grep -r \"down_revision\\\\|revision\" /c/Users/aless/Desktop/maintai_v3/alembic/versions/20260405_add_planning_fields.py)",
       "Bash(head -5 grep -r \"down_revision\\\\|revision\" /c/Users/aless/Desktop/maintai_v3/alembic/versions/35093982921a_add_system_logs_and_email_config_.py)",
-      "Bash(head -5 grep -r \"down_revision\\\\|revision\" /c/Users/aless/Desktop/maintai_v3/alembic/versions/fa1c5b675293_initial_master_baseline.py)"
+      "Bash(head -5 grep -r \"down_revision\\\\|revision\" /c/Users/aless/Desktop/maintai_v3/alembic/versions/fa1c5b675293_initial_master_baseline.py)",
+      "Bash(git pull:*)",
+      "Bash(find . -name modelli.py -o -name GeneratedPlan*)",
+      "Read(//mnt/c/Users/aless/**)",
+      "Read(//c/Users/aless/Desktop/**)"
     ]
   }
 }

@@ -77,25 +77,41 @@ const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTra
 
 // ── Modal: richiesta data pianificazione ─────────────────────────────────────
 function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string) => void; onCancel: () => void }) {
-  const todayAt8 = (() => { const d = new Date(); d.setHours(8, 0, 0, 0); return d.toISOString().slice(0, 16); })();
-  const tomorrowAt8 = (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.toISOString().slice(0, 16); })();
-  const [date, setDate] = useState(todayAt8);
+  const getISO = (days: number, hours: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(hours, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  };
+  const [date, setDate] = useState(getISO(0, 8));
+
+  const presets = [
+    { label: "Oggi 08:00", d: 0, h: 8 },
+    { label: "Oggi 14:00", d: 0, h: 14 },
+    { label: "Domani 08:00", d: 1, h: 8 },
+    { label: "Lunedì prox", d: (8 - new Date().getDay()) % 7 || 7, h: 8 },
+  ];
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 380, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: "#a78bfa", marginBottom: 6 }}>Pianifica intervento</div>
         <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Seleziona data e ora di inizio — lo stato cambierà in <strong style={{ color: "#a78bfa" }}>Pianificato</strong>.</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setDate(todayAt8)} style={{ fontSize: 11, padding: "5px 12px", background: date === todayAt8 ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)", color: date === todayAt8 ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${date === todayAt8 ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>Oggi 08:00</button>
-          <button onClick={() => setDate(tomorrowAt8)} style={{ fontSize: 11, padding: "5px 12px", background: date === tomorrowAt8 ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)", color: date === tomorrowAt8 ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${date === tomorrowAt8 ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>Domani 08:00</button>
+        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+          {presets.map(p => (
+            <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
+              style={{ fontSize: 10, padding: "5px 10px", background: "rgba(255,255,255,0.04)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
+              {p.label}
+            </button>
+          ))}
         </div>
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "9px 13px", fontSize: 13, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
-        <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 14px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
+        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
           <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
           <button disabled={!date} onClick={() => date && onConfirm(date)}
-            style={{ padding: "8px 22px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 8, cursor: date ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13, opacity: date ? 1 : 0.5 }}>
-            Pianifica
+            style={{ padding: "8px 24px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 8, cursor: date ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13, opacity: date ? 1 : 0.5 }}>
+            Conferma Pianificazione
           </button>
         </div>
       </div>
@@ -190,10 +206,23 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [stato, setStato] = useState(ticket.stato);
   const [assetStato, setAssetStato] = useState(ticket.asset_stato ?? "");
   const [plannedStart, setPlannedStart] = useState(toDatetimeLocal(ticket.planned_start));
-  const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
+  const [plannedFinish, setPlannedFinish] = useState(ticket?.planned_finish?.slice(0, 16) || "");
+  const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
+
+  // Auto-calcolo fine pianificata
+  useEffect(() => {
+    if (plannedStart && durataOre) {
+      const start = new Date(plannedStart);
+      const hours = parseFloat(durataOre.toString());
+      if (!isNaN(start.getTime()) && !isNaN(hours)) {
+        const end = new Date(start.getTime() + hours * 3600000);
+        setPlannedFinish(end.toISOString().slice(0, 16));
+      }
+    }
+  }, [plannedStart, durataOre]);
+
   const [executionStart, setExecutionStart] = useState(toDatetimeLocal(ticket.execution_start));
   const [executionFinish, setExecutionFinish] = useState(toDatetimeLocal(ticket.execution_finish));
-  const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
   const [saving, setSaving] = useState(false);
   const [showAssetDialog, setShowAssetDialog] = useState(false);
   const [showEliminaDialog, setShowEliminaDialog] = useState(false);
@@ -690,10 +719,10 @@ export default function TicketPage() {
         onConfirm: async (reason: string) => {
           setEliminaModal(null);
           try {
-            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Eliminato" });
+            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Eliminato", eliminazione_note: reason });
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-            notify.info(`${selectedIds.size} ticket eliminati. Motivo: ${reason}`);
+            notify.success(`${selectedIds.size} ticket eliminati.`);
           } catch { notify.error("Errore aggiornamento bulk."); }
         }
       });

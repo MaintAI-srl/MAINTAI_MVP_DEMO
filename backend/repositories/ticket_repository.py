@@ -83,6 +83,11 @@ class TicketRepository:
 
         if durata_totale <= 8.0:
             ticket = Ticket(**dump)
+            # Auto-calc planned_finish
+            if ticket.planned_start and ticket.durata_stimata_ore:
+                from datetime import timedelta
+                ticket.planned_finish = ticket.planned_start + timedelta(hours=ticket.durata_stimata_ore)
+            
             db.add(ticket)
             db.commit()
             db.refresh(ticket)
@@ -141,10 +146,20 @@ class TicketRepository:
             ticket.planned_start = data.planned_start
         if "planned_finish" in data.model_fields_set:
             ticket.planned_finish = data.planned_finish
+        
+        # Auto-ricalcolo planned_finish se non fornito esplicitamente ma abbiamo start e durata
+        if (ticket.planned_start and ticket.durata_stimata_ore) and ("planned_start" in data.model_fields_set or "durata_stimata_ore" in data.model_fields_set) and ("planned_finish" not in data.model_fields_set):
+            from datetime import timedelta
+            ticket.planned_finish = ticket.planned_start + timedelta(hours=ticket.durata_stimata_ore)
         if "execution_start" in data.model_fields_set:
             ticket.execution_start = data.execution_start
         if "execution_finish" in data.model_fields_set:
             ticket.execution_finish = data.execution_finish
+        if data.eliminazione_note is not None:
+            ticket.eliminazione_note = data.eliminazione_note
+        if data.stato == "Eliminato" and ticket.deleted_at is None:
+            from datetime import datetime, timezone
+            ticket.deleted_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(ticket)
         return _ticket_to_dict(ticket)

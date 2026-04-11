@@ -192,6 +192,9 @@ class Ticket(Base):
     # Multi-tecnico — numero tecnici richiesti (workaround: default 1 finché non campo DB reale)
     tecnici_richiesti = Column(Integer, default=1, nullable=True)
 
+    # Note eliminazione — motivo obbligatorio alla cancellazione
+    eliminazione_note = Column(Text, nullable=True)
+
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
     children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic", cascade="all, delete-orphan")
@@ -221,6 +224,7 @@ class AttivitaManutenzione(Base):
     id = Column(Integer, primary_key=True, index=True)
     asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True)
     manuale_id = Column(Integer, ForeignKey("manuali.id"), nullable=True)
+    nome = Column(String, nullable=True)  # Nome sintetico attività
     descrizione = Column(Text)
     frequenza_giorni = Column(Integer)
     durata_ore = Column(Float)

@@ -74,7 +74,7 @@ def get_calendario_scadenze(
             "tipo": "scadenza",
             "id": a.id,
             "data": a.prossima_scadenza.date().isoformat(),
-            "descrizione": a.descrizione,
+            "descrizione": a.nome if a.nome else a.descrizione,
             "asset_id": a.asset_id,
             "asset_nome": assets_map.get(a.asset_id, "—"),
             "frequenza_giorni": a.frequenza_giorni,

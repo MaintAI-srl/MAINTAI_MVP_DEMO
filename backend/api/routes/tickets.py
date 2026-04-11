@@ -28,6 +28,7 @@ class BulkStatusUpdate(PydanticModel):
     stato: str
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
+    eliminazione_note: Optional[str] = None
 
 
 def _aggiorna_scadenza_piano(db: Session, ticket: Ticket):
@@ -127,25 +128,40 @@ def create_ticket(
 
 
 @router.patch("/tickets/bulk-status")
-def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), payload: dict = Depends(get_current_user_payload)):
     if data.stato not in STATI_VALIDI:
         raise HTTPException(
             status_code=400,
             detail=f"Stato non valido: '{data.stato}'. Valori ammessi: {sorted(STATI_VALIDI)}",
         )
+    if data.stato == "Pianificato" and not data.planned_start:
+        raise HTTPException(status_code=400, detail="La data di inizio è obbligatoria per lo stato 'Pianificato'.")
+    
+    if data.stato == "Eliminato" and (not data.eliminazione_note or len(data.eliminazione_note) < 5):
+        raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione è obbligatorio (min 5 caratteri).")
+
     update_dict: dict = {"stato": data.stato}
     if data.planned_start:
         update_dict["planned_start"] = data.planned_start
     if data.planned_finish:
         update_dict["planned_finish"] = data.planned_finish
+    if data.eliminazione_note:
+        update_dict["eliminazione_note"] = data.eliminazione_note
+
     # Se torna Aperto, azzera pianificazione
     if data.stato == "Aperto":
         update_dict["planned_start"] = None
         update_dict["planned_finish"] = None
+
     updated = db.query(Ticket).filter(
         Ticket.id.in_(data.ids),
         Ticket.tenant_id == tenant_id,
     ).update(update_dict, synchronize_session=False)
+
+    if data.stato == "Eliminato":
+        username = payload.get("sub") or payload.get("username") or "sistema"
+        log_to_db("WARNING", "TICKETS", f"Bulk DELETE: {updated} ticket eliminati da '{username}'. Motivo: {data.eliminazione_note}", tenant_id=tenant_id)
+    
     db.commit()
     return {"updated": updated, "stato": data.stato}
 
@@ -159,18 +175,28 @@ def patch_ticket(
     payload: dict = Depends(get_current_user_payload),
 ):
     """PATCH parziale per singolo ticket (usato da Kanban e aggiornamenti veloci)."""
-    result = ticket_repository.update(db, ticket_id, data, tenant_id)
-    if not result:
+    ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
+    if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 
-    if data.stato == "Eliminato" and data.eliminazione_note:
+    # Validazione transizione a Pianificato
+    if data.stato == "Pianificato":
+        if not data.planned_start and not ticket_orm.planned_start:
+            raise HTTPException(status_code=400, detail="Pianificazione mancante: inserire data inizio.")
+
+    # Validazione eliminazione
+    if data.stato == "Eliminato":
+        if not data.eliminazione_note or len(data.eliminazione_note) < 5:
+            raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione è obbligatorio (min 5 caratteri).")
+
+    result = ticket_repository.update(db, ticket_id, data, tenant_id)
+
+    if data.stato == "Eliminato":
         username = payload.get("sub") or payload.get("username") or "sistema"
         log_to_db("WARNING", "TICKETS", f"Ticket #{ticket_id} eliminato da '{username}'. Motivo: {data.eliminazione_note}", tenant_id=tenant_id)
 
     if data.stato == "Chiuso":
-        ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
-        if ticket_orm:
-            _aggiorna_scadenza_piano(db, ticket_orm)
+        _aggiorna_scadenza_piano(db, ticket_orm)
 
     return result
 
@@ -183,18 +209,28 @@ def update_ticket(
     tenant_id: int = Depends(get_current_tenant_id),
     payload: dict = Depends(get_current_user_payload),
 ):
-    result = ticket_repository.update(db, ticket_id, data, tenant_id)
-    if not result:
+    ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
+    if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 
-    if data.stato == "Eliminato" and data.eliminazione_note:
+    # Validazione transizione a Pianificato
+    if data.stato == "Pianificato":
+        if not data.planned_start and not ticket_orm.planned_start:
+            raise HTTPException(status_code=400, detail="Pianificazione mancante: inserire data inizio.")
+
+    # Validazione eliminazione
+    if data.stato == "Eliminato":
+        if not data.eliminazione_note or len(data.eliminazione_note) < 5:
+            raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione è obbligatorio (min 5 caratteri).")
+
+    result = ticket_repository.update(db, ticket_id, data, tenant_id)
+
+    if data.stato == "Eliminato":
         username = payload.get("sub") or payload.get("username") or "sistema"
         log_to_db("WARNING", "TICKETS", f"Ticket #{ticket_id} eliminato da '{username}'. Motivo: {data.eliminazione_note}", tenant_id=tenant_id)
 
     if data.stato == "Chiuso":
-        ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
-        if ticket_orm:
-            _aggiorna_scadenza_piano(db, ticket_orm)
+        _aggiorna_scadenza_piano(db, ticket_orm)
 
     return result
 

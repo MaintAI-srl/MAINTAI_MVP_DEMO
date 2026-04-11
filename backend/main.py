@@ -148,6 +148,9 @@ def _ensure_columns() -> None:
         ("ticket", "tecnici_richiesti",                "ALTER TABLE ticket ADD COLUMN {ifne}tecnici_richiesti INTEGER DEFAULT 1"),
         # attivita_manutenzione — codice univoco per piani creati manualmente
         ("attivita_manutenzione", "codice",            "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}codice VARCHAR"),
+        ("attivita_manutenzione", "nome",              "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}nome VARCHAR"),
+        # ticket — note eliminazione
+        ("ticket", "eliminazione_note",                "ALTER TABLE ticket ADD COLUMN {ifne}eliminazione_note TEXT"),
     ]
 
     # system_logs — tabella intera
