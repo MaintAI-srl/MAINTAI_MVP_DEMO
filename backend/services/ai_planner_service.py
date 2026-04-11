@@ -380,7 +380,7 @@ async def collect_planning_context(
             "fascia_oraria": t.fascia_oraria,
             "descrizione": t.descrizione,
             "asset_id": t.asset_id,
-            "asset_nome": asset.nome if asset else None,
+            "asset_nome": anonymizer.mask_text(asset.nome) if asset else None,
             "asset_area": asset.area if asset else None,
             "asset_weather_constraint": asset.weather_constraint if asset else None,
             "asset_fermo_on_schedule": asset.fermo_on_schedule if asset else False,

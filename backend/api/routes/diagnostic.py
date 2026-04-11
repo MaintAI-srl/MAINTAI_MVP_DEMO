@@ -8,6 +8,7 @@ from backend.core.exceptions import AppError
 from backend.core.logging_config import get_logger
 from backend.db.modelli import Ticket, Asset, DiagnosticSession, AttivitaManutenzione, Manuale
 from backend.services.ai.diagnostic_service import start_diagnostic_session, continue_diagnostic_session
+from backend.core.rate_limiter import limiter
 from pydantic import BaseModel
 import json
 
@@ -18,6 +19,7 @@ class DiagnosticReply(BaseModel):
     reply: str
 
 @router.post("/tickets/{ticket_id}/diagnostic/start")
+@limiter.limit("5/minute")
 def start_session(
     ticket_id: int,
     db: Session = Depends(get_db),

@@ -1,12 +1,12 @@
 from backend.services.ai.openai_service import get_openai_client
-from backend.core.privacy import privacy_redactor
+from backend.services.ai.anonymization_service import anonymizer
 
 
 def build_generic_context(ticket: dict, asset: dict | None, symptoms: str) -> str:
-    # Redact inputs for privacy
-    ticket = privacy_redactor.redact_data(ticket)
-    asset = privacy_redactor.redact_data(asset)
-    symptoms = privacy_redactor.redact_text(symptoms)
+    # Redact inputs for privacy using the unified anonymizer
+    ticket = anonymizer.anonymize_data(ticket)
+    asset = anonymizer.anonymize_data(asset)
+    symptoms = anonymizer.mask_text(symptoms)
 
     titolo = ticket.get("titolo", "")
     asset_name = asset["name"] if asset and asset.get("name") else "Asset sconosciuto"

@@ -1,8 +1,7 @@
 """
 Modulo centralizzato per il rate limiting.
 
-Usa slowapi se disponibile; altrimenti fornisce un no-op stub
-per garantire che il codice funzioni anche senza la dipendenza installata.
+Usa slowapi. Obbligatorio per la sicurezza degli endpoint esposti.
 """
 
 try:
@@ -11,13 +10,10 @@ try:
 
     limiter = Limiter(key_func=get_remote_address)
     RATE_LIMITING_AVAILABLE = True
-except ImportError:
-    # Stub no-op: i decorator @limiter.limit(...) non fanno nulla
-    class _NoOpLimiter:
-        def limit(self, *args, **kwargs):
-            def decorator(func):
-                return func
-            return decorator
-
-    limiter = _NoOpLimiter()
-    RATE_LIMITING_AVAILABLE = False
+except ImportError as exc:
+    raise RuntimeError(
+        "\n"
+        "FATAL: dipendenza 'slowapi' mancante.\n"
+        "Il rate limiting è obbligatorio per proteggere gli endpoint (es. login) dal brute-force.\n"
+        "Installa slowapi: pip install slowapi\n"
+    ) from exc

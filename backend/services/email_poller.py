@@ -10,7 +10,10 @@ from backend.core.security import decrypt_data
 from backend.core.logger_db import db_info, db_error
 import mimetypes
 
+from backend.services.ai.anonymization_service import anonymizer
+
 logger = logging.getLogger("email_poller")
+ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx', '.csv', '.txt'}
 
 # Configurazione logger (se non già configurato a livello root)
 if not logger.handlers:
@@ -35,7 +38,10 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
             for msg in messages:
                 # 1. Parsing base
                 subject = msg.subject or "Ticket senza oggetto (da Email)"
-                sender = msg.from_
+                # Anonymize sender and subject for security (F-13.1)
+                safe_sender = anonymizer.mask_text(msg.from_)
+                safe_subject = anonymizer.mask_text(subject)
+                
                 date_str = "Sconosciuta"
                 if msg.date:
                     date_str = msg.date.strftime('%Y-%m-%d %H:%M:%S')
@@ -43,15 +49,18 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
                 # Preferiamo il plain text, altrimenti fallback ad HTML
                 body = msg.text or msg.html or "Nessun corpo del messaggio fornito."
                 
+                # Anonymize body before saving (GDPR F-13)
+                safe_body = anonymizer.mask_text(body)
+                
                 descrizione = (
                     "--- Ticket generato automaticamente da Email ---\n\n"
-                    f"Da: {sender}\n"
+                    f"Da: {safe_sender}\n"
                     f"Data: {date_str}\n\n"
-                    f"{body}"
+                    f"{safe_body}"
                 )
 
                 # 2. Creazione Record Ticket
-                titolo = (subject[:97] + "...") if len(subject) > 100 else subject
+                titolo = (safe_subject[:97] + "...") if len(safe_subject) > 100 else safe_subject
                 
                 new_ticket = Ticket(
                     titolo=titolo,
@@ -70,6 +79,12 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
 
                 # 3. Gestione Allegati (immagini, pdf...)
                 for att in msg.attachments:
+                    # Whitelist check (F-09)
+                    _, ext = os.path.splitext(att.filename.lower())
+                    if ext not in ALLOWED_EXTENSIONS:
+                        logger.warning(f"Allegato ignorato (estensione non permessa): {att.filename}")
+                        continue
+
                     # Sanitize filename
                     safe_filename = "".join([c for c in att.filename if c.isalpha() or c.isdigit() or c in ' .-_']).rstrip()
                     if not safe_filename:

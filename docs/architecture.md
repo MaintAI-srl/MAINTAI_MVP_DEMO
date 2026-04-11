@@ -418,6 +418,9 @@ Non fare mai queste cose:
 - usare apiPost con FormData — apiPost imposta application/json, rompendo il multipart; usare apiUpload
 - omettere nuovi endpoint AI/OCR da SLOW_ENDPOINTS — causa timeout prematuri su file pesanti
 - omettere `Depends(get_current_tenant_id)` su qualsiasi endpoint che accede a dati di dominio
+- **Multi-Tenant Guard**: Global ORM filters cover SELECTs. For UPDATE/DELETE, developers MUST use the `SELECT-then-MODIFY` pattern to ensure the global filter validates ownership before any write.
+- **CSRF Fail-Closed**: MUTATING requests without both Origin and Referer are blocked by default to prevent bypass.
+- **Privacy Edge**: All external ingestion points must use the unified `AnonymizationService`.
 - creare record ORM senza `tenant_id=tenant_id` quando il modello ha la colonna
 - usare raw SQL con variabili non sanitizzate (SQL injection)
 - fare query `.all()` senza `.limit(N)` su tabelle di produzione

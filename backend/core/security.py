@@ -7,6 +7,7 @@ from fastapi import HTTPException, Request, status, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session, joinedload
+from backend.core.dependencies import get_db
 
 _logger = logging.getLogger(__name__)
 
@@ -132,12 +133,14 @@ def decrypt_data(encrypted_text: str) -> str:
 
 # ── JWT ──────────────────────────────────────────────────────────────────────
 
+import uuid
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta if expires_delta else timedelta(minutes=15)
     )
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -152,12 +155,6 @@ def decode_access_token(token: str) -> dict:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido"
         )
-
-
-def _db_for_security():
-    """Generatore DB per use interno a security.py (import lazy per evitare circolari)."""
-    from backend.core.dependencies import get_db
-    yield from get_db()
 
 
 def _check_user_active(payload: dict, db: Session) -> None:
@@ -182,11 +179,30 @@ def _check_user_active(payload: dict, db: Session) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account sospeso. Contattare l'amministratore.",
         )
+    
+    # Verifica Blacklist JWT specifica (Logout isolato)
+    jti = payload.get("jti")
+    if jti:
+        from backend.db.modelli import RevokedToken
+        revoked = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+        if revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sessione terminata. Effettua nuovamente l'accesso."
+            )
+
+    # Token Version Check (Invalidates old tokens instantly across all sessions on password change)
+    token_tv = payload.get("tv")
+    if token_tv is not None and user.token_version > token_tv:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La sessione è scaduta o la password è stata modificata. Effettua nuovamente l'accesso."
+        )
 
 
 def get_current_user_payload(
     token: str = Depends(_extract_token),
-    db: Session = Depends(_db_for_security),
+    db: Session = Depends(get_db),
 ) -> dict:
     payload = decode_access_token(token)
     _check_user_active(payload, db)
@@ -206,18 +222,27 @@ def get_current_tenant_id(
     ruolo = payload.get("ruolo")
 
     if ruolo == "superadmin":
+        resolved_tid = None
         if x_tenant_id:
             try:
-                return int(x_tenant_id)
+                resolved_tid = int(x_tenant_id)
             except ValueError:
                 pass
-        return int(tid) if tid else None
+        else:
+            resolved_tid = int(tid) if tid else None
+        
+        from backend.core.database import current_tenant_id
+        current_tenant_id.set(resolved_tid)
+        return resolved_tid
 
     if tid is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tenant non configurato per questo utente. Contattare l'amministratore.",
         )
+    
+    from backend.core.database import current_tenant_id
+    current_tenant_id.set(int(tid))
     return int(tid)
 
 

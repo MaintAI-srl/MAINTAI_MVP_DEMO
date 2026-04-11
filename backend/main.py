@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.core.rate_limiter import limiter as _limiter, RATE_LIMITING_AVAILABLE as _RATE_LIMITING_AVAILABLE
+from backend.core.rate_limiter import limiter as _limiter
 
 try:
     from backend.api.routes.assets import router as assets_router
@@ -45,6 +45,7 @@ try:
     from backend.core.init_db import init_db
     from backend.core.logging_config import setup_logging
     from backend.services.email_poller import check_all_mailboxes
+    from backend.services.retention_service import run_retention_job
 except ImportError as e:
     print(f"❌ CRITICAL IMPORT ERROR: {e}")
     import traceback
@@ -277,8 +278,9 @@ async def lifespan(app: FastAPI):
         traceback.print_exc()
         raise e
 
-    # Avvio email poller in background
+    # Avvio tasks in background
     poller_task = asyncio.create_task(email_poller_task())
+    retention_task = asyncio.create_task(run_retention_job())
     print("✅ background tasks started")
     
     yield
@@ -286,27 +288,66 @@ async def lifespan(app: FastAPI):
     # Pulizia
     print("🛑 APP LIFESPAN ENDING...")
     poller_task.cancel()
+    retention_task.cancel()
 
 app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 
-# Rate limiting — attivo solo se slowapi è installato
-if _RATE_LIMITING_AVAILABLE:
-    from slowapi.errors import RateLimitExceeded
-    from slowapi import _rate_limit_exceeded_handler
-    app.state.limiter = _limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Rate limiting — obbligatorio
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+app.state.limiter = _limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _origins = _load_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Tenant-Id", "X-Requested-With", "Accept", "Origin"],
 )
+
+from fastapi.responses import JSONResponse
+@app.middleware("http")
+async def csrf_origin_check(request: Request, call_next):
+    """
+    Anti-CSRF Middleware (Fix per SameSite=None):
+    Verifica che l'Origin (o il Referer) delle richieste State-Changing coincida con la whitelist.
+    Adotta un approccio Fail-Closed: se mancano gli header, blocca la richiesta mutante.
+    """
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        
+        # 1. Verifica Origin (header primario per browser moderni)
+        if origin:
+            if origin not in _origins:
+                return JSONResponse(
+                    status_code=403, 
+                    content={"detail": "Richiesta bloccata: Origin mismatch (Possibile CSRF)."}
+                )
+        # 2. Fallback su Referer (per browser o casi edge in cui Origin manca)
+        elif referer:
+            # Estrae l'origine dal referer (es. http://localhost:3000/path -> http://localhost:3000)
+            from urllib.parse import urlparse
+            ref_origin = f"{urlparse(referer).scheme}://{urlparse(referer).netloc}"
+            if ref_origin not in _origins:
+                return JSONResponse(
+                    status_code=403, 
+                    content={"detail": "Richiesta bloccata: Referer mismatch (Possibile CSRF)."}
+                )
+        # 3. Fail-Closed: Se mancano entrambi, blocca (previene bypass tramite omissione header)
+        else:
+            return JSONResponse(
+                status_code=403, 
+                content={"detail": "Richiesta bloccata: Origin/Referer mancanti (Obbligatori per azioni mutanti)."}
+            )
+            
+    return await call_next(request)
+
 
 # ── Routers legacy (senza prefisso) — mantenuti per retrocompatibilità frontend ──
 app.include_router(health_router)

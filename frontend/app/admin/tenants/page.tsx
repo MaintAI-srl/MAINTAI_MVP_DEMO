@@ -419,15 +419,20 @@ export default function TenantsPage() {
               autoFocus
               value={resetPwdVal}
               onChange={e => setResetPwdVal(e.target.value)}
-              placeholder="Nuova password (min 4 caratteri)"
-              style={{ ...inp, marginBottom: "20px" }}
+              placeholder="Min 8 char (Maiusc, minusc, num, sim)"
+              style={{ ...inp, marginBottom: "8px" }}
               onKeyDown={e => { if (e.key === "Enter") handleResetPwd(); if (e.key === "Escape") setResetPwd(null); }}
             />
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "20px", display: "flex",flexDirection: "column", gap:"2px" }}>
+              <div>• Almeno 8 caratteri</div>
+              <div>• Lettere maiuscole e minuscole</div>
+              <div>• Almeno un numero e un simbolo (@$!%*?&#^_-)</div>
+            </div>
             <div style={{ display: "flex", gap: "10px" }}>
               <button style={{ ...btnSm, flex: 1, padding: "10px" }} onClick={() => setResetPwd(null)}>Annulla</button>
               <button
                 style={{ flex: 2, padding: "10px", background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
-                disabled={resetPwdSaving || resetPwdVal.length < 4}
+                disabled={resetPwdSaving || resetPwdVal.length < 8}
                 onClick={handleResetPwd}
               >
                 {resetPwdSaving ? "Salvo..." : "Conferma Reset"}

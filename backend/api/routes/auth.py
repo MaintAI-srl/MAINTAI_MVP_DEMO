@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -11,6 +12,9 @@ from backend.core.security import (
     COOKIE_NAME, COOKIE_MAX_AGE, COOKIE_SECURE, COOKIE_SAMESITE,
 )
 from backend.core.rate_limiter import limiter
+
+# Regex: Min 8, 1 uppercase, 1 lowercase, 1 number, 1 special
+STRONG_PWD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-])[A-Za-z\d@$!%*?&#^_-]{8,}$")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -48,6 +52,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
             "ruolo": user.ruolo,
             "userid": user.id,
             "tenant_id": user.tenant_id,
+            "tv": user.token_version,
         },
         expires_delta=access_token_expires,
     )
@@ -64,7 +69,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
     )
 
     return {
-        "access_token": access_token,   # mantenuto per compatibilità API client / Swagger
+        "message": "Autenticazione completata. Credenziali emesse nel cookie.",
         "token_type": "bearer",
         "ruolo": user.ruolo,
         "username": user.username,
@@ -95,15 +100,28 @@ def get_me(payload: dict = Depends(get_current_user_payload), db: Session = Depe
 
 
 @router.post("/logout")
-def logout(response: Response):
-    """Cancella il cookie JWT (logout)."""
+def logout(
+    response: Response,
+    payload: dict = Depends(get_current_user_payload),
+    db: Session = Depends(get_db)
+):
+    """Cancella il cookie JWT e invalida la sessione sul DB (JTI blacklist)."""
+    jti = payload.get("jti")
+    if jti:
+        from backend.db.modelli import RevokedToken
+        # Aggiunge in blacklist
+        existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+        if not existing:
+            db.add(RevokedToken(jti=jti))
+            db.commit()
+
     response.delete_cookie(
         key=COOKIE_NAME,
         path="/",
         secure=COOKIE_SECURE,
         samesite=COOKIE_SAMESITE,
     )
-    return {"message": "Logout effettuato"}
+    return {"message": "Logout effettuato e sessione invalidata."}
 
 
 class PasswordChange(BaseModel):
@@ -124,9 +142,10 @@ def change_password(
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Password attuale errata")
 
-    if len(data.new_password) < 8:
-        raise HTTPException(status_code=422, detail="La nuova password deve essere di almeno 8 caratteri")
+    if not STRONG_PWD_REGEX.match(data.new_password):
+        raise HTTPException(status_code=422, detail="La password deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali.")
 
     user.password_hash = get_password_hash(data.new_password)
+    user.token_version += 1
     db.commit()
-    return {"message": "Password aggiornata con successo"}
+    return {"message": "Password aggiornata con successo. Effettuare nuovamente il login."}

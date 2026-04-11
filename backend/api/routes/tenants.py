@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -9,13 +10,16 @@ from backend.schemas.tenant import TenantCreate, TenantUpdate, TenantResponse
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
+# Regex: Min 8, 1 uppercase, 1 lowercase, 1 number, 1 special
+STRONG_PWD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-])[A-Za-z\d@$!%*?&#^_-]{8,}$")
+
 
 def _to_response(tenant: Tenant, db: Session) -> dict:
     n_utenti = db.query(Utente).filter(Utente.tenant_id == tenant.id).count()
     n_siti = db.query(Sito).filter(Sito.tenant_id == tenant.id).count()
     n_asset = db.query(Asset).filter(Asset.tenant_id == tenant.id).count()
     n_tecnici = db.query(Tecnico).filter(Tecnico.tenant_id == tenant.id).count()
-    n_ticket = db.query(Ticket).filter(Ticket.tenant_id == tenant.id).count()
+    n_ticket = db.query(Ticket).filter(Ticket.tenant_id == tenant.id, Ticket.deleted_at.is_(None)).count()
 
     # Primo utente responsabile come admin
     admin_user = db.query(Utente).filter(
@@ -116,8 +120,8 @@ def add_utente_to_tenant(
 
     if not username or not password:
         raise HTTPException(status_code=422, detail="username e password obbligatori")
-    if len(password) < 8:
-        raise HTTPException(status_code=422, detail="La password deve essere di almeno 8 caratteri")
+    if not STRONG_PWD_REGEX.match(password):
+        raise HTTPException(status_code=422, detail="La password deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali.")
     if ruolo not in ("responsabile", "tecnico"):
         raise HTTPException(status_code=422, detail="ruolo deve essere 'responsabile' o 'tecnico'")
 
@@ -158,8 +162,9 @@ def reset_user_password(
     if not user:
         raise HTTPException(status_code=404, detail="Utente non trovato")
     new_password = data.get("new_password", "").strip()
-    if len(new_password) < 8:
-        raise HTTPException(status_code=422, detail="La password deve essere di almeno 8 caratteri")
+    if not STRONG_PWD_REGEX.match(new_password):
+        raise HTTPException(status_code=422, detail="La password deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali.")
     user.password_hash = get_password_hash(new_password)
+    user.token_version += 1  # Invalida i JWT vecchi
     db.commit()
     return {"ok": True, "message": f"Password di '{user.username}' aggiornata"}

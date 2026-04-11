@@ -5,14 +5,16 @@ from backend.core.database import engine, Base
 from backend.db.modelli import (  # noqa: F401
     Tenant, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
-    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan
+    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan, RevokedToken
 )
 
 
 def _apply_migrations():
     """Aggiunge colonne e tabelle mancanti (idempotente)."""
     # --- Migrazioni obsolete gestite da Alembic ---
-    migrations = []
+    migrations = [
+        "ALTER TABLE utenti ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1"
+    ]
     for stmt in migrations:
         try:
             with engine.begin() as conn:
@@ -69,8 +71,20 @@ def init_db():
     _seed_tenant_and_migrate_data()
 
     # Seed default users
+    import os
+    import secrets
     from backend.core.database import SessionLocal
     from backend.core.security import get_password_hash
+    
+    # Se le env var mancano in prod, falliamo sicuro per l'admin (password randomata irraggiungibile se non letta da log)
+    # Ma per non rompere il flusso dev se mancano, mettiamo un default debole, o un random forte.
+    # Abbiamo il fail-fast, quindi usiamo un default "admin" in locale, ma diamo un print di WARNING.
+    seed_admin_pwd = os.getenv("SEED_ADMIN_PASSWORD", "admin")
+    if seed_admin_pwd == "admin" and os.getenv("DATABASE_URL", "").startswith("postgre"):
+        print("WARNING: Using default 'admin' seed password. Set SEED_ADMIN_PASSWORD in production!")
+    
+    seed_tecnico_pwd = os.getenv("SEED_TECNICO_PASSWORD", "tecnico")
+
     with SessionLocal() as db:
         # Recupera tenant Demo
         tenant_row = db.execute(text("SELECT id FROM tenants WHERE slug='demo'")).fetchone()
@@ -80,12 +94,12 @@ def init_db():
         if not admin:
             db.add(Utente(
                 username="admin",
-                password_hash=get_password_hash("admin"),
+                password_hash=get_password_hash(seed_admin_pwd),
                 ruolo="superadmin",
                 tenant_id=tenant_id,
             ))
         else:
-            # Forza ruolo superadmin, ma NON resettare la password
+            # Forza ruolo superadmin, ma NON resettare la password (sovrascriverebbe i cambi utente)
             admin.ruolo = "superadmin"
             if not admin.tenant_id:
                 admin.tenant_id = tenant_id
@@ -95,7 +109,7 @@ def init_db():
         if not tecnico_user:
             tecnico_user = Utente(
                 username="tecnico",
-                password_hash=get_password_hash("tecnico"),
+                password_hash=get_password_hash(seed_tecnico_pwd),
                 ruolo="tecnico",
                 tenant_id=tenant_id,
             )

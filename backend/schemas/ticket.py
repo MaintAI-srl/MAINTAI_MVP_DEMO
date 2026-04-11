@@ -41,7 +41,7 @@ class TicketUpdate(BaseModel):
 class TicketResponse(BaseModel):
     id: int
     titolo: str
-    asset_id: int
+    asset_id: Optional[int] = None
     asset_name: str | None = None
     priorita: str
     tipo: str = "CM"

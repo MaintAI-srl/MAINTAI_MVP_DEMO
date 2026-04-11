@@ -197,8 +197,10 @@ Per ogni modifica devi assumere che il sistema debba continuare a funzionare in 
 - non hardcodare percorsi locali
 - non assumere un solo cliente globale
 - non ignorare filtri tenant
-- non creare dipendenze che funzionano solo in ambiente di sviluppo
-- non introdurre query o viste che mescolano dati di tenant diversi
+- non creare dipendenze che funzionano
+- **FAIL-CLOSED SECURITY**: I middleware di sicurezza (CSRF, Auth) devono sempre negare l'accesso se mancano gli header critici (es. Origin/Referer su POST).
+- **EDGE MASKING**: Ogni dato in ingresso da fonti non controllate (Email, Webhook) deve essere anonimizzato IMMEDIATAMENTE prima della persistenza.
+- **JTI REVOCATION**: Il logout non deve solo cancellare il cookie lato client, ma invalidare il `jti` sul DB.
 
 Se una modifica funziona bene solo in locale o in single-tenant, non è accettabile.
 
@@ -474,3 +476,301 @@ Estendi con disciplina.
 Mantieni il planner reale.
 Mantieni il sistema coerente.
 Preserva la verità del prodotto.
+
+## REGOLA DI APPRENDIMENTO PROGETTUALE
+
+Ogni vulnerabilità, bug o regressione trovata deve lasciare una traccia permanente sotto forma di:
+- test
+- checklist
+- guardrail
+- proposta di aggiornamento delle direttive
+
+Correggere senza imparare è manutenzione debole.
+
+## REGOLE DI SICUREZZA, AUTOCONTROLLO E APPRENDIMENTO CONTROLLATO
+
+La sicurezza, la privacy, l’isolamento tenant e la stabilità non sono attività opzionali o finali.
+Sono vincoli permanenti da verificare ad ogni modifica.
+
+### Regola assoluta
+Ogni nuova feature, fix, refactor o estensione deve essere trattata anche come potenziale modifica di:
+
+- superficie di attacco
+- isolamento multi-tenant
+- flussi di dati personali
+- stabilità operativa
+- integrità dei dati
+- compatibilità frontend/backend
+- comportamento reale del planner
+- rischio regressione
+
+Una modifica non è completata solo perché “funziona”.
+È completata solo se è anche:
+- sicura
+- coerente
+- testabile
+- tenant-safe
+- privacy-aware
+- resistente a regressioni evidenti
+
+---
+
+## SECURITY GATE OBBLIGATORIO PER OGNI TASK
+
+Prima di considerare concluso qualsiasi task, devi eseguire un autocontrollo obbligatorio.
+
+### Devi verificare sempre:
+
+1. **Auth**
+   - l’endpoint o la funzione richiede autenticazione corretta?
+   - i ruoli sono verificati correttamente?
+   - ci sono bypass impliciti?
+
+2. **Tenant isolation**
+   - ogni query filtra davvero per `tenant_id`?
+   - ogni nuovo record salva `tenant_id`?
+   - esistono percorsi cross-tenant indiretti?
+   - esistono file, log, cache, export o allegati che bypassano l’isolamento tenant?
+
+3. **Privacy / GDPR**
+   - vengono trattati dati personali?
+   - i dati sono minimizzati?
+   - i log evitano PII non necessarie?
+   - l’AI riceve dati personali grezzi?
+   - esistono flussi di export, retention, cancellazione o anonimizzazione da aggiornare?
+
+4. **Input / Output security**
+   - gli input sono validati lato backend?
+   - i file upload sono validati per tipo, dimensione e contenuto?
+   - l’output espone campi non necessari?
+   - esiste rischio XSS, injection, path traversal, IDOR, mass assignment?
+
+5. **Stabilità**
+   - la modifica può creare stati inconsistenti?
+   - la transazione è atomica dove serve?
+   - ci sono salvataggi parziali?
+   - il frontend e il backend restano coerenti?
+   - ci sono rischi di race condition o sync rotto tra UI e DB?
+
+6. **Planner safety**
+   - la modifica tocca anche indirettamente planner, ticket o pianificazione?
+   - altera `planned_start`, `planned_finish`, durata, split, reason code o chain-shift?
+   - può sbloccare ticket che devono restare locked?
+   - può far ripianificare ticket manuali o già assegnati?
+
+7. **Cloud safety**
+   - stai introducendo dipendenze da file system locale?
+   - stai creando percorsi non validi in ambiente cloud?
+   - stai assumendo single-instance, single-tenant o single-user?
+
+---
+
+## DELTA SECURITY REVIEW OBBLIGATORIA
+
+Per ogni task devi fare una verifica del delta introdotto.
+
+### Devi rispondere internamente a queste domande:
+- quali file sono stati modificati?
+- quali endpoint sono stati toccati?
+- quali modelli dati sono stati toccati?
+- quali flussi di dati personali sono stati toccati?
+- quali rischi nuovi sono stati introdotti?
+- quali protezioni esistenti potrebbero essere state indebolite?
+- il frontend espone davvero la funzione in modo sicuro e coerente?
+- la modifica rompe qualche guardrail esistente?
+
+### Regola
+Se una modifica tocca auth, tenant, planner, import/export, AI, file upload, log, notifiche, piani di manutenzione, ticket o manuali, la review di sicurezza e stabilità è obbligatoria anche se il task non era “di sicurezza”.
+
+---
+
+## OUTPUT OBBLIGATORIO DI AUTOCONTROLLO
+
+Alla fine di ogni task significativo devi restituire anche un mini-report tecnico con queste sezioni:
+
+1. **File toccati**
+2. **Rischi verificati**
+3. **Controlli tenant verificati**
+4. **Controlli privacy verificati**
+5. **Controlli regressione verificati**
+6. **Backend aggiornato**
+7. **Frontend aggiornato**
+8. **Migrazioni / DB coinvolto**
+9. **Test manuali da eseguire**
+10. **Rischi residui noti**
+
+### Regola
+Non dichiarare “task completato” senza questo autocontrollo.
+
+---
+
+## APPRENDIMENTO CONTROLLATO OBBLIGATORIO
+
+MaintAI deve migliorare nel tempo anche nella propria disciplina tecnica.
+
+### Regola fondamentale
+Ogni volta che trovi:
+- un bug reale
+- una regressione
+- una vulnerabilità
+- una incoerenza tenant
+- una perdita di privacy
+- una discrepanza frontend/backend
+- una regola planner fragile
+- un workaround pericoloso
+
+devi estrarre da quel caso una **lezione tecnica riusabile**.
+
+### Questa lezione deve diventare una di queste cose:
+- nuova regola esplicita
+- nuova checklist
+- nuovo caso di test
+- nuovo vincolo architetturale
+- nuova guardrail anti-regressione
+
+### Obiettivo
+Non correggere solo il singolo bug.
+Devi ridurre la probabilità che quel tipo di errore si ripresenti in futuro.
+
+---
+
+## REGOLE SULL’AUTO-LEARN
+
+L’auto-miglioramento è consentito solo in forma controllata.
+
+### Consentito
+- proporre nuove regole
+- proporre nuove checklist
+- proporre nuovi test
+- proporre nuove guardrail
+- proporre aggiornamenti a `DIRECTIVE.md`, `ARCHITECTURE_RULES.md`, `PLANNING_GUARDRAILS.md`
+- proporre nuovi test di regressione automatici o manuali
+
+### Non consentito
+- modificare silenziosamente il directive
+- cambiare da sola le regole del progetto senza approvazione
+- introdurre nuova complessità “preventiva” non richiesta senza motivazione chiara
+- fare refactor estesi giustificandoli con “auto-improvement”
+- creare sistemi che si auto-modificano o si auto-riconfigurano in produzione
+
+### Regola
+L’apprendimento deve essere:
+- esplicito
+- motivato
+- tracciabile
+- approvabile
+- reversibile
+
+---
+
+## SECURITY BY DEFAULT
+
+Ogni nuova funzione deve partire dalla soluzione più sicura compatibile con il prodotto reale.
+
+### Questo significa:
+- deny by default
+- filtro tenant by default
+- validazione lato backend by default
+- rate limiting sugli endpoint sensibili
+- minimizzazione dati nei log
+- niente fallback insicuri
+- niente secret hardcoded
+- niente funzioni distruttive senza protezioni forti
+- niente feature AI che ricevano dati personali grezzi senza verifica
+- niente frontend che “simula” sicurezza che il backend non applica davvero
+
+---
+
+## PRIVACY BY DEFAULT
+
+Se una feature tratta dati personali, devi assumere che il default corretto sia il minimo trattamento necessario.
+
+### Devi verificare:
+- il dato serve davvero?
+- può essere mascherato o pseudonimizzato?
+- finisce nei log?
+- finisce nei prompt AI?
+- finisce negli export?
+- finisce nei file?
+- ha una retention definita?
+- può essere cancellato o anonimizzato quando richiesto?
+
+### Regola
+Non aggiungere raccolta o esposizione di dati personali senza necessità reale di dominio.
+
+---
+
+## REGOLE SPECIFICHE PER AI
+
+Ogni funzione AI deve essere trattata come punto critico di sicurezza e privacy.
+
+### Obblighi
+- verificare quali dati vengono inviati al modello
+- minimizzare il payload
+- anonimizzare o pseudonimizzare quando possibile
+- non inviare segreti, token, email, nomi reali o dati non necessari
+- documentare workaround e limiti
+- evitare che l’AI tocchi ticket manuali, locked o vincolati se non esplicitamente previsto
+- applicare rate limiting agli endpoint AI
+- rendere il comportamento spiegabile e auditabile
+
+### Regola
+L’AI non è un’eccezione alle regole del prodotto.
+Deve rispettare gli stessi vincoli di tenant, privacy, stabilità e spiegabilità.
+
+---
+
+## REGOLE SPECIFICHE PER NUOVE FEATURE
+
+Ogni nuova feature deve includere, se applicabile:
+
+- aggiornamento backend
+- aggiornamento frontend
+- aggiornamento validazioni
+- aggiornamento controlli tenant
+- aggiornamento logica privacy
+- aggiornamento test
+- aggiornamento guardrail se il bug corretto rivela una nuova classe di errore
+
+### Regola
+Non chiudere una feature lasciandola:
+- solo backend
+- solo frontend
+- solo “visibile”
+- solo “tecnicamente pronta”
+- solo “quasi sicura”
+
+Deve essere utilizzabile, coerente e verificata.
+
+---
+
+## REGOLE DI REGRESSIONE CONTINUA
+
+Ogni correzione importante deve produrre almeno uno tra questi risultati:
+
+- un test automatico nuovo
+- un test manuale documentato
+- una regola nuova in checklist
+- una guardrail nuova per planner / tenant / privacy / cloud / API
+
+### Obiettivo
+Ogni bug serio corretto deve rafforzare MaintAI in modo permanente.
+
+---
+
+## REGOLA FINALE DI SICUREZZA
+
+Quando completi una modifica, non chiederti solo:
+- “funziona?”
+
+Devi chiederti anche:
+- “è sicura?”
+- “è tenant-safe?”
+- “è privacy-safe?”
+- “è cloud-safe?”
+- “è stabile?”
+- “è spiegabile?”
+- “è coerente con il prodotto reale?”
+- “riduce o aumenta la probabilità di regressioni future?”
+
+Se una di queste risposte è debole o incerta, il lavoro non è completo.

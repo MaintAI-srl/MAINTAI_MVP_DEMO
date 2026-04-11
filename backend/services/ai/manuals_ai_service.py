@@ -2,13 +2,13 @@
 from sqlalchemy.orm import Session
 from backend.db.modelli import Manuale
 from backend.services.ai.openai_service import get_openai_client
-from backend.core.privacy import privacy_redactor
+from backend.services.ai.anonymization_service import anonymizer
 
 def extract_maintenance_tasks(text: str) -> str:
     ai_client = get_openai_client()
     
     # Redact text for privacy
-    text = privacy_redactor.redact_text(text)
+    text = anonymizer.mask_text(text)
 
     prompt = f"""
 Sei un assistente esperto di manutenzione industriale.

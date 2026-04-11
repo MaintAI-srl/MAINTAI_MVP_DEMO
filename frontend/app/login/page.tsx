@@ -140,9 +140,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: "24px", textAlign: "center", fontSize: "11px", color: "var(--text-muted)" }}>
-          Credenziali di test: admin/admin oppure tecnico/tecnico
-        </div>
+        {process.env.NODE_ENV === "development" && (
+          <div style={{ marginTop: "24px", textAlign: "center", fontSize: "11px", color: "var(--text-muted)" }}>
+            Credenziali di test: admin/admin oppure tecnico/tecnico
+          </div>
+        )}
       </div>
     </div>
   );

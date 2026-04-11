@@ -33,8 +33,17 @@ class Utente(Base):
     ruolo = Column(String, default="tecnico")  # "superadmin" | "responsabile" | "tecnico"
     is_active = Column(Boolean, default=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    token_version = Column(Integer, default=1, nullable=False)
 
     tenant = relationship("Tenant", back_populates="utenti")
+
+class RevokedToken(Base):
+    """Tabella per tenere traccia dei jti revocati a seguito del logout."""
+    __tablename__ = "revoked_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class Sito(Base):

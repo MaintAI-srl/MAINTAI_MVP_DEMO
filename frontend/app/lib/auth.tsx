@@ -64,31 +64,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Tenta di ripristinare la sessione verificando il cookie con il backend
     const meta = loadUserMeta();
-    if (meta) {
-      // Verifica che il cookie HttpOnly sia ancora valido
-      apiGet<{ username: string; ruolo: string; tenant_id?: number; tenant_nome?: string }>("/auth/me")
-        .then(data => {
-          const restored: User = {
-            username: data.username,
-            ruolo: data.ruolo,
-            userid: meta.userid,
-            tenant_id: data.tenant_id ?? meta.tenant_id,
-            tenant_nome: data.tenant_nome ?? meta.tenant_nome,
-          };
-          setUser(restored);
-          saveUserMeta(restored);
-        })
-        .catch(() => {
-          // Cookie scaduto o assente — pulisce i metadati
-          clearUserMeta();
-          setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Anche se meta è nullo, proviamo a chiamare /auth/me 
+    // perché il cookie HttpOnly potrebbe essere ancora presente e valido.
+    apiGet<{ username: string; ruolo: string; userid?: number; tenant_id?: number; tenant_nome?: string }>("/auth/me")
+      .then(data => {
+        const restored: User = {
+          username: data.username,
+          ruolo: data.ruolo,
+          userid: data.userid ?? meta?.userid,
+          tenant_id: data.tenant_id ?? meta?.tenant_id,
+          tenant_nome: data.tenant_nome ?? meta?.tenant_nome,
+        };
+        setUser(restored);
+        saveUserMeta(restored);
+      })
+      .catch(() => {
+        // Cookie scaduto o assente — pulisce i metadati per sicurezza
+        clearUserMeta();
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback((username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string) => {

@@ -37,5 +37,32 @@ if not DATABASE_URL.startswith("sqlite"):
 engine = create_engine(DATABASE_URL, connect_args=connect_args, **_pool_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+import contextvars
+from sqlalchemy import event, and_
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
 class Base(DeclarativeBase):
     pass
+
+# ContextVar per conservare l'id del tenant valido nella request corrente.
+# Nessun valore di default, ignorato se None o non settato.
+current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
+
+from sqlalchemy.orm import with_loader_criteria
+
+@event.listens_for(SessionLocal, "do_orm_execute")
+def _tenant_filter_do_orm_execute(execute_state):
+    tenant_id = current_tenant_id.get()
+    # Se il tenant_id è esplicito nel contesto (es. utente non superadmin)
+    if tenant_id is not None:
+        # Se è una select (anche join o subquery), inject del filtro automatico
+        if execute_state.is_select and not execute_state.is_column_stat:
+            execute_state.statement = execute_state.statement.options(
+                with_loader_criteria(
+                    Base,
+                    lambda cls: cls.tenant_id == tenant_id if hasattr(cls, "tenant_id") else cls.id == cls.id,
+                    include_aliases=True,
+                    propagate_to_loaders=True
+                )
+            )
+

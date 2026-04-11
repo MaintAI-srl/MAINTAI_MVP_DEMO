@@ -1,0 +1,71 @@
+import os
+import shutil
+import logging
+from datetime import datetime, timedelta, timezone
+from sqlalchemy.orm import Session
+from backend.core.database import SessionLocal
+from backend.db.modelli import Ticket, TicketAllegato
+
+logger = logging.getLogger("retention_service")
+
+# Directory radice per i file (coerente con email_poller.py)
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "public", "uploads")
+
+def cleanup_old_deleted_tickets(db: Session, max_age_days: int = 30):
+    """
+    Elimina permanentemente i ticket e i relativi file che sono stati soft-deleted 
+    da più di max_age_days.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    
+    # Trova ticket degradati (soft-deleted prima del cutoff)
+    tickets_to_delete = db.query(Ticket).filter(
+        Ticket.deleted_at.is_not(None),
+        Ticket.deleted_at < cutoff
+    ).all()
+    
+    deleted_count = 0
+    files_deleted_count = 0
+    
+    for t in tickets_to_delete:
+        # 1. Trova e rimuovi allegati fisici
+        allegati = db.query(TicketAllegato).filter(TicketAllegato.ticket_id == t.id).all()
+        for alg in allegati:
+            if alg.percorso and alg.percorso.startswith("/uploads/"):
+                filename = alg.percorso.replace("/uploads/", "")
+                file_path = os.path.join(UPLOAD_DIR, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        files_deleted_count += 1
+                    except Exception as e:
+                        logger.error(f"Impossibile rimuovere file {file_path}: {e}")
+        
+        # 2. Elimina i record (la cascata orm gestirà i record TicketAllegato se configurata, 
+        # altrimenti li eliminiamo esplicitamente)
+        db.query(TicketAllegato).filter(TicketAllegato.ticket_id == t.id).delete()
+        db.delete(t)
+        deleted_count += 1
+        
+    if deleted_count > 0:
+        db.commit()
+        logger.info(f"Retention Cleanup: eliminati {deleted_count} ticket e {files_deleted_count} file (oltre {max_age_days} giorni).")
+    
+    return deleted_count
+
+async def run_retention_job():
+    """Loop di background per la pulizia giornaliera."""
+    import asyncio
+    # Esegui ogni 24 ore
+    INTERVAL = 86400 
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                cleanup_old_deleted_tickets(db)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Errore nel retention job: {e}")
+            
+        await asyncio.sleep(INTERVAL)

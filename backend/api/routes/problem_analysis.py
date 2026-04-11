@@ -8,10 +8,13 @@ from backend.db.modelli import Ticket, Asset
 from backend.schemas import ProblemAnalysisRequest
 from backend.services.ai.problem_analysis_service import analyze_problem_with_ai
 
+from backend.core.rate_limiter import limiter
+
 router = APIRouter()
 logger = get_logger(__name__)
 
 @router.post("/tickets/{ticket_id}/problem-analysis")
+@limiter.limit("5/minute")
 def analyze_ticket_problem(
     ticket_id: int,
     payload: ProblemAnalysisRequest,

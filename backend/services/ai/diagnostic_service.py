@@ -1,6 +1,6 @@
 from backend.services.ai.openai_service import get_openai_client
 from backend.core.logging_config import get_logger
-from backend.core.privacy import privacy_redactor
+from backend.services.ai.anonymization_service import anonymizer
 import json
 
 logger = get_logger(__name__)
@@ -36,10 +36,10 @@ def start_diagnostic_session(ticket: dict, asset: dict | None, historical_ticket
     if ticket.get("tecnico"): sensitive_words.append(ticket["tecnico"])
     
     # Redact input data for privacy
-    ticket = privacy_redactor.redact_data(ticket, sensitive_words)
-    asset = privacy_redactor.redact_data(asset, sensitive_words)
+    ticket = anonymizer.anonymize_data(ticket, sensitive_words)
+    asset = anonymizer.anonymize_data(asset, sensitive_words)
     if historical_tickets:
-        historical_tickets = privacy_redactor.redact_data(historical_tickets, sensitive_words)
+        historical_tickets = anonymizer.anonymize_data(historical_tickets, sensitive_words)
 
     context = f"""
 Ticket: {ticket.get('titolo')}
@@ -77,7 +77,7 @@ def continue_diagnostic_session(history: list, technician_reply: str) -> dict:
     client = get_openai_client()
     
     # Redact technician reply for privacy
-    technician_reply = privacy_redactor.redact_text(technician_reply)
+    technician_reply = anonymizer.mask_text(technician_reply)
     
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},

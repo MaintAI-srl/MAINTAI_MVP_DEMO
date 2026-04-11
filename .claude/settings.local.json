@@ -90,7 +90,9 @@
       "Bash(git pull:*)",
       "Bash(find . -name modelli.py -o -name GeneratedPlan*)",
       "Read(//mnt/c/Users/aless/**)",
-      "Read(//c/Users/aless/Desktop/**)"
+      "Read(//c/Users/aless/Desktop/**)",
+      "Bash(find /c/Users/aless/Desktop/maintai_v3 -not -path */.venv/* -not -path */.git/* -not -path */node_modules/* -not -path */__pycache__/* -type d -maxdepth 3)",
+      "Bash(find C:UsersalessDesktopmaintai_v3 -type f \\\\\\(-name *.env* -o -name *secret* -o -name *config* \\\\\\))"
     ]
   }
 }
