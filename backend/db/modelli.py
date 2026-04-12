@@ -252,7 +252,7 @@ class Manuale(Base):
     # Collegamento al Piano di Manutenzione (Integrazione Piani/Manuali)
     piano_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True, index=True)
     
-    piano = relationship("PianoManutenzione", back_populates="manuali")
+    piano = relationship("PianoManutenzione", back_populates="manuali", foreign_keys=[piano_id])
 
 
 class AttivitaManutenzione(Base):
@@ -395,7 +395,7 @@ class PianoManutenzione(Base):
 
     # Nuove relazioni multi-asset e manuali multipli
     assets = relationship("Asset", secondary=piano_asset_association, back_populates="piani")
-    manuali = relationship("Manuale", back_populates="piano", cascade="all, delete-orphan")
+    manuali = relationship("Manuale", back_populates="piano", cascade="all, delete-orphan", foreign_keys="[Manuale.piano_id]")
 
 
 class SystemLog(Base):
