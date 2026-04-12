@@ -21,7 +21,6 @@ try:
     from backend.api.routes.assets import router as assets_router
     from backend.api.routes.auth import router as auth_router
     from backend.api.routes.dashboard import router as dashboard_router
-    from backend.api.routes.db_routes import router as db_router
     from backend.api.routes.diagnostic import router as diagnostic_router
     from backend.api.routes.health import router as health_router
     from backend.api.routes.impianti import router as impianti_router
@@ -37,7 +36,6 @@ try:
     from backend.api.routes.logs import router as logs_router
     from backend.api.routes.email_config import router as email_config_router
     from backend.api.routes.planning import router as planning_router
-    from backend.api.routes.ws_routes import router as ws_router
     from backend.api.routes.bulk_import import router as bulk_import_router
     from backend.api.routes.piano_manutenzione import router as piano_manutenzione_router
     from backend.core.config import init_backend
@@ -389,7 +387,6 @@ async def csrf_origin_check(request: Request, call_next):
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
-app.include_router(db_router)
 app.include_router(assets_router)
 app.include_router(tecnici_router)
 app.include_router(tickets_router)
@@ -405,7 +402,6 @@ app.include_router(problem_analysis_router)
 app.include_router(tenants_router)
 app.include_router(email_config_router)
 app.include_router(planning_router)
-app.include_router(ws_router)  # WebSocket real-time updates
 app.include_router(bulk_import_router)
 app.include_router(piano_manutenzione_router)
 

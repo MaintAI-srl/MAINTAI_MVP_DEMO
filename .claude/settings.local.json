@@ -97,7 +97,19 @@
       "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 python -m pytest backend/tests/test_piano_task.py -v)",
       "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/test_piano_task.py -v)",
       "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/ -v --ignore=backend/tests/test_scheduler.py)",
-      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/test_health.py backend/tests/test_planner_engine.py backend/tests/test_privacy.py backend/tests/test_piano_task.py -v)"
+      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/test_health.py backend/tests/test_planner_engine.py backend/tests/test_privacy.py backend/tests/test_piano_task.py -v)",
+      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -c \":*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(find /c/Users/aless/Desktop/maintai_v3/backend -name *.py -path */versions/*)",
+      "Bash(pkill -f \"uvicorn backend.main\")",
+      "Bash(__NEW_LINE_8f0025ce391fd31e__ curl:*)",
+      "Bash(head -10 grep -n \"def smart_read_pdf\\\\|def parse_manual\" /c/Users/aless/Desktop/maintai_v3/backend/services/pdf_service.py)",
+      "Read(//tmp/**)",
+      "Bash(__NEW_LINE_bd0ac4d408b1d18f__ curl:*)",
+      "Bash(printf '%%PDF-1.4\\\\n1:*)",
+      "Bash(__NEW_LINE_207a1c2cf6990594__ curl:*)",
+      "Bash(cp:*)"
     ]
   }
 }
