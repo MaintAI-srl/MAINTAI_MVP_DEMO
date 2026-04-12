@@ -77,23 +77,38 @@ function fmt(iso: string | null) {
   });
 }
 
-const PRIORITA_STYLES: Record<string, string> = {
-  Alta: "bg-red-600 text-white border-red-700 shadow-sm shadow-red-500/20",
-  Media: "bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/20",
-  Bassa: "bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20",
+const PRIORITA_STYLES: Record<string, { dot: string; badge: string }> = {
+  Alta:   { dot: "bg-red-500",     badge: "bg-red-500/15 text-red-400 border-red-500/25" },
+  Media:  { dot: "bg-amber-400",   badge: "bg-amber-400/15 text-amber-400 border-amber-400/25" },
+  Bassa:  { dot: "bg-emerald-500", badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" },
 };
 
-// ─── Componenti UI Base (Leggibili) ───────────────────────────────────────────
+// ─── Componenti UI Base ────────────────────────────────────────────────────────
 
-function Badge({ label, className }: { label: string; className?: string }) {
+function StatoBadge({ label }: { label: string }) {
   return (
-    <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border", className)}>
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "3px 10px", borderRadius: 6, border: "1px solid",
+      fontSize: 11, fontWeight: 600, letterSpacing: "0.04em",
+      background: "rgba(99,102,241,0.1)", color: "#a5b4fc",
+      borderColor: "rgba(99,102,241,0.3)"
+    }}>
       {label}
     </span>
   );
 }
 
-// ─── Selezione Asset Scalabile (RIOMOLOGATA) ────────────────────────────────
+function PrioritaBadge({ label }: { label: string }) {
+  const style = PRIORITA_STYLES[label] || PRIORITA_STYLES["Media"];
+  return (
+    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-semibold", style.badge)}>
+      {label}
+    </span>
+  );
+}
+
+// ─── Selezione Asset ──────────────────────────────────────────────────────────
 
 function AssetSelector({ 
   selectedIds, 
@@ -126,65 +141,99 @@ function AssetSelector({
   }, [query, search]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Search row */}
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ position: "relative", flex: 1 }}>
           <input 
             type="text" 
-            placeholder="Cerca asset... (nome o codice)"
+            placeholder="Cerca asset per nome o codice..."
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/20 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-white/20 font-medium"
+            style={{
+              width: "100%", background: "var(--bg-surface)",
+              border: "1px solid var(--border-strong)", borderRadius: 8,
+              padding: "9px 12px 9px 36px", fontSize: 13, color: "var(--text-primary)",
+              outline: "none", fontFamily: "var(--font-body)"
+            }}
           />
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-lg">🔍</span>
+          <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.4 }}>🔍</span>
         </div>
         <button 
           type="button"
           onClick={() => onSelectAll(results.map(r => r.id))}
-          className="px-5 py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-wider border border-indigo-500/20 rounded-xl transition-all"
+          style={{
+            padding: "9px 16px", background: "var(--bg-overlay)",
+            border: "1px solid var(--border-strong)", borderRadius: 8,
+            color: "var(--text-secondary)", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s"
+          }}
         >
-          Seleziona Gruppo
+          Seleziona gruppo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar border border-white/10 rounded-xl p-2 bg-black/20">
+      {/* List */}
+      <div style={{
+        maxHeight: 280, overflowY: "auto",
+        border: "1px solid var(--border)", borderRadius: 8,
+        background: "rgba(0,0,0,0.15)"
+      }}>
         {loading ? (
-          <div className="py-12 text-center text-white/30 text-[10px] uppercase tracking-widest animate-pulse font-bold">In ricarca asset...</div>
+          <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            Ricerca in corso...
+          </div>
         ) : results.length === 0 ? (
-          <div className="py-12 text-center text-white/30 text-[10px] uppercase tracking-widest font-bold">Nessun asset trovato</div>
+          <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            Nessun asset trovato
+          </div>
         ) : (
-          results.map(asset => (
-            <div 
-              key={asset.id}
-              onClick={() => onToggle(asset.id)}
-              className={cn(
-                "p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between group",
-                selectedIds.includes(asset.id) 
-                  ? "bg-indigo-600/10 border-indigo-500/40" 
-                  : "bg-white/5 border-transparent hover:border-white/10"
-              )}
-            >
-              <div className="flex flex-col min-w-0">
-                <span className={cn("text-sm font-semibold truncate", selectedIds.includes(asset.id) ? "text-white" : "text-white/80")}>
-                  {asset.nome}
-                </span>
-                <span className="text-[10px] text-white/30 font-bold uppercase tracking-wider">{asset.codice} • {asset.sito_nome}</span>
+          results.map(asset => {
+            const selected = selectedIds.includes(asset.id);
+            return (
+              <div 
+                key={asset.id}
+                onClick={() => onToggle(asset.id)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--border)",
+                  background: selected ? "rgba(99,102,241,0.08)" : "transparent",
+                  transition: "background 0.15s"
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: selected ? "var(--text-primary)" : "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {asset.nome}
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    {[asset.codice, asset.sito_nome].filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+                <div style={{
+                  width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                  border: selected ? "none" : "2px solid var(--border-strong)",
+                  background: selected ? "#6366f1" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s"
+                }}>
+                  {selected && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                </div>
               </div>
-              <div className={cn(
-                "w-5 h-5 rounded border flex items-center justify-center transition-all",
-                selectedIds.includes(asset.id) ? "bg-indigo-500 border-indigo-500" : "border-white/10 group-hover:border-white/20"
-              )}>
-                {selectedIds.includes(asset.id) && <span className="text-white text-[10px]">✓</span>}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {selectedIds.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          <span style={{ color: "#a5b4fc", fontWeight: 600 }}>{selectedIds.length}</span> asset selezionati
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── MODAL: Nuovo / Modifica Piano ──────────────────────────────────────────
+// ─── MODAL: Nuovo / Modifica Piano ────────────────────────────────────────────
 
 function ModalPiano({ piano, onClose, onSaved }: {
   piano?: Piano | null;
@@ -219,32 +268,66 @@ function ModalPiano({ piano, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[#0f172a] border border-white/10 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden my-auto">
-        <div className="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-white/5">
-          <div className="space-y-1">
-            <h3 className="text-xl font-bold text-white uppercase tracking-wider">
-              {piano ? "Gestione Configurazione" : "Nuovo Piano di Manutenzione"}
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+      backdropFilter: "blur(6px)", zIndex: 100,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, overflowY: "auto"
+    }}>
+      <div style={{
+        background: "var(--bg-elevated)", border: "1px solid var(--border)",
+        borderRadius: 16, width: "100%", maxWidth: 720,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.5)", overflow: "hidden", margin: "auto"
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "20px 28px", borderBottom: "1px solid var(--border)",
+          display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+          background: "var(--bg-surface)"
+        }}>
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0, marginBottom: 4 }}>
+              {piano ? "Modifica Piano" : "Nuovo Piano di Manutenzione"}
             </h3>
-            <p className="text-xs text-white/40 font-semibold uppercase tracking-widest">Definizione perimetro e asset</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+              {piano ? `Piano: ${piano.nome_codificato}` : "Definisci il perimetro e gli asset associati"}
+            </p>
           </div>
-          <button onClick={onClose} className="text-white/20 hover:text-white transition-colors text-3xl">&times;</button>
+          <button 
+            onClick={onClose} 
+            style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 24, cursor: "pointer", lineHeight: 1, padding: 4 }}
+          >
+            ×
+          </button>
         </div>
 
-        <form onSubmit={submit} className="p-8 space-y-8">
+        <form onSubmit={submit} style={{ padding: 28, display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Descrizione */}
           <div>
-            <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3">Descrizione Operativa</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Descrizione operativa
+            </label>
             <textarea 
               value={form.descrizione}
               onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))}
-              placeholder="es. Piano Manutenzione Preventiva Q.E. Bassa Tensione..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all resize-none h-24 placeholder:text-white/10"
+              placeholder="Es. Piano Manutenzione Preventiva Q.E. Bassa Tensione — Reparto Nord"
+              style={{
+                width: "100%", background: "var(--bg-surface)",
+                border: "1px solid var(--border-strong)", borderRadius: 8,
+                padding: "12px 14px", fontSize: 13, color: "var(--text-primary)",
+                resize: "vertical", minHeight: 90, outline: "none",
+                fontFamily: "var(--font-body)", lineHeight: 1.6,
+                boxSizing: "border-box"
+              }}
               required
             />
           </div>
 
+          {/* Selezione Asset */}
           <div>
-            <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3">Selezione Asset ({form.asset_ids.length})</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Selezione asset per il piano
+            </label>
             <AssetSelector 
               selectedIds={form.asset_ids} 
               onToggle={id => setForm(f => ({ ...f, asset_ids: f.asset_ids.includes(id) ? f.asset_ids.filter(x => x !== id) : [...f.asset_ids, id]}))}
@@ -255,20 +338,31 @@ function ModalPiano({ piano, onClose, onSaved }: {
             />
           </div>
 
-          <div className="flex gap-4 pt-2">
+          {/* Footer buttons */}
+          <div style={{ display: "flex", gap: 12, paddingTop: 4, borderTop: "1px solid var(--border)" }}>
             <button 
               type="button" 
               onClick={onClose}
-              className="px-6 py-3 border border-white/10 rounded-xl text-white/40 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-all"
+              style={{
+                padding: "10px 20px", border: "1px solid var(--border-strong)",
+                borderRadius: 8, color: "var(--text-secondary)", fontSize: 13,
+                fontWeight: 600, background: "transparent", cursor: "pointer"
+              }}
             >
               Annulla
             </button>
             <button 
               type="submit"
               disabled={saving}
-              className="flex-1 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+              style={{
+                flex: 1, padding: "10px 20px", background: saving ? "#4f46e5" : "#6366f1",
+                border: "1px solid #4f46e5", borderRadius: 8,
+                color: "white", fontSize: 13, fontWeight: 700,
+                cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.75 : 1,
+                transition: "all 0.15s"
+              }}
             >
-              {saving ? "Salvando..." : (piano ? "Aggiorna Piano" : "Crea Piano Operativo")}
+              {saving ? "Salvataggio..." : (piano ? "Aggiorna Piano" : "Crea Piano Operativo")}
             </button>
           </div>
         </form>
@@ -277,7 +371,7 @@ function ModalPiano({ piano, onClose, onSaved }: {
   );
 }
 
-// ─── DRAWER: Dettaglio Task (MODIFICABILE) ───────────────────────────────
+// ─── DRAWER: Dettaglio Task ────────────────────────────────────────────────────
 
 function DrawerTask({ 
   task, 
@@ -301,7 +395,6 @@ function DrawerTask({
     generate_days_before_due: task.generate_days_before_due || 7,
   });
   const [saving, setSaving] = useState(false);
-
   const isNew = !task.id;
 
   async function handleSave() {
@@ -320,90 +413,142 @@ function DrawerTask({
     }
   }
 
+  const fieldLabel = (text: string) => (
+    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+      {text}
+    </label>
+  );
+
+  const fieldInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input 
+      {...props}
+      style={{
+        width: "100%", background: "var(--bg-surface)",
+        border: "1px solid var(--border-strong)", borderRadius: 8,
+        padding: "9px 12px", fontSize: 13, color: "var(--text-primary)",
+        outline: "none", fontFamily: "var(--font-body)", boxSizing: "border-box",
+        ...props.style
+      }}
+    />
+  );
+
   return (
-    <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-[#0c111d] border-l border-white/10 z-[80] shadow-2xl flex flex-col p-0">
-      <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
-        <div className="space-y-2">
-          <Badge label={task.codice || "TASK"} className="bg-indigo-600 text-white border-none" />
-          <h2 className="text-xl font-bold text-white tracking-tight truncate max-w-[350px]">
+    <div style={{
+      position: "fixed", insetBlock: 0, right: 0, width: "min(500px, 100vw)",
+      background: "var(--bg-elevated)", borderLeft: "1px solid var(--border)",
+      zIndex: 80, boxShadow: "-8px 0 40px rgba(0,0,0,0.3)",
+      display: "flex", flexDirection: "column"
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "20px 24px", borderBottom: "1px solid var(--border)",
+        background: "var(--bg-surface)", display: "flex", justifyContent: "space-between", alignItems: "flex-start"
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {task.codice && (
+            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--blue-bright)", fontWeight: 600, letterSpacing: "0.1em", background: "rgba(59,130,246,0.1)", padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(59,130,246,0.2)", alignSelf: "flex-start" }}>
+              {task.codice}
+            </span>
+          )}
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {isNew ? "Nuova Attività" : (task.nome || "Modifica Attività")}
           </h2>
         </div>
-        <button onClick={onClose} className="text-white/20 hover:text-white transition-colors text-4xl leading-none">&times;</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 26, cursor: "pointer", lineHeight: 1, padding: 4 }}>×</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-        <div className="space-y-6">
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div>
+          {fieldLabel("Titolo Attività")}
+          {fieldInput({ type: "text", value: form.nome, onChange: e => setForm(f => ({ ...f, nome: e.target.value })) })}
+        </div>
+
+        <div>
+          {fieldLabel("Descrizione / Istruzioni operative")}
+          <textarea 
+            value={form.descrizione} 
+            onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))} 
+            style={{
+              width: "100%", background: "var(--bg-surface)",
+              border: "1px solid var(--border-strong)", borderRadius: 8,
+              padding: "9px 12px", fontSize: 13, color: "var(--text-primary)",
+              minHeight: 110, resize: "vertical", outline: "none",
+              fontFamily: "var(--font-body)", lineHeight: 1.6, boxSizing: "border-box"
+            }}
+          />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
-            <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block mb-2">Titolo Attività</label>
-            <input 
-              type="text" 
-              value={form.nome} 
-              onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} 
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-            />
+            {fieldLabel("Frequenza (giorni)")}
+            {fieldInput({ 
+              type: "number", value: form.frequenza_giorni,
+              onChange: e => setForm(f => ({ ...f, frequenza_giorni: parseInt(e.target.value) || 1 }))
+            })}
           </div>
           <div>
-            <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block mb-2">Descrizione / Istruzioni</label>
-            <textarea 
-              value={form.descrizione} 
-              onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))} 
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white h-32 focus:outline-none focus:border-indigo-500"
-            />
+            {fieldLabel("Durata stimata (ore)")}
+            {fieldInput({ 
+              type: "number", step: "0.5", value: form.durata_ore,
+              onChange: e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))
+            })}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block mb-2">Frequenza (Giorni)</label>
-              <input 
-                type="number" 
-                value={form.frequenza_giorni} 
-                onChange={e => setForm(f => ({ ...f, frequenza_giorni: parseInt(e.target.value) || 1 }))} 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block mb-2">Durata Stimata (Ore)</label>
-              <input 
-                type="number" 
-                step="0.5" 
-                value={form.durata_ore} 
-                onChange={e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))} 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none"
-              />
-            </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            {fieldLabel("Priorità")}
+            <select 
+              value={form.priorita}
+              onChange={e => setForm(f => ({ ...f, priorita: e.target.value }))}
+              style={{
+                width: "100%", background: "var(--bg-surface)",
+                border: "1px solid var(--border-strong)", borderRadius: 8,
+                padding: "9px 12px", fontSize: 13, color: "var(--text-primary)",
+                outline: "none", fontFamily: "var(--font-body)", appearance: "none", cursor: "pointer"
+              }}
+            >
+              <option value="Alta">Alta</option>
+              <option value="Media">Media</option>
+              <option value="Bassa">Bassa</option>
+            </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block mb-2">Priorità</label>
-              <select 
-                value={form.priorita}
-                onChange={e => setForm(f => ({ ...f, priorita: e.target.value }))}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-semibold"
-              >
-                <option value="Alta">Alta</option>
-                <option value="Media">Media</option>
-                <option value="Bassa">Bassa</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block mb-2">Anticipo Generazione (gg)</label>
-              <input 
-                type="number" 
-                value={form.generate_days_before_due} 
-                onChange={e => setForm(f => ({ ...f, generate_days_before_due: parseInt(e.target.value) || 0 }))} 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none"
-              />
-            </div>
+          <div>
+            {fieldLabel("Anticipo generazione (gg)")}
+            {fieldInput({ 
+              type: "number", value: form.generate_days_before_due,
+              onChange: e => setForm(f => ({ ...f, generate_days_before_due: parseInt(e.target.value) || 0 }))
+            })}
           </div>
         </div>
       </div>
 
-      <div className="p-8 border-t border-white/5 bg-white/5 flex gap-4">
-        <button onClick={onClose} className="flex-1 py-3.5 text-xs font-bold uppercase text-white/40 hover:text-white transition-all tracking-widest">Annulla</button>
+      {/* Footer */}
+      <div style={{
+        padding: "16px 24px", borderTop: "1px solid var(--border)",
+        background: "var(--bg-surface)", display: "flex", gap: 12
+      }}>
+        <button 
+          onClick={onClose} 
+          style={{
+            flex: 1, padding: "10px 16px", border: "1px solid var(--border-strong)",
+            borderRadius: 8, color: "var(--text-secondary)", fontSize: 13,
+            fontWeight: 600, background: "transparent", cursor: "pointer"
+          }}
+        >
+          Annulla
+        </button>
         <button 
           onClick={handleSave} 
           disabled={saving}
-          className="flex-1 py-3.5 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/20"
+          style={{
+            flex: 2, padding: "10px 16px", background: "#6366f1",
+            border: "1px solid #4f46e5", borderRadius: 8,
+            color: "white", fontSize: 13, fontWeight: 700,
+            cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.75 : 1,
+            transition: "all 0.15s"
+          }}
         >
           {saving ? "Salvataggio..." : "Salva Modifiche"}
         </button>
@@ -412,7 +557,7 @@ function DrawerTask({
   );
 }
 
-// ─── PAGE COMPONENT ──────────────────────────────────────────────────────────
+// ─── PAGE COMPONENT ───────────────────────────────────────────────────────────
 
 export default function PianiPage() {
   const [piani, setPiani] = useState<Piano[]>([]);
@@ -482,141 +627,205 @@ export default function PianiPage() {
     } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore generazione ticket"); }
   }
 
-  // ── Rendering Sidebar ───────────────────────────────────────────────────────
+  // ── RENDER ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="full-bleed-page flex bg-[#030712]">
+    <div className="full-bleed-page" style={{ display: "flex", background: "var(--bg-base)", minHeight: "100%" }}>
       
-      {/* ── PANEL 1: SB PIANI (400px) ── */}
-      <aside className="w-[400px] flex-shrink-0 border-r border-white/10 bg-[#0c111d] flex flex-col">
-        <div className="p-6 border-b border-white/5 flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Piani Attivi</h2>
-            <Badge label={piani.length.toString()} className="bg-indigo-600/10 text-indigo-500 border-indigo-500/20 px-2" />
+      {/* ── SIDEBAR PIANI (440px) ── */}
+      <aside style={{ 
+        width: 440, flexShrink: 0, 
+        borderRight: "1px solid var(--border)", 
+        background: "var(--bg-surface)",
+        display: "flex", flexDirection: "column"
+      }}>
+        {/* Sidebar header */}
+        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 2 }}>
+                Piani operativi
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
+                Piano di Manutenzione
+              </div>
+            </div>
+            <span style={{
+              fontSize: 13, fontWeight: 700, color: "var(--blue-bright)",
+              background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)",
+              padding: "3px 10px", borderRadius: 20, fontFamily: "var(--font-mono)"
+            }}>
+              {piani.length}
+            </span>
           </div>
+
           <button 
             onClick={() => { setPianoToEdit(null); setShowModalPiano(true); }}
-            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
+            style={{
+              width: "100%", padding: "10px 16px",
+              background: "#6366f1", border: "1px solid #4f46e5",
+              borderRadius: 8, color: "white", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", transition: "all 0.15s", display: "flex",
+              alignItems: "center", justifyContent: "center", gap: 8
+            }}
           >
-            + Definisci Nuovo Piano
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Definisci Nuovo Piano
           </button>
-          <div className="relative">
+
+          <div style={{ position: "relative" }}>
             <input 
               type="text" 
               placeholder="Cerca piano operativo..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              style={{
+                width: "100%", background: "var(--bg-elevated)",
+                border: "1px solid var(--border-strong)", borderRadius: 8,
+                padding: "9px 12px 9px 36px", fontSize: 13, color: "var(--text-primary)",
+                outline: "none", fontFamily: "var(--font-body)", boxSizing: "border-box"
+              }}
             />
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-lg">🔍</span>
+            <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.4 }}>🔍</span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        {/* Sidebar list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px" }}>
           {loading ? (
-             [1,2,3,4,5].map(i => <div key={i} className="h-28 bg-white/5 rounded-3xl animate-pulse border border-white/5" />)
-          ) : filteredPiani.length === 0 ? (
-            <div className="text-center py-20 text-xs font-black text-white/10 uppercase tracking-[0.3em] italic">Nessun piano disponibile</div>
-          ) : (
-            filteredPiani.map(p => (
-              <div 
-                key={p.id}
-                onClick={() => setSelectedPianoId(p.id)}
-                className={cn(
-                  "p-5 rounded-2xl border cursor-pointer transition-all relative group",
-                  selectedPianoId === p.id 
-                    ? "bg-indigo-600/10 border-indigo-500/30" 
-                    : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
-                )}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className={cn("text-sm font-bold tracking-tight", selectedPianoId === p.id ? "text-white" : "text-white/80")}>
-                    {p.nome_codificato}
-                  </span>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setPianoToEdit(p); setShowModalPiano(true); }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-white/20 hover:text-white transition-all"
-                  >
-                    ✎
-                  </button>
-                </div>
-                <p className="text-xs text-white/40 line-clamp-2 leading-relaxed mb-3">
-                  {p.descrizione || "Nessuna specifica tecnica aggiuntiva."}
-                </p>
-                <div className="flex gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-                     {p.asset_count} Asset
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">
-                     {p.task_count} Task
-                  </span>
-                </div>
-                {selectedPianoId === p.id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r-full shadow-[0_0_10px_rgba(99,102,241,0.4)]" />}
-              </div>
+            [1,2,3,4,5].map(i => (
+              <div key={i} style={{ height: 90, background: "var(--bg-elevated)", borderRadius: 10, marginBottom: 8, animation: "pulse 1.4s infinite" }} />
             ))
+          ) : filteredPiani.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--text-disabled)", fontSize: 13 }}>
+              Nessun piano disponibile
+            </div>
+          ) : (
+            filteredPiani.map(p => {
+              const isSelected = selectedPianoId === p.id;
+              return (
+                <div 
+                  key={p.id}
+                  onClick={() => setSelectedPianoId(p.id)}
+                  style={{
+                    padding: "14px 16px", borderRadius: 10,
+                    border: `1px solid ${isSelected ? "rgba(99,102,241,0.4)" : "transparent"}`,
+                    background: isSelected ? "rgba(99,102,241,0.08)" : "transparent",
+                    cursor: "pointer", marginBottom: 4, position: "relative",
+                    transition: "all 0.15s"
+                  }}
+                  className="hover-row"
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: isSelected ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                      {p.nome_codificato}
+                    </span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setPianoToEdit(p); setShowModalPiano(true); }}
+                      style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", opacity: 0, transition: "opacity 0.15s" }}
+                      className="edit-btn"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+                    {p.descrizione || "Nessuna specifica tecnica aggiuntiva."}
+                  </p>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--blue-bright)", background: "rgba(59,130,246,0.08)", padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(59,130,246,0.15)" }}>
+                      {p.asset_count} asset
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      {p.task_count} task
+                    </span>
+                    {p.open_ticket_count > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--amber)", background: "rgba(245,158,11,0.08)", padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(245,158,11,0.15)" }}>
+                        {p.open_ticket_count} aperti
+                      </span>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 3, height: 40, background: "#6366f1", borderRadius: "0 2px 2px 0" }} />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </aside>
 
-      {/* ── PANEL 2: MAIN VIEW ── */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#030712]">
+      {/* ── MAIN VIEW ── */}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "var(--bg-base)" }}>
         {!selectedPiano ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-             <div className="w-24 h-24 bg-indigo-600/5 border border-indigo-600/10 rounded-3xl flex items-center justify-center text-5xl text-indigo-600/20 mb-8">⚡</div>
-             <h2 className="text-2xl font-bold text-white uppercase tracking-widest mb-4">Gestore Piani</h2>
-             <p className="text-sm text-white/30 max-w-md leading-relaxed border-t border-white/5 pt-6">
-               Seleziona un piano operativo dalla sidebar o inizializzane uno nuovo per gestire scadenze, manuali e asset industriali.
-             </p>
+          /* Empty state — sobrio e utile */
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, textAlign: "center" }}>
+            <div style={{ width: 64, height: 64, background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, marginBottom: 20 }}>
+              ⚡
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 8px" }}>
+              Seleziona un piano
+            </h2>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 380, lineHeight: 1.6, margin: 0 }}>
+              Scegli un piano operativo dalla sidebar per visualizzare task, manuali e cronologia interventi. Puoi anche creare un nuovo piano con il pulsante in alto a sinistra.
+            </p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden animate-in fade-in duration-500">
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header Piano */}
-            <header className="px-8 pt-8 pb-0 border-b border-white/10 bg-[#0c111d]/50 backdrop-blur-xl">
-              <div className="flex justify-between items-start mb-8">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-6">
-                    <h1 className="text-3xl font-bold text-white tracking-tight leading-none">
+            <header style={{
+              padding: "24px 32px 0", borderBottom: "1px solid var(--border)",
+              background: "var(--bg-surface)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+                    <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.02em" }}>
                       {selectedPiano.nome_codificato}
                     </h1>
-                    <Badge label={selectedPiano.stato} className="text-indigo-400 bg-indigo-500/10 border-indigo-500/20" />
+                    <StatoBadge label={selectedPiano.stato} />
                   </div>
-                  <p className="text-sm text-white/40 max-w-3xl font-medium border-l-2 border-indigo-600 pl-4 py-1">
-                    {selectedPiano.descrizione || "Configurazione standard."}
-                  </p>
+                  {selectedPiano.descrizione && (
+                    <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5, borderLeft: "3px solid #6366f1", paddingLeft: 12, maxWidth: 600 }}>
+                      {selectedPiano.descrizione}
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex gap-4">
-                  <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col items-center justify-center min-w-[120px]">
-                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Attività Totali</span>
-                    <span className="text-2xl font-bold text-white">{selectedPiano.task_count}</span>
+                <div style={{ display: "flex", gap: 12, flexShrink: 0, marginLeft: 24 }}>
+                  <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 20px", textAlign: "center", minWidth: 110 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Attività</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)" }}>{selectedPiano.task_count}</div>
                   </div>
-                  <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col items-center justify-center min-w-[120px]">
-                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Ticket Aperti</span>
-                    <span className="text-2xl font-bold text-amber-500">{selectedPiano.open_ticket_count}</span>
+                  <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 20px", textAlign: "center", minWidth: 110 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Ticket aperti</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: selectedPiano.open_ticket_count > 0 ? "var(--amber)" : "var(--text-primary)" }}>
+                      {selectedPiano.open_ticket_count}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* TABS */}
-              <div className="flex gap-8">
+              <div style={{ display: "flex", gap: 4 }}>
                 {[
-                  { id: "tasks", label: "Attività e Task", icon: "⚙️" },
-                  { id: "manuali", label: "Manuali Tecnici", icon: "📚" },
-                  { id: "history", label: "Cronologia Ticket", icon: "📋" },
+                  { id: "tasks",   label: "Attività e Task",    icon: "⚙️" },
+                  { id: "manuali", label: "Manuali Tecnici",    icon: "📚" },
+                  { id: "history", label: "Cronologia Ticket",  icon: "📋" },
                 ].map(tab => {
                   const active = activeTab === tab.id;
                   return (
                     <button 
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
-                      className={cn(
-                        "px-1 py-4 text-xs font-bold uppercase tracking-widest transition-all relative flex items-center gap-2 group",
-                        active ? "text-indigo-400" : "text-white/30 hover:text-white/60"
-                      )}
+                      style={{
+                        padding: "10px 18px", border: "none", background: "transparent",
+                        fontSize: 13, fontWeight: active ? 700 : 500,
+                        color: active ? "var(--text-primary)" : "var(--text-muted)",
+                        cursor: "pointer", position: "relative",
+                        borderBottom: active ? "2px solid #6366f1" : "2px solid transparent",
+                        transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6
+                      }}
                     >
-                      <span className={cn("text-base grayscale group-hover:grayscale-0 transition-all", active ? "grayscale-0" : "")}>{tab.icon}</span> 
-                      {tab.label}
-                      {active && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 rounded-t-full shadow-[0_-2px_8px_rgba(99,102,241,0.4)]" />}
+                      <span>{tab.icon}</span> {tab.label}
                     </button>
                   );
                 })}
@@ -624,92 +833,112 @@ export default function PianiPage() {
             </header>
 
             {/* TAB CONTENT */}
-            <div className="flex-1 overflow-y-auto p-8 bg-[#0c111d] custom-scrollbar">
+            <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px", background: "var(--bg-base)" }}>
               
-              {/* TASKS VIEW */}
+              {/* TASKS */}
               {activeTab === "tasks" && (
-                <div className="space-y-8">
-                  <div className="flex justify-between items-center">
-                    <div className="space-y-1">
-                      <h3 className="text-lg font-bold text-white uppercase tracking-wider">Piano Operativo</h3>
-                      <p className="text-xs font-semibold text-white/30 uppercase tracking-widest">Definizione frequenze e priorità degli interventi</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>Piano operativo</h3>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>Frequenze e priorità degli interventi pianificati</p>
                     </div>
-                    <div className="flex gap-3">
-                      <label className={cn(
-                        "px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer flex items-center gap-3 border",
-                        uploading ? "bg-white/5 text-white/20 border-white/10" : "bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-700 shadow-lg shadow-indigo-600/20"
-                      )}>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <label style={{
+                        padding: "9px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        cursor: uploading ? "not-allowed" : "pointer",
+                        background: uploading ? "var(--bg-overlay)" : "var(--bg-overlay)",
+                        border: "1px solid var(--border-strong)", color: "var(--text-secondary)",
+                        display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s"
+                      }}>
                         {uploading ? "⌛ Elaborazione..." : "📤 Importa PDF"}
                         <input 
-                          type="file" className="hidden" accept=".pdf" disabled={uploading}
+                          type="file" style={{ display: "none" }} accept=".pdf" disabled={uploading}
                           onChange={async (e) => {
-                             if (!e.target.files?.[0]) return;
-                             setUploading(true);
-                             const fd = new FormData();
-                             fd.append("file", e.target.files[0]);
-                             try {
-                               notify.info("Analisi AI in corso...");
-                               const pid = selectedPianoId;
-                               if (!pid) throw new Error("Seleziona prima un piano");
-
-                               await apiUpload(`/piani-manutenzione/${pid}/import-pdf`, fd);
-                               notify.success("Manuale importato. Task estratti.");
-                               fetchContent(pid, "tasks");
-                               fetchContent(pid, "manuali");
-                             } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore import"); }
-                             finally { setUploading(false); }
+                            if (!e.target.files?.[0]) return;
+                            setUploading(true);
+                            const fd = new FormData();
+                            fd.append("file", e.target.files[0]);
+                            try {
+                              notify.info("Analisi AI in corso...");
+                              const pid = selectedPianoId;
+                              if (!pid) throw new Error("Seleziona prima un piano");
+                              await apiUpload(`/piani-manutenzione/${pid}/import-pdf`, fd);
+                              notify.success("Manuale importato. Task estratti.");
+                              fetchContent(pid, "tasks");
+                              fetchContent(pid, "manuali");
+                            } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore import"); }
+                            finally { setUploading(false); }
                           }}
                         />
                       </label>
                       <button
                         onClick={() => setSelectedTask({ id: 0, nome: "", descrizione: "", frequenza_giorni: 30, durata_ore: 1, priorita: "Media", task_stato: "active", is_repeatable: true, generate_days_before_due: 7, piano_id: selectedPianoId, asset_id: null, asset_nome: null, codice: null, generation_mode: "manual", source_type: "manual_task", next_due_at: null } as unknown as Task)}
-                        className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all"
+                        style={{
+                          padding: "9px 16px", background: "#6366f1", border: "1px solid #4f46e5",
+                          borderRadius: 8, color: "white", fontSize: 12, fontWeight: 700,
+                          cursor: "pointer", display: "flex", alignItems: "center", gap: 6
+                        }}
                       >
                         + Aggiungi Task
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {fetchingContent ? (
-                       [1,2,3,4,5].map(i => <div key={i} className="h-20 bg-white/5 rounded-2xl animate-pulse" />)
+                      [1,2,3,4].map(i => <div key={i} style={{ height: 72, background: "var(--bg-elevated)", borderRadius: 10, animation: "pulse 1.4s infinite" }} />)
                     ) : tasks.length === 0 ? (
-                      <div className="py-24 text-center border-2 border-dashed border-white/5 rounded-[40px] bg-white/[0.01]">
-                        <p className="text-xl font-bold text-white/10 uppercase tracking-widest italic">Nessun task programmato</p>
+                      <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 12 }}>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nessun task programmato</div>
+                        <div style={{ fontSize: 12, color: "var(--text-disabled)", marginTop: 6 }}>
+                          Aggiungi task manualmente o importa un manuale PDF
+                        </div>
                       </div>
                     ) : (
                       tasks.map(task => (
                         <div 
                           key={task.id}
                           onClick={() => setSelectedTask(task)}
-                          className="group bg-white/5 hover:bg-white/[0.08] border border-white/5 hover:border-indigo-600/30 p-5 rounded-3xl transition-all cursor-pointer flex items-center gap-6"
+                          style={{
+                            display: "flex", alignItems: "center", gap: 16,
+                            padding: "14px 18px", background: "var(--bg-elevated)",
+                            border: "1px solid var(--border)", borderRadius: 10,
+                            cursor: "pointer", transition: "all 0.15s"
+                          }}
+                          className="hover-row"
                         >
-                          <div className={cn("w-1.5 h-12 rounded-full", task.task_stato === 'active' ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'bg-white/10')} />
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-semibold text-white tracking-tight truncate group-hover:text-indigo-400 transition-colors">
+                          <div style={{ width: 3, height: 40, borderRadius: 2, background: task.task_stato === "active" ? "#6366f1" : "var(--border-strong)", flexShrink: 0 }} />
+                          
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {task.nome || task.descrizione}
-                            </h4>
-                            <div className="flex gap-4 mt-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-white/30 border-r border-white/10 pr-4">#{task.codice || task.id}</span>
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">Ogni {task.frequenza_giorni}g</span>
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">{task.durata_ore} Ore</span>
+                            </div>
+                            <div style={{ display: "flex", gap: 16 }}>
+                              <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>#{task.codice || task.id}</span>
+                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>ogni {task.frequenza_giorni}g</span>
+                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.durata_ore}h</span>
                             </div>
                           </div>
-                          <div className="w-32 flex justify-center">
-                            <Badge label={task.priorita} className={cn(PRIORITA_STYLES[task.priorita], "px-2 py-0.5")} />
+
+                          <PrioritaBadge label={task.priorita} />
+
+                          <div style={{ textAlign: "right", minWidth: 100 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--blue-bright)" }}>{fmt(task.next_due_at).split(",")[0]}</div>
+                            <div style={{ fontSize: 10, color: "var(--text-disabled)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Scadenza</div>
                           </div>
-                          <div className="w-48 text-right pr-4">
-                            <span className="text-base font-bold text-indigo-400 block tracking-tight uppercase">{fmt(task.next_due_at).split(',')[0]}</span>
-                            <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Scadenza</span>
-                          </div>
-                          <div className="opacity-0 group-hover:opacity-100 transition-all pl-6 border-l border-white/10 h-12 flex items-center">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); generateTicket(task); }}
-                              className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
-                            >
-                              Genera Ticket
-                            </button>
-                          </div>
+
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); generateTicket(task); }}
+                            style={{
+                              padding: "7px 14px", background: "rgba(99,102,241,0.1)",
+                              border: "1px solid rgba(99,102,241,0.25)", borderRadius: 7,
+                              color: "#a5b4fc", fontSize: 11, fontWeight: 600,
+                              cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s"
+                            }}
+                          >
+                            Genera Ticket
+                          </button>
                         </div>
                       ))
                     )}
@@ -717,65 +946,71 @@ export default function PianiPage() {
                 </div>
               )}
 
-              {/* MANUALI VIEW */}
+              {/* MANUALI */}
               {activeTab === "manuali" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
-                  {fetchingContent ? (
-                     [1,2,3].map(i => <div key={i} className="h-72 bg-white/5 rounded-[40px] animate-pulse" />)
-                  ) : manuali.length === 0 ? (
-                    <div className="col-span-full py-40 text-center text-white/10 text-xl font-black uppercase tracking-widest italic opacity-50 border-4 border-dashed border-white/5 rounded-[60px]">
-                      Nessun documento tecnico caricato.
-                    </div>
-                  ) : (
-                    manuali.map(m => (
-                      <div key={m.id} className="bg-white/5 border border-white/10 p-6 rounded-3xl hover:bg-white/[0.08] transition-all flex flex-col justify-between group h-64">
-                         <div className="space-y-4">
-                           <div className="w-12 h-12 bg-red-600/10 rounded-xl flex items-center justify-center text-xs text-red-500 font-bold border border-red-600/20">PDF</div>
-                           <h4 className="text-base font-bold text-white leading-tight group-hover:text-indigo-400 transition-colors">{m.nome}</h4>
-                           <div className="flex gap-4 text-[10px] font-bold text-white/30 uppercase tracking-wider">
-                             <span>{m.pagine} Pagine</span>
-                             <span>• {m.task_count} Task</span>
-                           </div>
-                         </div>
-                         <button className="w-full py-3 bg-white/5 group-hover:bg-indigo-600 border border-white/10 group-hover:border-indigo-500 rounded-xl text-[10px] font-bold text-white/40 group-hover:text-white uppercase tracking-widest transition-all">Sfoglia Documento</button>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 20px" }}>Manuali Tecnici</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+                    {fetchingContent ? (
+                      [1,2,3].map(i => <div key={i} style={{ height: 200, background: "var(--bg-elevated)", borderRadius: 12, animation: "pulse 1.4s infinite" }} />)
+                    ) : manuali.length === 0 ? (
+                      <div style={{ gridColumn: "1/-1", padding: "48px 24px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 12 }}>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nessun documento tecnico caricato</div>
+                        <div style={{ fontSize: 12, color: "var(--text-disabled)", marginTop: 6 }}>Importa un PDF dalla sezione Attività</div>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* HISTORY VIEW (placeholder robusto) */}
-              {activeTab === "history" && (
-                <div className="space-y-10 animate-in fade-in duration-300">
-                   <h3 className="text-xl font-black text-white uppercase tracking-tight">Storico Interventi del Piano</h3>
-                   <div className="space-y-4">
-                      {fetchingContent ? (
-                        [1,2,3,4,5].map(i => <div key={i} className="h-20 bg-white/5 rounded-3xl animate-pulse" />)
-                      ) : history.length === 0 ? (
-                        <div className="py-40 text-center text-white/10 text-xl font-black uppercase tracking-widest italic opacity-50 border-4 border-dashed border-white/5 rounded-[60px]">
-                          Nessun ticket emesso per questo piano.
-                        </div>
-                      ) : (
-                        history.map(tk => (
-                          <div key={tk.id} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between group hover:bg-[#1e293b] transition-all">
-                             <div className="flex items-center gap-6">
-                                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider border border-indigo-500/20">T-{tk.id}</span>
-                                <div>
-                                   <h4 className="text-sm font-semibold text-white tracking-tight group-hover:text-white transition-colors">{tk.titolo}</h4>
-                                   <div className="flex gap-4 mt-1 text-[10px] font-bold text-white/30 uppercase tracking-widest">
-                                      <span>Creato il {fmt(tk.created_at)}</span>
-                                      <span>• Priorità {tk.priorita}</span>
-                                   </div>
-                                </div>
-                             </div>
-                             <Badge label={tk.stato} className="text-indigo-400 bg-indigo-500/10 border-indigo-500/20" />
+                    ) : (
+                      manuali.map(m => (
+                        <div key={m.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 180, transition: "border-color 0.15s" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{ width: 40, height: 40, background: "rgba(239,68,68,0.1)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--red)", border: "1px solid rgba(239,68,68,0.2)" }}>PDF</div>
+                            <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0, lineHeight: 1.4 }}>{m.nome}</h4>
+                            <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--text-muted)" }}>
+                              <span>{m.pagine} pagine</span>
+                              <span>·  {m.task_count} task</span>
+                            </div>
                           </div>
-                        ))
-                      )}
-                   </div>
+                          <button style={{ width: "100%", padding: "8px 0", marginTop: 12, background: "var(--bg-overlay)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text-secondary)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                            Sfoglia documento
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
 
+              {/* HISTORY */}
+              {activeTab === "history" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Storico Interventi del Piano</h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {fetchingContent ? (
+                      [1,2,3,4].map(i => <div key={i} style={{ height: 68, background: "var(--bg-elevated)", borderRadius: 10, animation: "pulse 1.4s infinite" }} />)
+                    ) : history.length === 0 ? (
+                      <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 12 }}>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nessun ticket emesso per questo piano</div>
+                      </div>
+                    ) : (
+                      history.map(tk => (
+                        <div key={tk.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10, transition: "background 0.15s" }} className="hover-row">
+                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--blue-bright)", background: "rgba(59,130,246,0.08)", padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(59,130,246,0.15)" }}>
+                              T-{tk.id}
+                            </span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{tk.titolo}</div>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                {fmt(tk.created_at)}  ·  Priorità {tk.priorita}
+                              </div>
+                            </div>
+                          </div>
+                          <StatoBadge label={tk.stato} />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -801,7 +1036,6 @@ export default function PianiPage() {
           }}
         />
       )}
-
     </div>
   );
 }
