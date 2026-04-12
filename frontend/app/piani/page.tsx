@@ -469,11 +469,12 @@ export default function PianiPage() {
   const selectedPiano = useMemo(() => piani.find(p => p.id === selectedPianoId), [piani, selectedPianoId]);
 
   async function generateTicket(task: Task) {
-    if (!selectedPianoId) return;
+    const pid = selectedPianoId;
+    if (!pid) return;
     try {
-      const res = await apiPost<{ created: number }>(`/piani-manutenzione/${selectedPianoId}/tasks/${task.id}/genera-ticket`);
+      const res = await apiPost<{ created: number }>(`/piani-manutenzione/${pid}/tasks/${task.id}/genera-ticket`);
       notify.success(`${res.created} ticket generati con successo in stato APERTO`);
-      fetchContent(selectedPianoId, "tasks");
+      fetchContent(pid, "tasks");
     } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore generazione ticket"); }
   }
 
@@ -644,10 +645,13 @@ export default function PianiPage() {
                              fd.append("file", e.target.files[0]);
                              try {
                                notify.info("Analisi AI in corso...");
-                               await apiUpload(`/piani-manutenzione/${selectedPianoId}/import-pdf`, fd);
+                               const pid = selectedPianoId;
+                               if (!pid) throw new Error("Seleziona prima un piano");
+
+                               await apiUpload(`/piani-manutenzione/${pid}/import-pdf`, fd);
                                notify.success("Manuale importato. Task estratti.");
-                               fetchContent(selectedPianoId, "tasks");
-                               fetchContent(selectedPianoId, "manuali");
+                               fetchContent(pid, "tasks");
+                               fetchContent(pid, "manuali");
                              } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore import"); }
                              finally { setUploading(false); }
                           }}
@@ -782,13 +786,13 @@ export default function PianiPage() {
         />
       )}
 
-      {selectedTask && Object.keys(selectedTask).length > 0 && (
+      {selectedTask && Object.keys(selectedTask).length > 0 && selectedPianoId && (
         <DrawerTask 
           task={selectedTask} 
-          pianoId={selectedPianoId!} 
+          pianoId={selectedPianoId} 
           onClose={() => setSelectedTask(null)}
           onUpdated={t => { 
-            fetchContent(selectedPianoId!, "tasks");
+            if (selectedPianoId) fetchContent(selectedPianoId, "tasks");
             setSelectedTask(null);
           }}
         />
