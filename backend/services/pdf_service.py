@@ -1,7 +1,6 @@
 
 import io
 from PyPDF2 import PdfReader
-import pytesseract
 
 def normalize_text(text: str) -> str:
     return text.replace("\r", "\n").strip()
@@ -40,7 +39,8 @@ def read_pdf_ocr_fallback(content: bytes):
         parts = []
 
         for image in images:
-            text = pytesseract.image_to_string(image, lang="eng")
+            import pytesseract
+        text = pytesseract.image_to_string(image, lang="eng")
             if text:
                 parts.append(text)
 
