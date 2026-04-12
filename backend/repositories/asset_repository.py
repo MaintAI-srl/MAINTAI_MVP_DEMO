@@ -80,11 +80,24 @@ _NEW_ANAGRAFICA_FIELDS = [
 
 class AssetRepository:
 
-    def get_all(self, db: Session, tenant_id: int) -> list[dict]:
-        query = db.query(Asset).options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+    def get_all(self, db: Session, tenant_id: int, query: str = None, sito_id: int = None, impianto_id: int = None, limit: int = 100, page: int = 1) -> list[dict]:
+        from sqlalchemy import or_
+        q = db.query(Asset).options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+        
         if tenant_id is not None:
-            query = query.filter(Asset.tenant_id == tenant_id)
-        assets = query.order_by(Asset.nome).limit(2000).all()
+            q = q.filter(Asset.tenant_id == tenant_id)
+        
+        if query:
+            p = f"%{query}%"
+            q = q.filter(or_(Asset.nome.ilike(p), Asset.codice.ilike(p), Asset.descrizione.ilike(p)))
+            
+        if impianto_id:
+            q = q.filter(Asset.impianto_id == impianto_id)
+        
+        if sito_id:
+            q = q.filter(Asset.impianto.has(Impianto.sito_id == sito_id))
+            
+        assets = q.order_by(Asset.nome).offset((page - 1) * limit).limit(limit).all()
         return [_to_dict(a) for a in assets]
 
     def get_by_id(self, db: Session, asset_id: int, tenant_id: int | None) -> dict | None:

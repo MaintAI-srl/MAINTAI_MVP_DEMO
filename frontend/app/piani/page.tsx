@@ -7,7 +7,14 @@ import { cn } from "@/lib/utils";
 
 // ─── Tipi ─────────────────────────────────────────────────────────────────────
 
-type AssetOption = { id: number; nome: string; area?: string; sito_nome?: string };
+type AssetOption = { 
+  id: number; 
+  nome: string; 
+  codice?: string;
+  impianto_nome?: string; 
+  sito_nome?: string;
+  criticita?: string;
+};
 
 type Piano = {
   id: number;
@@ -45,6 +52,15 @@ type Task = {
   open_ticket_count: number;
 };
 
+type Manuale = {
+  id: number;
+  nome: string;
+  pagine: number;
+  metodo: string;
+  stato: string;
+  task_count: number;
+};
+
 type TicketHistory = {
   id: number;
   titolo: string;
@@ -54,297 +70,128 @@ type TicketHistory = {
   created_at: string | null;
 };
 
-type Manuale = {
-  id: number;
-  nome: string;
-  pagine: number;
-  metodo: string;
-  stato: string;
-  created_at: string | null;
-  task_count?: number;
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function isOverdue(iso: string | null) {
-  return !!iso && new Date(iso) < new Date();
+  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 const PRIORITA_STYLES: Record<string, string> = {
-  Alta: "bg-red-500/20 text-red-400 border border-red-500/30",
-  Media: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
-  Bassa: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+  Alta: "bg-red-500/10 text-red-500 border-red-500/20",
+  Media: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  Bassa: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
 };
 
 const STATO_TICKET_STYLES: Record<string, string> = {
-  Aperto: "text-blue-400 border-blue-500/20 bg-blue-500/10",
-  Pianificato: "text-amber-400 border-amber-500/20 bg-amber-500/10",
-  "In corso": "text-indigo-400 border-indigo-500/20 bg-indigo-500/10",
-  Chiuso: "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
+  Aperto: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+  Pianificato: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+  "In corso": "text-indigo-500 bg-indigo-500/10 border-indigo-500/20",
+  Chiuso: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
 };
 
 // ─── Componenti UI ────────────────────────────────────────────────────────────
 
 function Badge({ label, className }: { label: string; className?: string }) {
   return (
-    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", className)}>
+    <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border", className)}>
       {label}
     </span>
   );
 }
 
-// ─── MODAL: Crea/Modifica Task ───────────────────────────────────────────────
+// ─── Componente: Selezione Asset Scalabile ───────────────────────────────────
 
-function ModalTask({ task, pianoId, onClose, onSaved }: {
-  task?: Task | null;
-  pianoId: number;
-  onClose: () => void;
-  onSaved: (t: Task) => void;
+function AssetSelector({ 
+  selectedIds, 
+  onToggle, 
+  onSelectAll 
+}: { 
+  selectedIds: number[], 
+  onToggle: (id: number) => void,
+  onSelectAll: (ids: number[]) => void
 }) {
-  const [form, setForm] = useState({
-    nome: task?.nome || "",
-    descrizione: task?.descrizione || "",
-    frequenza_giorni: task?.frequenza_giorni || 30,
-    durata_ore: task?.durata_ore || 1.0,
-    priorita: task?.priorita || "Media",
-    generation_mode: task?.generation_mode || "manual",
-    is_repeatable: task?.is_repeatable ?? true,
-  });
-  const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<AssetOption[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
+  const search = useCallback(async (q: string) => {
+    setLoading(true);
     try {
-      const isEdit = !!task;
-      const res = isEdit
-        ? await apiPut<Task>(`/piani-manutenzione/${pianoId}/tasks/${task.id}`, form)
-        : await apiPost<Task>(`/piani-manutenzione/${pianoId}/tasks`, form);
-      
-      notify.success(isEdit ? "Task aggiornato" : "Task creato");
-      onSaved(res);
-    } catch (err: any) {
-      notify.error(err.message || "Errore salvataggio task");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-          <h3 className="text-sm font-bold text-white uppercase tracking-widest">
-            {task ? "Modifica Task" : "Nuovo Task Manuale"}
-          </h3>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-xl">×</button>
-        </div>
-        <form onSubmit={submit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Nome Task</label>
-              <input 
-                type="text" 
-                value={form.nome} 
-                onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
-                className="w-full bg-white/5 border border-white/5 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-indigo-500"
-                placeholder="es. Controllo Filtri"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Frequenza (Giorni)</label>
-              <input 
-                type="number" 
-                value={form.frequenza_giorni} 
-                onChange={e => setForm(f => ({ ...f, frequenza_giorni: parseInt(e.target.value) || 0 }))}
-                className="w-full bg-white/5 border border-white/5 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Durata Stimata (Ore)</label>
-              <input 
-                type="number" 
-                step="0.5"
-                value={form.durata_ore} 
-                onChange={e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))}
-                className="w-full bg-white/5 border border-white/5 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Priorità</label>
-              <select 
-                value={form.priorita}
-                onChange={e => setForm(f => ({ ...f, priorita: e.target.value }))}
-                className="w-full bg-white/5 border border-white/5 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-indigo-500"
-              >
-                <option value="Alta">Alta</option>
-                <option value="Media">Media</option>
-                <option value="Bassa">Bassa</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 pt-4">
-               <input 
-                 type="checkbox" 
-                 checked={form.is_repeatable}
-                 onChange={e => setForm(f => ({ ...f, is_repeatable: e.target.checked }))}
-                 className="w-4 h-4 bg-white/5 border-white/10 rounded"
-               />
-               <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Ricorrente</label>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Descrizione Task</label>
-            <textarea 
-               value={form.descrizione} 
-               onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))}
-               className="w-full bg-white/5 border border-white/5 rounded-lg py-2 px-3 text-sm text-white h-24 focus:outline-none focus:border-indigo-500 resize-none"
-               required
-            />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl border border-white/10 text-white/60 text-[10px] font-bold uppercase tracking-widest">Annulla</button>
-            <button 
-              type="submit" 
-              disabled={saving}
-              className="flex-1 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-[10px] font-bold tracking-widest transition-all"
-            >
-              {saving ? "Salvataggio..." : "Salva Task"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ─── DRAWER: Dettaglio Task ──────────────────────────────────────────────────
-
-function DrawerTask({ task, pianoId, onClose, onUpdated }: {
-  task: Task;
-  pianoId: number;
-  onClose: () => void;
-  onUpdated: (t: Task) => void;
-}) {
-  const [history, setHistory] = useState<TicketHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showEdit, setShowEdit] = useState(false);
+      const res = await apiGet<AssetOption[]>(`/assets?query=${encodeURIComponent(q)}&limit=50`);
+      setResults(res || []);
+    } catch { notify.error("Errore ricerca asset"); }
+    finally { setLoading(false); }
+  }, []);
 
   useEffect(() => {
-    async function fetchHistory() {
-      try {
-        const res = await apiGet<TicketHistory[]>(`/piani-manutenzione/${pianoId}/tasks/${task.id}/tickets`);
-        setHistory(Array.isArray(res) ? res : []);
-      } catch { setHistory([]); }
-      finally { setLoading(false); }
-    }
-    fetchHistory();
-  }, [task.id, pianoId]);
+    const timer = setTimeout(() => search(query), 300);
+    return () => clearTimeout(timer);
+  }, [query, search]);
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[450px] bg-[#0f172a] border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] z-50 flex flex-col animate-in slide-in-from-right duration-300">
-      <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
-        <div className="flex flex-col">
-          <Badge label={task.codice || `#${task.id}`} className="bg-white/10 text-white/40 w-fit mb-1" />
-          <h2 className="text-sm font-bold text-white uppercase tracking-widest truncate max-w-[300px]">{task.nome || task.descrizione}</h2>
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input 
+            type="text" 
+            placeholder="Cerca per nome, codice o descrizione..."
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+          />
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20">🔍</span>
         </div>
-        <button onClick={onClose} className="text-white/40 hover:text-white text-2xl">×</button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                <span className="block text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1">Stato</span>
-                <Badge label={task.task_stato} className={cn("text-[10px]", task.task_stato === 'active' ? "text-emerald-400 bg-emerald-500/10" : "text-slate-400 bg-slate-500/10")} />
-             </div>
-             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                <span className="block text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1">Priorità</span>
-                <Badge label={task.priorita} className={PRIORITA_STYLES[task.priorita]} />
-             </div>
-             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                <span className="block text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1">Frequenza</span>
-                <span className="text-white font-mono text-xs">{task.frequenza_giorni} giorni</span>
-             </div>
-             <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                <span className="block text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1">Durata</span>
-                <span className="text-white font-mono text-xs">{task.durata_ore} ore</span>
-             </div>
-          </div>
-
-          <div className="bg-white/5 rounded-2xl p-4 border border-white/5 space-y-1">
-             <span className="block text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1">Descrizione Task</span>
-             <p className="text-xs text-white/60 leading-relaxed italic">{task.descrizione}</p>
-          </div>
-          
-          <button 
-             onClick={() => setShowEdit(true)}
-             className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white tracking-widest transition-all"
-          >
-            MODIFICA PARAMETRI TASK
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Storico Ticket Generati</h3>
-          {loading ? (
-             <div className="animate-pulse space-y-2">
-               {[1,2,3].map(i => <div key={i} className="h-12 bg-white/5 rounded-xl" />)}
-             </div>
-          ) : history.length === 0 ? (
-             <div className="text-center py-10 text-[10px] text-white/20 italic uppercase tracking-widest border border-dashed border-white/5 rounded-2xl">
-               Nessun ticket generato per questo task
-             </div>
-          ) : (
-             <div className="space-y-2">
-               {history.map(tk => (
-                 <div key={tk.id} className="p-3 bg-white/5 hover:bg-white/[0.07] border border-white/5 rounded-xl transition-all cursor-pointer group">
-                   <div className="flex justify-between items-start mb-1">
-                     <span className="text-[11px] font-bold text-white group-hover:text-indigo-400 transition-colors">#{tk.id} {tk.titolo}</span>
-                     <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border", STATO_TICKET_STYLES[tk.stato as keyof typeof STATO_TICKET_STYLES] || "text-white/40 border-white/10 bg-white/5")}>{tk.stato}</span>
-                   </div>
-                   <div className="flex gap-3 text-[9px] font-bold text-white/20 uppercase tracking-widest">
-                     <span>📅 {fmt(tk.created_at)}</span>
-                     <span>⏱ {tk.durata_stimata_ore}h</span>
-                   </div>
-                 </div>
-               ))}
-             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="p-4 border-t border-white/5 bg-white/5">
         <button 
-           onClick={onClose}
-           className="w-full py-2 rounded-xl text-white/40 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest"
+          type="button"
+          onClick={() => onSelectAll(results.map(r => r.id))}
+          className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20 rounded-xl transition-all"
         >
-          Chiudi Dettaglio
+          Aggiungi Tutti
         </button>
       </div>
 
-      {showEdit && (
-        <ModalTask 
-           task={task} 
-           pianoId={pianoId} 
-           onClose={() => setShowEdit(false)} 
-           onSaved={(updated) => { onUpdated(updated); setShowEdit(false); }} 
-        />
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+        {loading ? (
+          <div className="col-span-2 py-10 text-center text-white/20 italic text-xs uppercase tracking-widest">Ricerca in corso...</div>
+        ) : results.length === 0 ? (
+          <div className="col-span-2 py-10 text-center text-white/20 italic text-xs uppercase tracking-widest">Nessun asset trovato</div>
+        ) : (
+          results.map(asset => (
+            <div 
+              key={asset.id}
+              onClick={() => onToggle(asset.id)}
+              className={cn(
+                "p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between group",
+                selectedIds.includes(asset.id) 
+                  ? "bg-indigo-500/10 border-indigo-500/50" 
+                  : "bg-white/5 border-white/5 hover:border-white/20"
+              )}
+            >
+              <div className="flex flex-col min-w-0">
+                <span className={cn("text-sm font-bold truncate", selectedIds.includes(asset.id) ? "text-indigo-300" : "text-white/80")}>
+                  {asset.nome}
+                </span>
+                <span className="text-[10px] text-white/30 truncate">{asset.codice} • {asset.impianto_nome}</span>
+              </div>
+              <div className={cn(
+                "w-5 h-5 rounded-lg border flex items-center justify-center transition-all",
+                selectedIds.includes(asset.id) ? "bg-indigo-500 border-indigo-500" : "border-white/20 group-hover:border-white/40"
+              )}>
+                {selectedIds.includes(asset.id) && <span className="text-white text-xs">✓</span>}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── MODAL: Crea/Modifica Piano ───────────────────────────────────────────────
+// ─── MODAL: Nuovo Piano ─────────────────────────────────────────────────────
 
-function ModalPiano({ piano, assets, onClose, onSaved }: {
+function ModalPiano({ piano, onClose, onSaved }: {
   piano?: Piano | null;
-  assets: AssetOption[];
   onClose: () => void;
   onSaved: (p: Piano) => void;
 }) {
@@ -357,84 +204,75 @@ function ModalPiano({ piano, assets, onClose, onSaved }: {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (form.asset_ids.length === 0) { notify.error("Seleziona almeno un asset"); return; }
+    if (form.asset_ids.length === 0) {
+      notify.error("Seleziona almeno un asset per procedere.");
+      return;
+    }
     setSaving(true);
     try {
-      const isEdit = !!piano;
-      const res = isEdit
+      const res = piano 
         ? await apiPut<Piano>(`/piani-manutenzione/${piano.id}`, form)
         : await apiPost<Piano>("/piani-manutenzione", form);
-      
-      notify.success(isEdit ? "Piano aggiornato" : `Piano ${res.nome_codificato} creato`);
+      notify.success(piano ? "Piano aggiornato" : `Piano ${res.nome_codificato} creato con successo`);
       onSaved(res);
-    } catch (err: any) {
-      notify.error(err.message || "Errore salvataggio piano");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore durante il salvataggio");
     } finally {
       setSaving(false);
     }
   }
 
-  const toggleAsset = (id: number) => {
-    setForm(f => ({
-      ...f,
-      asset_ids: f.asset_ids.includes(id) 
-        ? f.asset_ids.filter(x => x !== id) 
-        : [...f.asset_ids, id]
-    }));
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-          <h3 className="text-sm font-bold text-white uppercase tracking-widest">
-            {piano ? `Modifica Piano ${piano.nome_codificato}` : "Nuovo Piano di Manutenzione"}
-          </h3>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-xl">×</button>
-        </div>
-        
-        <form onSubmit={submit} className="p-6 space-y-5">
-          <div>
-            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Associa Asset ({form.asset_ids.length})</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-3 bg-black/20 rounded-xl border border-white/5 custom-scrollbar">
-              {assets.map(a => (
-                <div 
-                  key={a.id} 
-                  onClick={() => toggleAsset(a.id)}
-                  className={cn(
-                    "p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center gap-2",
-                    form.asset_ids.includes(a.id) 
-                      ? "bg-indigo-500/20 border-indigo-500 text-indigo-100" 
-                      : "bg-white/5 border-white/5 text-white/60 hover:border-white/20"
-                  )}
-                >
-                  <div className={cn("w-3 h-3 rounded-sm border flex items-center justify-center", form.asset_ids.includes(a.id) ? "bg-indigo-500 border-indigo-500" : "border-white/20")}>
-                    {form.asset_ids.includes(a.id) && <span className="text-[8px] text-white">✓</span>}
-                  </div>
-                  <span className="truncate">{a.nome}</span>
-                </div>
-              ))}
-            </div>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <div className="bg-[#111827] border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+          <div className="space-y-1">
+            <h3 className="text-xl font-black text-white uppercase tracking-wider">
+              {piano ? "Modifica Piano" : "Definizione Nuovo Piano"}
+            </h3>
+            <p className="text-sm text-white/30 font-medium italic">Configura il contesto operativo e associa gli asset.</p>
           </div>
+          <button onClick={onClose} className="text-white/20 hover:text-white transition-colors text-3xl leading-none">&times;</button>
+        </div>
 
+        <form onSubmit={submit} className="p-8 space-y-8">
           <div>
-            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Descrizione Operativa</label>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3">Descrizione Operativa</label>
             <textarea 
-              value={form.descrizione} 
+              value={form.descrizione}
               onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))}
-              placeholder="Inserisci scopo del piano, vincoli o note generali..."
-              className="w-full bg-white/5 border border-white/5 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none h-24 transition-all"
+              placeholder="es. Piano Manutenzione Cabine MT - Sito Roma Nord..."
+              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none h-24"
+              required
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-xs font-bold hover:bg-white/5 transition-all uppercase tracking-widest">Annulla</button>
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3">Asset Associati ({form.asset_ids.length} selezionati)</label>
+            <AssetSelector 
+              selectedIds={form.asset_ids} 
+              onToggle={id => setForm(f => ({ ...f, asset_ids: f.asset_ids.includes(id) ? f.asset_ids.filter(x => x !== id) : [...f.asset_ids, id]}))}
+              onSelectAll={ids => setForm(f => {
+                const newIds = new Set([...f.asset_ids, ...ids]);
+                return { ...f, asset_ids: Array.from(newIds) };
+              })}
+            />
+          </div>
+
+          <div className="flex gap-4 pt-4">
             <button 
-              type="submit" 
-              disabled={saving || form.asset_ids.length === 0} 
-              className="flex-1 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-bold transition-all uppercase tracking-widest shadow-lg shadow-indigo-500/20"
+              type="button" 
+              onClick={onClose}
+              className="flex-1 py-4 px-6 border border-white/10 rounded-2xl text-white/40 text-xs font-black uppercase tracking-widest hover:bg-white/5 transition-all"
             >
-              {saving ? "Salvataggio..." : (piano ? "Aggiorna" : "Crea Piano")}
+              Annulla
+            </button>
+            <button 
+              type="submit"
+              disabled={saving}
+              className="flex-[2] py-4 px-6 bg-indigo-500 hover:bg-indigo-400 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
+            >
+              {saving ? "Salvataggio in corso..." : (piano ? "Aggiorna Configurazione" : "Inizializza Piano di Manutenzione")}
             </button>
           </div>
         </form>
@@ -443,522 +281,565 @@ function ModalPiano({ piano, assets, onClose, onSaved }: {
   );
 }
 
-// ─── MAIN PAGE ───────────────────────────────────────────────────────────────
+// ─── DRAWER: Dettaglio Task ──────────────────────────────────────────────────
+
+function DrawerTask({ 
+  task, 
+  pianoId, 
+  onClose, 
+  onUpdated 
+}: { 
+  task: Task; 
+  pianoId: number; 
+  onClose: () => void; 
+  onUpdated: (t: Task) => void 
+}) {
+  const [history, setHistory] = useState<TicketHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [form, setForm] = useState({
+    nome: task.nome || "",
+    descrizione: task.descrizione || "",
+    frequenza_giorni: task.frequenza_giorni || 30,
+    durata_ore: task.durata_ore || 1,
+    priorita: task.priorita || "Media",
+    task_stato: task.task_stato || "active",
+    is_repeatable: task.is_repeatable ?? true,
+    generate_days_before_due: task.generate_days_before_due || 7,
+  });
+
+  useEffect(() => {
+    async function fetchHistory() {
+      try {
+        const res = await apiGet<TicketHistory[]>(`/piani-manutenzione/${pianoId}/tasks/${task.id}/tickets`);
+        setHistory(res || []);
+      } catch { setHistory([]); }
+      finally { setLoading(false); }
+    }
+    fetchHistory();
+  }, [task.id, pianoId]);
+
+  async function handleSave() {
+    try {
+      const res = await apiPut<Task>(`/piani-manutenzione/${pianoId}/tasks/${task.id}`, form);
+      notify.success("Parametri attività aggiornati");
+      onUpdated(res);
+      setEditMode(false);
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore aggiornamento task");
+    }
+  }
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-[#0c111d] border-l border-white/10 z-[80] shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col animate-in slide-in-from-right duration-500 ease-out">
+      <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+        <div className="space-y-1">
+          <Badge label={task.codice || `#${task.id}`} className="bg-white/10 text-white/60 mb-1" />
+          <h2 className="text-lg font-black text-white uppercase tracking-tight truncate max-w-[320px]">
+            {task.nome || task.descrizione}
+          </h2>
+        </div>
+        <button onClick={onClose} className="text-white/20 hover:text-white transition-colors text-3xl">&times;</button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+        {/* PARAMETRI OPERATIVI */}
+        <div className="space-y-6">
+          <div className="flex justify-between items-end">
+            <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Configurazione Operatva</h3>
+            {!editMode ? (
+              <button onClick={() => setEditMode(true)} className="text-[10px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest decoration-dotted underline underline-offset-4">Modifica</button>
+            ) : (
+              <div className="flex gap-4">
+                <button onClick={() => setEditMode(false)} className="text-[10px] font-black text-white/20 hover:text-white/40 uppercase tracking-widest">Annulla</button>
+                <button onClick={handleSave} className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 uppercase tracking-widest">Salva modifiche</button>
+              </div>
+            )}
+          </div>
+
+          {!editMode ? (
+             <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Frequenza</span>
+                <p className="text-sm font-bold text-white uppercase">{task.frequenza_giorni} giorni</p>
+              </div>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Priorità</span>
+                <Badge label={task.priorita} className={PRIORITA_STYLES[task.priorita]} />
+              </div>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Durata Stimata</span>
+                <p className="text-sm font-bold text-white uppercase">{task.durata_ore} ore uomo</p>
+              </div>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Pianificazione</span>
+                <p className="text-sm font-bold text-white uppercase">{task.generation_mode === 'auto' ? `Auto (${task.generate_days_before_due}g d'anticipo)` : 'Manuale'}</p>
+              </div>
+              <div className="col-span-2 bg-white/5 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Istruzioni Operative</span>
+                <p className="text-sm text-white/60 leading-relaxed italic">&quot;{task.descrizione}&quot;</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 animate-in fade-in duration-200">
+               <div>
+                <label className="text-[9px] font-black text-white/20 uppercase mb-1 block">Titolo Attività</label>
+                <input type="text" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-white/20 uppercase mb-1 block">Descrizione/Istruzioni</label>
+                <textarea value={form.descrizione} onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white h-24 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[9px] font-black text-white/20 uppercase mb-1 block">Frequenza (gg)</label>
+                  <input type="number" value={form.frequenza_giorni} onChange={e => setForm(f => ({ ...f, frequenza_giorni: parseInt(e.target.value) || 0 }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-white/20 uppercase mb-1 block">Durata (ore)</label>
+                  <input type="number" step="0.5" value={form.durata_ore} onChange={e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* STORICO TICKET */}
+        <div className="space-y-6">
+          <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Cronologia Interventi</h3>
+          <div className="space-y-3">
+            {loading ? (
+              [1, 2, 3].map(i => <div key={i} className="h-20 bg-white/5 rounded-2xl animate-pulse" />)
+            ) : history.length === 0 ? (
+              <div className="py-12 text-center rounded-3xl border border-dashed border-white/5">
+                <p className="text-xs text-white/20 uppercase font-black italic">Nessun ticket emesso</p>
+              </div>
+            ) : (
+              history.map(ticket => (
+                <div key={ticket.id} className="bg-white/5 border border-white/5 p-4 rounded-2xl hover:bg-white/[0.08] transition-all group">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">#{ticket.id} {ticket.titolo}</span>
+                    <Badge label={ticket.stato} className={STATO_TICKET_STYLES[ticket.stato] || "bg-white/5 text-white/30 border-white/10"} />
+                  </div>
+                  <div className="flex gap-4 text-[10px] font-black text-white/20 uppercase tracking-widest">
+                    <span>📅 {fmt(ticket.created_at)}</span>
+                    <span>⏱ {ticket.durata_stimata_ore} ore</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-8 border-t border-white/5 bg-white/5 flex gap-4">
+        <button 
+          onClick={onClose}
+          className="flex-1 py-4 text-xs font-black uppercase text-white/30 hover:text-white transition-all tracking-[0.2em]"
+        >
+          Chiudi Pannello
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── PAGE COMPONENT ──────────────────────────────────────────────────────────
 
 export default function PianiPage() {
   const [piani, setPiani] = useState<Piano[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedPianoId, setSelectedPianoId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [activeTab, setActiveTab] = useState<"tasks" | "manuali" | "history">("tasks");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [manuali, setManuali] = useState<Manuale[]>([]);
-  const [cronologia, setCronologia] = useState<TicketHistory[]>([]);
-  
-  const [activeTab, setActiveTab] = useState<"tasks" | "manuali" | "history">("tasks");
-  const [loadingContent, setLoadingContent] = useState(false);
-  const [search, setSearch] = useState("");
-  
-  const [assets, setAssets] = useState<AssetOption[]>([]);
+  const [history, setHistory] = useState<TicketHistory[]>([]);
+  const [fetchingContent, setFetchingContent] = useState(false);
+
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showModalPiano, setShowModalPiano] = useState(false);
   const [pianoToEdit, setPianoToEdit] = useState<Piano | null>(null);
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showModalTask, setShowModalTask] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
-  // ── Data Fetching ──
   const fetchPiani = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<{ items: Piano[] }>("/piani-manutenzione?limit=200");
+      const res = await apiGet<{ items: Piano[] }>("/piani-manutenzione?limit=500");
       setPiani(res.items || []);
-    } catch { notify.error("Errore caricamento piani"); }
+    } catch { notify.error("Impossibile caricare i piani"); }
     finally { setLoading(false); }
   }, []);
 
-  const fetchAssets = useCallback(async () => {
+  const fetchContent = useCallback(async (pid: number, tab: string) => {
+    setFetchingContent(true);
     try {
-      const res = await apiGet<AssetOption[]>("/assets");
-      setAssets(Array.isArray(res) ? res : []);
-    } catch { setAssets([]); }
+      if (tab === "tasks") {
+        const res = await apiGet<{ items: Task[] }>(`/piani-manutenzione/${pid}/tasks?limit=500`);
+        setTasks(res.items || []);
+      } else if (tab === "manuali") {
+        const res = await apiGet<Manuale[]>(`/manuali?piano_id=${pid}`);
+        setManuali(res || []);
+      } else if (tab === "history") {
+        const res = await apiGet<{ items: TicketHistory[] }>(`/tickets?piano_id=${pid}&limit=200`);
+        setHistory(res.items || []);
+      }
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : `Errore caricamento ${tab}`);
+    } finally {
+      setFetchingContent(false);
+    }
   }, []);
 
-  const fetchTasks = useCallback(async (pid: number) => {
-    setLoadingContent(true);
-    try {
-      const res = await apiGet<{ items: Task[] }>(`/piani-manutenzione/${pid}/tasks?limit=500`);
-      setTasks(res.items || []);
-    } catch { notify.error("Errore task"); }
-    finally { setLoadingContent(false); }
-  }, []);
-
-  const fetchManuali = useCallback(async (pid: number) => {
-    setLoadingContent(true);
-    try {
-      const res = await apiGet<Manuale[]>(`/manuali?piano_id=${pid}`);
-      setManuali(Array.isArray(res) ? res : []);
-    } catch { notify.error("Errore manuali"); }
-    finally { setLoadingContent(false); }
-  }, []);
-
-  const fetchCronologia = useCallback(async (pid: number) => {
-    setLoadingContent(true);
-    try {
-      const res = await apiGet<{ items: TicketHistory[] }>(`/tickets?piano_id=${pid}&limit=200`);
-      setCronologia(res.items || []);
-    } catch { notify.error("Errore cronologia"); }
-    finally { setLoadingContent(false); }
-  }, []);
-
-  useEffect(() => { fetchPiani(); fetchAssets(); }, [fetchPiani, fetchAssets]);
+  useEffect(() => { fetchPiani(); }, [fetchPiani]);
 
   useEffect(() => {
-    if (!selectedPianoId) return;
-    if (activeTab === "tasks") fetchTasks(selectedPianoId);
-    else if (activeTab === "manuali") fetchManuali(selectedPianoId);
-    else if (activeTab === "history") fetchCronologia(selectedPianoId);
-  }, [selectedPianoId, activeTab, fetchTasks, fetchManuali, fetchCronologia]);
+    if (selectedPianoId) fetchContent(selectedPianoId, activeTab);
+  }, [selectedPianoId, activeTab, fetchContent]);
+
+  const filteredPiani = useMemo(() => {
+    return piani.filter(p => 
+      p.nome_codificato.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.descrizione?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [piani, searchQuery]);
 
   const selectedPiano = useMemo(() => piani.find(p => p.id === selectedPianoId), [piani, selectedPianoId]);
 
-  const filteredPiani = useMemo(() => {
-    if (!search) return piani;
-    const s = search.toLowerCase();
-    return piani.filter(p => 
-      p.nome_codificato.toLowerCase().includes(s) || 
-      (p.descrizione && p.descrizione.toLowerCase().includes(s)) ||
-      (p.asset_nome && p.asset_nome.toLowerCase().includes(s))
-    );
-  }, [piani, search]);
-
-  const handlePianoSaved = (p: Piano) => {
-    if (pianoToEdit) setPiani(prev => prev.map(old => old.id === p.id ? { ...old, ...p } : old));
-    else setPiani(prev => [p, ...prev]);
-    setShowModalPiano(false);
-    setSelectedPianoId(p.id);
-  };
-
-  const deletePiano = async (pid: number) => {
-    if (!confirm("Eliminare definitivamente questo piano e tutti i suoi task?")) return;
+  async function deletePiano(id: number) {
+    if (!confirm("Eliminare definitivamente questo piano di manutenzione? L'azione non è reversibile.")) return;
     try {
-      await apiDelete(`/piani-manutenzione/${pid}`);
-      setPiani(prev => prev.filter(p => p.id !== pid));
-      if (selectedPianoId === pid) setSelectedPianoId(null);
+      await apiDelete(`/piani-manutenzione/${id}`);
       notify.success("Piano eliminato correttamente");
-    } catch (err: any) { notify.error(err.message || "Errore eliminazione"); }
-  };
+      setPiani(p => p.filter(x => x.id !== id));
+      if (selectedPianoId === id) setSelectedPianoId(null);
+    } catch (err: unknown) { 
+      notify.error(err instanceof Error ? err.message : "Errore eliminazione"); 
+    }
+  }
 
-  const toggleTaskStato = async (task: Task) => {
-    const nuovoStato = task.task_stato === "active" ? "paused" : "active";
+  async function setTicketTask(task: Task) {
     try {
-      await apiPut(`/piani-manutenzione/${selectedPianoId}/tasks/${task.id}`, { task_stato: nuovoStato });
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, task_stato: nuovoStato } : t));
-    } catch { notify.error("Errore cambio stato task"); }
-  };
-
-  const generaTicket = async (task: Task) => {
-    try {
-      const res = await apiPost<{ created: number }>(`/piani-manutenzione/${selectedPianoId}/tasks/${task.id}/genera-ticket`, {});
+      const res = await apiPost<{ created: number }>(`/piani-manutenzione/${selectedPianoId}/tasks/${task.id}/genera-ticket`);
       notify.success(`${res.created} ticket generati correttamente`);
-      fetchTasks(selectedPianoId!);
-    } catch (err: any) { notify.error(err.message || "Errore generazione ticket"); }
-  };
+      fetchContent(selectedPianoId!, "tasks");
+    } catch (err: unknown) { 
+      notify.error(err instanceof Error ? err.message : "Errore generazione ticket"); 
+    }
+  }
 
-  const handleUploadManual = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0] || !selectedPianoId) return;
-    setUploading(true);
-    const fd = new FormData();
-    fd.append("file", e.target.files[0]);
-    try {
-      await apiUpload(`/piani-manutenzione/${selectedPianoId}/import-pdf`, fd);
-      notify.success("Manuale processato con successo. Attività estratte.");
-      fetchTasks(selectedPianoId);
-      fetchManuali(selectedPianoId);
-      setActiveTab("tasks");
-    } catch (err: any) { notify.error(err.message || "Errore upload manuale"); }
-    finally { setUploading(false); }
-  };
+  // Render Skeleton per lista
+  const SkeletonItem = () => <div className="h-20 bg-white/5 border border-white/5 rounded-2xl animate-pulse" />;
 
   return (
-    <div className="flex h-full overflow-hidden bg-[#0a0f18]">
+    <div className="flex h-full bg-[#030712] overflow-hidden">
       
-      {/* ── SIDEBAR PIANI ── */}
-      <aside className="w-[300px] flex-shrink-0 border-r border-white/5 flex flex-col bg-[#0f172a]/50 backdrop-blur-3xl">
-        <div className="p-4 border-b border-white/5 space-y-3">
+      {/* ── PANEL 1: SIDEBAR PIANI ── */}
+      <aside className="w-[320px] flex-shrink-0 border-r border-white/10 bg-[#0c111d]/50 backdrop-blur-3xl flex flex-col">
+        <div className="p-6 border-b border-white/10 space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-[11px] font-black text-white/40 uppercase tracking-[0.2em]">Piani Attivi</h2>
-            <Badge label={piani.length.toString()} className="bg-white/5 text-white/60" />
+            <h2 className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em]">Piani di Manutenzione</h2>
+            <div className="w-6 h-6 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-[10px] font-black text-indigo-400">
+              {piani.length}
+            </div>
           </div>
           <button 
             onClick={() => { setPianoToEdit(null); setShowModalPiano(true); }}
-            className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 uppercase tracking-widest"
+            className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.1em] transition-all shadow-xl shadow-indigo-500/20"
           >
-            + Nuovo Piano
+            + Definisci Nuovo Piano
           </button>
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Cerca piani..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full bg-white/5 border border-white/5 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-indigo-500 transition-all"
+              placeholder="Cerca piano..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 border border-white/5 rounded-xl py-2 px-9 text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
             />
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 text-[10px]">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20 text-xs">🔍</span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1.5 custom-scrollbar">
-          {loading && piani.length === 0 ? (
-            <div className="p-10 text-center animate-pulse text-white/20 text-xs italic uppercase tracking-widest font-black">Caricamento...</div>
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 custom-scrollbar">
+          {loading ? (
+             [1,2,3,4,5].map(i => <SkeletonItem key={i} />)
           ) : filteredPiani.length === 0 ? (
-            <div className="p-10 text-center text-white/20 text-xs italic">Nessun piano</div>
+            <div className="text-center py-20 text-[10px] font-black text-white/10 uppercase tracking-widest italic">Nessun piano presente</div>
           ) : (
             filteredPiani.map(p => (
               <div 
                 key={p.id}
-                onClick={() => { setSelectedPianoId(p.id); }}
+                onClick={() => setSelectedPianoId(p.id)}
                 className={cn(
-                  "p-3 rounded-xl border cursor-pointer transition-all group relative",
+                  "p-4 rounded-3xl border cursor-pointer transition-all relative group",
                   selectedPianoId === p.id 
                     ? "bg-indigo-500/10 border-indigo-500/50" 
                     : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
                 )}
               >
-                <div className="flex justify-between items-start mb-1.5">
-                  <span className={cn("text-xs font-black tracking-tighter uppercase", selectedPianoId === p.id ? "text-indigo-400" : "text-white/80")}>
+                <div className="flex justify-between items-start mb-2">
+                  <span className={cn("text-sm font-black uppercase tracking-tight", selectedPianoId === p.id ? "text-indigo-400" : "text-white/80")}>
                     {p.nome_codificato}
                   </span>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); setPianoToEdit(p); setShowModalPiano(true); }} className="p-1 hover:text-white text-white/40">✎</button>
-                    <button onClick={(e) => { e.stopPropagation(); deletePiano(p.id); }} className="p-1 text-red-500/40 hover:text-red-400">✕</button>
+                  <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); setPianoToEdit(p); setShowModalPiano(true); }} className="p-1.5 text-white/20 hover:text-white">✎</button>
+                    <button onClick={(e) => { e.stopPropagation(); deletePiano(p.id); }} className="p-1.5 text-red-500/20 hover:text-red-500">✕</button>
                   </div>
                 </div>
-                <div className="text-[10px] text-white/40 font-bold truncate mb-2">{p.asset_nome || "Multiple Assets"}</div>
+                <p className="text-[11px] text-white/40 font-medium line-clamp-2 mb-3 leading-relaxed">
+                  {p.descrizione || "Nessuna descrizione configurata."}
+                </p>
                 <div className="flex gap-2">
-                  <div className="flex items-center gap-1 text-[8px] font-black text-white/40 uppercase tracking-widest bg-white/5 px-1.5 py-0.5 rounded">
-                    {p.task_count} TASKS
+                  <div className="bg-white/5 px-2 py-0.5 rounded text-[9px] font-black text-white/30 uppercase tracking-[0.1em]">
+                    {p.asset_count} Asset
                   </div>
-                  {p.open_ticket_count > 0 && (
-                    <div className="flex items-center gap-1 text-[8px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded">
-                      {p.open_ticket_count} TICKETS
-                    </div>
-                  )}
+                  <div className="bg-white/5 px-2 py-0.5 rounded text-[9px] font-black text-white/30 uppercase tracking-[0.1em]">
+                    {p.task_count} Task
+                  </div>
                 </div>
+                {selectedPianoId === p.id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r-full" />}
               </div>
             ))
           )}
         </div>
       </aside>
 
-      {/* ── MAIN CONTENT ── */}
-      <main className="flex-1 flex flex-col min-w-0 relative">
+      {/* ── PANEL 2: CONTENT AREA ── */}
+      <main className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-[#030712] to-[#0c111d]">
         {!selectedPiano ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-            <div className="w-20 h-20 bg-white/5 rounded-[30px] flex items-center justify-center text-4xl mb-6 text-white/20 border border-white/5 rotate-12">📋</div>
-            <h2 className="text-xl font-black text-white uppercase tracking-[0.3em] mb-3">MaintAI Planning</h2>
-            <p className="text-sm text-white/30 max-w-sm font-medium leading-relaxed">
-              Gestione avanzata dei piani di manutenzione programmata. Importa manuali, definisci task ciclici e monitora lo stato degli interventi per asset.
-            </p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-20 animate-in fade-in duration-700">
+             <div className="w-32 h-32 bg-indigo-500/5 border border-indigo-500/10 rounded-[48px] flex items-center justify-center text-6xl text-indigo-500/20 mb-10 shadow-inner">⚡</div>
+             <h2 className="text-4xl font-black text-white uppercase tracking-[0.4em] mb-4">Gestore Piani</h2>
+             <p className="text-base text-white/20 max-w-lg font-medium leading-relaxed italic">
+               Seleziona o crea un piano per definire attività cicliche, caricare manuali e monitorare lo stato di manutenzione programmata.
+             </p>
           </div>
         ) : (
           <>
             {/* Header del Piano */}
-            <header className="px-8 py-8 border-b border-white/5 bg-[#0f172a]/20 backdrop-blur-xl">
-              <div className="flex justify-between items-start mb-8">
+            <header className="px-10 pt-10 pb-0 border-b border-white/10 bg-white/[0.02]">
+              <div className="flex justify-between items-start mb-10">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <h1 className="text-3xl font-black text-white tracking-[0.1em] uppercase leading-none">{selectedPiano.nome_codificato}</h1>
-                    <Badge label={selectedPiano.stato} className={cn(selectedPiano.stato === 'attivo' ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-500/20 text-slate-400")} />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {assets.filter(a => selectedPiano.asset_ids.includes(a.id)).map(a => (
-                      <div key={a.id} className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                        {a.nome}
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-6">
+                    <h1 className="text-4xl font-black text-white tracking-widest uppercase leading-none">
+                      {selectedPiano.nome_codificato}
+                    </h1>
+                    <Badge label={selectedPiano.stato} className="text-emerald-400 bg-emerald-500/10 border-emerald-500/20" />
                   </div>
                   {selectedPiano.descrizione && (
-                    <p className="text-sm text-white/40 max-w-2xl leading-relaxed italic border-l-2 border-white/10 pl-4 py-1">"{selectedPiano.descrizione}"</p>
+                    <p className="text-sm text-white/40 max-w-2xl leading-relaxed italic border-l-2 border-white/10 pl-4 py-1">&quot;{selectedPiano.descrizione}&quot;</p>
                   )}
                 </div>
-                
+
                 <div className="flex gap-4">
-                   <div className="p-[1px] bg-gradient-to-b from-white/10 to-transparent rounded-2xl shadow-2xl">
-                    <div className="bg-[#111827] rounded-2xl px-6 py-4 flex flex-col items-center justify-center min-w-[100px]">
-                      <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">Efficienza</span>
-                      <span className="text-2xl font-black text-emerald-400">92<span className="text-[10px] text-emerald-400/40 ml-0.5">%</span></span>
-                    </div>
+                  <div className="bg-white/5 p-4 rounded-3xl border border-white/10 flex flex-col items-center justify-center min-w-[120px]">
+                    <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">Task Aperti</span>
+                    <span className="text-3xl font-black text-indigo-400">{selectedPiano.task_count}</span>
                   </div>
-                  <div className="p-[1px] bg-gradient-to-b from-white/10 to-transparent rounded-2xl shadow-2xl">
-                    <div className="bg-[#111827] rounded-2xl px-6 py-4 flex flex-col items-center justify-center min-w-[100px]">
-                      <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">Ritardo</span>
-                      <span className="text-2xl font-black text-red-500">{tasks.filter(t => isOverdue(t.next_due_at)).length}</span>
-                    </div>
+                  <div className="bg-white/5 p-4 rounded-3xl border border-white/10 flex flex-col items-center justify-center min-w-[120px]">
+                    <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">Ticket Attivi</span>
+                    <span className="text-3xl font-black text-amber-500">{selectedPiano.open_ticket_count}</span>
                   </div>
                 </div>
               </div>
-              
-              <div className="flex gap-1">
+
+              {/* TABS */}
+              <div className="flex gap-4">
                 {[
-                  { id: "tasks", label: "ATTIVITÀ E TASK", icon: "⚙️" },
-                  { id: "manuali", label: "MANUALI TECNICI", icon: "📚" },
-                  { id: "history", label: "CRONOLOGIA TICKET", icon: "📑" }
-                ].map((tab) => (
-                  <button 
-                    key={tab.id} 
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={cn(
-                      "px-6 py-3 text-[10px] font-black tracking-[0.2em] transition-all relative flex items-center gap-2 rounded-t-xl border-t border-x",
-                      activeTab === tab.id 
-                        ? "text-indigo-400 bg-white/5 border-white/10 shadow-inner" 
-                        : "text-white/30 hover:text-white/50 border-transparent hover:bg-white/[0.02]"
-                    )}
-                  >
-                    <span>{tab.icon}</span> {tab.label}
-                    {activeTab === tab.id && <div className="absolute -bottom-[1px] left-0 right-0 h-[2px] bg-indigo-500 z-10" />}
-                  </button>
-                ))}
+                  { id: "tasks", label: "Attività e Task", icon: "⚙️" },
+                  { id: "manuali", label: "Manuali Tecnici", icon: "📚" },
+                  { id: "history", label: "Cronologia Ticket", icon: "📋" },
+                ].map(tab => {
+                  const active = activeTab === tab.id;
+                  return (
+                    <button 
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={cn(
+                        "px-10 py-5 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative flex items-center gap-3 rounded-t-3xl",
+                        active 
+                          ? "text-indigo-400 bg-[#0c111d] border-t border-x border-white/10" 
+                          : "text-white/20 hover:text-white/40 hover:bg-white/[0.02]"
+                      )}
+                    >
+                      <span className="text-base opacity-40">{tab.icon}</span> {tab.label}
+                      {active && <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-[#0c111d] z-[20]" />}
+                      {active && <div className="absolute bottom-[2px] left-6 right-6 h-[2px] bg-indigo-500/50 z-[30] rounded-full" />}
+                    </button>
+                  );
+                })}
               </div>
             </header>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-auto p-8 custom-scrollbar">
+            {/* TAB CONTENT */}
+            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar bg-[#0c111d]">
               
-              {/* TAB: TASKS */}
+              {/* TASKS VIEW */}
               {activeTab === "tasks" && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-[11px] font-black text-white/40 uppercase tracking-[0.3em]">Gestione Ciclica Attività ({tasks.length})</h3>
+                <div className="animate-in fade-in slide-in-from-bottom-5 duration-300 space-y-8">
+                  <div className="flex justify-between items-center">
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-black text-white uppercase tracking-widest">Ingegneria di Manutenzione</h3>
+                      <p className="text-xs text-white/30 font-medium">Elenco dei task ciclici configurati per questo gruppo di asset.</p>
+                    </div>
                     <div className="flex gap-4">
+                       <label className="flex items-center gap-3 px-6 py-3 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-500/10">
+                        <span>📤 Upload Manuale PDF</span>
+                        <input type="file" className="hidden" accept=".pdf" 
+                          onChange={async (e) => {
+                             if (!e.target.files?.[0] || !selectedPianoId) return;
+                             const fd = new FormData();
+                             fd.append("file", e.target.files[0]);
+                             try {
+                               notify.info("Estrazione AI in corso...");
+                               await apiUpload(`/piani-manutenzione/${selectedPianoId}/import-pdf`, fd);
+                               notify.success("Manuale processato con successo. Attività estratte.");
+                               fetchContent(selectedPianoId, "tasks");
+                               fetchContent(selectedPianoId, "manuali");
+                             } catch (err: unknown) { 
+                               notify.error(err instanceof Error ? err.message : "Errore upload manuale"); 
+                             }
+                             finally { setUploading(false); }
+                          }}
+                        />
+                      </label>
                       <button 
-                         onClick={() => { setSelectedTask(null); setShowModalTask(true); }}
-                         className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold text-white uppercase tracking-widest transition-all"
+                        onClick={() => setSelectedTask(null)} // Da implementare se vogliamo create anche qui
+                        className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all"
                       >
                         + Nuovo Task Manuale
                       </button>
-                      <label className="px-5 py-2.5 bg-indigo-500/10 hover:bg-indigo-500 border border-indigo-500/20 rounded-xl text-[10px] font-bold text-indigo-400 hover:text-white uppercase tracking-widest cursor-pointer transition-all flex items-center gap-2">
-                        {uploading ? "💾 Elaborazione AI..." : "📤 Importa Manuale PDF"}
-                        <input type="file" className="hidden" accept=".pdf" onChange={handleUploadManual} disabled={uploading} />
-                      </label>
                     </div>
                   </div>
 
-                  {loadingContent ? (
-                    <div className="space-y-3">
-                       {[1,2,3,4,5].map(i => <div key={i} className="h-16 bg-white/5 rounded-2xl animate-pulse" />)}
-                    </div>
-                  ) : tasks.length === 0 ? (
-                    <div className="bg-white/5 border border-dashed border-white/10 rounded-3xl p-32 flex flex-col items-center justify-center gap-6 text-center">
-                      <div className="text-5xl opacity-20 filter grayscale">🔧</div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-black text-white uppercase tracking-widest">Nessun task attivo</p>
-                        <p className="text-xs text-white/20 italic">Aggiungi un task manualmente o importa un manuale tecnico.</p>
+                  <div className="grid grid-cols-1 gap-2 border-t border-white/5 pt-6">
+                    {fetchingContent ? (
+                      [1,2,3,4,5].map(i => <SkeletonItem key={i} />)
+                    ) : tasks.length === 0 ? (
+                      <div className="py-32 text-center rounded-[40px] border border-dashed border-white/5 bg-white/[0.01]">
+                        <p className="text-xl font-black text-white/10 uppercase tracking-[0.2em] italic underline decoration-dotted">Nessuna attività programmata</p>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2.5">
-                      {tasks.map(task => (
+                    ) : (
+                      tasks.map(task => (
                         <div 
-                           key={task.id} 
-                           onClick={() => setSelectedTask(task)}
-                           className="group bg-[#0f172a]/30 hover:bg-[#1e293b]/40 border border-white/5 hover:border-indigo-500/30 p-4 rounded-2xl transition-all cursor-pointer flex items-center gap-6"
+                          key={task.id}
+                          onClick={() => setSelectedTask(task)}
+                          className="group bg-white/5 hover:bg-white/[0.08] border border-white/5 hover:border-indigo-500/30 p-5 rounded-3xl transition-all cursor-pointer flex items-center gap-8"
                         >
-                          <div className={cn("w-1.5 h-10 rounded-full", task.task_stato === 'active' ? "bg-emerald-500/50" : "bg-white/10")} />
+                          <div className={cn("w-1.5 h-12 rounded-full", task.task_stato === 'active' ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'bg-white/10')} />
                           <div className="flex-1 min-w-0">
-                             <div className="text-xs font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight truncate">{task.nome || task.descrizione}</div>
-                             <div className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] flex gap-3 mt-1">
-                               <span>{task.codice || `#${task.id}`}</span>
-                               <span>• {task.frequenza_giorni}g</span>
-                               <span>• {task.durata_ore}h</span>
-                             </div>
+                            <h4 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight truncate">{task.nome || task.descrizione}</h4>
+                            <div className="flex gap-4 mt-1.5 text-[10px] font-black text-white/20 uppercase tracking-[0.1em]">
+                              <span>{task.codice || `#${task.id}`}</span>
+                              <span>• {task.frequenza_giorni}g</span>
+                              <span>• {task.durata_ore}h</span>
+                              {task.source_type === 'imported_from_manual' && <span className="text-indigo-500/50">ESTRATTO AI</span>}
+                            </div>
                           </div>
-                          <div className="w-32">
+                          <div className="w-40">
                              <Badge label={task.priorita} className={PRIORITA_STYLES[task.priorita]} />
                           </div>
-                          <div className="w-40 text-right">
-                             <div className={cn("text-[11px] font-black", isOverdue(task.next_due_at) ? "text-red-500" : "text-white/50 text-indigo-400")}>{fmt(task.next_due_at)}</div>
-                             <div className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Prossima Scadenza</div>
+                          <div className="w-48 text-right pr-4">
+                            <span className="text-xs font-black text-indigo-300 block mb-0.5">{fmt(task.next_due_at)}</span>
+                            <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Scadenza Attesa</span>
                           </div>
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity pl-4">
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); generaTicket(task); }}
-                                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-500/20"
-                             >
-                               Ticket
-                             </button>
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); toggleTaskStato(task); }}
-                                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
-                             >
-                               {task.task_stato === 'active' ? "⏸" : "▶"}
-                             </button>
+                          <div className="opacity-0 group-hover:opacity-100 transition-all flex gap-3 pl-4 border-l border-white/10">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setTicketTask(task); }}
+                              className="px-5 py-2.5 bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                            >
+                              GENERA ORA
+                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* TAB: MANUALI */}
+              {/* MANUALI VIEW */}
               {activeTab === "manuali" && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                   <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-[11px] font-black text-white/40 uppercase tracking-[0.3em]">Manuali Tecnici del Piano ({manuali.length})</h3>
-                    <button className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest pointer-events-none opacity-50">Consulta Libreria Globale</button>
-                  </div>
-
-                  {loadingContent ? (
-                    <div className="grid grid-cols-2 gap-4">
-                       {[1,2,3,4].map(i => <div key={i} className="h-32 bg-white/5 rounded-2xl animate-pulse" />)}
-                    </div>
+                <div className="animate-in fade-in slide-in-from-bottom-5 duration-300 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {fetchingContent ? (
+                     [1,2,3].map(i => <div key={i} className="h-60 bg-white/5 rounded-3xl animate-pulse" />)
                   ) : manuali.length === 0 ? (
-                    <div className="bg-white/5 border border-dashed border-white/10 rounded-3xl p-32 flex flex-col items-center justify-center gap-6 text-center">
-                      <div className="text-5xl opacity-20 filter grayscale">📖</div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-black text-white uppercase tracking-widest">Nessun Manuale</p>
-                        <p className="text-xs text-white/20 italic">Trascina un PDF nel tab Task per iniziare l'analisi AI.</p>
+                    <div className="col-span-full py-32 text-center text-white/20 text-xs font-black uppercase tracking-widest italic opacity-50 underline decoration-dotted">Nessun manuale tecnico archiviato per questo piano.</div>
+                  ) : (
+                    manuali.map(m => (
+                      <div key={m.id} className="bg-white/5 border border-white/10 p-6 rounded-[32px] hover:bg-white/[0.08] transition-all flex flex-col justify-between group h-64">
+                         <div className="space-y-4">
+                           <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-2xl text-white/20 group-hover:text-red-500 transition-all group-hover:bg-red-500/10">PDF</div>
+                           <h4 className="text-sm font-black text-white leading-tight uppercase group-hover:text-white transition-colors">{m.nome}</h4>
+                           <div className="flex gap-3 text-[10px] font-black text-white/20 uppercase">
+                             <span>{m.pagine} Pagine</span>
+                             <span>• {m.task_count} Task estratti</span>
+                           </div>
+                         </div>
+                         <button className="w-full py-3 bg-white/5 group-hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black text-white/40 group-hover:text-white uppercase tracking-widest transition-all">Sfoglia Documento</button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                      {manuali.map(m => (
-                        <div key={m.id} className="p-5 bg-[#0f172a]/30 border border-white/5 rounded-2xl hover:border-indigo-500/50 transition-all flex items-start gap-4 h-full relative group">
-                          <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">📄</div>
-                          <div className="flex-1 min-w-0">
-                             <h4 className="text-xs font-black text-white uppercase tracking-tight truncate mb-1 pr-10">{m.nome}</h4>
-                             <div className="flex gap-3 text-[9px] font-bold text-white/30 uppercase tracking-widest mb-4">
-                               <span>{m.pagine} Pagine</span>
-                               <span>• {m.metodo || 'Auto'}</span>
-                               <span>• {fmt(m.created_at)}</span>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <Badge label={`${m.task_count || 0} Tasks`} className="bg-emerald-500/10 text-emerald-400" />
-                                <Badge label={m.stato} className="bg-white/5 text-white/40" />
-                             </div>
-                          </div>
-                          <div className="absolute top-4 right-4">
-                             <a 
-                               href={`/manuali-viewer/${m.id}`} 
-                               target="_blank" 
-                               className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white bg-white/5 rounded-lg border border-white/10 hover:border-indigo-500/50 transition-all"
-                               title="Sfoglia Manuale"
-                             >
-                               ↗
-                             </a>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    ))
                   )}
                 </div>
               )}
 
-              {/* TAB: CRONOLOGIA */}
+              {/* HISTORY VIEW */}
               {activeTab === "history" && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                   <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-[11px] font-black text-white/40 uppercase tracking-[0.3em]">Storico Interventi del Piano ({cronologia.length})</h3>
-                    <div className="flex gap-2">
-                       <button className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[9px] font-bold text-white/40 hover:text-white uppercase tracking-widest transition-all">Scarica Report PDF</button>
+                <div className="animate-in fade-in slide-in-from-bottom-5 duration-300 space-y-6">
+                    <h3 className="text-xs font-black text-white/30 uppercase tracking-widest mb-10">Cronologia Completa Interventi Piano</h3>
+                    <div className="space-y-3">
+                      {fetchingContent ? (
+                        [1,2,3,4,5].map(i => <SkeletonItem key={i} />)
+                      ) : history.length === 0 ? (
+                        <div className="py-32 text-center text-white/10 uppercase font-black italic underline decoration-dotted">Nessuna attività registrata nello storico.</div>
+                      ) : (
+                        history.map(tk => (
+                          <div key={tk.id} className="bg-white/5 border border-white/5 p-5 rounded-3xl flex items-center justify-between group hover:bg-white/[0.07] transition-all">
+                             <div className="flex items-center gap-6">
+                                <span className="text-[10px] font-black text-white/10 group-hover:text-blue-500 transition-colors uppercase tracking-[0.2em] w-12 flex-shrink-0">T-{tk.id}</span>
+                                <div>
+                                   <h4 className="text-sm font-bold text-white group-hover:text-white transition-colors uppercase tracking-tight mb-0.5">{tk.titolo}</h4>
+                                   <div className="flex gap-4 text-[10px] font-black text-white/20 uppercase tracking-widest">
+                                      <span>Creato il {fmt(tk.created_at)}</span>
+                                      <span>• Priorità {tk.priorita}</span>
+                                   </div>
+                                </div>
+                             </div>
+                             <Badge label={tk.stato} className={STATO_TICKET_STYLES[tk.stato] || "bg-white/5 text-white/30"} />
+                          </div>
+                        ))
+                      )}
                     </div>
-                  </div>
-
-                  {loadingContent ? (
-                    <div className="space-y-2">
-                       {[1,2,3,4,5,6].map(i => <div key={i} className="h-14 bg-white/5 rounded-xl animate-pulse" />)}
-                    </div>
-                  ) : cronologia.length === 0 ? (
-                    <div className="p-32 text-center text-white/20 text-xs italic uppercase tracking-[0.2em]">Nessun ticket registrato per questo piano.</div>
-                  ) : (
-                    <div className="bg-[#0f172a]/30 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-white/5 border-b border-white/5">
-                            <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Ticket</th>
-                            <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Stato</th>
-                            <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Data</th>
-                            <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Pianificazione</th>
-                            <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest text-right">Durata</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {cronologia.map(tk => (
-                             <tr key={tk.id} className="hover:bg-white/[0.02] transition-colors group">
-                               <td className="px-5 py-4">
-                                  <div className="text-xs font-bold text-white mb-0.5 group-hover:text-indigo-400">#{tk.id} {tk.titolo}</div>
-                                  <Badge label={tk.priorita} className={cn("text-[8px]", tk.priorita === 'Alta' ? 'text-red-400 border-red-500/20' : 'text-white/40 border-white/10')} />
-                               </td>
-                               <td className="px-5 py-4">
-                                  <Badge label={tk.stato} className={STATO_TICKET_STYLES[tk.stato as keyof typeof STATO_TICKET_STYLES] || ""} />
-                               </td>
-                               <td className="px-5 py-4 text-xs text-white/40 font-mono">
-                                  {fmt(tk.created_at)}
-                               </td>
-                               <td className="px-5 py-4 text-xs text-white/60">
-                                  {tk.stato === 'Aperto' ? '—' : 'In Programma'}
-                               </td>
-                               <td className="px-5 py-4 text-right text-xs text-white/70 font-mono font-bold">
-                                  {tk.durata_stimata_ore}h
-                               </td>
-                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
                 </div>
               )}
+
             </div>
           </>
         )}
       </main>
 
-      {/* MODALS & DRAWERS */}
-      {selectedTask && (
-        <DrawerTask 
-           task={selectedTask} 
-           pianoId={selectedPianoId!} 
-           onClose={() => setSelectedTask(null)}
-           onUpdated={(updated) => {
-             setTasks(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
-             setSelectedTask(updated);
-           }}
-        />
-      )}
-
+      {/* OVERLAYS */}
       {showModalPiano && (
         <ModalPiano 
-          assets={assets}
-          piano={pianoToEdit}
-          onClose={() => { setShowModalPiano(false); setPianoToEdit(null); }}
-          onSaved={handlePianoSaved}
+          piano={pianoToEdit} 
+          onClose={() => setShowModalPiano(false)} 
+          onSaved={p => { fetchPiani(); setShowModalPiano(false); setSelectedPianoId(p.id); }} 
         />
       )}
 
-      {showModalTask && (
-        <ModalTask 
-           pianoId={selectedPianoId!} 
-           onClose={() => setShowModalTask(false)}
-           onSaved={(t) => {
-             setTasks(prev => [t, ...prev]);
-             setShowModalTask(false);
-           }}
+      {selectedTask && (
+        <DrawerTask 
+          task={selectedTask} 
+          pianoId={selectedPianoId!} 
+          onClose={() => setSelectedTask(null)}
+          onUpdated={t => { 
+            setTasks(prev => prev.map(old => old.id === t.id ? t : old)); 
+            setSelectedTask(t);
+          }}
         />
       )}
 
-      {/* Global CSS for scrollbar & transitions */}
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
-        
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        .animate-in { animation-duration: 300ms; animation-fill-mode: both; }
-        .fade-in { animation-name: fade-in; }
-        .slide-in-from-right { animation-name: slide-in-right; }
-      `}</style>
     </div>
   );
 }

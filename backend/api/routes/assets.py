@@ -9,8 +9,16 @@ router = APIRouter()
 
 
 @router.get("/assets")
-def get_assets(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    return asset_repository.get_all(db, tenant_id)
+def get_assets(
+    query: Optional[str] = Query(None),
+    sito_id: Optional[int] = Query(None),
+    impianto_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(200, ge=1, le=2000),
+    db: Session = Depends(get_db), 
+    tenant_id: int = Depends(get_current_tenant_id)
+):
+    return asset_repository.get_all(db, tenant_id, query=query, sito_id=sito_id, impianto_id=impianto_id, limit=limit, page=page)
 
 
 @router.post("/assets/genera-multipli", status_code=201)

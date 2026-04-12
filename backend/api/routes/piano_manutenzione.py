@@ -198,20 +198,17 @@ def create_piano(
     for aid in asset_ids:
         check_tenant_ownership(db, Asset, aid, tenant_id)
 
-    # Progressivo auto-generato (per anno corrente)
-    anno_corrente = datetime.now().year
-    # Cerchiamo il max progressivo dell'anno corrente per questo tenant
-    # Il formato PM-YYYY-NNN suggerisce che vogliamo resettare il contatore ogni anno
-    # ma il modello ha un solo campo progressivo. Lo usiamo come globale per ora.
+    # Progressivo e Codice auto-generato (PM-2026-001)
+    # Cerchiamo il max progressivo globale per questo tenant per mantenere la sequenza
     max_prog = db.query(func.max(PianoManutenzione.progressivo)).filter(
         PianoManutenzione.tenant_id == tenant_id
     ).scalar()
     prog = (max_prog or 0) + 1
+    
+    anno_corrente = datetime.now().year
+    nome = data.nome_codificato or f"PM-{anno_corrente}-{prog:03d}"
 
-    # Nome codificato obbligatoriamente auto-generato
-    nome = f"PM-{anno_corrente}-{prog:03d}"
-
-    # Assicuriamo unicità estrema
+    # Unicità forzata
     exist = db.query(PianoManutenzione).filter(
         PianoManutenzione.nome_codificato == nome,
         PianoManutenzione.tenant_id == tenant_id,
@@ -445,7 +442,7 @@ def update_piano_task(
 
     for field in ("nome", "descrizione", "frequenza_giorni", "durata_ore", "priorita",
                   "codice", "is_repeatable", "generation_mode", "generate_days_before_due",
-                  "task_stato"):
+                  "task_stato", "asset_id"):
         val = getattr(data, field, None)
         if val is not None:
             setattr(task, field, val)
