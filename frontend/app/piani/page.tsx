@@ -302,11 +302,15 @@ function DrawerTask({
   });
   const [saving, setSaving] = useState(false);
 
+  const isNew = !task.id;
+
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await apiPut<Task>(`/piani-manutenzione/${pianoId}/tasks/${task.id}`, form);
-      notify.success("Attività aggiornata");
+      const res = isNew
+        ? await apiPost<Task>(`/piani-manutenzione/${pianoId}/tasks`, form)
+        : await apiPut<Task>(`/piani-manutenzione/${pianoId}/tasks/${task.id}`, form);
+      notify.success(isNew ? "Attività creata" : "Attività aggiornata");
       onUpdated(res);
       onClose();
     } catch (err: unknown) {
@@ -322,7 +326,7 @@ function DrawerTask({
         <div className="space-y-2">
           <Badge label={task.codice || "TASK"} className="bg-indigo-600 text-white border-none" />
           <h2 className="text-2xl font-black text-white uppercase tracking-tight truncate max-w-[400px]">
-            {task.nome || "Modifica Attività"}
+            {isNew ? "Nuova Attività" : (task.nome || "Modifica Attività")}
           </h2>
         </div>
         <button onClick={onClose} className="text-white/20 hover:text-white transition-colors text-5xl leading-none">&times;</button>
@@ -481,7 +485,7 @@ export default function PianiPage() {
   // ── Rendering Sidebar ───────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full bg-[#030712] overflow-hidden">
+    <div className="full-bleed-page flex bg-[#030712]">
       
       {/* ── PANEL 1: SB PIANI (320px) ── */}
       <aside className="w-[350px] flex-shrink-0 border-r border-white/10 bg-[#0c111d] flex flex-col">
@@ -657,8 +661,8 @@ export default function PianiPage() {
                           }}
                         />
                       </label>
-                      <button 
-                        onClick={() => setSelectedTask({} as any)} // Trigger per nuovo task se necessario
+                      <button
+                        onClick={() => setSelectedTask({ id: 0, nome: "", descrizione: "", frequenza_giorni: 30, durata_ore: 1, priorita: "Media", task_stato: "active", is_repeatable: true, generate_days_before_due: 7, piano_id: selectedPianoId, asset_id: null, asset_nome: null, codice: null, generation_mode: "manual", source_type: "manual_task", next_due_at: null } as unknown as Task)}
                         className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all"
                       >
                         + Aggiungi Task
@@ -786,7 +790,7 @@ export default function PianiPage() {
         />
       )}
 
-      {selectedTask && Object.keys(selectedTask).length > 0 && selectedPianoId && (
+      {selectedTask !== null && selectedPianoId && (
         <DrawerTask 
           task={selectedTask} 
           pianoId={selectedPianoId} 

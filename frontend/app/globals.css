@@ -218,6 +218,21 @@ body {
   flex: 1;
 }
 
+/* Utility for full-height split-panel pages (e.g. /piani).
+   Cancels app-content padding and fills the remaining viewport height. */
+.full-bleed-page {
+  margin: -32px -28px;
+  height: calc(100vh - 56px); /* 56px = app-topbar height */
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .full-bleed-page {
+    margin: -20px -16px;
+    height: calc(100vh - 56px);
+  }
+}
+
 /* ─── SIDEBAR COMPONENTS ──────────────────────────────────── */
 .sidebar-logo {
   padding: 20px 20px 16px;
