@@ -81,15 +81,20 @@ _DEFAULT_ORIGINS = [
     "http://127.0.0.1:3001",
     "http://192.168.1.222:3000",
     "http://192.168.1.222:3001",
+    # produzione
+    "https://maintai.vercel.app",
 ]
 
 
 def _load_origins() -> list[str]:
-    """Legge CORS_ORIGINS dal .env (comma-separated), con fallback ai default dev."""
+    """Legge CORS_ORIGINS dal .env (comma-separated), aggiunge sempre gli origin di produzione."""
     raw = os.getenv("CORS_ORIGINS", "")
-    if raw.strip():
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    return _DEFAULT_ORIGINS
+    origins = [o.strip() for o in raw.split(",") if o.strip()] if raw.strip() else []
+    # Merge con i default (produzione inclusa) senza duplicati
+    for o in _DEFAULT_ORIGINS:
+        if o not in origins:
+            origins.append(o)
+    return origins
 
 
 def _run_alembic_upgrade() -> None:
