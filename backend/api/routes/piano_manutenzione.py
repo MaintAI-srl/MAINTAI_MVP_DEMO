@@ -691,10 +691,22 @@ async def import_pdf_to_piano(
     text = result.get("text", "")
 
     if not text.strip():
-        raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF.")
+        raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF. Verificare che il documento non sia solo immagini o che il PDF non sia protetto.")
 
-    parsed_json_str = parse_manual_with_ai(text, file.filename)
-    
+    try:
+        parsed_json_str = parse_manual_with_ai(text, file.filename)
+    except RuntimeError as e:
+        # OpenAI API key mancante o non configurata su Render
+        raise HTTPException(
+            status_code=503,
+            detail=f"Servizio AI non disponibile: {str(e)}. Verificare la variabile d'ambiente OPENAI_API_KEY su Render."
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore durante l'analisi AI del documento: {str(e)}"
+        )
+
     # Salvataggio record Manuale associato al piano
     manuale = salva_manuale_db(
         db=db,
@@ -705,13 +717,13 @@ async def import_pdf_to_piano(
         json_estratto=parsed_json_str,
         tenant_id=tenant_id,
     )
-    manuale.piano_id = piano_id # Forza legame bidirezionale se non gestito da salva_manuale_db
+    manuale.piano_id = piano_id  # Forza legame bidirezionale se non gestito da salva_manuale_db
     db.commit()
 
     try:
         parsed = json.loads(parsed_json_str)
     except Exception:
-        raise HTTPException(status_code=500, detail="L'AI non ha restituito un formato valido.")
+        raise HTTPException(status_code=500, detail="L'AI non ha restituito un formato JSON valido. Riprovare.")
 
     plans = parsed.get("plans", [])
     created_count = 0
@@ -750,6 +762,7 @@ async def import_pdf_to_piano(
         "created": created_count, 
         "method": result.get("method")
     }
+
 
 
 @router.post("/piani-manutenzione/{piano_id}/import-excel")
