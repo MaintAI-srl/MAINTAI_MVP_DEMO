@@ -457,6 +457,7 @@ export default function PianiPage() {
   const [manuali, setManuali] = useState<Manuale[]>([]);
   const [history, setHistory] = useState<TicketHistory[]>([]);
   const [fetchingContent, setFetchingContent] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showModalPiano, setShowModalPiano] = useState(false);
@@ -684,11 +685,17 @@ export default function PianiPage() {
                       <p className="text-xs text-white/30 font-medium">Elenco dei task ciclici configurati per questo gruppo di asset.</p>
                     </div>
                     <div className="flex gap-4">
-                       <label className="flex items-center gap-3 px-6 py-3 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-500/10">
-                        <span>📤 Upload Manuale PDF</span>
-                        <input type="file" className="hidden" accept=".pdf" 
+                       <label className={cn(
+                        "flex items-center gap-3 px-6 py-3 border rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-500/10",
+                        uploading 
+                          ? "bg-white/5 text-white/20 border-white/5 cursor-not-allowed" 
+                          : "bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border-indigo-500/20"
+                      )}>
+                        <span>{uploading ? "⌛ Elaborazione AI..." : "📤 Upload Manuale PDF"}</span>
+                        <input type="file" className="hidden" accept=".pdf" disabled={uploading}
                           onChange={async (e) => {
                              if (!e.target.files?.[0] || !selectedPianoId) return;
+                             setUploading(true);
                              const fd = new FormData();
                              fd.append("file", e.target.files[0]);
                              try {
@@ -697,6 +704,7 @@ export default function PianiPage() {
                                notify.success("Manuale processato con successo. Attività estratte.");
                                fetchContent(selectedPianoId, "tasks");
                                fetchContent(selectedPianoId, "manuali");
+                               setActiveTab("tasks");
                              } catch (err: unknown) { 
                                notify.error(err instanceof Error ? err.message : "Errore upload manuale"); 
                              }
