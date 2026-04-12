@@ -134,30 +134,44 @@ def list_piani_manutenzione(
         .all()
     )
 
-    # Conteggio asset per piano (Multi-Asset) — protetto da try/except per compatibilità
-    # se piani_assets_association non è ancora stata creata sul DB target
-    asset_counts: dict = {}
+    # Asset IDs per piano — query esplicita sulla join table (evita lazy loading con sessione invalida)
+    piano_asset_ids: dict[int, list[int]] = {pid: [] for pid in piano_ids}
     try:
-        asset_counts = dict(
-            db.query(piano_asset_association.c.piano_id, func.count(piano_asset_association.c.asset_id))
+        rows = (
+            db.query(piano_asset_association.c.piano_id, piano_asset_association.c.asset_id)
             .filter(piano_asset_association.c.piano_id.in_(piano_ids))
-            .group_by(piano_asset_association.c.piano_id)
             .all()
         )
+        for r in rows:
+            piano_asset_ids.setdefault(r[0], []).append(r[1])
     except Exception:
-        pass  # tabella non ancora presente: i conteggi restano 0
+        db.rollback()  # reset sessione per evitare cascata di errori
 
-    # Nome del primo asset (legacy compat)
-    first_asset_names = {}
+    # Nome del primo asset per piano (batch — no N+1)
+    all_asset_ids = {aid for ids in piano_asset_ids.values() for aid in ids}
+    # Aggiungi anche gli asset_id legacy (FK diretto) per piani senza voci in join table
     for p in piani:
+        if p.asset_id and not piano_asset_ids.get(p.id):
+            all_asset_ids.add(p.asset_id)
+    asset_name_map: dict[int, str] = {}
+    if all_asset_ids:
         try:
-            if p.assets:
-                first_asset_names[p.id] = p.assets[0].nome
-            elif p.asset_id:
-                asset = db.query(Asset).filter(Asset.id == p.asset_id).first()
-                first_asset_names[p.id] = asset.nome if asset else ""
+            asset_name_map = {
+                a.id: a.nome
+                for a in db.query(Asset).filter(Asset.id.in_(all_asset_ids)).all()
+            }
         except Exception:
-            pass
+            db.rollback()
+
+    def _asset_ids_for(p: PianoManutenzione) -> list[int]:
+        ids = piano_asset_ids.get(p.id, [])
+        if not ids and p.asset_id:
+            ids = [p.asset_id]
+        return ids
+
+    def _asset_nome_for(p: PianoManutenzione) -> str:
+        ids = _asset_ids_for(p)
+        return asset_name_map.get(ids[0], "") if ids else ""
 
     items = [
         {
@@ -167,9 +181,9 @@ def list_piani_manutenzione(
             "descrizione": p.descrizione,
             "stato": p.stato or "attivo",
             "asset_id": p.asset_id,
-            "asset_nome": first_asset_names.get(p.id, ""),
-            "asset_ids": (lambda assets: [a.id for a in assets] if assets else [])(getattr(p, "assets", None) or []),
-            "asset_count": asset_counts.get(p.id, 0),
+            "asset_nome": _asset_nome_for(p),
+            "asset_ids": _asset_ids_for(p),
+            "asset_count": len(_asset_ids_for(p)),
             "task_count": task_counts.get(p.id, 0),
             "open_ticket_count": open_ticket_counts.get(p.id, 0),
             "created_at": p.created_at.isoformat() if p.created_at else None,

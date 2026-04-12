@@ -302,6 +302,8 @@ async def lifespan(app: FastAPI):
         print("✅ migrations checked")
         init_db()               # crea tabelle mancanti + seed
         print("✅ main db initialized")
+        _ensure_columns()       # secondo passaggio: crea colonne/tabelle dipendenti (es. piani_assets_association) ora che create_all ha completato
+        print("✅ ensure_columns (post-init) done")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
         traceback.print_exc()
