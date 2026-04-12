@@ -257,9 +257,26 @@ def _ensure_columns() -> None:
                 else:
                     logger.warning("_ensure_columns[%s] DDL %s: %s", db_label, label, exc)
 
+        # piani_assets_association — tabella many-to-many (commentata nel migration Alembic)
+        paa_pg = """
+            CREATE TABLE IF NOT EXISTS piani_assets_association (
+                piano_id INTEGER NOT NULL REFERENCES piani_manutenzione(id) ON DELETE CASCADE,
+                asset_id INTEGER NOT NULL REFERENCES asset(id) ON DELETE CASCADE,
+                PRIMARY KEY (piano_id, asset_id)
+            )
+        """
+        paa_sqlite = """
+            CREATE TABLE IF NOT EXISTS piani_assets_association (
+                piano_id INTEGER NOT NULL REFERENCES piani_manutenzione(id),
+                asset_id INTEGER NOT NULL REFERENCES asset(id),
+                PRIMARY KEY (piano_id, asset_id)
+            )
+        """
+
         # 1. Crea le tabelle complete se non esistono
         _exec_ddl(sl_pg if pg else sl_sqlite, "system_logs CREATE")
         _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
+        _exec_ddl(paa_pg if pg else paa_sqlite, "piani_assets_association CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:

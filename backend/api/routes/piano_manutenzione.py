@@ -134,23 +134,30 @@ def list_piani_manutenzione(
         .all()
     )
 
-    # Conteggio asset per piano (Multi-Asset)
-    asset_counts = dict(
-        db.query(piano_asset_association.c.piano_id, func.count(piano_asset_association.c.asset_id))
-        .filter(piano_asset_association.c.piano_id.in_(piano_ids))
-        .group_by(piano_asset_association.c.piano_id)
-        .all()
-    )
+    # Conteggio asset per piano (Multi-Asset) — protetto da try/except per compatibilità
+    # se piani_assets_association non è ancora stata creata sul DB target
+    asset_counts: dict = {}
+    try:
+        asset_counts = dict(
+            db.query(piano_asset_association.c.piano_id, func.count(piano_asset_association.c.asset_id))
+            .filter(piano_asset_association.c.piano_id.in_(piano_ids))
+            .group_by(piano_asset_association.c.piano_id)
+            .all()
+        )
+    except Exception:
+        pass  # tabella non ancora presente: i conteggi restano 0
 
     # Nome del primo asset (legacy compat)
     first_asset_names = {}
     for p in piani:
-        if p.assets:
-            first_asset_names[p.id] = p.assets[0].nome
-        elif p.asset_id:
-            # Fallback se non ancora migrato in secondary
-            asset = db.query(Asset).filter(Asset.id == p.asset_id).first()
-            first_asset_names[p.id] = asset.nome if asset else ""
+        try:
+            if p.assets:
+                first_asset_names[p.id] = p.assets[0].nome
+            elif p.asset_id:
+                asset = db.query(Asset).filter(Asset.id == p.asset_id).first()
+                first_asset_names[p.id] = asset.nome if asset else ""
+        except Exception:
+            pass
 
     items = [
         {
@@ -161,7 +168,7 @@ def list_piani_manutenzione(
             "stato": p.stato or "attivo",
             "asset_id": p.asset_id,
             "asset_nome": first_asset_names.get(p.id, ""),
-            "asset_ids": [a.id for a in p.assets],
+            "asset_ids": (lambda assets: [a.id for a in assets] if assets else [])(getattr(p, "assets", None) or []),
             "asset_count": asset_counts.get(p.id, 0),
             "task_count": task_counts.get(p.id, 0),
             "open_ticket_count": open_ticket_counts.get(p.id, 0),
