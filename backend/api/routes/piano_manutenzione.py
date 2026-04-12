@@ -335,7 +335,7 @@ def list_piano_tasks(
     piano_id: int,
     task_stato: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    limit: int = Query(100, ge=1, le=200),
+    limit: int = Query(200, ge=1, le=1000),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -653,9 +653,9 @@ async def import_pdf_to_piano(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """Importa attività da PDF (AI/OCR) come TASK del piano (non ticket diretti)."""
+    """Importa attività da PDF (AI/OCR) come TASK del piano e salva il documento nel DB."""
     from backend.services.pdf_service import smart_read_pdf
-    from backend.services.ai.manuals_ai_service import parse_manual_with_ai
+    from backend.services.ai.manuals_ai_service import parse_manual_with_ai, salva_manuale_db
     import json
 
     piano = db.query(PianoManutenzione).filter(
@@ -673,6 +673,20 @@ async def import_pdf_to_piano(
         raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF.")
 
     parsed_json_str = parse_manual_with_ai(text, file.filename)
+    
+    # Salvataggio record Manuale associato al piano
+    manuale = salva_manuale_db(
+        db=db,
+        nome_file=file.filename,
+        pagine=result.get("pages", 0),
+        metodo_lettura=result.get("method", ""),
+        testo_raw=text,
+        json_estratto=parsed_json_str,
+        tenant_id=tenant_id,
+    )
+    manuale.piano_id = piano_id # Forza legame bidirezionale se non gestito da salva_manuale_db
+    db.commit()
+
     try:
         parsed = json.loads(parsed_json_str)
     except Exception:
@@ -692,6 +706,7 @@ async def import_pdf_to_piano(
             task = AttivitaManutenzione(
                 piano_id=piano_id,
                 asset_id=piano.asset_id,
+                manuale_id=manuale.id,
                 nome=task_str[:150],
                 descrizione=task_str,
                 priorita=priorita,
@@ -708,7 +723,12 @@ async def import_pdf_to_piano(
             created_count += 1
 
     db.commit()
-    return {"success": True, "created": created_count, "method": result.get("method")}
+    return {
+        "success": True, 
+        "manuale_id": manuale.id,
+        "created": created_count, 
+        "method": result.get("method")
+    }
 
 
 @router.post("/piani-manutenzione/{piano_id}/import-excel")

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import Optional, List
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.repositories.asset_repository import asset_repository

@@ -1,27 +1,24 @@
-# MaintAI — Architettura di Sistema (v2.6.0)
+# MaintAI — Architettura di Sistema (v2.6.1)
 
 ## 🏢 Backend (FastAPI + SQLAlchemy)
 
-### Struttura Repository
-- **AssetRepository**: Gestisce la logica di ricerca massiva con supporto a `ILIKE` e filtri gerarchici (Sito -> Impianto -> Asset).
-- **PianoRepository**: Gestisce l'associazione Many-to-Many tra Piani e Asset.
+### Struttura Repository & Piani
+- **AssetRepository**: Gestisce la logica di ricerca massiva con supporto a `ILIKE` e filtri gerarchici.
+- **PianoRepository**: Gestisce l'associazione Many-to-Many tra Piani e Asset. Un Piano è un contenitore logico di attività applicabili a uno o più asset.
 
-### Gestione Dati
-- **Ticket Generation**: I ticket vengono generati in stato `Aperto`. Se la durata supera le 8h, vengono splittati automaticamente in "parti" da max 8h.
-- **Auto-codifica**: I piani seguono il formato `PM-YYYY-NNN` con gestione della concorrenza tramite loop di unicità.
+### Gestione Dati e Documenti
+- **Persistence**: Ogni manuale PDF caricato in un piano viene salvato come record `Manuale` con associazione `piano_id`.
+- **Ticket Generation**: Ticket generati sempre in stato `Aperto` (o `Pianificato` se processati dallo scheduler). Splitting automatico sopra le 8h.
+- **Auto-codifica**: Formato `PM-YYYY-NNN` con gestione unicità globale per tenant.
 
 ## 🎨 Frontend (Next.js + Tailwind)
 
-### Layout 3-Panel
-Implementato nel modulo Piani per efficienza industriale:
-1. **Sidebar Sidebar**: Lista entità principali (Piani/Asset).
-2. **Dynamic Header**: Mostra metadati contestuali e KPI veloci.
-3. **Tabbed Content area**: Organizzazione delle sottomodulistiche (Task, Documenti, History).
+### Layout 3-Panel (Standard Industriale)
+Struttura a zero-click per massimizzare la velocità:
+1. **Nav Sidebar**: Lista entità ricercabile.
+2. **Context Header**: Titoli 48px, KPI (Ticket Aperti, Task Totali).
+3. **Tabbed Content**: Area operativa (Attività, Manuali, Cronologia).
 
 ### Componenti Core
-- **ScalableAssetSelector**: Componente asincrono per la selezione di entità in set di dati massivi.
-- **StatusToggle**: Pulsanti ad azione singola (1-click) invece di dropdown per cambi di stato rapidi.
-
-## 🤖 AI Engine
-- **PDF Extraction**: Processamento asincrono di manuali tramite GPT-4.1-mini per l'estrazione di task tabellari.
-- **RCA/Problem Analysis**: Tool interattivo per il supporto decisionale al manutentore.
+- **BulkSelector**: Gestione asincrona del caricamento asset (>50 entità per view).
+- **Leggibilità**: Font-size minimo 14px, contrasto elevato per tablet industriali.

@@ -1,20 +1,22 @@
-# MaintAI — Direttive di Sviluppo (v2.6.0)
+# MaintAI — Direttive di Sviluppo (v2.6.1)
 
 Queste direttive devono essere lette e applicate rigorosamente ad ogni sessione di sviluppo.
 
-## 🎨 Design & UI/UX
-- **Estetica Premium**: Utilizzare un design "state of the art". Colori profondi (slate, indigo), gradienti sottili e micro-animazioni.
-- **Gerarchia Visiva**: Evitare testi troppo piccoli. Standard base: `text-sm` (14px). Usare `text-[10px]` solo per metadati secondari o badge.
-- **Layout 3-Panel**: Per i moduli principali (Piani, Asset), utilizzare la struttura Side-Header-Content per massimizzare la velocità operativa.
-- **No Placeholder**: Non usare immagini o icone segnaposto. Generare asset reali.
+## 🎨 Design & UI/UX (Leggibilità Industriale)
+- **Operatività Reale**: Le interfacce devono essere leggibili in ambiente industriale. 
+- **Font & Dimensioni**: 
+  - **Standard Base**: `text-sm` (14px). Mai scendere sotto i 12px per contenuti leggibili.
+  - **Titoli**: Usare gerarchia forte (`text-2xl` a `text-5xl`).
+  - **Contrasti**: Sfondi scuri (#030712) con testi bianchi o indigo-400 ad alto contrasto.
+- **Layout 3-Panel**: Obbligatorio per i moduli core (Piani, Asset, Ticket). 
+- **Micro-interazioni**: Feedback visivo immediato (spinner, toast) per caricamenti e upload.
 
 ## 💻 Codice & Architettura
-- **Clean Code**: Mantenere funzioni piccole e riutilizzabili.
-- **Type Safety**: Evitare `any` in TypeScript. Definire interfacce chiare per ogni risposta API.
-- **Repository Pattern**: Tutta la logica di accesso al DB deve risiedere nei Repository. Utilizzare `joinedload` per ottimizzare le query.
-- **Scalabilità**: Le query devono sempre supportare filtri (`query`, `sito_id`, `impianto_id`) e paginazione server-side.
+- **Robustezza API**: Ogni endpoint di lista DEVE supportare `limit` fino a 1000 per dataset reali.
+- **Import/Schema**: Verificare sempre gli import `typing` (es. `Optional`, `List`) per evitare NameError a runtime.
+- **Persistenza Documentale**: I manuali PDF caricati dentro un contesto (es. Piano) devono essere salvati nel DB e collegati permanentemente.
 
 ## 🚀 Regole Operative
-- **Multi-Tenancy**: Garantire sempre l'isolamento dei dati tramite `tenant_id`.
-- **Integrità Frontend-Backend**: Una feature non è terminata se non è funzionante e testabile dall'interfaccia utente.
+- **P0 Priority**: In caso di incidente operativo, la priorità è la STABILIZZAZIONE delle funzioni core rispetto all'estetica.
+- **Autonomia**: Procedere fino a completamento se richiesto, garantendo test di integrazione silenti.
 - **Auto-Miglioramento**: Al termine di ogni ciclo, aggiornare i file di direttiva per riflettere le nuove best-practice scoperte.

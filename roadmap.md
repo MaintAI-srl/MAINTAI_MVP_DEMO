@@ -1,5 +1,5 @@
 # Roadmap MaintAI
-*Versione: 2.6.0 — Aggiornata al: 2026-04-12*
+*Versione: 2.6.1 — Aggiornata al: 2026-04-12*
 
 ---
 
