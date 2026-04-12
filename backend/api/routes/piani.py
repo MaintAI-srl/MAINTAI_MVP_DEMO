@@ -60,6 +60,7 @@ def _to_dict(a: AttivitaManutenzione, asset_name: str | None, ticket_id: int | N
     next_due = _compute_next_due(a)
     return {
         "id": a.id,
+        "piano_id": getattr(a, "piano_id", None),
         "nome": getattr(a, "nome", None),
         "descrizione": a.descrizione,
         "frequenza_giorni": a.frequenza_giorni,
@@ -85,6 +86,7 @@ def _to_dict(a: AttivitaManutenzione, asset_name: str | None, ticket_id: int | N
 @router.get("/piani")
 def list_piani(
     asset_id: Optional[int] = Query(None),
+    piano_id: Optional[int] = Query(None),
     priorita: Optional[str] = Query(None),
     task_stato: Optional[str] = Query(None),
     source_type: Optional[str] = Query(None),
@@ -96,6 +98,8 @@ def list_piani(
     query = db.query(AttivitaManutenzione).filter(AttivitaManutenzione.tenant_id == tenant_id)
     if asset_id is not None:
         query = query.filter(AttivitaManutenzione.asset_id == asset_id)
+    if piano_id is not None:
+        query = query.filter(AttivitaManutenzione.piano_id == piano_id)
     if priorita:
         query = query.filter(AttivitaManutenzione.priorita == priorita)
     if task_stato:

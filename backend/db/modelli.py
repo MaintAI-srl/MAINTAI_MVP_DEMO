@@ -263,6 +263,13 @@ class AttivitaManutenzione(Base):
     last_generated_at = Column(DateTime, nullable=True)
     next_due_at = Column(DateTime, nullable=True)
 
+    # Collegamento al Piano di Manutenzione (v2.5.1) — FK obbligatoria per nuovi task
+    # Workaround: nullable=True per compatibilità con task esistenti senza piano (creati da manuali pre-v2.5.1)
+    piano_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True, index=True)
+    is_repeatable = Column(Boolean, default=True, nullable=True)  # True = task ricorrente
+
+    piano = relationship("PianoManutenzione", back_populates="tasks")
+
 
 class AnalisiGuasto(Base):
     __tablename__ = "analisi_guasti"
@@ -364,8 +371,10 @@ class PianoManutenzione(Base):
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
-    # I ticket aggregati in questo piano
-    tickets = relationship("Ticket", back_populates="piano_manutenzione", cascade="all, delete-orphan")
+    # I ticket aggregati in questo piano (scollegati ma NON eliminati alla cancellazione del piano)
+    tickets = relationship("Ticket", back_populates="piano_manutenzione")
+    # I task strutturali del piano — eliminati a cascata quando il piano viene cancellato
+    tasks = relationship("AttivitaManutenzione", back_populates="piano", cascade="all, delete-orphan")
 
 
 class SystemLog(Base):

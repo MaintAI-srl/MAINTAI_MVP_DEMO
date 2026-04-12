@@ -167,6 +167,9 @@ def _ensure_columns() -> None:
         ("attivita_manutenzione", "source_type",             "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}source_type VARCHAR"),
         ("attivita_manutenzione", "last_generated_at",       "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}last_generated_at TIMESTAMP"),
         ("attivita_manutenzione", "next_due_at",             "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}next_due_at TIMESTAMP"),
+        # attivita_manutenzione — collegamento strutturale al piano (v2.5.1)
+        ("attivita_manutenzione", "piano_id",                "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}piano_id INTEGER"),
+        ("attivita_manutenzione", "is_repeatable",           "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}is_repeatable BOOLEAN DEFAULT TRUE"),
     ]
 
     # system_logs — tabella intera

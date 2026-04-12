@@ -18,8 +18,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 # Versioning
-VERSION = "1.9.8"
-BUILD_DATE = "2026-04-05"
+VERSION = "2.5.1"
+BUILD_DATE = "2026-04-12"
 
 
 def init_backend() -> None:
