@@ -234,15 +234,23 @@ Il frontend può:
 
 La logica di assegnazione reale deve restare lato backend o comunque in uno strato logico testabile e coerente.
 
-### Regola sui locked
-Un ticket già assegnato secondo la convenzione attuale non deve essere ripianificato.
+# MaintAI — Planning Directives (v2.6.3)
 
-### Regola sui workaround del planner
+## 📋 Regole di Pianificazione
+
+### Prevenzione Bug & Compilazione
+- **Strict Narrowing**: In ogni flusso asincrono (Generazione Ticket, PDF Import), l'ID dell'entità target deve essere validato prima della chiamata API.
+- **Rollback Policy**: Se un deploy fallisce per errori di tipo, correggere immediatamente usando pattern "local constant" per stabilizzare il narrowing di TypeScript.
+
+### Gestione Manuali & Piano
 I workaround già accettati devono restare:
 - espliciti
 - coerenti
 - documentati
 - facili da sostituire in futuro con campi reali
+
+### Regola sui locked
+Un ticket già assegnato secondo la convenzione attuale non deve essere ripianificato.
 
 ---
 
@@ -581,6 +589,30 @@ Per ogni task devi fare una verifica del delta introdotto.
 
 ### Regola
 Se una modifica tocca auth, tenant, planner, import/export, AI, file upload, log, notifiche, piani di manutenzione, ticket o manuali, la review di sicurezza e stabilità è obbligatoria anche se il task non era “di sicurezza”.
+
+# MaintAI — Direttive di Sviluppo (v2.6.3)
+
+Queste direttive devono essere lette e applicate rigorosamente ad ogni sessione di sviluppo per garantire l'automiglioramento continuo.
+
+## 🎨 Design & UI/UX (Leggibilità Industriale)
+- **Operatività Reale**: Le interfacce devono essere leggibili in ambiente industriale. 
+- **Font & Dimensioni**: Standard Base `text-sm` (14px). Titoli `text-2xl` a `text-5xl`. Contrast elevato (#030712 / indigo-400).
+- **Layout 3-Panel**: Obbligatorio per i moduli core. 
+
+## 💻 Codice & Architettura (Robustezza & Safety)
+- **Type Safety Strict**: Nelle pagine React, MAI usare il non-null assertion operator `!` su variabili di stato asincrone. Usare **costanti locali** e narrowing block:
+  ```typescript
+  const pid = selectedPianoId;
+  if (!pid) return;
+  await apiCall(pid);
+  ```
+- **Validazione Import**: Prima di ogni commit, verificare la presenza di tutti gli import in `backend/api/routes` (specialmente `Optional`, `List` da `typing`).
+- **Endpoint Integrity**: Ogni rotta deve essere decorata correttamente (`@router.post`, ecc.) e avere check di `tenant_id` e isolamento dati.
+
+## 🚀 Regole Operative
+- **P0 Priority**: Stabilizzazione > Estetica.
+- **Local Validation**: Eseguire sempre un controllo di compilazione (`tsc` o `npm run build`) prima del push se sono state modificate logiche di tipo nel frontend.
+- **Auto-Miglioramento**: Aggiornare queste direttive a fine ciclo includendo soluzioni ai nuovi bug scoperti.
 
 ---
 
