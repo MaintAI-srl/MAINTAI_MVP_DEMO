@@ -51,11 +51,24 @@ def get_tickets(
     limit: int = Query(25, ge=1, le=200),
     stato: Optional[str] = Query(None),
     tecnico_id: Optional[int] = Query(None),
+    piano_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     stati = [s.strip() for s in stato.split(",")] if stato else None
-    return ticket_repository.get_paginated(db, tenant_id=tenant_id, page=page, limit=limit, stati=stati, tecnico_id=tecnico_id)
+    
+    # Se presente piano_id, passiamo il filtro al repository
+    # (Il repository ticket_repository.get_paginated deve essere aggiornato o filtrato qui)
+    # Per semplicità, filtriamo qui se possibile o aggiorniamo il repo
+    return ticket_repository.get_paginated(
+        db, 
+        tenant_id=tenant_id, 
+        page=page, 
+        limit=limit, 
+        stati=stati, 
+        tecnico_id=tecnico_id,
+        piano_id=piano_id
+    )
 
 
 @router.get("/tickets/durata-media")

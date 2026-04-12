@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, UploadFile, File, Form, Depends, Query
 from pydantic import BaseModel as PydanticModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -183,8 +183,16 @@ class ManualePatch(PydanticModel):
 
 
 @router.get("/manuali")
-def list_manuali(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    manuali = db.query(Manuale).filter(Manuale.tenant_id == tenant_id).order_by(Manuale.id.desc()).limit(200).all()
+def list_manuali(
+    piano_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id)
+):
+    query = db.query(Manuale).filter(Manuale.tenant_id == tenant_id)
+    if piano_id is not None:
+        query = query.filter(Manuale.piano_id == piano_id)
+        
+    manuali = query.order_by(Manuale.id.desc()).limit(200).all()
     ids = [m.id for m in manuali]
     counts: dict[int, int] = {}
     if ids:

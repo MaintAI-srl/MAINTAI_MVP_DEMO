@@ -43,6 +43,7 @@ class TicketRepository:
         limit: int = 25,
         stati: list[str] | None = None,
         tecnico_id: int | None = None,
+        piano_id: int | None = None,
     ) -> dict:
         query = db.query(Ticket).options(joinedload(Ticket.asset))
         if tenant_id is not None:
@@ -53,6 +54,9 @@ class TicketRepository:
             query = query.filter(Ticket.stato.in_(stati))
         if tecnico_id:
             query = query.filter(Ticket.tecnico_id == tecnico_id)
+        if piano_id:
+            query = query.filter(Ticket.piano_manutenzione_id == piano_id)
+            
         total = query.count()
         items = query.order_by(Ticket.id.desc()).offset((page - 1) * limit).limit(limit).all()
         return {

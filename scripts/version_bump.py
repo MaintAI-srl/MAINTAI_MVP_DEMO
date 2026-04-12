@@ -86,10 +86,10 @@ def bump_version(new_version=None):
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(new_content)
             
-            print(f"✅ Aggiornato {filepath}")
+            print(f"[OK] Aggiornato {filepath}")
             
         except Exception as e:
-            print(f"❌ Errore aggiornamento {filepath}: {e}")
+            print(f"[ERROR] Errore aggiornamento {filepath}: {e}")
 
 if __name__ == "__main__":
     import sys
