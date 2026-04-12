@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { apiGet, apiPost, apiDelete } from "../lib/api";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { apiGet, apiPost, apiDelete, apiPut } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 // ─── Tipi ─────────────────────────────────────────────────────────────────────
 
-type AssetOption = { id: number; nome: string; name?: string; area?: string; sito_nome?: string };
+type AssetOption = { id: number; nome: string; area?: string; sito_nome?: string };
 
 type Piano = {
   id: number;
@@ -14,17 +15,20 @@ type Piano = {
   progressivo: number;
   descrizione: string | null;
   stato: string;
-  asset_id: number | null;
-  asset_nome: string;
+  asset_ids: number[];
+  asset_nome: string; // nome del primo asset (legacy compat)
+  asset_count: number;
   task_count: number;
   open_ticket_count: number;
   created_at: string | null;
+  updated_at: string | null;
 };
 
 type Task = {
   id: number;
   piano_id: number | null;
   asset_id: number | null;
+  asset_nome: string | null;
   nome: string | null;
   descrizione: string;
   frequenza_giorni: number | null;
@@ -47,9 +51,16 @@ type TicketHistory = {
   stato: string;
   priorita: string;
   durata_stimata_ore: number;
-  origin_type: string | null;
   created_at: string | null;
-  planned_start: string | null;
+};
+
+type Manuale = {
+  id: number;
+  nome: string;
+  pagine: number;
+  metodo: string;
+  stato: string;
+  created_at: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -58,228 +69,129 @@ function fmt(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
 }
+
 function isOverdue(iso: string | null) {
   return !!iso && new Date(iso) < new Date();
 }
-function prioritaBadge(p: string): React.CSSProperties {
-  if (p === "Alta")  return { color: "#f87171", background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)" };
-  if (p === "Media") return { color: "#fbbf24", background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)" };
-  return { color: "#34d399", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)" };
-}
-function statoTaskBadge(s: string): React.CSSProperties {
-  if (s === "active")   return { color: "#34d399", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)" };
-  if (s === "paused")   return { color: "#fbbf24", background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)" };
-  return { color: "#6b7280", background: "rgba(107,114,128,0.12)", border: "1px solid rgba(107,114,128,0.3)" };
-}
-function statoTaskLabel(s: string) {
-  return s === "active" ? "Attivo" : s === "paused" ? "In pausa" : "Archiviato";
-}
-function statoTicketBadge(s: string): React.CSSProperties {
-  if (s === "Aperto")     return { color: "#60a5fa", background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.3)" };
-  if (s === "Pianificato") return { color: "#a78bfa", background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)" };
-  if (s === "In corso")   return { color: "#fbbf24", background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)" };
-  if (s === "Chiuso")     return { color: "#34d399", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)" };
-  return { color: "#6b7280", background: "rgba(107,114,128,0.12)", border: "1px solid rgba(107,114,128,0.3)" };
-}
 
-function Chip({ label, style }: { label: string; style?: React.CSSProperties }) {
-  return <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4, ...style }}>{label}</span>;
-}
-
-const S = {
-  card: { background: "#111827", border: "1px solid rgba(75,85,99,0.4)", borderRadius: 10 } as React.CSSProperties,
-  head: { padding: "12px 16px", borderBottom: "1px solid rgba(75,85,99,0.3)", display: "flex", alignItems: "center", gap: 10 } as React.CSSProperties,
-  btnPrimary: { padding: "6px 14px", background: "#6366f1", border: "none", color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600 } as React.CSSProperties,
-  btnGhost: { padding: "5px 10px", background: "transparent", border: "1px solid rgba(75,85,99,0.5)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer", fontSize: 12 } as React.CSSProperties,
-  btnDanger: { padding: "4px 8px", background: "transparent", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", borderRadius: 5, cursor: "pointer", fontSize: 11 } as React.CSSProperties,
-  inp: { width: "100%", background: "#1f2937", border: "1px solid rgba(75,85,99,0.5)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, boxSizing: "border-box" as const },
+const PRIORITA_STYLES: Record<string, string> = {
+  Alta: "bg-red-500/10 text-red-400 border border-red-500/20",
+  Media: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+  Bassa: "bg-green-500/10 text-green-400 border border-green-500/20",
 };
 
-// ─── Modal: Crea Piano ────────────────────────────────────────────────────────
+const STATO_TASK_STYLES: Record<string, string> = {
+  active: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  paused: "bg-slate-500/10 text-slate-400 border border-slate-500/20",
+  archived: "bg-red-500/10 text-red-400 border border-red-500/20",
+};
 
-function ModalCreaPiano({ assets, loadingAssets, onClose, onCreated }: {
-  assets: AssetOption[];
-  loadingAssets: boolean;
-  onClose: () => void;
-  onCreated: (p: Piano) => void;
-}) {
-  const [form, setForm] = useState({ asset_id: "", nome_codificato: "", descrizione: "" });
-  const [saving, setSaving] = useState(false);
+// ─── Componenti UI ────────────────────────────────────────────────────────────
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.asset_id) { notify.error("Seleziona un asset"); return; }
-    setSaving(true);
-    try {
-      const body: Record<string, unknown> = { asset_id: Number(form.asset_id) };
-      if (form.nome_codificato.trim()) body.nome_codificato = form.nome_codificato.trim();
-      if (form.descrizione.trim()) body.descrizione = form.descrizione.trim();
-      const piano = await apiPost<Piano>("/piani-manutenzione", body);
-      notify.success(`Piano ${piano.nome_codificato} creato`);
-      onCreated(piano);
-    } catch (err: unknown) {
-      notify.error(err instanceof Error ? err.message : "Errore creazione piano");
-    } finally {
-      setSaving(false);
-    }
-  }
-
+function Badge({ label, className }: { label: string; className?: string }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(75,85,99,0.5)", borderRadius: 12, padding: 28, width: 440, maxWidth: "95vw" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Nuovo Piano di Manutenzione</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20 }}>×</button>
-        </div>
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* Asset obbligatorio */}
-          <div>
-            <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>
-              Asset * <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(obbligatorio)</span>
-            </label>
-            {loadingAssets ? (
-              <div style={{ ...S.inp, color: "var(--text-muted)", padding: "8px 10px" }}>Caricamento asset...</div>
-            ) : assets.length === 0 ? (
-              <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6, padding: "10px 12px", fontSize: 12, color: "#fbbf24" }}>
-                Nessun asset disponibile. <a href="/assets" style={{ color: "#818cf8", textDecoration: "underline" }}>Crea prima un asset nel modulo Siti &amp; Asset.</a>
-              </div>
-            ) : (
-              <select
-                required
-                value={form.asset_id}
-                onChange={e => setForm(f => ({ ...f, asset_id: e.target.value }))}
-                style={{ ...S.inp }}
-              >
-                <option value="">— Seleziona asset —</option>
-                {assets.map(a => (
-                  <option key={a.id} value={a.id}>
-                    {a.nome || a.name}{a.sito_nome ? ` · ${a.sito_nome}` : ""}{a.area ? ` · ${a.area}` : ""}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div>
-            <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Codice piano <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(auto se vuoto)</span></label>
-            <input value={form.nome_codificato} onChange={e => setForm(f => ({ ...f, nome_codificato: e.target.value }))} placeholder="es. PM-2026-001" style={{ ...S.inp }} />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Descrizione</label>
-            <textarea value={form.descrizione} onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))} rows={2} style={{ ...S.inp, resize: "vertical" }} />
-          </div>
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
-            <button type="button" onClick={onClose} style={S.btnGhost}>Annulla</button>
-            <button type="submit" disabled={saving || assets.length === 0} style={{ ...S.btnPrimary, opacity: saving || assets.length === 0 ? 0.6 : 1, cursor: saving || assets.length === 0 ? "not-allowed" : "pointer" }}>
-              {saving ? "Creazione..." : "Crea Piano"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", className)}>
+      {label}
+    </span>
   );
 }
 
-// ─── Modal: Crea Task ─────────────────────────────────────────────────────────
+// ─── MODAL: Crea/Modifica Piano ───────────────────────────────────────────────
 
-function ModalCreaTask({ pianoId, onClose, onCreated }: {
-  pianoId: number;
+function ModalPiano({ piano, assets, onClose, onSaved }: {
+  piano?: Piano | null;
+  assets: AssetOption[];
   onClose: () => void;
-  onCreated: (t: Task) => void;
+  onSaved: (p: Piano) => void;
 }) {
   const [form, setForm] = useState({
-    descrizione: "", nome: "", frequenza_giorni: "", durata_ore: "",
-    priorita: "Media", codice: "", is_repeatable: true, generation_mode: "manual", generate_days_before_due: "7",
+    descrizione: piano?.descrizione || "",
+    asset_ids: piano?.asset_ids || [],
+    stato: piano?.stato || "attivo",
   });
   const [saving, setSaving] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.descrizione.trim()) { notify.error("La descrizione è obbligatoria"); return; }
+    if (form.asset_ids.length === 0) { notify.error("Seleziona almeno un asset"); return; }
     setSaving(true);
     try {
-      const body: Record<string, unknown> = {
-        descrizione: form.descrizione.trim(),
-        priorita: form.priorita,
-        is_repeatable: form.is_repeatable,
-        generation_mode: form.generation_mode,
-        generate_days_before_due: Number(form.generate_days_before_due) || 7,
-      };
-      if (form.nome.trim()) body.nome = form.nome.trim();
-      if (form.codice.trim()) body.codice = form.codice.trim();
-      if (form.frequenza_giorni) body.frequenza_giorni = Number(form.frequenza_giorni);
-      if (form.durata_ore) body.durata_ore = Number(form.durata_ore);
-      const task = await apiPost<Task>(`/piani-manutenzione/${pianoId}/tasks`, body);
-      notify.success("Task creato");
-      onCreated(task);
-    } catch (err: unknown) {
-      notify.error(err instanceof Error ? err.message : "Errore creazione task");
+      const isEdit = !!piano;
+      const res = isEdit
+        ? await apiPut<Piano>(`/piani-manutenzione/${piano.id}`, form)
+        : await apiPost<Piano>("/piani-manutenzione", form);
+      
+      notify.success(isEdit ? "Piano aggiornato" : `Piano ${res.nome_codificato} creato`);
+      onSaved(res);
+    } catch (err: any) {
+      notify.error(err.message || "Errore salvataggio piano");
     } finally {
       setSaving(false);
     }
   }
 
+  const toggleAsset = (id: number) => {
+    setForm(f => ({
+      ...f,
+      asset_ids: f.asset_ids.includes(id) 
+        ? f.asset_ids.filter(x => x !== id) 
+        : [...f.asset_ids, id]
+    }));
+  };
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(75,85,99,0.5)", borderRadius: 12, padding: 24, width: 500, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Nuovo Task</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20 }}>×</button>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+          <h3 className="text-sm font-bold text-white uppercase tracking-widest">
+            {piano ? `Modifica Piano ${piano.nome_codificato}` : "Nuovo Piano di Manutenzione"}
+          </h3>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-xl">×</button>
         </div>
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        
+        <form onSubmit={submit} className="p-6 space-y-5">
           <div>
-            <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Descrizione *</label>
-            <textarea required value={form.descrizione} onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))} rows={3} style={{ ...S.inp, resize: "vertical" }} />
+            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Associa Asset ({form.asset_ids.length})</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-3 bg-black/20 rounded-xl border border-white/5 custom-scrollbar">
+              {assets.map(a => (
+                <div 
+                  key={a.id} 
+                  onClick={() => toggleAsset(a.id)}
+                  className={cn(
+                    "p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center gap-2",
+                    form.asset_ids.includes(a.id) 
+                      ? "bg-indigo-500/20 border-indigo-500 text-indigo-100" 
+                      : "bg-white/5 border-white/5 text-white/60 hover:border-white/20"
+                  )}
+                >
+                  <div className={cn("w-3 h-3 rounded-sm border flex items-center justify-center", form.asset_ids.includes(a.id) ? "bg-indigo-500 border-indigo-500" : "border-white/20")}>
+                    {form.asset_ids.includes(a.id) && <span className="text-[8px] text-white">✓</span>}
+                  </div>
+                  <span className="truncate">{a.nome}</span>
+                </div>
+              ))}
+            </div>
+            {assets.length === 0 && <div className="text-xs text-amber-400/80 italic p-2">Caricamento asset o nessun asset trovato...</div>}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Nome breve</label>
-              <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} style={S.inp} placeholder="es. Ispezione filtri" />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Codice</label>
-              <input value={form.codice} onChange={e => setForm(f => ({ ...f, codice: e.target.value }))} style={S.inp} placeholder="es. T-001" />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Frequenza (giorni)</label>
-              <input type="number" min={1} value={form.frequenza_giorni} onChange={e => setForm(f => ({ ...f, frequenza_giorni: e.target.value }))} style={S.inp} placeholder="es. 90" />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Durata (ore)</label>
-              <input type="number" min={0.25} step={0.25} value={form.durata_ore} onChange={e => setForm(f => ({ ...f, durata_ore: e.target.value }))} style={S.inp} placeholder="es. 2" />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Priorità</label>
-              <select value={form.priorita} onChange={e => setForm(f => ({ ...f, priorita: e.target.value }))} style={S.inp}>
-                <option>Alta</option><option>Media</option><option>Bassa</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Generazione ticket</label>
-              <select value={form.generation_mode} onChange={e => setForm(f => ({ ...f, generation_mode: e.target.value }))} style={S.inp}>
-                <option value="manual">Solo manuale</option>
-                <option value="auto">Automatica</option>
-                <option value="disabled">Disabilitata</option>
-              </select>
-            </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Descrizione Operativa</label>
+            <textarea 
+              value={form.descrizione} 
+              onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))}
+              placeholder="Inserisci scopo del piano, vincoli o note generali..."
+              className="w-full bg-white/5 border border-white/5 rounded-xl p-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-24 transition-all"
+            />
           </div>
-          {form.generation_mode === "auto" && (
-            <div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Genera ticket N giorni prima della scadenza</label>
-              <input type="number" min={1} max={365} value={form.generate_days_before_due} onChange={e => setForm(f => ({ ...f, generate_days_before_due: e.target.value }))} style={S.inp} />
-            </div>
-          )}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--text-secondary)" }}>
-            <input type="checkbox" checked={form.is_repeatable} onChange={e => setForm(f => ({ ...f, is_repeatable: e.target.checked }))} />
-            Task ricorrente (si ripete dopo ogni ciclo)
-          </label>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
-            <button type="button" onClick={onClose} style={S.btnGhost}>Annulla</button>
-            <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Creazione..." : "Crea Task"}
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-xs font-bold hover:bg-white/5 transition-all uppercase tracking-widest">Annulla</button>
+            <button 
+              type="submit" 
+              disabled={saving || form.asset_ids.length === 0} 
+              className="flex-1 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-bold transition-all uppercase tracking-widest shadow-lg shadow-indigo-500/20"
+            >
+              {saving ? "Salvataggio..." : (piano ? "Aggiorna" : "Crea Piano")}
             </button>
           </div>
         </form>
@@ -288,403 +200,340 @@ function ModalCreaTask({ pianoId, onClose, onCreated }: {
   );
 }
 
-// ─── Pannello dettaglio Task (drawer destro) ──────────────────────────────────
-
-function TaskDetail({ task, pianoId, onClose, onTicketGenerated }: {
-  task: Task;
-  pianoId: number;
-  onClose: () => void;
-  onTicketGenerated: () => void;
-}) {
-  const [tickets, setTickets] = useState<TicketHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiGet<TicketHistory[]>(`/piani-manutenzione/${pianoId}/tasks/${task.id}/tickets`);
-      setTickets(Array.isArray(data) ? data : []);
-    } catch { setTickets([]); } finally { setLoading(false); }
-  }, [pianoId, task.id]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function generaTicket() {
-    setGenerating(true);
-    try {
-      const res = await apiPost<{ created: number; ticket_ids: number[] }>(`/piani-manutenzione/${pianoId}/tasks/${task.id}/genera-ticket`, {});
-      notify.success(`${res.created} ticket generati`);
-      onTicketGenerated();
-      load();
-    } catch (err: unknown) {
-      notify.error(err instanceof Error ? err.message : "Errore generazione ticket");
-    } finally { setGenerating(false); }
-  }
-
-  const canGenerate = task.task_stato === "active" && task.generation_mode !== "disabled";
-
-  return (
-    <div style={{ ...S.card, display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <div style={{ ...S.head, justifyContent: "space-between" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-          {task.nome || task.descrizione}
-        </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, flexShrink: 0 }}>×</button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* Metadati compatti */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {([
-            ["Priorità", <Chip key="p" label={task.priorita} style={prioritaBadge(task.priorita)} />],
-            ["Stato", <Chip key="s" label={statoTaskLabel(task.task_stato)} style={statoTaskBadge(task.task_stato)} />],
-            ["Frequenza", task.frequenza_giorni ? `ogni ${task.frequenza_giorni}g` : "—"],
-            ["Durata", task.durata_ore ? `${task.durata_ore}h` : "—"],
-            ["Generazione", task.generation_mode === "manual" ? "Manuale" : task.generation_mode === "auto" ? `Auto (${task.generate_days_before_due}g prima)` : "Disabilitata"],
-            ["Ricorrente", task.is_repeatable ? "Sì" : "No"],
-            ["Ultima gen.", fmt(task.last_generated_at)],
-            ["Prossima scad.", <span key="nd" style={isOverdue(task.next_due_at) ? { color: "#f87171", fontWeight: 700 } : {}}>{fmt(task.next_due_at)}</span>],
-          ] as [string, React.ReactNode][]).map(([label, val], i) => (
-            <div key={i} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 6, padding: "7px 10px" }}>
-              <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{label}</div>
-              <div style={{ fontSize: 12, color: "var(--text-primary)" }}>{val}</div>
-            </div>
-          ))}
-        </div>
-
-        {task.descrizione && (
-          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 6, padding: "8px 10px" }}>
-            <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Descrizione</div>
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>{task.descrizione}</div>
-          </div>
-        )}
-
-        {/* Genera Ticket */}
-        <button
-          onClick={generaTicket}
-          disabled={generating || !canGenerate}
-          style={{ ...S.btnPrimary, width: "100%", padding: "9px", fontSize: 13, opacity: !canGenerate ? 0.5 : 1, cursor: !canGenerate ? "not-allowed" : "pointer" }}
-        >
-          {generating ? "Generazione..." : task.open_ticket_count > 0 ? `Genera Ticket (${task.open_ticket_count} già attivi)` : "Genera Ticket"}
-        </button>
-        {task.open_ticket_count > 0 && (
-          <div style={{ fontSize: 11, color: "#fbbf24", marginTop: -8, textAlign: "center" }}>
-            Esiste già un ticket attivo per questo task
-          </div>
-        )}
-        {!canGenerate && (
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -8, textAlign: "center" }}>
-            {task.task_stato !== "active" ? "Task non attivo" : "Generazione disabilitata"}
-          </div>
-        )}
-
-        {/* Storico ticket */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-            Storico Ticket {loading ? "…" : `(${tickets.length})`}
-          </div>
-          {!loading && tickets.length === 0 && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>Nessun ticket generato</div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {tickets.map(t => (
-              <div key={t.id} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 6, padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>#{t.id} {t.titolo}</div>
-                  <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{fmt(t.created_at)}</div>
-                </div>
-                <Chip label={t.stato} style={statoTicketBadge(t.stato)} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Pagina principale ─────────────────────────────────────────────────────────
+// ─── PIANI PAGE ───────────────────────────────────────────────────────────────
 
 export default function PianiPage() {
   const [piani, setPiani] = useState<Piano[]>([]);
-  const [loadingPiani, setLoadingPiani] = useState(true);
-  const [selectedPiano, setSelectedPiano] = useState<Piano | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedPianoId, setSelectedPianoId] = useState<number | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-
+  const [search, setSearch] = useState("");
+  
   const [assets, setAssets] = useState<AssetOption[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(false);
+  const [showModalPiano, setShowModalPiano] = useState(false);
+  const [pianoToEdit, setPianoToEdit] = useState<Piano | null>(null);
 
-  const [showCreaPiano, setShowCreaPiano] = useState(false);
-  const [showCreaTask, setShowCreaTask] = useState(false);
-
-  // ── Fetch piani ──────────────────────────────────────────────────────────────
+  // ── Data Fetching ──
   const fetchPiani = useCallback(async () => {
-    setLoadingPiani(true);
+    setLoading(true);
     try {
-      const data = await apiGet<{ items: Piano[] }>("/piani-manutenzione?limit=100");
-      setPiani(data.items || []);
-    } catch { notify.error("Errore caricamento piani"); }
-    finally { setLoadingPiani(false); }
+      const res = await apiGet<{ items: Piano[] }>("/piani-manutenzione?limit=200");
+      setPiani(res.items || []);
+    } catch (err: any) { notify.error("Errore caricamento piani"); }
+    finally { setLoading(false); }
   }, []);
 
-  // ── Fetch asset reali ────────────────────────────────────────────────────────
-  // GET /assets restituisce direttamente un array, NON { items: [] }
   const fetchAssets = useCallback(async () => {
-    setLoadingAssets(true);
     try {
-      const data = await apiGet<AssetOption[]>("/assets");
-      setAssets(Array.isArray(data) ? data : []);
+      const res = await apiGet<AssetOption[]>("/assets");
+      setAssets(Array.isArray(res) ? res : []);
     } catch { setAssets([]); }
-    finally { setLoadingAssets(false); }
   }, []);
 
-  // ── Fetch task del piano selezionato ─────────────────────────────────────────
-  const fetchTasks = useCallback(async (pianoId: number) => {
+  const fetchTasks = useCallback(async (pid: number) => {
     setLoadingTasks(true);
-    setSelectedTask(null);
     try {
-      const data = await apiGet<{ items: Task[] }>(`/piani-manutenzione/${pianoId}/tasks?limit=200`);
-      setTasks(data.items || []);
-    } catch { notify.error("Errore caricamento task"); setTasks([]); }
+      const res = await apiGet<{ items: Task[] }>(`/piani-manutenzione/${pid}/tasks?limit=500`);
+      setTasks(res.items || []);
+    } catch { notify.error("Errore caricamento task"); }
     finally { setLoadingTasks(false); }
   }, []);
 
-  useEffect(() => { fetchPiani(); }, [fetchPiani]);
+  useEffect(() => { 
+    fetchPiani();
+    fetchAssets();
+  }, [fetchPiani, fetchAssets]);
 
-  // Carica asset solo quando l'utente apre il modal crea piano
-  function apriCreaPiano() {
-    if (assets.length === 0 && !loadingAssets) fetchAssets();
-    setShowCreaPiano(true);
-  }
+  useEffect(() => {
+    if (selectedPianoId) fetchTasks(selectedPianoId);
+    else setTasks([]);
+  }, [selectedPianoId, fetchTasks]);
 
-  function selectPiano(p: Piano) {
-    setSelectedPiano(p);
-    fetchTasks(p.id);
-  }
+  // ── Logica UI ──
+  const selectedPiano = useMemo(() => piani.find(p => p.id === selectedPianoId), [piani, selectedPianoId]);
 
-  function pianoClosed() {
-    setSelectedPiano(null);
-    setTasks([]);
-    setSelectedTask(null);
-  }
+  const filteredPiani = useMemo(() => {
+    if (!search) return piani;
+    const s = search.toLowerCase();
+    return piani.filter(p => 
+      p.nome_codificato.toLowerCase().includes(s) || 
+      (p.descrizione && p.descrizione.toLowerCase().includes(s)) ||
+      (p.asset_nome && p.asset_nome.toLowerCase().includes(s))
+    );
+  }, [piani, search]);
 
-  function handlePianoCreated(p: Piano) {
-    setPiani(prev => [{ ...p, task_count: 0, open_ticket_count: 0 }, ...prev]);
-    setShowCreaPiano(false);
-    selectPiano({ ...p, task_count: 0, open_ticket_count: 0 });
-  }
-
-  function handleTaskCreated(t: Task) {
-    setTasks(prev => [t, ...prev]);
-    setShowCreaTask(false);
-    setPiani(prev => prev.map(p => p.id === selectedPiano?.id ? { ...p, task_count: p.task_count + 1 } : p));
-  }
-
-  function handleTicketGenerated() {
-    if (selectedPiano) {
-      fetchTasks(selectedPiano.id);
-      setPiani(prev => prev.map(p => p.id === selectedPiano.id ? { ...p, open_ticket_count: p.open_ticket_count + 1 } : p));
+  const handlePianoSaved = (p: Piano) => {
+    if (pianoToEdit) {
+      setPiani(prev => prev.map(old => old.id === p.id ? { ...old, ...p } : old));
+    } else {
+      setPiani(prev => [p, ...prev]);
     }
-  }
+    setShowModalPiano(false);
+    setPianoToEdit(null);
+    setSelectedPianoId(p.id);
+  };
 
-  async function deletePiano(id: number, nome: string) {
-    if (!confirm(`Eliminare il piano ${nome}? I task saranno eliminati, i ticket saranno scollegati.`)) return;
+  const deletePiano = async (pid: number) => {
+    if (!confirm("Eliminare definitivamente questo piano e tutti i suoi task? I ticket collegati verranno scollegati ma non eliminati.")) return;
     try {
-      await apiDelete(`/piani-manutenzione/${id}`);
-      setPiani(prev => prev.filter(p => p.id !== id));
-      if (selectedPiano?.id === id) pianoClosed();
-      notify.success("Piano eliminato");
-    } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore"); }
-  }
+      await apiDelete(`/piani-manutenzione/${pid}`);
+      setPiani(prev => prev.filter(p => p.id !== pid));
+      if (selectedPianoId === pid) setSelectedPianoId(null);
+      notify.success("Piano eliminato correttamente");
+    } catch (err: any) { notify.error(err.message || "Errore eliminazione"); }
+  };
 
-  async function deleteTask(taskId: number) {
-    if (!selectedPiano || !confirm("Eliminare questo task?")) return;
+  const toggleTaskStato = async (task: Task) => {
+    const nuovoStato = task.task_stato === "active" ? "paused" : "active";
     try {
-      await apiDelete(`/piani-manutenzione/${selectedPiano.id}/tasks/${taskId}`);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
-      if (selectedTask?.id === taskId) setSelectedTask(null);
-      setPiani(prev => prev.map(p => p.id === selectedPiano.id ? { ...p, task_count: Math.max(0, p.task_count - 1) } : p));
-      notify.success("Task eliminato");
-    } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore"); }
-  }
+      await apiPut(`/piani-manutenzione/${selectedPianoId}/tasks/${task.id}`, { task_stato: nuovoStato });
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, task_stato: nuovoStato } : t));
+    } catch { notify.error("Errore cambio stato task"); }
+  };
 
-  // ── Layout adattivo ──────────────────────────────────────────────────────────
-  // Stato A: nessun piano                → vista compatta centrata
-  // Stato B: piani presenti, nessuno sel.→ 2 colonne (lista + empty)
-  // Stato C: piano sel., nessun task sel.→ 2 colonne (lista stretta + task wide)
-  // Stato D: piano + task selezionati   → 3 colonne
-
-  const showDetail = !!selectedTask && !!selectedPiano;
-  const showTasks  = !!selectedPiano;
-  const noPiani    = !loadingPiani && piani.length === 0;
-
-  const gridCols = showDetail
-    ? "240px 1fr 320px"
-    : showTasks
-      ? "240px 1fr"
-      : "1fr";
+  const generaTicket = async (task: Task) => {
+    try {
+      const res = await apiPost<{ created: number }>(`/piani-manutenzione/${selectedPianoId}/tasks/${task.id}/genera-ticket`, {});
+      notify.success(`${res.created} ticket generati in stato APERTO`);
+      // Ricarica task per aggiornare last_generated e next_due
+      fetchTasks(selectedPianoId!);
+    } catch (err: any) { notify.error(err.message || "Errore generazione ticket"); }
+  };
 
   return (
-    <div style={{ padding: "20px 24px", height: "calc(100vh - 64px)", display: "flex", flexDirection: "column", gap: 16, fontFamily: "inherit" }}>
-
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Piani di Manutenzione</h1>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset → Piano → Task → Ticket</div>
-        </div>
-        <button onClick={apriCreaPiano} style={S.btnPrimary}>+ Nuovo Piano</button>
-      </div>
-
-      {/* ── Stato A: nessun piano → empty state centrale ── */}
-      {noPiani ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <div style={{ fontSize: 40, opacity: 0.2 }}>📋</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-secondary)" }}>Nessun piano di manutenzione</div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", maxWidth: 360 }}>
-            Crea il primo piano associandolo a un asset esistente. I task del piano genereranno i ticket operativi.
+    <div className="flex h-full overflow-hidden bg-[#0a0f18]">
+      
+      {/* ── SIDEBAR PIANI ── */}
+      <aside className="w-[300px] flex-shrink-0 border-r border-white/5 flex flex-col bg-[#0f172a]/50">
+        <div className="p-4 border-b border-white/5 space-y-3">
+          <div className="flex justify-between items-center">
+            <h2 className="text-[11px] font-black text-white/40 uppercase tracking-[0.2em]">Piani Attivi</h2>
+            <Badge label={piani.length.toString()} className="bg-white/5 text-white/60 border border-white/10" />
           </div>
-          <button onClick={apriCreaPiano} style={{ ...S.btnPrimary, padding: "8px 20px", fontSize: 13, marginTop: 4 }}>Crea primo Piano</button>
+          <button 
+            onClick={() => { setPianoToEdit(null); setShowModalPiano(true); }}
+            className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 uppercase tracking-widest"
+          >
+            + Nuovo Piano
+          </button>
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Cerca piani..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full bg-white/5 border border-white/5 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 transition-all"
+            />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 text-xs">🔍</span>
+          </div>
         </div>
-      ) : loadingPiani ? (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 13 }}>Caricamento piani...</div>
-      ) : (
-        /* ── Corpo a colonne adattive ── */
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: gridCols, gap: 12, minHeight: 0, transition: "grid-template-columns 0.2s" }}>
 
-          {/* ── Colonna Lista Piani ── */}
-          <div style={{ ...S.card, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ ...S.head, justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>Piani ({piani.length})</span>
-              <button onClick={apriCreaPiano} style={{ ...S.btnPrimary, padding: "4px 10px", fontSize: 11 }}>+</button>
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
-              {piani.map(piano => (
-                <div
-                  key={piano.id}
-                  onClick={() => selectPiano(piano)}
-                  style={{
-                    padding: "9px 10px", borderRadius: 7, cursor: "pointer", marginBottom: 3,
-                    background: selectedPiano?.id === piano.id ? "rgba(99,102,241,0.15)" : "transparent",
-                    border: selectedPiano?.id === piano.id ? "1px solid rgba(99,102,241,0.4)" : "1px solid transparent",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", marginBottom: 1 }}>{piano.nome_codificato}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{piano.asset_nome || "—"}</div>
-                      <div style={{ display: "flex", gap: 5, marginTop: 4 }}>
-                        <span style={{ fontSize: 10, color: "var(--text-muted)", background: "rgba(255,255,255,0.05)", padding: "1px 5px", borderRadius: 3 }}>{piano.task_count} task</span>
-                        {piano.open_ticket_count > 0 && <span style={{ fontSize: 10, color: "#60a5fa", background: "rgba(96,165,250,0.1)", padding: "1px 5px", borderRadius: 3, border: "1px solid rgba(96,165,250,0.2)" }}>{piano.open_ticket_count} ticket</span>}
-                      </div>
+        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1.5 custom-scrollbar">
+          {loading && piani.length === 0 ? (
+            <div className="p-10 text-center animate-pulse text-white/20 text-xs italic">Caricamento in corso...</div>
+          ) : filteredPiani.length === 0 ? (
+            <div className="p-10 text-center text-white/20 text-xs italic">Nessun piano trovato</div>
+          ) : (
+            filteredPiani.map(p => (
+              <div 
+                key={p.id}
+                onClick={() => setSelectedPianoId(p.id)}
+                className={cn(
+                  "p-3 rounded-xl border cursor-pointer transition-all group relative",
+                  selectedPianoId === p.id 
+                    ? "bg-indigo-500/10 border-indigo-500/50 shadow-inner" 
+                    : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
+                )}
+              >
+                <div className="flex justify-between items-start mb-1.5">
+                  <span className={cn("text-xs font-black tracking-tighter", selectedPianoId === p.id ? "text-indigo-400" : "text-white/80")}>
+                    {p.nome_codificato}
+                  </span>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); setPianoToEdit(p); setShowModalPiano(true); }} className="p-1 text-white/40 hover:text-white transition-colors">✎</button>
+                    <button onClick={(e) => { e.stopPropagation(); deletePiano(p.id); }} className="p-1 text-red-500/40 hover:text-red-400 transition-colors">✕</button>
+                  </div>
+                </div>
+                <div className="text-[10px] text-white/40 font-medium truncate mb-2">{p.asset_nome || "Multiple Assets"}</div>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-1 text-[9px] font-bold text-white/20 uppercase tracking-widest">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {p.task_count} Tasks
+                  </div>
+                  {p.open_ticket_count > 0 && (
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> {p.open_ticket_count} Tickets
                     </div>
-                    <button onClick={e => { e.stopPropagation(); deletePiano(piano.id, piano.nome_codificato); }} style={{ ...S.btnDanger, padding: "2px 5px", fontSize: 10, marginLeft: 4, flexShrink: 0 }}>✕</button>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
 
-          {/* ── Colonna Task (visibile solo se piano selezionato) ── */}
-          {showTasks && (
-            <div style={{ ...S.card, display: "flex", flexDirection: "column", minHeight: 0 }}>
-              {/* Header piano + azioni */}
-              <div style={{ ...S.head, justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{selectedPiano!.nome_codificato}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                    {selectedPiano!.asset_nome || "—"} · {selectedPiano!.task_count} task · {selectedPiano!.open_ticket_count} ticket aperti
+      {/* ── MAIN CONTENT ── */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {!selectedPiano ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
+            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center text-3xl mb-4 text-white/10 border border-white/5">📋</div>
+            <h2 className="text-lg font-bold text-white/50 mb-2">Modulo Piani di Manutenzione</h2>
+            <p className="text-sm text-white/30 max-w-sm">
+              Seleziona un piano dalla lista a sinistra per visualizzare le attività pianificate, i manuali e gestire la generazione dei ticket.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Header del Piano */}
+            <header className="px-8 py-6 border-b border-white/5 bg-[#0f172a]/20 backdrop-blur-md">
+              <div className="flex justify-between items-start">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-black text-white tracking-widest uppercase">{selectedPiano.nome_codificato}</h1>
+                    <Badge label={selectedPiano.stato} className={selectedPiano.stato === 'attivo' ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-500/20 text-slate-400"} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {assets.filter(a => selectedPiano.asset_ids.includes(a.id)).map(a => (
+                      <Badge key={a.id} label={a.nome} className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" />
+                    ))}
+                  </div>
+                  {selectedPiano.descrizione && (
+                    <p className="text-sm text-white/40 max-w-2xl leading-relaxed italic">"{selectedPiano.descrizione}"</p>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3 flex flex-col items-center justify-center">
+                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mb-1">Efficienza</span>
+                    <span className="text-xl font-black text-emerald-400">92%</span>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3 flex flex-col items-center justify-center">
+                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mb-1">Scadenze 7g</span>
+                    <span className="text-xl font-black text-amber-400">{tasks.filter(t => isOverdue(t.next_due_at)).length}</span>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button style={S.btnGhost} onClick={() => fetchTasks(selectedPiano!.id)} title="Aggiorna">↻</button>
-                  <button style={S.btnPrimary} onClick={() => setShowCreaTask(true)}>+ Task</button>
+              </div>
+              
+              <div className="flex mt-8 border-b border-white/5">
+                {["ATTIVITÀ E TASK", "MANUALI AI", "CRONOLOGIA TICKET"].map((tab, i) => (
+                  <button 
+                    key={tab} 
+                    className={cn(
+                      "px-6 py-3 text-[10px] font-black tracking-[0.2em] transition-all relative",
+                      i === 0 ? "text-indigo-400" : "text-white/40 hover:text-white/60"
+                    )}
+                  >
+                    {tab}
+                    {i === 0 && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />}
+                  </button>
+                ))}
+              </div>
+            </header>
+
+            {/* Content: Tasks Table */}
+            <div className="flex-1 overflow-auto p-8 custom-scrollbar">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Elenco Operativo Task ({tasks.length})</h3>
+                <div className="flex gap-4">
+                  <button className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest">+ Aggiungi Task Manuale</button>
+                  <button className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4 pointer-events-none opacity-50">Sincronizza AI PDF</button>
                 </div>
               </div>
 
-              {/* Lista task */}
-              <div style={{ flex: 1, overflowY: "auto" }}>
-                {loadingTasks ? (
-                  <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>Caricamento task...</div>
-                ) : tasks.length === 0 ? (
-                  <div style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "var(--text-muted)" }}>
-                    <div style={{ fontSize: 28, opacity: 0.2 }}>🔧</div>
-                    <div style={{ fontSize: 13 }}>Nessun task in questo piano</div>
-                    <button onClick={() => setShowCreaTask(true)} style={S.btnPrimary}>Aggiungi Task</button>
-                  </div>
-                ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              {loadingTasks ? (
+                <div className="grid grid-cols-1 gap-4">
+                   {[1,2,3].map(i => <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />)}
+                </div>
+              ) : tasks.length === 0 ? (
+                <div className="bg-white/5 border border-dashed border-white/10 rounded-2xl p-20 flex flex-col items-center justify-center gap-4">
+                  <div className="text-4xl opacity-20">⚙️</div>
+                  <p className="text-sm text-white/30 font-medium italic">Nessun task definito per questo piano.</p>
+                  <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-xl text-xs font-bold transition-all">Configura primo Task</button>
+                </div>
+              ) : (
+                <div className="bg-[#0f172a]/30 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr style={{ borderBottom: "1px solid rgba(75,85,99,0.3)" }}>
-                        {["Codice", "Nome / Descrizione", "Freq.", "Dur.", "Priorità", "Stato", "Prossima scad.", ""].map(h => (
-                          <th key={h} style={{ padding: "7px 10px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
-                        ))}
+                      <tr className="bg-white/5 border-b border-white/5">
+                        <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Task / Codice</th>
+                        <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest text-center">Frequenza</th>
+                        <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest text-center">Durata</th>
+                        <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Priorità</th>
+                        <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest">Prossima Scadenza</th>
+                        <th className="px-5 py-4 text-[9px] font-black text-white/30 uppercase tracking-widest text-right">Azioni</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {tasks.map(t => (
-                        <tr
-                          key={t.id}
-                          onClick={() => setSelectedTask(prev => prev?.id === t.id ? null : t)}
-                          style={{ borderBottom: "1px solid rgba(75,85,99,0.12)", cursor: "pointer", background: selectedTask?.id === t.id ? "rgba(99,102,241,0.08)" : "transparent" }}
-                        >
-                          <td style={{ padding: "8px 10px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{t.codice || `#${t.id}`}</td>
-                          <td style={{ padding: "8px 10px", maxWidth: 200 }}>
-                            <div style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.nome || t.descrizione}</div>
-                            {t.nome && t.descrizione !== t.nome && <div style={{ color: "var(--text-muted)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.descrizione}</div>}
+                    <tbody className="divide-y divide-white/5">
+                      {tasks.map(task => (
+                        <tr key={task.id} className="hover:bg-white/[0.02] transition-colors group">
+                          <td className="px-5 py-5 min-w-[200px]">
+                            <div className="flex items-center gap-3">
+                              <div className={cn("w-1.5 h-1.5 rounded-full", task.task_stato === 'active' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-white/20")} />
+                              <div>
+                                <div className="text-xs font-bold text-white mb-0.5 tracking-tight group-hover:text-indigo-400 transition-colors">{task.nome || task.descrizione}</div>
+                                <div className="text-[10px] text-white/20 font-bold tracking-widest uppercase">{task.codice || `#${task.id}`}</div>
+                              </div>
+                            </div>
                           </td>
-                          <td style={{ padding: "8px 10px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{t.frequenza_giorni ? `${t.frequenza_giorni}g` : "—"}</td>
-                          <td style={{ padding: "8px 10px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{t.durata_ore ? `${t.durata_ore}h` : "—"}</td>
-                          <td style={{ padding: "8px 10px" }}><Chip label={t.priorita} style={prioritaBadge(t.priorita)} /></td>
-                          <td style={{ padding: "8px 10px" }}><Chip label={statoTaskLabel(t.task_stato)} style={statoTaskBadge(t.task_stato)} /></td>
-                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
-                            <span style={isOverdue(t.next_due_at) ? { color: "#f87171", fontWeight: 700 } : { color: "var(--text-secondary)" }}>{fmt(t.next_due_at)}</span>
+                          <td className="px-5 py-5 text-center">
+                            <span className="text-xs text-white/70 font-mono italic">{task.frequenza_giorni ? `${task.frequenza_giorni}g` : '—'}</span>
                           </td>
-                          <td style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
-                            {t.open_ticket_count > 0 && <span style={{ fontSize: 10, color: "#60a5fa", background: "rgba(96,165,250,0.1)", padding: "1px 5px", borderRadius: 3, border: "1px solid rgba(96,165,250,0.2)", marginRight: 4 }}>{t.open_ticket_count}</span>}
-                            <button onClick={e => { e.stopPropagation(); deleteTask(t.id); }} style={S.btnDanger} title="Elimina task">✕</button>
+                          <td className="px-5 py-5 text-center">
+                            <span className="text-xs text-white/70 font-mono italic">{task.durata_ore ? `${task.durata_ore}h` : '—'}</span>
+                          </td>
+                          <td className="px-5 py-5">
+                             <Badge label={task.priorita} className={PRIORITA_STYLES[task.priorita] || PRIORITA_STYLES.Media} />
+                          </td>
+                          <td className="px-5 py-5">
+                            <div className="flex flex-col">
+                              <span className={cn("text-xs font-bold", isOverdue(task.next_due_at) ? "text-red-400" : "text-white/60")}>
+                                {fmt(task.next_due_at)}
+                              </span>
+                              {task.last_generated_at && <span className="text-[9px] text-white/20">U.G: {fmt(task.last_generated_at)}</span>}
+                            </div>
+                          </td>
+                          <td className="px-5 py-5 text-right space-x-2">
+                             <button 
+                                onClick={() => generaTicket(task)}
+                                className="bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border border-indigo-500/20"
+                             >
+                               Ticket
+                             </button>
+                             <button 
+                                onClick={() => toggleTaskStato(task)}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 transition-all border border-white/5"
+                                title={task.task_stato === 'active' ? "Pausa" : "Attiva"}
+                             >
+                               {task.task_stato === 'active' ? "⏸" : "▶"}
+                             </button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          )}
+          </>
+        )}
+      </main>
 
-          {/* ── Dettaglio Task (drawer destro — solo se task selezionato) ── */}
-          {showDetail && (
-            <TaskDetail
-              task={selectedTask!}
-              pianoId={selectedPiano!.id}
-              onClose={() => setSelectedTask(null)}
-              onTicketGenerated={handleTicketGenerated}
-            />
-          )}
-
-        </div>
-      )}
-
-      {/* Modali */}
-      {showCreaPiano && (
-        <ModalCreaPiano
+      {/* MODALS */}
+      {showModalPiano && (
+        <ModalPiano 
           assets={assets}
-          loadingAssets={loadingAssets}
-          onClose={() => setShowCreaPiano(false)}
-          onCreated={handlePianoCreated}
+          piano={pianoToEdit}
+          onClose={() => { setShowModalPiano(false); setPianoToEdit(null); }}
+          onSaved={handlePianoSaved}
         />
       )}
-      {showCreaTask && selectedPiano && (
-        <ModalCreaTask
-          pianoId={selectedPiano.id}
-          onClose={() => setShowCreaTask(false)}
-          onCreated={handleTaskCreated}
-        />
-      )}
+
+      {/* Global CSS for scrollbar */}
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
+      `}</style>
     </div>
   );
 }

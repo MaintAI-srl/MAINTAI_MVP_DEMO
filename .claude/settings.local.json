@@ -92,7 +92,12 @@
       "Read(//mnt/c/Users/aless/**)",
       "Read(//c/Users/aless/Desktop/**)",
       "Bash(find /c/Users/aless/Desktop/maintai_v3 -not -path */.venv/* -not -path */.git/* -not -path */node_modules/* -not -path */__pycache__/* -type d -maxdepth 3)",
-      "Bash(find C:UsersalessDesktopmaintai_v3 -type f \\\\\\(-name *.env* -o -name *secret* -o -name *config* \\\\\\))"
+      "Bash(find C:UsersalessDesktopmaintai_v3 -type f \\\\\\(-name *.env* -o -name *secret* -o -name *config* \\\\\\))",
+      "Bash(find . -maxdepth 3 -not -path */.* -not -path */__pycache__* -not -path */node_modules* -type d)",
+      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 python -m pytest backend/tests/test_piano_task.py -v)",
+      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/test_piano_task.py -v)",
+      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/ -v --ignore=backend/tests/test_scheduler.py)",
+      "Bash(JWT_SECRET=testkeytestkeytestkeytestkeytestkey123 ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= python -m pytest backend/tests/test_health.py backend/tests/test_planner_engine.py backend/tests/test_privacy.py backend/tests/test_piano_task.py -v)"
     ]
   }
 }

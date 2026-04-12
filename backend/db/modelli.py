@@ -1,12 +1,21 @@
 import json
 from datetime import datetime, timezone, date
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, event
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, event, Table
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# Tabella di associazione Piani ↔ Asset (Multi-Asset)
+piano_asset_association = Table(
+    'piani_assets_association',
+    Base.metadata,
+    Column('piano_id', Integer, ForeignKey('piani_manutenzione.id'), primary_key=True),
+    Column('asset_id', Integer, ForeignKey('asset.id'), primary_key=True)
+)
 
 
 class Tenant(Base):
@@ -140,6 +149,9 @@ class Asset(Base):
     impianto = relationship("Impianto", back_populates="assets")
     tickets = relationship("Ticket", back_populates="asset", cascade="all, delete-orphan")
     attivita = relationship("AttivitaManutenzione", cascade="all, delete-orphan")
+    
+    # Relazione multi-asset con i Piani
+    piani = relationship("PianoManutenzione", secondary=piano_asset_association, back_populates="assets")
 
 
 class Tecnico(Base):
@@ -236,6 +248,11 @@ class Manuale(Base):
     version = Column(Integer, default=1)
     stato = Column(String, default="attivo")
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    
+    # Collegamento al Piano di Manutenzione (Integrazione Piani/Manuali)
+    piano_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True, index=True)
+    
+    piano = relationship("PianoManutenzione", back_populates="manuali")
 
 
 class AttivitaManutenzione(Base):
@@ -363,10 +380,10 @@ class PianoManutenzione(Base):
     stato = Column(String, default="attivo")
     
     # Relazioni (collegamenti come da specifica)
-    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=True) # Backward compat (1° asset)
     impianto_id = Column(Integer, ForeignKey("impianti.id"), nullable=True)
     sito_id = Column(Integer, ForeignKey("siti.id"), nullable=True)
-    manuale_id = Column(Integer, ForeignKey("manuali.id"), nullable=True)
+    manuale_id = Column(Integer, ForeignKey("manuali.id"), nullable=True) # Backward compat (principale)
 
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
@@ -375,6 +392,10 @@ class PianoManutenzione(Base):
     tickets = relationship("Ticket", back_populates="piano_manutenzione")
     # I task strutturali del piano — eliminati a cascata quando il piano viene cancellato
     tasks = relationship("AttivitaManutenzione", back_populates="piano", cascade="all, delete-orphan")
+
+    # Nuove relazioni multi-asset e manuali multipli
+    assets = relationship("Asset", secondary=piano_asset_association, back_populates="piani")
+    manuali = relationship("Manuale", back_populates="piano", cascade="all, delete-orphan")
 
 
 class SystemLog(Base):

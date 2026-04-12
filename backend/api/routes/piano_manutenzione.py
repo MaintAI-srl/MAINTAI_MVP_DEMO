@@ -34,7 +34,7 @@ from sqlalchemy import func
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, check_tenant_ownership
 from backend.core.logger_db import db_info, db_error
-from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione, Asset
+from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione, Asset, Manuale, piano_asset_association
 from backend.schemas.piano_manutenzione import (
     PianoManutenzioneCreate, PianoManutenzioneUpdate, PianoManutenzioneResponse,
     PianoManutenzioneListItem, TaskCreate, TaskUpdate, TaskResponse,
@@ -114,7 +114,7 @@ def list_piani_manutenzione(
 
     piano_ids = [p.id for p in piani]
 
-    # Conteggio task per piano (batch query — no N+1)
+    # Conteggio task per piano
     task_counts = dict(
         db.query(AttivitaManutenzione.piano_id, func.count(AttivitaManutenzione.id))
         .filter(AttivitaManutenzione.piano_id.in_(piano_ids))
@@ -122,7 +122,7 @@ def list_piani_manutenzione(
         .all()
     )
 
-    # Conteggio ticket aperti per piano (batch query)
+    # Conteggio ticket aperti per piano
     open_ticket_counts = dict(
         db.query(Ticket.piano_manutenzione_id, func.count(Ticket.id))
         .filter(
@@ -134,14 +134,23 @@ def list_piani_manutenzione(
         .all()
     )
 
-    # Asset names (batch query)
-    asset_ids = {p.asset_id for p in piani if p.asset_id}
-    asset_names = {}
-    if asset_ids:
-        asset_names = {
-            a.id: a.nome
-            for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()
-        }
+    # Conteggio asset per piano (Multi-Asset)
+    asset_counts = dict(
+        db.query(piano_asset_association.c.piano_id, func.count(piano_asset_association.c.asset_id))
+        .filter(piano_asset_association.c.piano_id.in_(piano_ids))
+        .group_by(piano_asset_association.c.piano_id)
+        .all()
+    )
+
+    # Nome del primo asset (legacy compat)
+    first_asset_names = {}
+    for p in piani:
+        if p.assets:
+            first_asset_names[p.id] = p.assets[0].nome
+        elif p.asset_id:
+            # Fallback se non ancora migrato in secondary
+            asset = db.query(Asset).filter(Asset.id == p.asset_id).first()
+            first_asset_names[p.id] = asset.nome if asset else ""
 
     items = [
         {
@@ -151,7 +160,9 @@ def list_piani_manutenzione(
             "descrizione": p.descrizione,
             "stato": p.stato or "attivo",
             "asset_id": p.asset_id,
-            "asset_nome": asset_names.get(p.asset_id, ""),
+            "asset_nome": first_asset_names.get(p.id, ""),
+            "asset_ids": [a.id for a in p.assets],
+            "asset_count": asset_counts.get(p.id, 0),
             "task_count": task_counts.get(p.id, 0),
             "open_ticket_count": open_ticket_counts.get(p.id, 0),
             "created_at": p.created_at.isoformat() if p.created_at else None,
@@ -174,44 +185,49 @@ def create_piano(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """Crea un Piano di Manutenzione. asset_id è obbligatorio."""
+    """Crea un Piano di Manutenzione con supporto multi-asset."""
+    # Gestione asset_ids (nuova) vs asset_id (legacy)
+    asset_ids = data.asset_ids or []
+    if not asset_ids and data.asset_id:
+        asset_ids = [data.asset_id]
+        
+    if not asset_ids:
+        raise HTTPException(status_code=400, detail="Almeno un asset_id è richiesto")
+
     # Verifica ownership asset
-    check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
+    for aid in asset_ids:
+        check_tenant_ownership(db, Asset, aid, tenant_id)
 
-    # Progressivo auto-generato
-    prog = data.progressivo
-    if prog is None:
-        max_prog = db.query(func.max(PianoManutenzione.progressivo)).filter(
-            PianoManutenzione.tenant_id == tenant_id
-        ).scalar()
-        prog = (max_prog or 0) + 1
+    # Progressivo auto-generato (per anno corrente)
+    anno_corrente = datetime.now().year
+    # Cerchiamo il max progressivo dell'anno corrente per questo tenant
+    # Il formato PM-YYYY-NNN suggerisce che vogliamo resettare il contatore ogni anno
+    # ma il modello ha un solo campo progressivo. Lo usiamo come globale per ora.
+    max_prog = db.query(func.max(PianoManutenzione.progressivo)).filter(
+        PianoManutenzione.tenant_id == tenant_id
+    ).scalar()
+    prog = (max_prog or 0) + 1
 
-    # Nome codificato auto-generato
-    import datetime as _dt
-    nome = data.nome_codificato
-    if not nome:
-        anno = _dt.datetime.now().year
-        nome = f"PM-{anno}-{prog:03d}"
+    # Nome codificato obbligatoriamente auto-generato
+    nome = f"PM-{anno_corrente}-{prog:03d}"
 
-    # Unicità nome per tenant
+    # Assicuriamo unicità estrema
     exist = db.query(PianoManutenzione).filter(
         PianoManutenzione.nome_codificato == nome,
         PianoManutenzione.tenant_id == tenant_id,
     ).first()
-    if exist:
-        if not data.nome_codificato:
-            anno = _dt.datetime.now().year
-            attempts = 0
-            while exist and attempts < 100:
-                prog += 1
-                nome = f"PM-{anno}-{prog:03d}"
-                exist = db.query(PianoManutenzione).filter(
-                    PianoManutenzione.nome_codificato == nome,
-                    PianoManutenzione.tenant_id == tenant_id,
-                ).first()
-                attempts += 1
-        else:
-            raise HTTPException(status_code=400, detail="Codice piano già esistente per questo tenant")
+    attempts = 0
+    while exist and attempts < 100:
+        prog += 1
+        nome = f"PM-{anno_corrente}-{prog:03d}"
+        exist = db.query(PianoManutenzione).filter(
+            PianoManutenzione.nome_codificato == nome,
+            PianoManutenzione.tenant_id == tenant_id,
+        ).first()
+        attempts += 1
+
+    # Recupera i veri oggetti Asset
+    assets_db = db.query(Asset).filter(Asset.id.in_(asset_ids)).all()
 
     piano = PianoManutenzione(
         tenant_id=tenant_id,
@@ -219,15 +235,17 @@ def create_piano(
         progressivo=prog,
         descrizione=data.descrizione,
         stato=data.stato or "attivo",
-        asset_id=data.asset_id,
+        asset_id=asset_ids[0],  # legacy compat
         impianto_id=data.impianto_id,
         sito_id=data.sito_id,
         manuale_id=data.manuale_id,
     )
+    piano.assets = assets_db  # relazione many-to-many
+    
     db.add(piano)
     db.commit()
     db.refresh(piano)
-    db_info(db, "PIANO", f"Piano {piano.nome_codificato} creato per asset_id={data.asset_id}", tenant_id=tenant_id)
+    db_info(db, "PIANO", f"Piano {piano.nome_codificato} creato per {len(asset_ids)} asset", tenant_id=tenant_id)
     return piano
 
 
@@ -243,7 +261,12 @@ def get_piano(
     ).first()
     if not piano:
         raise HTTPException(status_code=404, detail="Piano non trovato")
-    return piano
+    
+    # Arricchimento response con asset_ids
+    return {
+        **piano.__dict__,
+        "asset_ids": [a.id for a in piano.assets]
+    }
 
 
 @router.put("/piani-manutenzione/{piano_id}", response_model=PianoManutenzioneResponse)
@@ -260,10 +283,24 @@ def update_piano(
     if not piano:
         raise HTTPException(status_code=404, detail="Piano non trovato")
 
-    for field in ("nome_codificato", "descrizione", "stato", "asset_id", "impianto_id", "sito_id"):
+    # Update campi semplici
+    for field in ("descrizione", "stato", "impianto_id", "sito_id"):
         val = getattr(data, field, None)
         if val is not None:
             setattr(piano, field, val)
+
+    # Update Multi-Asset
+    if data.asset_ids is not None:
+        # Verifica ownership nuovi asset
+        for aid in data.asset_ids:
+            check_tenant_ownership(db, Asset, aid, tenant_id)
+        
+        assets_db = db.query(Asset).filter(Asset.id.in_(data.asset_ids)).all()
+        piano.assets = assets_db
+        if data.asset_ids:
+            piano.asset_id = data.asset_ids[0] # legacy compat
+        else:
+            piano.asset_id = None
 
     db.commit()
     db.refresh(piano)
@@ -502,39 +539,54 @@ def genera_ticket_da_task(
         )
 
     durata = float(task.durata_ore) if task.durata_ore else 1.0
-    titolo = (task.nome or task.descrizione or f"Task #{task_id}")[:150]
+    titolo_base = (task.nome or task.descrizione or f"Task #{task_id}")[:150]
 
-    # Gestione ticket multi-chunk se durata > 8h
-    ore_rimanenti = durata
-    chunk_idx = 1
-    num_chunks = int(ore_rimanenti // 8) + (1 if ore_rimanenti % 8 > 0 else 0)
+    # Determinazione asset target
+    # Se il piano ha una lista di assets (Multi-Asset), generiamo ticket per TUTTI
+    target_assets = piano.assets if piano.assets else []
+    if not target_assets and task.asset_id:
+        # Fallback se non ci sono assets nella relazione secondary (es. legacy data non migrato)
+        asset_legacy = db.query(Asset).filter(Asset.id == task.asset_id).first()
+        if asset_legacy:
+            target_assets = [asset_legacy]
+
+    if not target_assets:
+        raise HTTPException(status_code=422, detail="Nessun asset associato a questo piano/task.")
+
     created_ids = []
+    for asset in target_assets:
+        # Gestione ticket multi-chunk se durata > 8h
+        ore_rimanenti = durata
+        chunk_idx = 1
+        num_chunks = int(ore_rimanenti // 8) + (1 if ore_rimanenti % 8 > 0 else 0)
 
-    while ore_rimanenti > 0:
-        durata_chunk = min(8.0, ore_rimanenti)
-        titolo_chunk = f"{titolo} (Parte {chunk_idx}/{num_chunks})" if num_chunks > 1 else titolo
+        while ore_rimanenti > 0:
+            durata_chunk = min(8.0, ore_rimanenti)
+            titolo_chunk = f"{titolo_base} (Parte {chunk_idx}/{num_chunks})" if num_chunks > 1 else titolo_base
+            if len(target_assets) > 1:
+                titolo_chunk = f"{titolo_chunk} - {asset.nome}"
 
-        ticket = Ticket(
-            titolo=titolo_chunk,
-            descrizione=task.descrizione or "",
-            asset_id=task.asset_id,
-            tipo="PM",
-            priorita=task.priorita or "Media",
-            stato="Aperto",                          # SEMPRE APERTO — regola obbligatoria
-            durata_stimata_ore=durata_chunk,
-            fascia_oraria="diurna",
-            attivita_manutenzione_id=task_id,
-            piano_manutenzione_id=piano_id,          # riferimento piano
-            origine_piano="task_manual_generation",
-            origin_type="task_manual_generation",
-            tenant_id=tenant_id,
-        )
-        db.add(ticket)
-        db.flush()
-        created_ids.append(ticket.id)
+            ticket = Ticket(
+                titolo=titolo_chunk[:150],
+                descrizione=task.descrizione or "",
+                asset_id=asset.id,
+                tipo="PM",
+                priorita=task.priorita or "Media",
+                stato="Aperto",
+                durata_stimata_ore=durata_chunk,
+                fascia_oraria="diurna",
+                attivita_manutenzione_id=task_id,
+                piano_manutenzione_id=piano_id,
+                origine_piano="task_manual_generation",
+                origin_type="task_manual_generation",
+                tenant_id=tenant_id,
+            )
+            db.add(ticket)
+            db.flush()
+            created_ids.append(ticket.id)
 
-        ore_rimanenti -= durata_chunk
-        chunk_idx += 1
+            ore_rimanenti -= durata_chunk
+            chunk_idx += 1
 
     # Aggiorna metadati del task
     now = datetime.now(timezone.utc)
@@ -548,6 +600,7 @@ def genera_ticket_da_task(
         "ticket_ids": created_ids,
         "task_id": task_id,
         "piano_id": piano_id,
+        "assets_count": len(target_assets)
     }
 
 
@@ -760,3 +813,57 @@ def assign_ticket_to_piano(
     ticket.origine_piano = origine
     db.commit()
     return {"success": True, "ticket_id": ticket_id, "piano_id": piano_id}
+
+
+# ── MANUALI (Integrated) ───────────────────────────────────────────────────
+
+@router.get("/piani-manutenzione/{piano_id}/manuali")
+def list_piano_manuali(
+    piano_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Lista manuali PDF associati al piano."""
+    piano = db.query(PianoManutenzione).filter(
+        PianoManutenzione.id == piano_id,
+        PianoManutenzione.tenant_id == tenant_id,
+    ).first()
+    if not piano:
+        raise HTTPException(status_code=404, detail="Piano non trovato")
+
+    manuali = db.query(Manuale).filter(
+        Manuale.piano_id == piano_id,
+        Manuale.tenant_id == tenant_id,
+    ).all()
+    
+    return [
+        {
+            "id": m.id,
+            "nome": m.nome_file,
+            "pagine": m.pagine,
+            "metodo": m.metodo_lettura,
+            "created_at": m.created_at.isoformat() if hasattr(m, "created_at") and m.created_at else None,
+            "stato": m.stato or "attivo"
+        }
+        for m in manuali
+    ]
+
+@router.delete("/piani-manutenzione/{piano_id}/manuali/{manuale_id}")
+def delete_piano_manuale(
+    piano_id: int,
+    manuale_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Scollega o elimina un manuale dal piano."""
+    manuale = db.query(Manuale).filter(
+        Manuale.id == manuale_id,
+        Manuale.piano_id == piano_id,
+        Manuale.tenant_id == tenant_id,
+    ).first()
+    if not manuale:
+        raise HTTPException(status_code=404, detail="Manuale non trovato nel contesto di questo piano")
+    
+    db.delete(manuale)
+    db.commit()
+    return {"deleted": manuale_id}

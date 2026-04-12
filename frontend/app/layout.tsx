@@ -34,7 +34,6 @@ const NAV = [
     items: [
       { href: "/asset",     label: "Siti & Asset", icon: "◬" },
       { href: "/tecnici",   label: "Tecnici",      icon: "◎" },
-      { href: "/manuali",   label: "Manuali",               icon: "◧" },
       { href: "/piani",     label: "Piano Manutenzione",    icon: "◩" },
       { href: "/scadenze",  label: "Scadenze PM",           icon: "📅" },
     ],
@@ -58,7 +57,6 @@ const PAGE_LABELS: Record<string, string> = {
   "/tecnici":    "Tecnici",
   "/planning":   "Piano AI — MARCO",
   "/ticket":     "Ticket",
-  "/manuali":    "Manuali",
   "/piani":              "Piano di Manutenzione — Task",
   "/piani-manutenzione": "Piano di Manutenzione — Task",
   "/scadenze":       "Calendario Scadenze PM",
@@ -141,7 +139,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       if (item.superadminOnly && !isSuperadmin) return false;
       if (item.adminOnly && user?.ruolo !== "responsabile" && !isSuperadmin) return false;
       if (!isTecnico) return true;
-      const visibleForTecnico = ["/ticket", "/asset", "/manuali", "/profilo"];
+      const visibleForTecnico = ["/ticket", "/asset", "/profilo"];
       return visibleForTecnico.includes(item.href);
     })
   })).filter(section => section.items.length > 0);

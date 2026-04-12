@@ -37,7 +37,7 @@ Se un campo richiesto dalla specifica non esiste nel DB attuale:
 
 ## PIANO DI MANUTENZIONE
 
-Il "Piano di Manutenzione" referenziato nel sistema va trattato come l'entità database persistente `piani_manutenzione` a cui i singoli `ticket` afferiscono. Le aggregazioni di planning non devono basarsi su raggruppamenti astratti ma usare campi dedicati come `piano_manutenzione_id` da `ticket`. I piani supportano la generazione automatica del progressivo e l'importazione diretta da PDF (con OCR) ed Excel per popolare velocemente la lista delle attività (Ticket).
+Il "Piano di Manutenzione" referenziato nel sistema va trattato come l'entità database persistente `piani_manutenzione` a cui i singoli `ticket` afferiscono. Le aggregazioni di planning non devono basarsi su raggruppamenti astratti ma usare campi dedicati come `piano_manutenzione_id` da `ticket`. I piani supportano l'associazione Multi-Asset (Many-to-Many), la generazione automatica del progressivo e l'importazione diretta da PDF (con OCR) ed Excel per popolare velocemente la lista delle attività (Ticket).
 
 ---
 

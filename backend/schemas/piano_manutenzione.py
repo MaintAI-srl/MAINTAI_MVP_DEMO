@@ -11,7 +11,8 @@ class PianoManutenzioneCreate(BaseModel):
     progressivo: Optional[int] = None         # auto-generato se assente
     descrizione: Optional[str] = None
     stato: Optional[str] = "attivo"
-    asset_id: int                             # obbligatorio: ogni piano appartiene a un asset
+    asset_id: Optional[int] = None           # Deprecato: usa asset_ids
+    asset_ids: Optional[list[int]] = []      # Nuova gestione multi-asset
     impianto_id: Optional[int] = None
     sito_id: Optional[int] = None
     manuale_id: Optional[int] = None
@@ -22,6 +23,7 @@ class PianoManutenzioneUpdate(BaseModel):
     descrizione: Optional[str] = None
     stato: Optional[str] = None
     asset_id: Optional[int] = None
+    asset_ids: Optional[list[int]] = None
     impianto_id: Optional[int] = None
     sito_id: Optional[int] = None
 
@@ -35,6 +37,7 @@ class PianoManutenzioneResponse(BaseModel):
     descrizione: Optional[str] = None
     stato: Optional[str] = "attivo"
     asset_id: Optional[int] = None
+    asset_ids: list[int] = []
     impianto_id: Optional[int] = None
     sito_id: Optional[int] = None
     manuale_id: Optional[int] = None
@@ -54,6 +57,7 @@ class PianoManutenzioneListItem(BaseModel):
     stato: Optional[str] = "attivo"
     asset_id: Optional[int] = None
     asset_nome: Optional[str] = None
+    asset_count: int = 0
     task_count: int = 0
     open_ticket_count: int = 0
     created_at: datetime

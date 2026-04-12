@@ -279,6 +279,7 @@ def salva_manuale_db(
     testo_raw: str,
     json_estratto: str = "",
     tenant_id: int | None = None,
+    piano_id: int | None = None,
 ):
     print(">>> SALVATAGGIO MANUALE DB START")
     print(">>> nome_file:", nome_file)
@@ -294,6 +295,7 @@ def salva_manuale_db(
         testo_raw=testo_raw,
         json_estratto=json_estratto,
         tenant_id=tenant_id,
+        piano_id=piano_id,
     )
 
     db.add(nuovo_manuale)
