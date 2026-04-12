@@ -674,9 +674,9 @@ async def import_pdf_to_piano(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """Importa attività da PDF (AI/OCR) come TASK del piano e salva il documento nel DB."""
+    """Importa attività da PDF (AI/OCR) come TASK del piano."""
     from backend.services.pdf_service import smart_read_pdf
-    from backend.services.ai.manuals_ai_service import parse_manual_with_ai, salva_manuale_db
+    from backend.services.ai.manuals_ai_service import parse_manual_with_ai
     import json
 
     piano = db.query(PianoManutenzione).filter(
@@ -691,39 +691,13 @@ async def import_pdf_to_piano(
     text = result.get("text", "")
 
     if not text.strip():
-        raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF. Verificare che il documento non sia solo immagini o che il PDF non sia protetto.")
+        raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF.")
 
-    try:
-        parsed_json_str = parse_manual_with_ai(text, file.filename)
-    except RuntimeError as e:
-        # OpenAI API key mancante o non configurata su Render
-        raise HTTPException(
-            status_code=503,
-            detail=f"Servizio AI non disponibile: {str(e)}. Verificare la variabile d'ambiente OPENAI_API_KEY su Render."
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Errore durante l'analisi AI del documento: {str(e)}"
-        )
-
-    # Salvataggio record Manuale associato al piano
-    manuale = salva_manuale_db(
-        db=db,
-        nome_file=file.filename,
-        pagine=result.get("pages", 0),
-        metodo_lettura=result.get("method", ""),
-        testo_raw=text,
-        json_estratto=parsed_json_str,
-        tenant_id=tenant_id,
-    )
-    manuale.piano_id = piano_id  # Forza legame bidirezionale se non gestito da salva_manuale_db
-    db.commit()
-
+    parsed_json_str = parse_manual_with_ai(text, file.filename)
     try:
         parsed = json.loads(parsed_json_str)
     except Exception:
-        raise HTTPException(status_code=500, detail="L'AI non ha restituito un formato JSON valido. Riprovare.")
+        raise HTTPException(status_code=500, detail="L'AI non ha restituito un formato valido.")
 
     plans = parsed.get("plans", [])
     created_count = 0
@@ -739,7 +713,6 @@ async def import_pdf_to_piano(
             task = AttivitaManutenzione(
                 piano_id=piano_id,
                 asset_id=piano.asset_id,
-                manuale_id=manuale.id,
                 nome=task_str[:150],
                 descrizione=task_str,
                 priorita=priorita,
@@ -756,12 +729,7 @@ async def import_pdf_to_piano(
             created_count += 1
 
     db.commit()
-    return {
-        "success": True, 
-        "manuale_id": manuale.id,
-        "created": created_count, 
-        "method": result.get("method")
-    }
+    return {"success": True, "created": created_count, "method": result.get("method")}
 
 
 
