@@ -95,7 +95,7 @@ def list_piani_manutenzione(
     asset_id: Optional[int] = Query(None),
     stato: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
