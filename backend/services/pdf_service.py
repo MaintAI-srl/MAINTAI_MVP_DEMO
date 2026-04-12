@@ -38,9 +38,9 @@ def read_pdf_ocr_fallback(content: bytes):
         images = convert_from_bytes(content, dpi=200)
         parts = []
 
+        import pytesseract
         for image in images:
-            import pytesseract
-        text = pytesseract.image_to_string(image, lang="eng")
+            text = pytesseract.image_to_string(image, lang="eng")
             if text:
                 parts.append(text)
 
