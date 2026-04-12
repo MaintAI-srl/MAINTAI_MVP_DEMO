@@ -10,7 +10,7 @@ import csv
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
-from backend.db.modelli import PianoManutenzione, Ticket
+from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione
 from backend.schemas.piano_manutenzione import PianoManutenzioneCreate, PianoManutenzioneUpdate, PianoManutenzioneResponse
 
 router = APIRouter()
@@ -221,7 +221,7 @@ async def import_pdf_to_piano(
 
     plans = parsed.get("plans", [])
     created_count = 0
-    
+
     # Priority map
     prio_map = {"high": "Alta", "medium": "Media", "low": "Bassa"}
 
@@ -230,7 +230,6 @@ async def import_pdf_to_piano(
         freg_days = None
         if plan.get("frequency"):
             freg_days = plan["frequency"].get("value")
-            # simplificata
             unit = (plan["frequency"].get("unit") or "days").lower()
             if "week" in unit: freg_days = (freg_days or 1) * 7
             if "month" in unit: freg_days = (freg_days or 1) * 30
@@ -238,27 +237,28 @@ async def import_pdf_to_piano(
 
         durata = plan.get("estimated_duration_hours") or 1.0
         priorita = prio_map.get((plan.get("priority") or "medium").lower(), "Media")
-        
+
         for task_desc in plan.get("tasks", []):
             if not task_desc: continue
-            
-            # Crea direttamente il ticket
-            ticket = Ticket(
-                titolo=task_desc[:150],
+
+            # Crea un TASK (AttivitaManutenzione) invece di un ticket diretto
+            task = AttivitaManutenzione(
+                nome=task_desc[:150],
                 descrizione=task_desc,
                 priorita=priorita,
-                tipo="PM",
-                stato="Aperto",
-                durata_stimata_ore=durata,
-                fascia_oraria="diurna",
+                frequenza_giorni=freg_days,
+                durata_ore=durata,
                 asset_id=piano.asset_id,
                 tenant_id=tenant_id,
-                piano_manutenzione_id=piano.id,
-                origine_piano="manuale"
+                manuale_id=piano.manuale_id,
+                origine="PDF",
+                task_stato="active",
+                generation_mode="manual",
+                source_type="manual_imported_from_manual",
             )
-            db.add(ticket)
+            db.add(task)
             created_count += 1
-    
+
     db.commit()
     return {"success": True, "created": created_count, "method": result.get("method")}
 
@@ -308,25 +308,28 @@ async def import_excel_to_piano(
         # Mapping flessibile
         titolo = r.get("titolo") or r.get("attività") or r.get("descrizione")
         if not titolo: continue
-        
+
         durata = r.get("durata") or r.get("ore") or 1.0
         priorita = r.get("priorità") or r.get("priorita") or "Media"
-        
-        ticket = Ticket(
-            titolo=str(titolo)[:150],
+        frequenza = r.get("frequenza") or r.get("frequenza_giorni") or None
+
+        # Crea un TASK (AttivitaManutenzione) invece di un ticket diretto
+        task = AttivitaManutenzione(
+            nome=str(titolo)[:150],
             descrizione=str(titolo),
             priorita=str(priorita).capitalize() if priorita else "Media",
-            tipo="PM",
-            stato="Aperto",
-            durata_stimata_ore=float(durata) if durata else 1.0,
-            fascia_oraria="diurna",
+            durata_ore=float(durata) if durata else 1.0,
+            frequenza_giorni=int(frequenza) if frequenza else None,
             asset_id=piano.asset_id,
             tenant_id=tenant_id,
-            piano_manutenzione_id=piano.id,
-            origine_piano="excel"
+            manuale_id=piano.manuale_id,
+            origine="Excel",
+            task_stato="active",
+            generation_mode="manual",
+            source_type="manual_imported_from_manual",
         )
-        db.add(ticket)
+        db.add(task)
         created_count += 1
-        
+
     db.commit()
     return {"success": True, "created": created_count}

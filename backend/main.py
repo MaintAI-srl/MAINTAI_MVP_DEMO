@@ -158,6 +158,15 @@ def _ensure_columns() -> None:
         # ticket — piani_manutenzione
         ("ticket", "piano_manutenzione_id",            "ALTER TABLE ticket ADD COLUMN {ifne}piano_manutenzione_id INTEGER"),
         ("ticket", "origine_piano",                    "ALTER TABLE ticket ADD COLUMN {ifne}origine_piano VARCHAR"),
+        # ticket — origine unificata (v2.5.0)
+        ("ticket", "origin_type",                      "ALTER TABLE ticket ADD COLUMN {ifne}origin_type VARCHAR"),
+        # attivita_manutenzione — campi unificazione Task/Piano (v2.5.0)
+        ("attivita_manutenzione", "generation_mode",         "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}generation_mode VARCHAR DEFAULT 'manual'"),
+        ("attivita_manutenzione", "generate_days_before_due","ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}generate_days_before_due INTEGER DEFAULT 7"),
+        ("attivita_manutenzione", "task_stato",              "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}task_stato VARCHAR DEFAULT 'active'"),
+        ("attivita_manutenzione", "source_type",             "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}source_type VARCHAR"),
+        ("attivita_manutenzione", "last_generated_at",       "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}last_generated_at TIMESTAMP"),
+        ("attivita_manutenzione", "next_due_at",             "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}next_due_at TIMESTAMP"),
     ]
 
     # system_logs — tabella intera

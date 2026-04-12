@@ -211,6 +211,9 @@ class Ticket(Base):
     piano_manutenzione_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True)
     origine_piano = Column(String, nullable=True) # "manuale", "excel", "manuale_interno_piano"
 
+    # Origine unificata (v2.5.0)
+    origin_type = Column(String, nullable=True)  # manual | from_task | from_email | from_pdf_plan
+
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
     piano_manutenzione = relationship("PianoManutenzione", back_populates="tickets")
@@ -251,6 +254,14 @@ class AttivitaManutenzione(Base):
     ultima_esecuzione = Column(DateTime, nullable=True)
     prossima_scadenza = Column(DateTime, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+    # Campi unificazione Task/Piano (v2.5.0)
+    generation_mode = Column(String, default="manual", nullable=True)  # manual | auto | disabled
+    generate_days_before_due = Column(Integer, default=7, nullable=True)
+    task_stato = Column(String, default="active", nullable=True)  # active | paused | archived
+    source_type = Column(String, nullable=True)  # manual_task | manual_imported_from_manual
+    last_generated_at = Column(DateTime, nullable=True)
+    next_due_at = Column(DateTime, nullable=True)
 
 
 class AnalisiGuasto(Base):
