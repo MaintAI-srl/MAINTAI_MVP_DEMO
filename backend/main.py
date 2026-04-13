@@ -79,8 +79,14 @@ _DEFAULT_ORIGINS = [
     "http://127.0.0.1:3001",
     "http://192.168.1.222:3000",
     "http://192.168.1.222:3001",
-    # produzione
+    # produzione web
     "https://maintai.vercel.app",
+    "https://maintai-frontend.vercel.app",
+    # Tauri Desktop — WebView2 (Windows) usa http://tauri.localhost
+    # WebView (macOS/Linux) usa tauri://localhost
+    "http://tauri.localhost",
+    "tauri://localhost",
+    "https://tauri.localhost",
 ]
 
 

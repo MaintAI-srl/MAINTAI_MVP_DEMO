@@ -11,7 +11,7 @@
       {
         "label": "main",
         "title": "MaintAI Desktop",
-        "url": "https://maintai.vercel.app",
+        "url": "https://maintai-frontend.vercel.app",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,
