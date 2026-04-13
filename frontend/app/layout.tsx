@@ -11,6 +11,7 @@ import { VERSION } from "./lib/version";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { BackendStatus } from "./components/BackendStatus";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -24,8 +25,9 @@ const NAV = [
   {
     section: "VISUALIZZAZIONI",
     items: [
-      { href: "/planning",  label: "Piano AI",       icon: "⚡" },
-      { href: "/ticket",    label: "Ticket",         icon: "◷" },
+      { href: "/planning",          label: "Piano AI",      icon: "⚡" },
+      { href: "/planning/risorse",  label: "Scheduler",     icon: "▦" },
+      { href: "/ticket",            label: "Ticket",        icon: "◷" },
       { href: "/profilo",   label: "Mio Profilo",    icon: "👤" },
     ],
   },
@@ -55,7 +57,8 @@ const PAGE_LABELS: Record<string, string> = {
   "/assets":     "Asset",
   "/impianti":   "Impianti",
   "/tecnici":    "Tecnici",
-  "/planning":   "Piano AI — MARCO",
+  "/planning":          "Piano AI — MARCO",
+  "/planning/risorse":  "Scheduler Risorse",
   "/ticket":     "Ticket",
   "/piani":              "Piano di Manutenzione — Task",
   "/piani-manutenzione": "Piano di Manutenzione — Task",
@@ -356,6 +359,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <GlobalOfflineIndicator />
+        <BackendStatus />
       </body>
     </html>
   );
