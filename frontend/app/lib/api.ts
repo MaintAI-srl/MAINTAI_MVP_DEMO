@@ -68,7 +68,7 @@ async function request<T>(
       let message = `HTTP ${res.status}: ${res.statusText}`;
       try {
         const err = await res.json();
-        if (err?.detail) message = String(err.detail);
+        if (err?.detail) message = Array.isArray(err.detail) ? err.detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join("; ") : String(err.detail);
         else if (err?.message) message = String(err.message);
       } catch {
         // ignora errori di parsing del body
@@ -129,7 +129,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
       let message = `HTTP ${res.status}`;
       try {
         const err = await res.json();
-        if (err?.detail) message = String(err.detail);
+        if (err?.detail) message = Array.isArray(err.detail) ? err.detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join("; ") : String(err.detail);
       } catch {}
       throw new Error(message);
     }

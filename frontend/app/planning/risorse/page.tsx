@@ -496,13 +496,13 @@ export default function RisorseSchedulerPage() {
     try {
       const [tecniciRes, pianRes, inCorsoRes, apertiRes] = await Promise.all([
         apiGet<TecnicoData[]>("/tecnici"),
-        apiGet<{ items: TicketData[] }>("/tickets?limit=300&stato=Pianificato"),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Pianificato"),
         apiGet<{ items: TicketData[] }>("/tickets?limit=100&stato=In%20corso"),
         apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto"),
       ]);
 
-      const allTecnici = Array.isArray(tecniciRes) ? tecniciRes : [];
-      setTecnici(allTecnici.filter((t) => t.stato === "in servizio" || t.stato === "attivo"));
+      // Mostra tutti i tecnici — il backend filtra già per tenant
+      setTecnici(Array.isArray(tecniciRes) ? tecniciRes : []);
 
       const scheduled = [
         ...pianRes.items.filter((t) => t.planned_start != null),
