@@ -21,8 +21,8 @@ import { it } from "date-fns/locale";
 
 type ViewMode = "day" | "week" | "2week";
 
-const DAY_START_H = 8;
-const DAY_END_H = 18;
+const DAY_START_H = 0;
+const DAY_END_H = 24;
 const HOUR_W = 80;   // px per hour in day view
 const DAY_W = 130;   // px per day in week/2week view
 const ROW_H = 72;    // px per technician row
@@ -39,7 +39,7 @@ const PRIO_COLORS: Record<string, string> = {
 function getDays(base: Date, view: ViewMode): Date[] {
   if (view === "day") return [base];
   const mon = startOfWeek(base, { weekStartsOn: 1 });
-  const count = view === "week" ? 5 : 10;
+  const count = view === "week" ? 7 : 14;
   return Array.from({ length: count }, (_, i) => addDays(mon, i));
 }
 
@@ -353,7 +353,7 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
           {tecnico.nome} {tecnico.cognome ?? ""}
         </div>
         <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
-          {tecnico.competenze}
+          {(tecnico as any).skill ?? tecnico.competenze ?? ""}
         </div>
       </div>
     </div>
@@ -502,7 +502,7 @@ export default function RisorseSchedulerPage() {
       ]);
 
       const allTecnici = Array.isArray(tecniciRes) ? tecniciRes : [];
-      setTecnici(allTecnici.filter((t) => /attiv/i.test(t.stato)));
+      setTecnici(allTecnici.filter((t) => t.stato === "in servizio" || t.stato === "attivo"));
 
       const scheduled = [
         ...pianRes.items.filter((t) => t.planned_start != null),

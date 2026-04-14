@@ -64,13 +64,16 @@ export default function NotificationPanel() {
   }
 
   useEffect(() => {
-    loadScadenze();
-    loadTicketsAssegnati();
+    // Ritardo iniziale di 4s per non bloccare il primo paint (desktop cold start)
+    const startup = setTimeout(() => {
+      loadScadenze();
+      loadTicketsAssegnati();
+    }, 4000);
     const timer = setInterval(() => {
       loadScadenze();
       loadTicketsAssegnati();
     }, 60000);
-    return () => clearInterval(timer);
+    return () => { clearTimeout(startup); clearInterval(timer); };
   }, []);
 
   const PRIO_COLOR: Record<string, string> = { alta: "#f87171", media: "#fbbf24", bassa: "#34d399" };

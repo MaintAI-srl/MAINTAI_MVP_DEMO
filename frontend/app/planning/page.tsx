@@ -27,7 +27,7 @@ interface TecnicoAPI {
   id: number;
   nome: string;
   cognome: string | null;
-  competenze: string;
+  skill: string;        // campo reale dal backend (competenze → skill)
   ore_giornaliere: number;
   orario_inizio: string;
   orario_fine: string;

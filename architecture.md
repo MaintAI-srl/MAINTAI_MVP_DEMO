@@ -1,4 +1,4 @@
-# MaintAI — Architettura di Sistema (v2.6.1)
+# MaintAI — Architettura di Sistema (v2.8.1)
 
 ## 🏢 Backend (FastAPI + SQLAlchemy)
 
@@ -22,3 +22,14 @@ Struttura a zero-click per massimizzare la velocità:
 ### Componenti Core
 - **BulkSelector**: Gestione asincrona del caricamento asset (>50 entità per view).
 - **Leggibilità**: Font-size minimo 14px, contrasto elevato per tablet industriali.
+- **NotificationPanel**: Caricamento iniziale differito di 4s (per non colpire Render cold start al primo paint).
+
+### Scheduler Risorse (`/planning/risorse`)
+- Timeline Day/Week/2Week con DnD drag-and-drop.
+- Day view: 00:00→24:00 (HOUR_W=80px × 24 = 1920px, scroll orizzontale).
+- Week view: Lun–Dom (7 giorni), 2Week: 14 giorni.
+- Tecnici filtrati per `stato === "in servizio"`.
+
+### Tecnico API Shape
+- Backend `_to_dict` restituisce `skill` (non `competenze`).
+- `TecnicoData.skill?: string` aggiunto per compatibilità con `tecnici/page.tsx` che usa `t.skill`.
