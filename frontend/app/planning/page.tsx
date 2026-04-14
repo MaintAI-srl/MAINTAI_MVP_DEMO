@@ -506,7 +506,7 @@ export default function PlanningPage() {
       ]);
       setPiano(planRes);
       setTickets(ticketsRes?.items ?? []);
-      setTecnici(tecniciRes ?? []);
+      setTecnici((tecniciRes ?? []).map(t => ({ ...t, competenze: t.skill ?? "" })));
     } catch (e: any) {
       toast.error(e?.message ?? "Errore caricamento dati planning");
     } finally {
