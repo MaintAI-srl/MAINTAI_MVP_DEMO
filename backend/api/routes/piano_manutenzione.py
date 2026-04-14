@@ -563,8 +563,13 @@ def genera_ticket_da_task(
     # Se il piano ha una lista di assets (Multi-Asset), generiamo ticket per TUTTI
     target_assets = piano.assets if piano.assets else []
     if not target_assets and task.asset_id:
-        # Fallback se non ci sono assets nella relazione secondary (es. legacy data non migrato)
+        # Fallback 1: asset_id diretto sul task
         asset_legacy = db.query(Asset).filter(Asset.id == task.asset_id).first()
+        if asset_legacy:
+            target_assets = [asset_legacy]
+    if not target_assets and piano.asset_id:
+        # Fallback 2: asset_id legacy sul piano (piani creati prima della relazione M2M)
+        asset_legacy = db.query(Asset).filter(Asset.id == piano.asset_id).first()
         if asset_legacy:
             target_assets = [asset_legacy]
 

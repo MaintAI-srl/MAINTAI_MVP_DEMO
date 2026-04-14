@@ -14,7 +14,7 @@ def _create_user(db_session, username: str, password: str, ruolo: str = "admin")
 
 
 def test_login_success(client, db_session):
-    """Login con credenziali valide deve restituire un token JWT."""
+    """Login con credenziali valide deve impostare il cookie JWT e restituire i metadati utente."""
     _create_user(db_session, "operatore1", "password123")
 
     response = client.post(
@@ -23,8 +23,8 @@ def test_login_success(client, db_session):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+    # Il JWT è emesso nel cookie HttpOnly, non nel body JSON
+    assert "maintai_jwt" in response.cookies
     assert data["username"] == "operatore1"
     assert data["ruolo"] == "admin"
 
