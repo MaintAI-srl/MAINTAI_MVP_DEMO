@@ -20,7 +20,7 @@ export interface TecnicoData {
   id: number;
   nome: string;
   cognome: string | null;
-  competenze: string;  // alias per compatibilità
+  competenze?: string; // alias per compatibilità (backend usa "skill")
   skill?: string;      // campo reale restituito dal backend
   ore_giornaliere: number;
   orario_inizio: string;
