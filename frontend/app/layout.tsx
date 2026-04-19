@@ -128,8 +128,18 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js")
-        .then((reg) => { console.log("[MaintAI] Service Worker registrato:", reg.scope); })
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
+        .then((reg) => {
+          console.log("[MaintAI] Service Worker registrato:", reg.scope);
+          reg.update().catch((err) => console.warn("[MaintAI] Service Worker update fallito:", err));
+        })
         .catch((err) => { console.warn("[MaintAI] Service Worker non registrato:", err); });
     }
   }, []);

@@ -1,7 +1,8 @@
 /**
- * MaintAI Service Worker v2.0
+ * MaintAI Service Worker v2.2
  *
- * Strategia: Network-First con fallback cache per le risorse statiche.
+ * Strategia: Network-First per dati offline selezionati.
+ * HTML e bundle Next.js devono restare sempre freschi per gli update Vercel.
  * Per le API: cache-then-network solo per GET su endpoint specifici (ticket, assets).
  *
  * NON cachea:
@@ -10,21 +11,15 @@
  * - Endpoint AI/planning (dati sempre freschi)
  *
  * Cachea per uso offline (tecnico sul campo):
- * - App shell (HTML, CSS, JS, immagini)
  * - GET /tickets (ultimo snapshot)
  * - GET /assets (catalogo asset)
  * - GET /tecnici/me (profilo tecnico)
  */
 
-const CACHE_NAME = "maintai-v2.1";
-const STATIC_CACHE = "maintai-static-v2.1";
+const CACHE_NAME = "maintai-api-v2.2";
 
-// Risorse dell'app shell da pre-cachare all'installazione
-const APP_SHELL = [
-  "/",
-  "/logo.png",
-  "/manifest.json",
-];
+// La shell Next/Vercel non viene precachata: deve aggiornarsi a ogni deploy.
+const APP_SHELL = [];
 
 // Pattern di URL API che possono essere cachati per uso offline
 const CACHEABLE_API_PATTERNS = [
@@ -45,33 +40,38 @@ const NEVER_CACHE_PATTERNS = [
 ];
 
 self.addEventListener("install", (event) => {
-  console.log("[MaintAI SW] Installing v2.1...");
+  console.log("[MaintAI SW] Installing v2.2...");
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(APP_SHELL).catch((err) => {
-        console.warn("[MaintAI SW] Pre-cache parziale:", err);
-      });
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => APP_SHELL.length ? cache.addAll(APP_SHELL) : Promise.resolve())
+      .catch((err) => console.warn("[MaintAI SW] Pre-cache parziale:", err))
   );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  console.log("[MaintAI SW] Activating v2.1...");
+  console.log("[MaintAI SW] Activating v2.2...");
   // Pulizia vecchie cache
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE)
-          .map((k) => {
-            console.log("[MaintAI SW] Eliminata cache obsoleta:", k);
-            return caches.delete(k);
-          })
-      );
-    })
+    caches.keys()
+      .then((keys) => {
+        return Promise.all(
+          keys
+            .filter((k) => k !== CACHE_NAME)
+            .map((k) => {
+              console.log("[MaintAI SW] Eliminata cache obsoleta:", k);
+              return caches.delete(k);
+            })
+        );
+      })
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => {
+        clients.forEach((client) => {
+          if ("navigate" in client) client.navigate(client.url);
+        });
+      })
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -83,6 +83,18 @@ self.addEventListener("fetch", (event) => {
 
   // Ignora richieste non-http (chrome-extension, ecc.)
   if (!url.protocol.startsWith("http")) return;
+
+  // HTML e asset build Next.js devono sempre arrivare dalla rete/Vercel.
+  // Questo evita che la desktop shell resti bloccata su un vecchio bundle JS.
+  if (
+    request.mode === "navigate" ||
+    request.destination === "document" ||
+    url.pathname === "/" ||
+    url.pathname.startsWith("/_next/")
+  ) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
 
   // API calls
   if (url.pathname.startsWith("/api/") || url.origin !== self.location.origin) {
@@ -101,8 +113,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Risorse statiche (app shell): network-first con fallback cache
-  event.respondWith(networkFirstWithCache(request));
+  // Risorse statiche minori: pass-through, niente cache persistente.
+  event.respondWith(fetch(request));
 });
 
 /**
