@@ -25,8 +25,7 @@ const NAV = [
   {
     section: "VISUALIZZAZIONI",
     items: [
-      { href: "/planning",          label: "Piano AI",      icon: "⚡" },
-      { href: "/planning/risorse",  label: "Scheduler",     icon: "▦" },
+      { href: "/planning",          label: "Pianificazione", icon: "⚡" },
       { href: "/ticket",            label: "Ticket",        icon: "◷" },
       { href: "/profilo",   label: "Mio Profilo",    icon: "👤" },
     ],
@@ -57,8 +56,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/assets":     "Asset",
   "/impianti":   "Impianti",
   "/tecnici":    "Tecnici",
-  "/planning":          "Piano AI",
-  "/planning/risorse":  "Scheduler Risorse",
+  "/planning":          "Pianificazione",
   "/ticket":     "Ticket",
   "/piani":              "Piano di Manutenzione — Task",
   "/piani-manutenzione": "Piano di Manutenzione — Task",

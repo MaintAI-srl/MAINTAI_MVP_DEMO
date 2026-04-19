@@ -11,6 +11,7 @@ import KanbanSettimanale from "./components/KanbanSettimanale";
 import CalendarioMensile from "./components/CalendarioMensile";
 import StoricoPiani from "./components/StoricoPiani";
 import RollingAnalysisPanel from "./components/RollingAnalysisPanel";
+import GanttRisorse from "./components/GanttRisorse";
 
 import type {
   TicketData,
@@ -34,7 +35,7 @@ interface TecnicoAPI {
   stato: string;
 }
 
-type VistaAttiva = "settimanale" | "mensile" | "rolling";
+type VistaAttiva = "settimanale" | "mensile" | "rolling" | "gantt";
 type Modalita = "manuale" | "ai";
 type EngineMode = "deterministic" | "ai";
 
@@ -1221,7 +1222,7 @@ export default function PlanningPage() {
             borderBottom: "1px solid #1f2937",
             paddingBottom: 0,
           }}>
-            {(["settimanale", "mensile", "rolling"] as VistaAttiva[]).map(v => (
+            {(["settimanale", "mensile", "rolling", "gantt"] as VistaAttiva[]).map(v => (
               <button
                 key={v}
                 onClick={() => setVistaAttiva(v)}
@@ -1237,7 +1238,7 @@ export default function PlanningPage() {
                   transition: "color 150ms",
                 }}
               >
-                {v === "settimanale" ? "Settimana" : v === "mensile" ? "Mese" : "◈ Rolling"}
+                {v === "settimanale" ? "Settimana" : v === "mensile" ? "Mese" : v === "rolling" ? "◈ Rolling" : "▦ Gantt"}
               </button>
             ))}
 
@@ -1292,7 +1293,11 @@ export default function PlanningPage() {
 
           {/* Vista attiva */}
           <div style={{ flex: 1, padding: "16px 20px", overflowY: "auto" }}>
-            {plannedWOs.length === 0 && !loading ? (
+            {vistaAttiva === "gantt" ? (
+              <div style={{ height: "calc(100vh - 220px)", margin: "0 -20px" }}>
+                <GanttRisorse />
+              </div>
+            ) : plannedWOs.length === 0 && !loading ? (
               <div style={{
                 display: "flex",
                 flexDirection: "column",
