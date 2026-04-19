@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { API_BASE, apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { SkeletonTable } from "../components/Skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
@@ -521,17 +520,21 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         </Button>
       </div>
 
-      {/* Sub-dialog: motivo eliminazione */}
-      <Dialog open={showEliminaDialog} onOpenChange={(o) => !o && setShowEliminaDialog(false)}>
-        <DialogContent showCloseButton={false} className="max-w-[420px]"
-          style={{ background: "#0d1829", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 16, zIndex: 10000 }}>
-          <DialogHeader>
+      {/* Sub-modal: motivo eliminazione */}
+      {showEliminaDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="elimina-ticket-title"
+          style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowEliminaDialog(false); setEliminaNote(""); } }}
+        >
+          <div style={{ width: "min(420px, calc(100vw - 32px))", background: "#0d1829", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#f87171", fontWeight: 700 }}>Eliminazione ticket #{ticket.id}</div>
-            <DialogTitle style={{ fontSize: 18, fontWeight: 800 }}>Motivo eliminazione</DialogTitle>
+            <h3 id="elimina-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>Motivo eliminazione</h3>
             <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
               Il motivo è obbligatorio e verrà salvato nel log di sistema per tracciabilità.
             </p>
-          </DialogHeader>
           <textarea value={eliminaNote} onChange={e => setEliminaNote(e.target.value)}
             placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..." rows={3} autoFocus
             style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
@@ -547,25 +550,27 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               Conferma Eliminazione
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
 
-      {/* Sub-dialog: stato asset alla chiusura */}
-      <Dialog open={showAssetDialog} onOpenChange={(o) => !o && setShowAssetDialog(false)}>
-        <DialogContent
-          showCloseButton={false}
-          className="max-w-[420px]"
-          style={{ background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 16 }}
+      {/* Sub-modal: stato asset alla chiusura */}
+      {showAssetDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="asset-ticket-title"
+          style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAssetDialog(false); }}
         >
-          <DialogHeader>
+          <div style={{ width: "min(420px, calc(100vw - 32px))", background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#3b82f6", fontWeight: 700 }}>Chiusura ticket #{ticket.id}</div>
-            <DialogTitle style={{ fontSize: 18, fontWeight: 800 }}>
+            <h3 id="asset-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>
               Verifica Stato Asset
-            </DialogTitle>
+            </h3>
             <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
               Il ticket è concluso. In che stato si trova l&apos;asset <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong>?
             </p>
-          </DialogHeader>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={() => { setShowAssetDialog(false); doSave("service"); }}
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
@@ -595,8 +600,9 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           <Button variant="ghost" className="w-full mt-2" onClick={() => { setShowAssetDialog(false); doSave(""); }} style={{ color: "var(--text-muted)", fontSize: 12 }}>
             Mantieni stato attuale
           </Button>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 );
