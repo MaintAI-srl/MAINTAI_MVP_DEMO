@@ -59,7 +59,7 @@ const DAY_START_H = 0;
 const DAY_END_H = 24;
 const HOUR_W = 80;
 const DAY_W = 130;
-const ROW_H = 72;
+const ROW_H = 64;
 const LABEL_W = 200;
 
 const PRIO_COLORS: Record<string, string> = {

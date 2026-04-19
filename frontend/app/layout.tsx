@@ -13,6 +13,11 @@ import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
+import {
+  LayoutDashboard, CalendarClock, ClipboardList, Factory,
+  Users, Wrench, CalendarDays, Building, UploadCloud,
+  ScrollText, Mail, UserCheck
+} from "lucide-react";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -20,33 +25,33 @@ const NAV = [
   {
     section: "OVERVIEW",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: "⬡" },
+      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={15} /> },
     ],
   },
   {
     section: "VISUALIZZAZIONI",
     items: [
-      { href: "/planning",          label: "Pianificazione", icon: "⚡" },
-      { href: "/ticket",            label: "Ticket",        icon: "◷" },
-      { href: "/profilo",   label: "Mio Profilo",    icon: "👤" },
+      { href: "/planning",  label: "Pianificazione", icon: <CalendarClock size={15} /> },
+      { href: "/ticket",    label: "Ticket",         icon: <ClipboardList size={15} /> },
+      { href: "/profilo",   label: "Mio Profilo",    icon: <UserCheck size={15} /> },
     ],
   },
   {
     section: "IMPOSTAZIONI",
     items: [
-      { href: "/asset",     label: "Siti & Asset", icon: "◬" },
-      { href: "/tecnici",   label: "Tecnici",      icon: "◎" },
-      { href: "/piani",     label: "Piano Manutenzione",    icon: "◩" },
-      { href: "/scadenze",  label: "Scadenze PM",           icon: "📅" },
+      { href: "/asset",    label: "Siti & Asset",        icon: <Factory size={15} /> },
+      { href: "/tecnici",  label: "Tecnici",             icon: <Users size={15} /> },
+      { href: "/piani",    label: "Piano Manutenzione",  icon: <Wrench size={15} /> },
+      { href: "/scadenze", label: "Scadenze PM",         icon: <CalendarDays size={15} /> },
     ],
   },
   {
     section: "ADMIN",
     items: [
-      { href: "/admin/tenants",     label: "Clienti", icon: "◈", superadminOnly: true },
-      { href: "/admin/bulk-import", label: "Import Massivo", icon: "⬆", superadminOnly: true },
-      { href: "/admin/logs",        label: "Log Sistema", icon: "📋", adminOnly: true },
-      { href: "/admin/email",       label: "Integrazione Email", icon: "✉️", adminOnly: true },
+      { href: "/admin/tenants",     label: "Clienti",            icon: <Building size={15} />,    superadminOnly: true },
+      { href: "/admin/bulk-import", label: "Import Massivo",     icon: <UploadCloud size={15} />, superadminOnly: true },
+      { href: "/admin/logs",        label: "Log Sistema",        icon: <ScrollText size={15} />,  adminOnly: true },
+      { href: "/admin/email",       label: "Integrazione Email", icon: <Mail size={15} />,        adminOnly: true },
     ],
   },
 ];
@@ -225,7 +230,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                         className={`nav-item${active ? " active" : ""}`}
                         onClick={() => setSidebarOpen(false)}
                       >
-                        <span style={{ fontSize: "15px", lineHeight: 1 }}>{item.icon}</span>
+                        <span style={{ lineHeight: 1, display: "flex", alignItems: "center" }}>{item.icon}</span>
                         {item.label}
                       </Link>
                     );

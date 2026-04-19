@@ -1024,3 +1024,41 @@ select option {
     @apply outline-ring/50;
   }
 }
+/* ── MAINTAI v3.0 DESIGN ADDITIONS ─────────────────────────────────────── */
+:root {
+  --shadow-sm:        0 1px 3px rgba(0,0,0,0.5);
+  --shadow-md:        0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
+  --shadow-lg:        0 12px 32px rgba(0,0,0,0.7), 0 4px 8px rgba(0,0,0,0.5);
+  --shadow-glow-blue: 0 0 20px rgba(59,130,246,0.25);
+  --shadow-glow-cyan: 0 0 16px rgba(6,182,212,0.2);
+  --grad-primary:     linear-gradient(135deg, #1d4ed8, #7c3aed);
+  --grad-card:        linear-gradient(135deg, #111f35 0%, #0c1628 100%);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in-up     { animation: fadeInUp 200ms ease-out both; }
+.animate-slide-in-right { animation: slideInRight 220ms cubic-bezier(0.16,1,0.3,1) both; }
+
+/* Drawer ticket — trasforma DialogContent in pannello laterale */
+.ticket-drawer-panel {
+  position: fixed !important;
+  top: 0 !important; right: 0 !important;
+  left: auto !important; bottom: 0 !important;
+  height: 100dvh !important;
+  width: 460px !important; max-width: 100vw !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  margin: 0 !important; transform: none !important;
+  animation: slideInRight 220ms cubic-bezier(0.16,1,0.3,1) both !important;
+  border-left: 1px solid var(--border-strong) !important;
+  border-top: none !important; border-bottom: none !important;
+  overflow-y: auto;
+}

@@ -336,12 +336,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   return (
     <DialogContent
       showCloseButton={false}
-      className="max-w-[600px] max-h-[90vh] overflow-y-auto p-0 border-none"
+      className="ticket-drawer-panel p-0 border-none"
       style={{
         background: "#111827",
         color: "var(--text-primary)",
-        borderRadius: 12,
-        boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
+        boxShadow: "var(--shadow-lg)",
         border: "1px solid #1f2937",
         width: "min(90vw, 680px)",
         maxWidth: "min(90vw, 680px)",
@@ -921,13 +920,28 @@ export default function TicketPage() {
       id: "azioni",
       header: "Azioni",
       enableSorting: false,
-      cell: ({ row }) => (
-        <div onClick={e => e.stopPropagation()}>
-          <a href={`/diagnostic?id=${row.original.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
-            DIAGNOSTICA →
-          </a>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const t = row.original;
+        return (
+          <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {(t.stato === "Aperto" || t.stato === "Pianificato") && (
+              <button
+                onClick={() => handleStatoChange(t.id, "In corso")}
+                style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.3)", color: "#06b6d4", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", whiteSpace: "nowrap" }}
+              >▶ INIZIA</button>
+            )}
+            {t.stato === "In corso" && (
+              <button
+                onClick={() => handleStatoChange(t.id, "Chiuso")}
+                style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", whiteSpace: "nowrap" }}
+              >✓ COMPLETA</button>
+            )}
+            <a href={`/diagnostic?id=${t.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
+              DIAGNOSTICA →
+            </a>
+          </div>
+        );
+      },
     },
   ];
 
