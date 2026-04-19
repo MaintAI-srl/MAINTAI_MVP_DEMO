@@ -9,49 +9,54 @@ import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
 import { VERSION } from "./lib/version";
-import { Geist } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', display: 'swap' });
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap', weight: ['400','500','600'] });
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
 import {
   LayoutDashboard, CalendarClock, ClipboardList, Factory,
   Users, Wrench, CalendarDays, Building, UploadCloud,
-  ScrollText, Mail, UserCheck
+  ScrollText, Mail, UserCheck, LogOut, Sun, Moon,
+  Activity, Cpu, Zap
 } from "lucide-react";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+// Fonts now loaded above individually
 
 const NAV = [
   {
     section: "OVERVIEW",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={15} /> },
+      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} strokeWidth={1.8} /> },
     ],
   },
   {
-    section: "VISUALIZZAZIONI",
+    section: "OPERAZIONI",
     items: [
-      { href: "/planning",  label: "Pianificazione", icon: <CalendarClock size={15} /> },
-      { href: "/ticket",    label: "Ticket",         icon: <ClipboardList size={15} /> },
-      { href: "/profilo",   label: "Mio Profilo",    icon: <UserCheck size={15} /> },
+      { href: "/planning",  label: "Pianificazione", icon: <Zap size={14} strokeWidth={1.8} /> },
+      { href: "/ticket",    label: "Ticket",         icon: <Activity size={14} strokeWidth={1.8} /> },
+      { href: "/profilo",   label: "Mio Profilo",    icon: <UserCheck size={14} strokeWidth={1.8} /> },
     ],
   },
   {
-    section: "IMPOSTAZIONI",
+    section: "RISORSE",
     items: [
-      { href: "/asset",    label: "Siti & Asset",       icon: <Factory size={15} /> },
-      { href: "/tecnici",  label: "Tecnici",            icon: <Users size={15} /> },
-      { href: "/piani",    label: "Piano Manutenzione", icon: <Wrench size={15} /> },
-      { href: "/scadenze", label: "Scadenze PM",        icon: <CalendarDays size={15} /> },
+      { href: "/asset",    label: "Siti & Asset",       icon: <Cpu size={14} strokeWidth={1.8} /> },
+      { href: "/tecnici",  label: "Tecnici",            icon: <Users size={14} strokeWidth={1.8} /> },
+      { href: "/piani",    label: "Piano Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
+      { href: "/scadenze", label: "Scadenze PM",        icon: <CalendarDays size={14} strokeWidth={1.8} /> },
     ],
   },
   {
     section: "ADMIN",
     items: [
-      { href: "/admin/tenants",     label: "Clienti",            icon: <Building size={15} />,    superadminOnly: true },
-      { href: "/admin/bulk-import", label: "Import Massivo",     icon: <UploadCloud size={15} />, superadminOnly: true },
-      { href: "/admin/logs",        label: "Log Sistema",        icon: <ScrollText size={15} />,  adminOnly: true },
-      { href: "/admin/email",       label: "Integrazione Email", icon: <Mail size={15} />,        adminOnly: true },
+      { href: "/admin/tenants",     label: "Clienti",            icon: <Building size={14} strokeWidth={1.8} />,    superadminOnly: true },
+      { href: "/admin/bulk-import", label: "Import Massivo",     icon: <UploadCloud size={14} strokeWidth={1.8} />, superadminOnly: true },
+      { href: "/admin/logs",        label: "Log Sistema",        icon: <ScrollText size={14} strokeWidth={1.8} />,  adminOnly: true },
+      { href: "/admin/email",       label: "Email-to-Ticket",    icon: <Mail size={14} strokeWidth={1.8} />,        adminOnly: true },
     ],
   },
 ];
@@ -322,6 +327,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
           <div className="topbar-right">
             <GlobalQuickTicket />
+
+            <div style={{ width: 1, height: 20, background: "var(--border-subtle)", margin: "0 2px" }} />
+
             <NotificationPanel />
             <WeatherWidget />
 
@@ -330,51 +338,59 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             <button
               onClick={toggleTheme}
               className="topbar-icon-btn"
-              title="Cambia tema"
+              title={theme === 'dark' ? 'Tema chiaro' : 'Tema scuro'}
+              style={{ fontSize: 13 }}
             >
-              {theme === "dark" ? "🌞" : "🌙"}
+              {theme === "dark" ? <Sun size={14} strokeWidth={1.8} /> : <Moon size={14} strokeWidth={1.8} />}
             </button>
 
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 10,
               borderLeft: "1px solid var(--border-subtle)",
-              paddingLeft: 10,
+              paddingLeft: 12,
               marginLeft: 2,
             }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.01em" }}>
                   {user?.username}
                 </span>
-                <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, lineHeight: 1 }}>
+                <span style={{
+                  fontSize: 9, color: "var(--cobalt)",
+                  textTransform: "uppercase", letterSpacing: "0.12em",
+                  fontWeight: 700, lineHeight: 1,
+                  background: "rgba(91,143,255,0.10)",
+                  padding: "1px 6px", borderRadius: 4
+                }}>
                   {user?.ruolo}
                 </span>
               </div>
               <button
                 onClick={logout}
+                title="Esci"
                 style={{
                   background: "transparent",
                   border: "1px solid var(--border-default)",
-                  color: "#fca5a5",
-                  padding: "4px 10px",
-                  borderRadius: 5,
+                  color: "var(--red)",
+                  padding: "6px 7px",
+                  borderRadius: "var(--radius-md)",
                   cursor: "pointer",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  transition: "background 120ms, border-color 120ms",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 140ms",
                 }}
                 onMouseEnter={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.10)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.30)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(240,82,82,0.10)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(240,82,82,0.30)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={e => {
                   (e.currentTarget as HTMLButtonElement).style.background = "transparent";
                   (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-default)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
                 }}
               >
-                ESCI
+                <LogOut size={13} strokeWidth={2} />
               </button>
             </div>
           </div>
@@ -400,7 +416,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   `;
 
   return (
-    <html lang="it" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="it" suppressHydrationWarning className={cn("font-sans", inter.variable, spaceGrotesk.variable, jetbrainsMono.variable)}>
       <head>
         <title>MaintAI — Centro di Controllo</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
