@@ -586,7 +586,10 @@ export default function PianificazionePage() {
     if (!over) return;
     const ticket = (active.data.current as { ticket?: TicketData })?.ticket;
     if (!ticket) return;
-    const dropData = over.data.current as { tecnico_id: number; date: string };
+
+    // Guard: drop su area non-droppable (senza dati validi) → ignora silenziosamente
+    const dropData = over.data.current as { tecnico_id?: number; date?: string } | undefined;
+    if (!dropData?.tecnico_id || !dropData?.date) return;
 
     let newHour = 8;
     let newMinute = 0;
@@ -602,15 +605,22 @@ export default function PianificazionePage() {
       }
     }
 
-    // Se il ticket non ha un tecnico assegnato e viene droppato → pianificazione manuale
-    if (!ticket.tecnico_id || ticket.stato === "Aperto") {
-      savePianificazioneManuale(ticket.id, dropData.tecnico_id, dropData.date,
+    // Ticket non ancora pianificato (nessun tecnico e nessuna data) → pianificazione manuale
+    if (!ticket.tecnico_id && !ticket.planned_start) {
+      const endDecimal = newHour + (newMinute / 60) + (ticket.durata_stimata_ore || 1);
+      const endH = Math.min(23, Math.floor(endDecimal));
+      const endM = Math.round((endDecimal - Math.floor(endDecimal)) * 60);
+      savePianificazioneManuale(
+        ticket.id,
+        dropData.tecnico_id,
+        dropData.date,
         `${dropData.date}T${String(newHour).padStart(2,"0")}:${String(newMinute).padStart(2,"0")}:00`,
-        `${dropData.date}T${String(newHour + (ticket.durata_stimata_ore || 1)).padStart(2,"0")}:00:00`
+        `${dropData.date}T${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}:00`,
       );
       return;
     }
 
+    // Ticket già pianificato → move-ticket (sposta data/tecnico nel piano)
     try {
       await apiPost("/planning/move-ticket", {
         ticket_id: ticket.id,
