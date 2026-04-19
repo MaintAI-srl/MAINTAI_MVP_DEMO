@@ -7,6 +7,7 @@ import "./globals.css";
 import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
+import GlobalQuickTicket from "./components/GlobalQuickTicket";
 import { VERSION } from "./lib/version";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -285,6 +286,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               <div className="topbar-right">
+                <GlobalQuickTicket />
                 <NotificationPanel />
                 <WeatherWidget />
                 <span className="topbar-time">{time}</span>

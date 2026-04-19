@@ -120,6 +120,15 @@ export interface GeneratedPlan {
   completion_pct: number | null;
 }
 
+export interface ReplanResult {
+  replanning_plan_id: number;
+  trigger: string;
+  affected_tickets: number[];
+  moved_tickets: number[];
+  disruption_cost: number;
+  plan_json: PlanJson;
+}
+
 // Colori per tipo ticket
 export const TIPO_COLORS: Record<string, { bg: string; text: string; border: string; borderStyle?: string }> = {
   BD: { bg: "linear-gradient(135deg,#7f1d1d,#991b1b)", text: "#fca5a5", border: "#ef4444" },

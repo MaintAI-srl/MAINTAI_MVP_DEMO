@@ -22,6 +22,8 @@ import StoricoPiani from "./components/StoricoPiani";
 import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import WODetailDrawer from "./components/WODetailDrawer";
 import DeferredWOPanel from "./components/DeferredWOPanel";
+import ReplanModal from "./components/ReplanModal";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 import type {
   TicketData,
@@ -31,6 +33,7 @@ import type {
   GeneratedPlan,
   EfficiencyBreakdown,
   EfficiencyMotivation,
+  ReplanResult,
 } from "./types";
 import { tipoStyle } from "./types";
 
@@ -346,32 +349,33 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
   const oraFineLabel = `${String(Math.floor(fineDecimale)).padStart(2, "0")}:${String(Math.round((fineDecimale - Math.floor(fineDecimale)) * 60)).padStart(2, "0")}`;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 16, padding: 28, width: 420, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#f9fafb" }}>Pianifica Manualmente</div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>#{ticket.id} — {ticket.titolo}</div>
-          </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 20 }}>×</button>
+    <Sheet open={true} onOpenChange={(o) => (!o && onClose())}>
+      <SheetContent
+        side="right"
+        className="p-0 border-l border-slate-800"
+        style={{ background: "#0f172a", color: "var(--text-primary)", display: "flex", flexDirection: "column", minWidth: 400 }}
+      >
+        <div style={{ padding: "24px 28px", borderBottom: "1px solid #1e293b", background: "linear-gradient(180deg, rgba(59,130,246,0.05), transparent)" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#3b82f6", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Pianifica Manualmente</div>
+          <SheetTitle style={{ color: "#f8fafc", fontSize: 20, fontWeight: 800 }}>#{ticket.id} — {ticket.titolo}</SheetTitle>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ flex: 1, padding: "28px", display: "flex", flexDirection: "column", gap: 20 }}>
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>TECNICO</label>
-            <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "#1f2937", border: "1px solid #374151", color: "#f9fafb", borderRadius: 8, padding: "9px 12px", fontSize: 13 }}>
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO</label>
+            <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
               {tecnici.map((t) => <option key={t.id} value={t.id}>{t.nome} {t.cognome ?? ""}</option>)}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>DATA</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "#1f2937", border: "1px solid #374151", color: "#f9fafb", borderRadius: 8, padding: "9px 12px", fontSize: 13, boxSizing: "border-box" }} />
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>DATA</label>
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>ORA INIZIO</label>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>ORA INIZIO</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {SLOT_PRESETS.map((p) => (
-                <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#374151"}`, background: oraInizio === p.h ? "#1e3a5f" : "#1f2937", color: oraInizio === p.h ? "#60a5fa" : "#9ca3af", fontWeight: oraInizio === p.h ? 700 : 400 }}>
+                <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#334155"}`, background: oraInizio === p.h ? "rgba(59,130,246,0.15)" : "#1e293b", color: oraInizio === p.h ? "#60a5fa" : "#94a3b8", fontWeight: oraInizio === p.h ? 700 : 500 }}>
                   {p.label}
                 </button>
               ))}
@@ -379,21 +383,21 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{ flex: 1, background: "#1f2937", border: "1px solid #374151", color: "#9ca3af", borderRadius: 8, padding: "10px 0", cursor: "pointer", fontSize: 13 }}>Annulla</button>
+        <div style={{ padding: "20px 28px", borderTop: "1px solid #1e293b", background: "rgba(15,23,42,0.9)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid #334155", color: "#9ca3af", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Annulla</button>
           <button
             onClick={() => {
               const pad = (n: number) => String(n).padStart(2, "0");
               onSave(ticket.id, tecnicoId, data, `${data}T${pad(oraInizio)}:00:00`, `${data}T${oraFineLabel}:00`);
               onClose();
             }}
-            style={{ flex: 2, background: "linear-gradient(135deg, #065f46, #059669)", border: "1px solid #059669", color: "#ecfdf5", borderRadius: 8, padding: "10px 0", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+            style={{ padding: "9px 24px", background: "linear-gradient(135deg, #3b82f6, #2563eb)", border: "none", color: "#ffffff", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}
           >
-            ✓ Pianifica — {String(oraInizio).padStart(2, "0")}:00–{oraFineLabel}
+            ✓ Pianifica ({String(oraInizio).padStart(2, "0")}:00 – {oraFineLabel})
           </button>
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -419,6 +423,7 @@ export default function PianificazionePage() {
   const [confermando, setConfermando] = useState(false);
   const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
+  const [replanModal, setReplanModal] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -719,6 +724,26 @@ export default function PianificazionePage() {
             </button>
           )}
 
+          {/* Ricalcola piano */}
+          {piano && (
+            <button
+              onClick={() => setReplanModal(true)}
+              title="Ricalcola piano adattivamente"
+              style={{
+                background: "transparent",
+                border: "1px solid #374151",
+                color: "#9ca3af",
+                borderRadius: 6,
+                padding: "6px 12px",
+                fontSize: 12,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              ↻ Ricalcola
+            </button>
+          )}
+
           {/* Refresh */}
           <button onClick={loadData} disabled={loading} title="Aggiorna" style={{
             background: "transparent", border: "1px solid #374151", color: "#9ca3af",
@@ -913,6 +938,18 @@ export default function PianificazionePage() {
         ticket={selectedWO?.ticket ?? null}
         tecnico={selectedWO?.tecnico ?? null}
         onClose={() => setSelectedWO(null)}
+      />
+
+      {/* ReplanModal — Ricalcolo adattivo */}
+      <ReplanModal
+        open={replanModal}
+        piano={piano}
+        onClose={() => setReplanModal(false)}
+        onSuccess={(_result: ReplanResult) => {
+          setReplanModal(false);
+          loadData();
+          loadStorico();
+        }}
       />
 
       <style>{`

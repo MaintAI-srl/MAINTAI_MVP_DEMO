@@ -205,10 +205,49 @@ def _datetime_for(d: date, ore_float: float) -> datetime:
 
 # ── Core Engine ───────────────────────────────────────────────────────────────
 
+import math as _math
+
+
+def _slots_needed(durata_ore: float, slot_minutes: int) -> int:
+    """Numero di slot da occupare per una data durata. Arrotonda per eccesso."""
+    return _math.ceil(durata_ore * 60 / slot_minutes)
+
+
+def _find_free_block(grid: List[bool], slots_needed: int) -> Optional[int]:
+    """
+    Trova il primo indice di blocco consecutivo libero nel grid degli slot.
+    Ritorna l'indice iniziale, oppure None se non trovato.
+    """
+    n = len(grid)
+    count = 0
+    start = 0
+    for i in range(n):
+        if not grid[i]:
+            if count == 0:
+                start = i
+            count += 1
+            if count >= slots_needed:
+                return start
+        else:
+            count = 0
+    return None
+
+
+def _slot_to_ore_float(slot_idx: int, orario_inizio: str, slot_minutes: int) -> float:
+    """Converte indice slot → ore float dal mezzanotte."""
+    t = _parse_time(orario_inizio)
+    start_float = t.hour + t.minute / 60.0
+    return start_float + slot_idx * slot_minutes / 60.0
+
+
 class PlannerEngine:
     """
     Motore deterministico di scheduling.
     Utilizza greedy scheduling con scoring soft-rules.
+
+    Se slot_minutes è specificato (es. 30), il tracking della capacità
+    avviene a slot di quella granularità anziché a ore float giornaliere.
+    Backward compat: se slot_minutes is None, usa il vecchio tracking a float.
     """
 
     def __init__(
@@ -221,16 +260,6 @@ class PlannerEngine:
         skill_hierarchy: Dict[str, List[str]] | None = None,
         slot_minutes: int | None = None,
     ):
-        # slot_minutes: predisposizione futura a tracking slot (es. 30 min).
-        # Attualmente non utilizzato — la capacità è gestita a giornata.
-        # Non rimuovere: serve per la futura evoluzione senza refactor globale.
-        if slot_minutes is not None:
-            import logging as _logging
-            _logging.getLogger(__name__).warning(
-                "PlannerEngine: slot_minutes=%d ricevuto ma non ancora implementato — "
-                "la capacità resta gestita a giornata (futura evoluzione).",
-                slot_minutes,
-            )
         self.slot_minutes = slot_minutes
         self.skill_hierarchy = skill_hierarchy
         self.tecnici = tecnici
@@ -242,21 +271,38 @@ class PlannerEngine:
         # Orizzonte di pianificazione
         self.horizon: List[date] = [today + timedelta(days=i) for i in range(horizon_days)]
 
-        # ore_consumate[tecnico_id][giorno] = float
-        self.ore_consumate: Dict[int, Dict[date, float]] = {
-            t.id: {d: 0.0 for d in self.horizon}
-            for t in tecnici
-        }
-
         # Tecnici attivi
         self.tecnici_attivi = [t for t in tecnici if t.stato.lower() in ("in_servizio", "in servizio")]
 
-        # Pre-popola assenze: i giorni di assenza vengono resi indisponibili
-        # saturando le ore_consumate a ore_giornaliere per quel giorno.
-        for t in tecnici:
-            for giorno in t.giorni_assenza:
-                if giorno in self.ore_consumate.get(t.id, {}):
-                    self.ore_consumate[t.id][giorno] = float(t.ore_giornaliere)
+        if slot_minutes is not None:
+            # ── Tracking a slot ───────────────────────────────────────────────
+            # slot_grid[tecnico_id][giorno] = List[bool] (True=occupato)
+            self.slot_grid: Dict[int, Dict[date, List[bool]]] = {}
+            for t in tecnici:
+                n_slots = _math.ceil(t.ore_giornaliere * 60 / slot_minutes)
+                self.slot_grid[t.id] = {d: [False] * n_slots for d in self.horizon}
+            # Compatibilità: ore_consumate come vista derivata (usata da score())
+            self.ore_consumate: Dict[int, Dict[date, float]] = {
+                t.id: {d: 0.0 for d in self.horizon} for t in tecnici
+            }
+            # Pre-popola assenze bloccando tutti gli slot del giorno
+            for t in tecnici:
+                for giorno in t.giorni_assenza:
+                    if giorno in self.slot_grid.get(t.id, {}):
+                        n = len(self.slot_grid[t.id][giorno])
+                        self.slot_grid[t.id][giorno] = [True] * n
+                        self.ore_consumate[t.id][giorno] = float(t.ore_giornaliere)
+        else:
+            # ── Tracking a ore float (legacy) ─────────────────────────────────
+            self.slot_grid = {}  # type: ignore[assignment]
+            self.ore_consumate = {
+                t.id: {d: 0.0 for d in self.horizon} for t in tecnici
+            }
+            # Pre-popola assenze saturando ore_consumate
+            for t in tecnici:
+                for giorno in t.giorni_assenza:
+                    if giorno in self.ore_consumate.get(t.id, {}):
+                        self.ore_consumate[t.id][giorno] = float(t.ore_giornaliere)
 
         # Impianti per tecnico già attivi oggi (per soft-rule impianto)
         # impianto_tecnico_day[(impianto_id, tecnico_id, giorno)] = True
@@ -271,12 +317,27 @@ class PlannerEngine:
             if a.locked:
                 locked_ticket_ids.add(a.ticket_id)
                 giorno = a.start.date()
-                if a.tecnico_id in self.ore_consumate and giorno in self.ore_consumate[a.tecnico_id]:
-                    durata = (a.end - a.start).total_seconds() / 3600.0
-                    self.ore_consumate[a.tecnico_id][giorno] += durata
-                    result.explanation_log.append(
-                        f"[LOCKED] Ticket #{a.ticket_id} → Tecnico #{a.tecnico_id} il {giorno} ({durata:.1f}h)"
-                    )
+                durata = (a.end - a.start).total_seconds() / 3600.0
+                if self.slot_minutes is not None:
+                    # Slot mode: occupa i slot corrispondenti
+                    if a.tecnico_id in self.slot_grid and giorno in self.slot_grid[a.tecnico_id]:
+                        grid = self.slot_grid[a.tecnico_id][giorno]
+                        sm = self.slot_minutes
+                        t_obj = next((t for t in self.tecnici if t.id == a.tecnico_id), None)
+                        if t_obj:
+                            start_ore = _ore_start_di_giorno(t_obj.orario_inizio)
+                            start_delta = (a.start.hour + a.start.minute / 60.0) - start_ore
+                            slot_start = max(0, int(start_delta * 60 / sm))
+                            slots_n = _slots_needed(durata, sm)
+                            for s in range(slot_start, min(slot_start + slots_n, len(grid))):
+                                grid[s] = True
+                        self.ore_consumate[a.tecnico_id][giorno] = sum(1 for s in self.slot_grid[a.tecnico_id][giorno] if s) * sm / 60.0
+                else:
+                    if a.tecnico_id in self.ore_consumate and giorno in self.ore_consumate[a.tecnico_id]:
+                        self.ore_consumate[a.tecnico_id][giorno] += durata
+                result.explanation_log.append(
+                    f"[LOCKED] Ticket #{a.ticket_id} → Tecnico #{a.tecnico_id} il {giorno} ({durata:.1f}h)"
+                )
 
         # ── FASE 1: Ordina ticket per urgenza ────────────────────────────────
         to_schedule = [t for t in self.tickets if t.id not in locked_ticket_ids]
@@ -334,7 +395,7 @@ class PlannerEngine:
                         continue
 
                 # HARD: capacità
-                ore_libere = tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno, 0.0)
+                ore_libere = self._ore_libere(tecnico, giorno)
                 if ore_libere <= 0:
                     failure_reasons.add(REASON_CAPACITY_EXCEEDED)
                     continue
@@ -389,6 +450,33 @@ class PlannerEngine:
             detail="Tutti i candidati validi hanno fallito l'allocazione concreta.",
         ))
 
+    def _ore_libere(self, tecnico: PlannerTecnico, giorno: date) -> float:
+        """Ore libere del tecnico nel giorno. Gestisce entrambe le modalità tracking."""
+        if self.slot_minutes is not None:
+            grid = self.slot_grid.get(tecnico.id, {}).get(giorno, [])
+            liberi = sum(1 for s in grid if not s)
+            return liberi * self.slot_minutes / 60.0
+        return tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno, 0.0)
+
+    def _commit_allocation(self, tecnico: PlannerTecnico, giorno: date, durata: float, assignment: Assignment) -> None:
+        """Registra un'allocazione nelle strutture di tracking (ore_consumate e/o slot_grid)."""
+        if self.slot_minutes is not None:
+            grid = self.slot_grid.get(tecnico.id, {}).get(giorno)
+            if grid is not None:
+                sm = self.slot_minutes
+                start_ore = _ore_start_di_giorno(tecnico.orario_inizio)
+                start_delta = (assignment.start.hour + assignment.start.minute / 60.0) - start_ore
+                slot_start = max(0, int(round(start_delta * 60 / sm)))
+                slots_n = _slots_needed(durata, sm)
+                for s in range(slot_start, min(slot_start + slots_n, len(grid))):
+                    grid[s] = True
+            # Aggiorna anche ore_consumate come vista derivata
+            if tecnico.id in self.ore_consumate and giorno in self.ore_consumate[tecnico.id]:
+                self.ore_consumate[tecnico.id][giorno] += durata
+        else:
+            if tecnico.id in self.ore_consumate and giorno in self.ore_consumate[tecnico.id]:
+                self.ore_consumate[tecnico.id][giorno] += durata
+
     def _try_allocate(
         self,
         ticket: PlannerTicket,
@@ -399,15 +487,16 @@ class PlannerEngine:
         """
         Tenta di allocare il ticket a partire da giorno_start.
         Se splittabile, usa più giorni. Ritorna True se riuscito.
+        Supporta tracking a slot (slot_minutes) e tracking a ore float (legacy).
         """
         durata_totale = ticket.durata_stimata_ore
-        ore_libere_d0 = tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno_start, 0.0)
+        ore_libere_d0 = self._ore_libere(tecnico, giorno_start)
 
         # Caso semplice: entra tutto nel primo giorno
         if durata_totale <= ore_libere_d0:
             a = self._make_assignment(ticket, tecnico, giorno_start, durata_totale, is_cont=False)
             result.assignments.append(a)
-            self.ore_consumate[tecnico.id][giorno_start] += durata_totale
+            self._commit_allocation(tecnico, giorno_start, durata_totale, a)
             self._mark_impianto(ticket.impianto_id, tecnico.id, giorno_start)
             result.explanation_log.append(
                 f"[OK] Ticket #{ticket.id} → Tecnico #{tecnico.id} il {giorno_start} "
@@ -420,11 +509,11 @@ class PlannerEngine:
             for giorno in self.horizon:
                 if giorno < giorno_start:
                     continue
-                ore_libere = tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno, 0.0)
+                ore_libere = self._ore_libere(tecnico, giorno)
                 if ore_libere >= durata_totale:
                     a = self._make_assignment(ticket, tecnico, giorno, durata_totale, is_cont=False)
                     result.assignments.append(a)
-                    self.ore_consumate[tecnico.id][giorno] += durata_totale
+                    self._commit_allocation(tecnico, giorno, durata_totale, a)
                     self._mark_impianto(ticket.impianto_id, tecnico.id, giorno)
                     result.explanation_log.append(
                         f"[OK-NOSP] Ticket #{ticket.id} → Tecnico #{tecnico.id} il {giorno} "
@@ -441,7 +530,8 @@ class PlannerEngine:
         ore_rimanenti = durata_totale
         primo = True
         fragments: List[Assignment] = []
-        ore_delta: Dict[Tuple, float] = {}  # (tecnico_id, giorno) → ore da aggiungere
+        # (tecnico, giorno, da_allocare) → da committare insieme dopo
+        commit_queue: List[Tuple] = []
         tecnici_usati_per_split: Dict[date, PlannerTecnico] = {}  # giorno → tecnico effettivo
 
         for giorno in self.horizon:
@@ -451,7 +541,7 @@ class PlannerEngine:
                 break
 
             # Calcola ore libere del tecnico primario
-            ore_libere_primario = tecnico.ore_giornaliere - self.ore_consumate[tecnico.id].get(giorno, 0.0)
+            ore_libere_primario = self._ore_libere(tecnico, giorno)
 
             if ore_libere_primario > 0:
                 tecnico_giorno = tecnico
@@ -464,20 +554,19 @@ class PlannerEngine:
                 for alt in self.tecnici_attivi:
                     if alt.id == tecnico.id:
                         continue
-                    # Stesso skill e nessuna limitazione incompatibile
                     if not _skill_covers(comp, alt.competenze, self.skill_hierarchy):
                         continue
                     if _has_limitation_mismatch(ticket.limitazioni, alt.limitazioni):
                         continue
-                    alt_ore = alt.ore_giornaliere - self.ore_consumate[alt.id].get(giorno, 0.0)
+                    alt_ore = self._ore_libere(alt, giorno)
                     if alt_ore > 0:
                         tecnico_giorno = alt
                         ore_libere = alt_ore
                         break
                 if tecnico_giorno is None:
-                    continue  # Nessun tecnico disponibile in questo giorno: salta al successivo
+                    continue
             else:
-                continue  # Primo frammento e tecnico primario pieno: salta
+                continue
 
             da_allocare = min(ore_rimanenti, ore_libere)
             a = self._make_assignment(
@@ -486,24 +575,22 @@ class PlannerEngine:
                 parent_id=ticket.id if not primo else None,
             )
             fragments.append(a)
-            ore_delta[(tecnico_giorno.id, giorno)] = ore_delta.get((tecnico_giorno.id, giorno), 0.0) + da_allocare
+            commit_queue.append((tecnico_giorno, giorno, da_allocare, a))
             tecnici_usati_per_split[giorno] = tecnico_giorno
             ore_rimanenti -= da_allocare
             primo = False
 
         if ore_rimanenti > 0:
-            # Non è stato possibile allocare tutto nell'orizzonte
             return False
 
-        # Commit: aggiorna ore_consumate e impianto_cache per ogni tecnico effettivo usato
+        # Commit: aggiorna strutture di tracking per ogni frammento
         for a in fragments:
             result.assignments.append(a)
-        for (tid, ggg), h in ore_delta.items():
-            self.ore_consumate[tid][ggg] += h
+        for (t_eff, ggg, h, a_frag) in commit_queue:
+            self._commit_allocation(t_eff, ggg, h, a_frag)
         for ggg, t_eff in tecnici_usati_per_split.items():
             self._mark_impianto(ticket.impianto_id, t_eff.id, ggg)
 
-        # Log multi-tecnico se sono stati usati tecnici diversi
         tecnici_ids_usati = list({a.tecnico_id for a in fragments})
         if len(tecnici_ids_usati) > 1:
             result.explanation_log.append(
@@ -527,17 +614,33 @@ class PlannerEngine:
         parent_id: Optional[int] = None,
     ) -> Assignment:
         """
-        Crea un Assignment calcolando start/end in base alle ore già consumate.
+        Crea un Assignment calcolando start/end in base alle strutture di tracking.
+
+        - Se slot_minutes è attivo: trova il primo blocco libero nel slot_grid e
+          posiziona start/end in base agli slot effettivi (granularità slot_minutes).
+        - Altrimenti: usa ore_consumate (float) — comportamento legacy invariato.
+
         L'end viene clampato all'orario di fine del tecnico per evitare overflow
         visivo sul Gantt (la capacità è già garantita dalle hard rules).
         """
-        ore_usate = self.ore_consumate[tecnico.id].get(giorno, 0.0)
-        start_float = _ore_start_di_giorno(tecnico.orario_inizio) + ore_usate
-        end_float = start_float + durata
-
-        # Clamp end all'orario di fine del tecnico (es. 17:00 = 17.0)
         fine_t = _parse_time(tecnico.orario_fine, fallback=time(17, 0))
         fine_float = fine_t.hour + fine_t.minute / 60.0
+
+        if self.slot_minutes is not None:
+            sm = self.slot_minutes
+            grid = self.slot_grid.get(tecnico.id, {}).get(giorno, [])
+            slots_n = _slots_needed(durata, sm)
+            free_start = _find_free_block(grid, slots_n)
+            if free_start is None:
+                # Fallback: appendi in fondo (non dovrebbe accadere se _ore_libere è corretto)
+                free_start = sum(1 for s in grid if s)
+            start_float = _slot_to_ore_float(free_start, tecnico.orario_inizio, sm)
+            end_float = _slot_to_ore_float(free_start + slots_n, tecnico.orario_inizio, sm)
+        else:
+            ore_usate = self.ore_consumate[tecnico.id].get(giorno, 0.0)
+            start_float = _ore_start_di_giorno(tecnico.orario_inizio) + ore_usate
+            end_float = start_float + durata
+
         if end_float > fine_float:
             end_float = fine_float
 

@@ -104,6 +104,21 @@ Prima di generare il piano:
 4. costruisci la proposta giornaliera integrata;
 5. evidenzia eccezioni, colli di bottiglia e KPI nel JSON.
 
+═══════════════════════════════════════
+CAMPI AGGIUNTIVI PER WORKORDER
+═══════════════════════════════════════
+Per ogni workorder pianificato, valorizza i seguenti campi opzionali (puoi usare null se non hai informazioni sufficienti):
+
+- confidence_score (float 0.0-1.0): probabilità stimata che il WO venga eseguito come pianificato.
+  Considera: disponibilità materiali, skill del tecnico, stabilità meteo, complessità operativa.
+  1.0 = certezza massima, 0.5 = incerto, 0.3 = piano di riserva.
+  Esempi: PM su asset stabile con tecnico dedicato → 0.90. BD urgente con meteo avverso → 0.60.
+
+- risk_level: "LOW" se confidence_score >= 0.85, "MEDIUM" se >= 0.65, "HIGH" se < 0.65.
+  Usa null se confidence_score è null.
+
+- complexity: "SIMPLE" se durata <= 2h e 1 tecnico. "COMPLEX" se durata > 8h o multi-tecnico o dipendenze critiche. "STANDARD" altrimenti.
+
 VINCOLO ASSOLUTO: rispondi SEMPRE e SOLO con un oggetto JSON valido secondo lo schema fornito.
 Non aggiungere testo, commenti o markdown fuori dal JSON. Il JSON deve essere completo e parseable."""
 
@@ -124,8 +139,11 @@ RESPONSE_SCHEMA = {
                         "time_slot": {"type": "string"},
                         "motivation": {"type": "string"},
                         "warnings": {"type": "array", "items": {"type": "string"}},
+                        "confidence_score": {"anyOf": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "null"}]},
+                        "risk_level": {"anyOf": [{"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]}, {"type": "null"}]},
+                        "complexity": {"anyOf": [{"type": "string", "enum": ["SIMPLE", "STANDARD", "COMPLEX"]}, {"type": "null"}]},
                     },
-                    "required": ["wo_id", "technician_id", "planned_date", "time_slot", "motivation", "warnings"],
+                    "required": ["wo_id", "technician_id", "planned_date", "time_slot", "motivation", "warnings", "confidence_score", "risk_level", "complexity"],
                     "additionalProperties": False,
                 },
             },
@@ -655,6 +673,9 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
             enriched["is_continuation"]    = wo.get("is_continuation", False)
             enriched["parent_wo_id"]       = wo.get("parent_wo_id", None)
             enriched["continuation_wos"]   = []
+            enriched["confidence_score"]   = wo.get("confidence_score", None)
+            enriched["risk_level"]         = wo.get("risk_level", None)
+            enriched["complexity"]         = wo.get("complexity", None)
             tech_day_end[key] = end_h
             result.append(enriched)
         else:
@@ -665,6 +686,9 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
             enriched["is_continuation"]    = wo.get("is_continuation", False)
             enriched["parent_wo_id"]       = wo.get("parent_wo_id", None)
             enriched["duration_hours"]     = available
+            enriched["confidence_score"]   = wo.get("confidence_score", None)
+            enriched["risk_level"]         = wo.get("risk_level", None)
+            enriched["complexity"]         = wo.get("complexity", None)
             tech_day_end[key] = trunc_end
 
             # WO di continuazione

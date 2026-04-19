@@ -458,3 +458,82 @@ def test_TC13_competenza_richiesta_esplicita():
     result_ok = run([tecnico_ok], [ticket])
     assert len(result_ok.assignments) == 1, "Tecnico ELETTRICISTA deve pianificare ticket ELETTRICISTA"
     assert result_ok.assignments[0].tecnico_id == 1
+
+
+# ── TC-14: slot 30min — nessun overlap ────────────────────────────────────────
+
+def test_TC14_slot_30min_no_overlap():
+    """
+    2 ticket da 1h sullo stesso tecnico/giorno con slot_minutes=30.
+    Devono essere consecutivi, nessun overlap.
+    """
+    tecnico = make_tecnico(id=1, competenze=["PM"], ore_giornaliere=8)
+    t1 = make_ticket(id=114, tipo="PM", durata=1.0)
+    t2 = make_ticket(id=115, tipo="PM", durata=1.0)
+
+    engine = PlannerEngine(
+        [tecnico], [t1, t2], [], TODAY, horizon_days=1, slot_minutes=30
+    )
+    result = engine.run()
+
+    assert len(result.assignments) == 2, f"Devono esserci 2 assegnazioni, trovate {len(result.assignments)}"
+    assert len(result.unassigned) == 0
+
+    # Ordina per start
+    a1, a2 = sorted(result.assignments, key=lambda a: a.start)
+    # Nessun overlap: end del primo <= start del secondo
+    assert a1.end <= a2.start, (
+        f"Overlap rilevato: ticket {a1.ticket_id} finisce {a1.end.strftime('%H:%M')}, "
+        f"ticket {a2.ticket_id} inizia {a2.start.strftime('%H:%M')}"
+    )
+    # Entrambi nello stesso giorno
+    assert a1.start.date() == TODAY
+    assert a2.start.date() == TODAY
+    # Durata attesa: 1h ciascuno
+    dur1 = (a1.end - a1.start).total_seconds() / 3600
+    dur2 = (a2.end - a2.start).total_seconds() / 3600
+    assert abs(dur1 - 1.0) < 0.01, f"Durata ticket 1 attesa 1h, trovata {dur1}h"
+    assert abs(dur2 - 1.0) < 0.01, f"Durata ticket 2 attesa 1h, trovata {dur2}h"
+
+
+# ── TC-15: slot 30min — split con tecnico 2h disponibili ─────────────────────
+
+def test_TC15_slot_30min_split():
+    """
+    Ticket da 3h con tecnico che ha solo 2h libere oggi (il resto è locked).
+    Con slot_minutes=30, split su 2 giorni: 2h oggi + 1h domani.
+    """
+    from datetime import datetime as dt
+
+    tecnico = make_tecnico(id=1, competenze=["PM"], ore_giornaliere=8)
+
+    # Assegnazione locked che occupa 6h oggi (08:00–14:00)
+    locked = PlannerAssignment(
+        ticket_id=99,
+        tecnico_id=1,
+        start=dt(TODAY.year, TODAY.month, TODAY.day, 8, 0),
+        end=dt(TODAY.year, TODAY.month, TODAY.day, 14, 0),
+        locked=True,
+    )
+
+    # Ticket da 3h splittabile
+    ticket = make_ticket(id=116, tipo="PM", durata=3.0, splittabile=True)
+
+    engine = PlannerEngine(
+        [tecnico], [ticket], [locked], TODAY, horizon_days=3, slot_minutes=30
+    )
+    result = engine.run()
+
+    assert len(result.unassigned) == 0, f"Il ticket deve essere pianificato: {result.unassigned}"
+    frags = [a for a in result.assignments if a.ticket_id == 116]
+    assert len(frags) == 2, f"Devono esserci 2 frammenti, trovati {len(frags)}"
+
+    # Frammento oggi: deve iniziare a 14:00 (fine del locked) e durare 2h
+    frag_oggi = next(f for f in frags if f.start.date() == TODAY)
+    dur_oggi = (frag_oggi.end - frag_oggi.start).total_seconds() / 3600
+    assert abs(dur_oggi - 2.0) < 0.01, f"Frammento oggi deve essere 2h, trovato {dur_oggi}h"
+
+    # Frammento domani: deve durare 1h
+    frag_domani = next(f for f in frags if f.start.date() == TODAY + timedelta(days=1))
+    dur_dom = (frag_domani.end - frag_domani.start).total_seconds() / 3600
+    assert abs(dur_dom - 1.0) < 0.01, f"Frammento domani deve essere 1h, trovato {dur_dom}h"

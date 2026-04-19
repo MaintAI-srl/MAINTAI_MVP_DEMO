@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import time as _time
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,7 @@ from backend.services.rolling_planner_engine import (
     RollingTicketInput,
     TecnicoInput,
 )
+from backend.services.opportunistic_service import find_opportunistic_suggestions
 
 router = APIRouter(prefix="/planning", tags=["planning"])
 logger = get_logger(__name__)
@@ -919,6 +920,32 @@ def get_rolling_analysis(
     }
 
 
+# ── Endpoint GET /planning/opportunistic ─────────────────────────────────────
+
+@router.get("/opportunistic")
+async def get_opportunistic_suggestions(
+    technician_id: int,
+    date: str,
+    free_slot_hours: float = 2.0,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Suggerisce ticket PM da accorpare quando il tecnico ha slot liberi
+    nell'area/impianto in cui è già operativo.
+    Ritorna top 5 candidati per insertion_score.
+    """
+    free_slot_hours = max(0.5, min(24.0, free_slot_hours))  # clamp sicurezza
+    suggestions = await find_opportunistic_suggestions(
+        db=db,
+        technician_id=technician_id,
+        date_str=date,
+        free_slot_hours=free_slot_hours,
+        tenant_id=tenant_id,
+    )
+    return suggestions
+
+
 # ── Pydantic schema per feedback ──────────────────────────────────────────────
 
 class FeedbackRequest(BaseModel):
@@ -930,6 +957,132 @@ class FeedbackRequest(BaseModel):
     execution_outcome: str = "completed"     # completed|partial|cancelled|rescheduled
     user_rating: Optional[int] = None        # 1-5
     user_notes: Optional[str] = None
+
+
+class ReplanningRequest(BaseModel):
+    trigger: Literal["new_breakdown", "technician_absent", "ticket_urgent"]
+    affected_ticket_ids: List[int] = []
+    locked_ticket_ids: List[int] = []
+    horizon_days: int = 7
+
+    @field_validator("horizon_days")
+    @classmethod
+    def clamp_horizon(cls, v: int) -> int:
+        return max(1, min(30, v))
+
+
+# ── Endpoint POST /planning/replanning ───────────────────────────────────────
+
+@router.post("/replanning")
+async def adaptive_replanning(
+    data: ReplanningRequest,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Ricalcola il piano in modo adattivo a partire da un evento specifico.
+
+    - I locked_ticket_ids (e i ticket 'In corso' o manuali) non vengono toccati.
+    - Ritorna il diff rispetto al piano precedente (disruption_cost = numero di WO
+      che hanno cambiato tecnico o data rispetto all'ultimo piano draft/confirmed).
+    - Il nuovo piano viene salvato come 'draft', pronto per la conferma manuale.
+
+    Multi-tenant: opera solo sui dati del tenant corrente.
+    """
+    # Piano precedente (per calcolare il disruption_cost)
+    prev_plan = (
+        db.query(GeneratedPlan)
+        .filter(
+            GeneratedPlan.tenant_id == tenant_id,
+            GeneratedPlan.status.in_(["draft", "confirmed"]),
+        )
+        .order_by(GeneratedPlan.created_at.desc())
+        .first()
+    )
+
+    # Costruisci il set di ticket da non toccare
+    # 1. Espliciti dal chiamante
+    locked_set = set(data.locked_ticket_ids)
+    # 2. Ticket manuali o 'In corso': non vengono mai toccati dal replanning
+    manual_and_inprogress = (
+        db.query(Ticket.id)
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.deleted_at.is_(None),
+        )
+        .filter(
+            (Ticket.is_manual_plan == True) | (Ticket.stato == "In corso")  # noqa: E712
+        )
+        .all()
+    )
+    for (tid,) in manual_and_inprogress:
+        locked_set.add(tid)
+
+    logger.info(
+        "adaptive_replanning: trigger=%s affected=%s locked=%s horizon=%sd tenant=%s",
+        data.trigger, data.affected_ticket_ids, len(locked_set), data.horizon_days, tenant_id,
+    )
+
+    # Genera nuovo piano deterministico
+    # Il bridge gestisce autonomamente locked (tecnico_id + planned_start valorizzati,
+    # is_manual_plan=True) — il parametro locked_set qui serve solo per il calcolo
+    # del disruption_cost; non viene passato al bridge perché i ticket locked
+    # non entrano già nella coda pianificabile.
+    new_plan_json = await generate_deterministic_plan(
+        db=db,
+        days=data.horizon_days,
+        asset_ids=None,
+        tenant_id=tenant_id,
+    )
+
+    if "error" in new_plan_json:
+        msg = new_plan_json["error"]
+        db_error(db, "PLANNING", f"adaptive_replanning: errore bridge — {msg}", tenant_id=tenant_id)
+        raise HTTPException(status_code=500, detail=f"Errore motore deterministico: {msg}")
+
+    # Salva come nuovo draft
+    new_plan = GeneratedPlan(
+        tenant_id=tenant_id,
+        status="draft",
+        horizon_days=data.horizon_days,
+        plan_json=new_plan_json,
+    )
+    db.add(new_plan)
+    db.commit()
+    db.refresh(new_plan)
+
+    # Calcola disruption_cost: WO che hanno cambiato tecnico o data rispetto al piano precedente
+    disruption_cost = 0
+    moved_tickets: List[int] = []
+    if prev_plan and prev_plan.plan_json:
+        prev_wos = {
+            w["wo_id"]: w
+            for w in (prev_plan.plan_json.get("planned_workorders") or [])
+        }
+        for wo in (new_plan_json.get("planned_workorders") or []):
+            prev = prev_wos.get(wo["wo_id"])
+            if prev and (
+                prev.get("technician_id") != wo.get("technician_id")
+                or prev.get("planned_date") != wo.get("planned_date")
+            ):
+                disruption_cost += 1
+                moved_tickets.append(wo["wo_id"])
+
+    db_info(
+        db, "PLANNING",
+        f"adaptive_replanning [{data.trigger}]: nuovo piano #{new_plan.id} "
+        f"disruption_cost={disruption_cost} moved={moved_tickets}",
+        tenant_id=tenant_id,
+    )
+
+    return {
+        "replanning_plan_id": new_plan.id,
+        "trigger": data.trigger,
+        "affected_tickets": data.affected_ticket_ids,
+        "moved_tickets": moved_tickets,
+        "disruption_cost": disruption_cost,
+        "plan_json": new_plan_json,
+    }
 
 
 # ── Endpoint POST /planning/feedback ─────────────────────────────────────────

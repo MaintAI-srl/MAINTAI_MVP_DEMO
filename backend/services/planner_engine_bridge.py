@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from backend.db.modelli import Asset, Tecnico, Ticket, TecnicoAssenza
+from backend.services.adaptive_estimator import get_duration_correction_factor
 from backend.services.planner_engine import (
     PlannerAssignment,
     PlannerEngine,
@@ -32,6 +33,7 @@ from backend.services.planner_engine import (
     REASON_TIME_WINDOW_CONFLICT,
 )
 from backend.services.ai_planner_service import calculate_plan_efficiency
+from backend.core.logger_db import db_info
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +154,8 @@ def _build_planner_tecnici(
 def _build_planner_tickets(
     tickets: List[Ticket],
     asset_map: Dict[int, Asset],
+    db: Optional[Session] = None,
+    tenant_id: Optional[int] = None,
 ) -> List[PlannerTicket]:
     result = []
     for t in tickets:
@@ -162,13 +166,36 @@ def _build_planner_tickets(
             impianto_id = asset.impianto_id
             area = asset.area
 
+        durata_base = float(t.durata_stimata_ore or 2.0)
+
+        # Adaptive duration estimation: correggi la durata stimata in base allo storico feedback
+        durata_corretta = durata_base
+        if db is not None and tenant_id is not None:
+            try:
+                fattore = get_duration_correction_factor(
+                    db=db,
+                    ticket_tipo=t.tipo or "CM",
+                    asset_id=t.asset_id,
+                    tenant_id=tenant_id,
+                )
+                if abs(fattore - 1.0) > 0.05:
+                    durata_corretta = round(durata_base * fattore, 2)
+                    db_info(
+                        db,
+                        "PLANNING",
+                        f"AdaptiveEstimator: ticket #{t.id} durata {durata_base}h → {durata_corretta}h (fattore={fattore})",
+                        tenant_id=tenant_id,
+                    )
+            except Exception as exc:
+                logger.warning("AdaptiveEstimator: errore per ticket #%d: %s", t.id, exc)
+
         result.append(PlannerTicket(
             id=t.id,
             impianto_id=impianto_id,
             priorita=t.priorita or "Media",
             tipo=t.tipo or "CM",
-            durata_stimata_ore=float(t.durata_stimata_ore or 2.0),
-            competenza_richiesta=t.competenza_richiesta or None,  # usa campo reale se valorizzato
+            durata_stimata_ore=durata_corretta,
+            competenza_richiesta=t.competenza_richiesta or None,
             splittabile=True,
             area=area,
         ))
@@ -332,7 +359,7 @@ async def generate_deterministic_plan(
 
     # ── Conversione ORM → strutture PlannerEngine ─────────────────────────────
     planner_tecnici = _build_planner_tecnici(tecnici, assenze_map)
-    planner_tickets = _build_planner_tickets(tickets, asset_map)
+    planner_tickets = _build_planner_tickets(tickets, asset_map, db=db, tenant_id=tenant_id)
     existing_assignments = _build_existing_assignments(locked_tickets)
 
     if not planner_tecnici:
@@ -363,6 +390,7 @@ async def generate_deterministic_plan(
             existing_assignments=existing_assignments,
             today=today,
             horizon_days=days,
+            slot_minutes=30,  # tracking a granularità 30min — evita sovrapposizioni sub-orarie
         )
         engine_result = engine.run()
     except Exception as exc:
