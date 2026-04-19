@@ -343,23 +343,22 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   return (
-    <DialogContent
-      showCloseButton={false}
-      className="ticket-drawer-panel p-0 border-none"
-      style={{
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)", padding: "16px" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{
         background: "#111827",
-        color: "var(--text-primary)",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.7)",
         border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 18,
+        boxShadow: "0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(59,130,246,0.08)",
         width: "min(92vw, 700px)",
-        maxWidth: "min(92vw, 700px)",
         maxHeight: "90vh",
         overflowY: "auto",
-        borderRadius: 16,
-      }}
-    >
-      {/* Header Premium */}
-      <div style={{ padding: "24px 28px", background: "linear-gradient(to bottom, rgba(59,130,246,0.05), transparent)", borderBottom: "1px solid rgba(255,255,255,0.05)", position: "relative" }}>
+        color: "var(--text-primary)",
+        display: "flex",
+        flexDirection: "column",
+      }}>
+        {/* Header Premium */}
+        <div style={{ padding: "24px 28px", background: "linear-gradient(to bottom, rgba(59,130,246,0.05), transparent)", borderBottom: "1px solid rgba(255,255,255,0.05)", position: "relative", flexShrink: 0 }}>
         {/* Pulsante chiusura — unico, position absolute */}
         <button
           onClick={onClose}
@@ -598,7 +597,9 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           </Button>
         </DialogContent>
       </Dialog>
-    </DialogContent>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1191,15 +1192,13 @@ export default function TicketPage() {
       )}
 
       {/* Detail modal */}
-      <Dialog open={!!detailTicket} onOpenChange={(o) => !o && setDetailTicket(null)}>
-        {detailTicket && (
-          <DetailModal
-            ticket={detailTicket}
-            onClose={() => setDetailTicket(null)}
-            onSaved={handleSaved}
-          />
-        )}
-      </Dialog>
+      {detailTicket && (
+        <DetailModal
+          ticket={detailTicket}
+          onClose={() => setDetailTicket(null)}
+          onSaved={handleSaved}
+        />
+      )}
 
       {/* Modal pianificazione rapida (cambi stato → Pianificato) */}
       {pianificaModal && (

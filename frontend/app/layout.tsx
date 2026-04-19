@@ -222,21 +222,27 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         {/* ── LOGO ──────────────────────────────────────── */}
         <Link href="/dashboard" style={{ textDecoration: "none", position: "relative", zIndex: 1 }} onClick={() => setSidebarOpen(false)}>
           <div style={{
-            padding: "20px 18px 18px",
+            padding: "18px 18px 16px",
             display: "flex", alignItems: "center", gap: 11,
             borderBottom: "1px solid rgba(91,143,255,0.10)",
           }}>
-            {/* Glowing logo badge */}
+            {/* Logo con glow */}
             <div style={{
               width: 36, height: 36,
-              background: "linear-gradient(135deg, #3a6ff5 0%, #7b5cff 100%)",
               borderRadius: 10,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, fontWeight: 900, color: "white", letterSpacing: "0.05em",
-              fontFamily: "var(--font-display)",
-              boxShadow: "0 0 20px rgba(91,143,255,0.55), 0 0 50px rgba(91,143,255,0.20), inset 0 1px 0 rgba(255,255,255,0.2)",
               flexShrink: 0,
-            }}>AI</div>
+              boxShadow: "0 0 18px rgba(91,143,255,0.50), 0 0 40px rgba(91,143,255,0.18)",
+              overflow: "hidden",
+              background: "rgba(91,143,255,0.08)",
+              border: "1px solid rgba(91,143,255,0.20)",
+            }}>
+              <img
+                src="/logo.png"
+                alt="MaintAI"
+                style={{ width: 28, height: 28, objectFit: "contain" }}
+              />
+            </div>
             <div>
               <div style={{
                 fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 900,
