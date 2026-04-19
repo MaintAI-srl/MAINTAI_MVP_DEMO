@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -29,6 +29,7 @@ class BulkStatusUpdate(PydanticModel):
     stato: str
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
+    is_manual_plan: Optional[bool] = None
     eliminazione_note: Optional[str] = None
 
 
@@ -168,23 +169,43 @@ def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), te
     if data.stato == "Eliminato" and (not data.eliminazione_note or len(data.eliminazione_note) < 5):
         raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione è obbligatorio (min 5 caratteri).")
 
-    update_dict: dict = {"stato": data.stato}
-    if data.planned_start:
-        update_dict["planned_start"] = data.planned_start
-    if data.planned_finish:
-        update_dict["planned_finish"] = data.planned_finish
-    if data.eliminazione_note:
-        update_dict["eliminazione_note"] = data.eliminazione_note
-
-    # Se torna Aperto, azzera pianificazione
-    if data.stato == "Aperto":
-        update_dict["planned_start"] = None
-        update_dict["planned_finish"] = None
-
-    updated = db.query(Ticket).filter(
+    tickets = db.query(Ticket).filter(
         Ticket.id.in_(data.ids),
         Ticket.tenant_id == tenant_id,
-    ).update(update_dict, synchronize_session=False)
+    ).all()
+
+    deleted_at = datetime.now(timezone.utc) if data.stato == "Eliminato" else None
+
+    for ticket in tickets:
+        ticket.stato = data.stato
+
+        if data.stato == "Pianificato":
+            ticket.planned_start = data.planned_start
+            ticket.planned_finish = data.planned_finish or (
+                data.planned_start + timedelta(hours=float(ticket.durata_stimata_ore or 1.0))
+            )
+            if data.is_manual_plan is not None:
+                ticket.is_manual_plan = data.is_manual_plan
+            ticket.deleted_at = None
+        elif data.stato == "Aperto":
+            ticket.planned_start = None
+            ticket.planned_finish = None
+            ticket.is_manual_plan = False
+            ticket.deleted_at = None
+        elif data.stato == "Eliminato":
+            ticket.eliminazione_note = data.eliminazione_note
+            if ticket.deleted_at is None:
+                ticket.deleted_at = deleted_at
+        else:
+            if data.planned_start:
+                ticket.planned_start = data.planned_start
+            if data.planned_finish:
+                ticket.planned_finish = data.planned_finish
+            if data.is_manual_plan is not None:
+                ticket.is_manual_plan = data.is_manual_plan
+            ticket.deleted_at = None
+
+    updated = len(tickets)
 
     if data.stato == "Eliminato":
         username = payload.get("sub") or payload.get("username") or "sistema"

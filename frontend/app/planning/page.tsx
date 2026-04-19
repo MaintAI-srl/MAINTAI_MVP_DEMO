@@ -23,17 +23,14 @@ import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import WODetailDrawer from "./components/WODetailDrawer";
 import DeferredWOPanel from "./components/DeferredWOPanel";
 import ReplanModal from "./components/ReplanModal";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import type {
   TicketData,
   TecnicoData,
   PlannedWO,
-  DeferredWO,
   GeneratedPlan,
   EfficiencyBreakdown,
-  EfficiencyMotivation,
-  ReplanResult,
 } from "./types";
 import { tipoStyle } from "./types";
 
@@ -89,6 +86,11 @@ function parseStart(ticket: TicketData): { date: string; hour: number; minute: n
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
+}
+
+function formatLocalDateTimeSeconds(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 }
 
 // ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
@@ -213,7 +215,7 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
           {tecnico.nome} {tecnico.cognome ?? ""}
         </div>
         <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)", marginTop: 1 }}>
-          {(tecnico as any).skill ?? tecnico.competenze ?? ""}
+          {tecnico.skill ?? tecnico.competenze ?? ""}
         </div>
       </div>
     </div>
@@ -522,15 +524,14 @@ export default function PianificazionePage() {
     setGenerando(true);
     try {
       const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", { days: 7, mode: engineMode });
-      const newScore = (res.plan_json as any)?.efficiency_score as number | undefined;
-      const prevScore = res.previous_efficiency_score;
+      const { previous_efficiency_score: prevScore, ...cleanRes } = res;
+      const newScore = res.plan_json?.efficiency_score;
       if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
         notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
       } else {
         notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
       }
-      const { previous_efficiency_score: _p, ...cleanRes } = res as any;
-      setPiano(cleanRes as GeneratedPlan);
+      setPiano(cleanRes);
       await loadData(); // aggiorna il Gantt con i ticket ora pianificati
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore generazione piano AI");
@@ -607,15 +608,17 @@ export default function PianificazionePage() {
 
     // Ticket non ancora pianificato (nessun tecnico e nessuna data) → pianificazione manuale
     if (!ticket.tecnico_id && !ticket.planned_start) {
-      const endDecimal = newHour + (newMinute / 60) + (ticket.durata_stimata_ore || 1);
-      const endH = Math.min(23, Math.floor(endDecimal));
-      const endM = Math.round((endDecimal - Math.floor(endDecimal)) * 60);
+      const startDate = new Date(
+        `${dropData.date}T${String(newHour).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}:00`,
+      );
+      const durationMs = Math.max(0.5, ticket.durata_stimata_ore || 1) * 3600000;
+      const endDate = new Date(startDate.getTime() + durationMs);
       savePianificazioneManuale(
         ticket.id,
         dropData.tecnico_id,
         dropData.date,
-        `${dropData.date}T${String(newHour).padStart(2,"0")}:${String(newMinute).padStart(2,"0")}:00`,
-        `${dropData.date}T${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}:00`,
+        formatLocalDateTimeSeconds(startDate),
+        formatLocalDateTimeSeconds(endDate),
       );
       return;
     }
@@ -1032,7 +1035,7 @@ export default function PianificazionePage() {
         open={replanModal}
         piano={piano}
         onClose={() => setReplanModal(false)}
-        onSuccess={(_result: ReplanResult) => {
+        onSuccess={() => {
           setReplanModal(false);
           loadData();
           loadStorico();

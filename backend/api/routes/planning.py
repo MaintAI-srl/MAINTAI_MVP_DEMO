@@ -78,14 +78,43 @@ def _compute_scadenza(plan_json: dict) -> Optional[datetime]:
     wos = plan_json.get("planned_workorders", [])
     dates = []
     for w in wos:
-        pd = w.get("planned_date")
-        end_t = w.get("planned_end_time", "17:00")
-        if pd:
-            try:
-                dates.append(datetime.fromisoformat(f"{pd}T{end_t}:00"))
-            except ValueError:
-                pass
+        interval = _planned_wo_interval(w)
+        if interval:
+            dates.append(interval[1])
     return max(dates) if dates else None
+
+
+def _combine_plan_datetime(date_str: str, time_str: str) -> datetime:
+    """Converte campi plan_json YYYY-MM-DD + HH:MM[/SS] in datetime."""
+    t = (time_str or "").strip() or "08:00"
+    if len(t.split(":")) == 2:
+        t = f"{t}:00"
+    return datetime.fromisoformat(f"{date_str}T{t}")
+
+
+def _planned_wo_interval(wo: dict) -> Optional[tuple[datetime, datetime]]:
+    """Estrae start/end da un workorder pianificato, con fallback su time_slot."""
+    planned_date = wo.get("planned_date")
+    if not planned_date:
+        return None
+
+    start_time = wo.get("planned_start_time")
+    end_time = wo.get("planned_end_time")
+    time_slot = wo.get("time_slot", "")
+    if (not start_time or not end_time) and time_slot and "-" in time_slot:
+        parts = time_slot.split("-", 1)
+        start_time = start_time or parts[0].strip()
+        end_time = end_time or parts[1].strip()
+
+    try:
+        start_dt = _combine_plan_datetime(planned_date, start_time or "08:00")
+        end_dt = _combine_plan_datetime(planned_date, end_time or "17:00")
+    except ValueError:
+        return None
+
+    if end_dt < start_dt:
+        end_dt = end_dt + timedelta(days=1)
+    return start_dt, end_dt
 
 
 def _compute_completion_pct(plan: GeneratedPlan, db: Session) -> Optional[float]:
@@ -547,17 +576,18 @@ def confirm_plan(
     confirmed_by = payload.get("sub") or payload.get("email") or "sconosciuto"
 
     try:
-        # Aggiorna i ticket pianificati (zero nuovi record)
+        # Aggiorna i ticket pianificati (zero nuovi record).
+        # Se un WO e splittato su piu frammenti, plan_json contiene piu righe
+        # con lo stesso wo_id: raggruppiamo per evitare che l'ultima
+        # continuazione sovrascriva il primo frammento.
         planned = plan_data.get("planned_workorders", [])
+        planned_by_wo: dict[int, list[dict]] = {}
         for wo in planned:
             wo_id = wo.get("wo_id")
-            tecnico_id = wo.get("technician_id")
-            planned_date_str = wo.get("planned_date")
-            time_slot = wo.get("time_slot", "")
+            if wo_id:
+                planned_by_wo.setdefault(int(wo_id), []).append(wo)
 
-            if not wo_id:
-                continue
-
+        for wo_id, fragments in planned_by_wo.items():
             ticket = db.query(Ticket).filter(
                 Ticket.id == wo_id,
                 Ticket.tenant_id == tenant_id,
@@ -567,21 +597,23 @@ def confirm_plan(
                 logger.warning("Confirm plan: ticket %s non trovato", wo_id)
                 continue
 
+            primary = next(
+                (w for w in fragments if not w.get("is_continuation", False)),
+                fragments[0],
+            )
+            tecnico_id = primary.get("technician_id")
             ticket.tecnico_id = tecnico_id
             ticket.stato = "Pianificato"
 
-            # Calcola planned_start e planned_finish dai campi orari
-            if planned_date_str:
-                try:
-                    start_time = wo.get("planned_start_time") or "08:00"
-                    end_time = wo.get("planned_end_time") or "17:00"
-                    if not start_time and time_slot and "-" in time_slot:
-                        start_time = time_slot.split("-")[0].strip()
-                        end_time = time_slot.split("-")[1].strip()
-                    ticket.planned_start = datetime.fromisoformat(f"{planned_date_str}T{start_time}:00")
-                    ticket.planned_finish = datetime.fromisoformat(f"{planned_date_str}T{end_time}:00")
-                except ValueError:
-                    logger.warning("Confirm plan: impossibile parsare data/ora per ticket %s", wo_id)
+            intervals = [
+                parsed for parsed in (_planned_wo_interval(w) for w in fragments)
+                if parsed is not None
+            ]
+            if intervals:
+                ticket.planned_start = min(start for start, _ in intervals)
+                ticket.planned_finish = max(end for _, end in intervals)
+            else:
+                logger.warning("Confirm plan: impossibile parsare data/ora per ticket %s", wo_id)
 
         # Aggiorna asset con fermo_on_schedule
         for fa in plan_data.get("fermo_assets", []):

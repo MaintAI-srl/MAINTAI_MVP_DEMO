@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { API_BASE, apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { SkeletonTable } from "../components/Skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
@@ -231,7 +231,7 @@ type DetailModalProps = {
 
 function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [stato, setStato] = useState(ticket.stato);
-  const [assetStato, setAssetStato] = useState(ticket.asset_stato ?? "");
+  const [assetStato] = useState(ticket.asset_stato ?? "");
   const [plannedStart, setPlannedStart] = useState(toDatetimeLocal(ticket.planned_start));
   const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
   const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
@@ -382,9 +382,9 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
             Dettaglio Ticket #{ticket.id}
           </div>
-          <DialogTitle style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em", margin: 0 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em", margin: 0 }}>
             {ticket.titolo}
-          </DialogTitle>
+          </h2>
         </div>
         
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

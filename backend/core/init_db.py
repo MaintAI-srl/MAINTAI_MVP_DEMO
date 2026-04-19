@@ -72,18 +72,12 @@ def init_db():
 
     # Seed default users
     import os
-    import secrets
-    from backend.core.database import SessionLocal
+    from backend.core.database import DATABASE_URL, SessionLocal
     from backend.core.security import get_password_hash
     
-    # Se le env var mancano in prod, falliamo sicuro per l'admin (password randomata irraggiungibile se non letta da log)
-    # Ma per non rompere il flusso dev se mancano, mettiamo un default debole, o un random forte.
-    # Abbiamo il fail-fast, quindi usiamo un default "admin" in locale, ma diamo un print di WARNING.
-    seed_admin_pwd = os.getenv("SEED_ADMIN_PASSWORD", "admin")
-    if seed_admin_pwd == "admin" and os.getenv("DATABASE_URL", "").startswith("postgre"):
-        print("WARNING: Using default 'admin' seed password. Set SEED_ADMIN_PASSWORD in production!")
-    
-    seed_tecnico_pwd = os.getenv("SEED_TECNICO_PASSWORD", "tecnico")
+    seed_admin_pwd = os.getenv("SEED_ADMIN_PASSWORD")
+    seed_tecnico_pwd = os.getenv("SEED_TECNICO_PASSWORD")
+    is_postgres = DATABASE_URL.lower().startswith("postgres")
 
     with SessionLocal() as db:
         # Recupera tenant Demo
@@ -92,9 +86,14 @@ def init_db():
 
         admin = db.query(Utente).filter(Utente.username == "admin").first()
         if not admin:
+            if is_postgres and (not seed_admin_pwd or seed_admin_pwd == "admin"):
+                raise RuntimeError(
+                    "SEED_ADMIN_PASSWORD deve essere impostata a un valore sicuro "
+                    "prima di creare l'utente admin iniziale in produzione."
+                )
             db.add(Utente(
                 username="admin",
-                password_hash=get_password_hash(seed_admin_pwd),
+                password_hash=get_password_hash(seed_admin_pwd or "admin"),
                 ruolo="superadmin",
                 tenant_id=tenant_id,
             ))
@@ -107,9 +106,14 @@ def init_db():
 
         tecnico_user = db.query(Utente).filter(Utente.username == "tecnico").first()
         if not tecnico_user:
+            if is_postgres and (not seed_tecnico_pwd or seed_tecnico_pwd == "tecnico"):
+                raise RuntimeError(
+                    "SEED_TECNICO_PASSWORD deve essere impostata a un valore sicuro "
+                    "prima di creare l'utente tecnico iniziale in produzione."
+                )
             tecnico_user = Utente(
                 username="tecnico",
-                password_hash=get_password_hash(seed_tecnico_pwd),
+                password_hash=get_password_hash(seed_tecnico_pwd or "tecnico"),
                 ruolo="tecnico",
                 tenant_id=tenant_id,
             )

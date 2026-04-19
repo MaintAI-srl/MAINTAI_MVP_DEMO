@@ -48,8 +48,11 @@ class TicketRepository:
         query = db.query(Ticket).options(joinedload(Ticket.asset))
         if tenant_id is not None:
             query = query.filter(Ticket.tenant_id == tenant_id)
-        # Soft deletion: escludi i ticket cancellati logicamente
-        query = query.filter(Ticket.deleted_at.is_(None))
+        # Soft deletion: di default esclude i cancellati, ma l'archivio deve poter
+        # mostrare i ticket in stato Eliminato.
+        include_deleted = bool(stati and "Eliminato" in stati)
+        if not include_deleted:
+            query = query.filter(Ticket.deleted_at.is_(None))
         if stati:
             query = query.filter(Ticket.stato.in_(stati))
         if tecnico_id:
@@ -131,6 +134,7 @@ class TicketRepository:
         ticket = query.first()
         if not ticket:
             return None
+        fields_set = data.model_fields_set
         if data.stato is not None:
             ticket.stato = data.stato
         if getattr(data, "tipo", None) is not None:
@@ -145,29 +149,39 @@ class TicketRepository:
             ticket.fascia_oraria = data.fascia_oraria
         if data.durata_stimata_ore is not None:
             ticket.durata_stimata_ore = data.durata_stimata_ore
-        if "tecnico_id" in data.model_fields_set:
+        if "tecnico_id" in fields_set:
             if data.tecnico_id:
                 check_tenant_ownership(db, Tecnico, data.tecnico_id, tenant_id)
             ticket.tecnico_id = data.tecnico_id
-        if "planned_start" in data.model_fields_set:
+        if "planned_start" in fields_set:
             ticket.planned_start = data.planned_start
-        if "is_manual_plan" in data.model_fields_set:
+        if "planned_finish" in fields_set:
+            ticket.planned_finish = data.planned_finish
+        if "is_manual_plan" in fields_set:
             ticket.is_manual_plan = data.is_manual_plan
-        if "piano_manutenzione_id" in data.model_fields_set:
+        if "piano_manutenzione_id" in fields_set:
             ticket.piano_manutenzione_id = data.piano_manutenzione_id
-        if "origine_piano" in data.model_fields_set:
+        if "origine_piano" in fields_set:
             ticket.origine_piano = data.origine_piano
 
-        # Ricalcolo sempre planned_finish se planned_start e durata sono presenti
-        if ticket.planned_start and ticket.durata_stimata_ore:
+        if data.stato == "Aperto":
+            ticket.planned_start = None
+            ticket.planned_finish = None
+            ticket.is_manual_plan = False
+            ticket.deleted_at = None
+        elif data.stato is not None and data.stato != "Eliminato":
+            ticket.deleted_at = None
+
+        # Ricalcola planned_finish solo quando non e stato fornito esplicitamente.
+        if "planned_finish" not in fields_set and ticket.planned_start and ticket.durata_stimata_ore:
             from datetime import timedelta
             ticket.planned_finish = ticket.planned_start + timedelta(hours=float(ticket.durata_stimata_ore))
         elif not ticket.planned_start:
             ticket.planned_finish = None
 
-        if "execution_start" in data.model_fields_set:
+        if "execution_start" in fields_set:
             ticket.execution_start = data.execution_start
-        if "execution_finish" in data.model_fields_set:
+        if "execution_finish" in fields_set:
             ticket.execution_finish = data.execution_finish
         if data.eliminazione_note is not None:
             ticket.eliminazione_note = data.eliminazione_note

@@ -113,10 +113,19 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), 120000); // 2 min per PDF grossi
 
+  const extraHeaders: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const tenantContext = localStorage.getItem("maintai_tenant_context");
+    if (tenantContext) {
+      extraHeaders["X-Tenant-Id"] = tenantContext;
+    }
+  }
+
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       credentials: "include",   // invia il cookie HttpOnly maintai_jwt
+      headers: extraHeaders,
       body: formData,
       signal: controller.signal,
     });
@@ -134,9 +143,11 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
       throw new Error(message);
     }
     return res.json() as Promise<T>;
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearTimeout(id);
-    if (error.name === "AbortError") throw new Error("Upload timeout. Riprova.");
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Upload timeout. Riprova.");
+    }
     throw error;
   }
 }
