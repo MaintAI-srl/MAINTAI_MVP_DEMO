@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { toast } from "sonner";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+} from "@dnd-kit/core";
 import { apiGet, apiPost, apiPut } from "../lib/api";
-import { DndContext, useDraggable, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
+import { notify } from "@/lib/toast";
+import { format, addDays, subDays, parseISO, startOfWeek, isToday } from "date-fns";
+import { it } from "date-fns/locale";
 
 import BadgeEfficienza from "./components/BadgeEfficienza";
-import PannelloMotivazioni from "./components/PannelloMotivazioni";
-import KanbanSettimanale from "./components/KanbanSettimanale";
-import CalendarioMensile from "./components/CalendarioMensile";
 import StoricoPiani from "./components/StoricoPiani";
-import RollingAnalysisPanel from "./components/RollingAnalysisPanel";
-import GanttRisorse from "./components/GanttRisorse";
 
 import type {
   TicketData,
@@ -22,401 +29,364 @@ import type {
   EfficiencyBreakdown,
   EfficiencyMotivation,
 } from "./types";
+import { tipoStyle } from "./types";
 
-// ── Tipi risposta API tecnici ─────────────────────────────────────────────────
+// ─── Tipi ─────────────────────────────────────────────────────────────────────
+
+type ViewMode = "day" | "week" | "2week";
+type EngineMode = "deterministic" | "ai";
+
 interface TecnicoAPI {
   id: number;
   nome: string;
   cognome: string | null;
-  skill: string;        // campo reale dal backend (competenze → skill)
+  skill: string;
   ore_giornaliere: number;
   orario_inizio: string;
   orario_fine: string;
   stato: string;
 }
 
-type VistaAttiva = "settimanale" | "mensile" | "rolling" | "gantt";
-type Modalita = "manuale" | "ai";
-type EngineMode = "deterministic" | "ai";
+// ─── Costanti Gantt ───────────────────────────────────────────────────────────
 
-// ── Componente BacklogBar ─────────────────────────────────────────────────────
-function BacklogBar({
-  label,
-  count,
-  ore,
-  color,
-  borderColor,
-  percent,
-}: {
-  label: string;
-  count: number;
-  ore: number;
-  color: string;
-  borderColor: string;
-  percent: number;
-}) {
-  const [displayed, setDisplayed] = useState(0);
+const DAY_START_H = 0;
+const DAY_END_H = 24;
+const HOUR_W = 80;
+const DAY_W = 130;
+const ROW_H = 72;
+const LABEL_W = 200;
 
-  useEffect(() => {
-    let start = 0;
-    const step = percent / 30;
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= percent) { setDisplayed(percent); clearInterval(timer); return; }
-      setDisplayed(Math.round(start));
-    }, 20);
-    return () => clearInterval(timer);
-  }, [percent]);
+const PRIO_COLORS: Record<string, string> = {
+  Alta: "#ef4444",
+  Media: "#f59e0b",
+  Bassa: "#22c55e",
+};
 
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: "50%",
-            background: borderColor, flexShrink: 0,
-            boxShadow: `0 0 6px ${borderColor}`,
-          }} />
-          <span style={{
-            fontWeight: 700, fontSize: 12,
-            background: color,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}>{label}</span>
-        </div>
-        <span style={{ color: "#9ca3af" }}>{displayed}%</span>
-      </div>
-      <div style={{
-        height: 6, background: "#1f2937",
-        borderRadius: 3, overflow: "hidden", marginBottom: 4,
-      }}>
-        <div style={{
-          height: "100%",
-          width: `${displayed}%`,
-          background: color,
-          borderRadius: 3,
-          transition: "width 0.05s linear",
-          boxShadow: `0 0 8px ${borderColor}88`,
-        }} />
-      </div>
-      <div style={{ fontSize: 10, color: "#6b7280" }}>
-        {count} ticket · {ore.toFixed(1)}h stimate
-      </div>
-    </div>
-  );
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getDays(base: Date, view: ViewMode): Date[] {
+  if (view === "day") return [base];
+  const mon = startOfWeek(base, { weekStartsOn: 1 });
+  const count = view === "week" ? 7 : 14;
+  return Array.from({ length: count }, (_, i) => addDays(mon, i));
 }
 
-// ── Ticket draggabile per pianificazione manuale ──────────────────────────────
-function DraggableTicket({
-  ticket,
-  onClickPlan,
-}: {
-  ticket: TicketData;
-  onClickPlan: (t: TicketData) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `ticket-${ticket.id}`,
-    data: { ticketId: ticket.id },
+function parseStart(ticket: TicketData): { date: string; hour: number; minute: number } | null {
+  if (!ticket.planned_start) return null;
+  try {
+    const d = parseISO(ticket.planned_start);
+    return { date: format(d, "yyyy-MM-dd"), hour: d.getHours(), minute: d.getMinutes() };
+  } catch {
+    return null;
+  }
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
+}
+
+// ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
+
+function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: ViewMode; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `t-${ticket.id}`,
+    data: { ticket },
   });
+  const s = tipoStyle(ticket.tipo);
+  const dur = Math.max(0.5, ticket.durata_stimata_ore || 1);
 
-  const tipo = ticket.tipo ?? "CM";
-  const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
-  const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
-  const prioBorder: Record<string, string> = { Alta: "#ef4444", Media: "#f59e0b", Bassa: "#6b7280" };
-
-  const style: React.CSSProperties = {
-    background: "#1a2332",
-    border: `1px solid ${isDragging ? "#3b82f6" : "#2a3748"}`,
-    borderRadius: 6,
-    padding: "8px 10px",
-    marginBottom: 6,
-    cursor: isDragging ? "grabbing" : "grab",
-    opacity: isDragging ? 0.3 : 1,
-    position: "relative" as const,
-    transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
-    boxShadow: isDragging ? "0 4px 16px rgba(59,130,246,0.3)" : undefined,
-    userSelect: "none" as const,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, alignItems: "center" }}>
-        <span style={{
-          fontSize: 10, fontWeight: 700,
-          background: tipoBg[tipo] ?? "#78350f44",
-          color: tipoColor[tipo] ?? "#fcd34d",
-          padding: "1px 5px", borderRadius: 3,
-        }}>{tipo}</span>
-        <span style={{
-          fontSize: 9, fontWeight: 700,
-          color: prioBorder[ticket.priorita ?? "Bassa"],
-          textTransform: "uppercase" as const,
-          letterSpacing: "0.05em",
-        }}>{ticket.priorita ?? "—"}</span>
-      </div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2, lineHeight: 1.3 }}>
-        #{ticket.id} {ticket.titolo ?? "—"}
-      </div>
-      {ticket.durata_stimata_ore && (
-        <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>
-          {ticket.durata_stimata_ore}h stimate
-        </div>
-      )}
-      <button
-        onPointerDown={e => e.stopPropagation()}
-        onClick={e => { e.stopPropagation(); onClickPlan(ticket); }}
+  if (view === "day") {
+    return (
+      <div
+        ref={setNodeRef} {...listeners} {...attributes}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
         style={{
-          width: "100%",
-          background: "#1f2937",
-          border: "1px solid #374151",
-          color: "#9ca3af",
-          borderRadius: 4,
-          padding: "4px 8px",
-          fontSize: 10,
-          cursor: "pointer",
+          position: "absolute",
+          width: Math.max(36, dur * HOUR_W - 4),
+          height: ROW_H - 12,
+          background: s.bg,
+          border: `1px solid ${s.border}`,
+          borderLeft: `3px solid ${s.border}`,
+          borderRadius: 3,
+          padding: "4px 6px",
+          cursor: isDragging ? "grabbing" : "grab",
+          opacity: isDragging ? 0.25 : 1,
+          overflow: "hidden",
+          userSelect: "none",
+          boxSizing: "border-box",
+          zIndex: isDragging ? 0 : 2,
         }}
       >
-        ✏ Pianifica
-      </button>
+        <div style={{ fontSize: 9, color: s.text, opacity: 0.7, letterSpacing: "0.08em" }}>{ticket.tipo} · {dur}h</div>
+        <div style={{ fontSize: 11, color: s.text, fontWeight: 600, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
+        {ticket.asset_name && (
+          <div style={{ fontSize: 9, color: s.text, opacity: 0.6, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.asset_name}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef} {...listeners} {...attributes}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        background: s.bg, border: `1px solid ${s.border}`, borderLeft: `3px solid ${s.border}`,
+        borderRadius: 3, padding: "3px 5px", marginBottom: 2,
+        cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.25 : 1,
+        overflow: "hidden", userSelect: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
+      }}
+    >
+      <div style={{ fontSize: 10, color: s.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
+      <div style={{ fontSize: 9, color: s.text, opacity: 0.7 }}>{ticket.tipo} · {dur}h</div>
     </div>
   );
 }
 
-// ── Modale assegnazione manuale ────────────────────────────────────────────────
+// ─── UnscheduledItem (sidebar sinistra, draggabile) ───────────────────────────
+
+function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `t-${ticket.id}`,
+    data: { ticket },
+  });
+  const s = tipoStyle(ticket.tipo);
+  const prioColor = PRIO_COLORS[ticket.priorita] ?? "#6b7280";
+
+  return (
+    <div
+      ref={setNodeRef} {...listeners} {...attributes}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        background: "#1a2332", border: "1px solid #2a3748", borderLeft: `3px solid ${s.border}`,
+        borderRadius: 4, padding: "8px 10px", marginBottom: 6,
+        cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.35 : 1, userSelect: "none",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+        <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}20`, padding: "1px 5px", borderRadius: 2 }}>{ticket.tipo}</span>
+        <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>
+      </div>
+      <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{ticket.titolo}</div>
+      <div style={{ fontSize: 10, color: "#6b7280" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
+    </div>
+  );
+}
+
+// ─── TecnicoLabel ─────────────────────────────────────────────────────────────
+
+function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
+  return (
+    <div style={{
+      width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
+      display: "flex", alignItems: "center",
+      borderRight: "1px solid #1f2937", background: "#111827",
+      position: "sticky", left: 0, zIndex: 3,
+    }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#f9fafb", lineHeight: 1.3 }}>
+          {tecnico.nome} {tecnico.cognome ?? ""}
+        </div>
+        <div style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>
+          {(tecnico as any).skill ?? tecnico.competenze ?? ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DayRow ───────────────────────────────────────────────────────────────────
+
+function DayRow({ tecnico, tickets, day, onTicketClick }: {
+  tecnico: TecnicoData; tickets: TicketData[]; day: Date; onTicketClick: (t: TicketData) => void;
+}) {
+  const dateStr = format(day, "yyyy-MM-dd");
+  const { setNodeRef, isOver } = useDroppable({
+    id: `row-${tecnico.id}-${dateStr}`,
+    data: { tecnico_id: tecnico.id, date: dateStr },
+  });
+  const dayTickets = tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; });
+  const timelineW = (DAY_END_H - DAY_START_H) * HOUR_W;
+
+  return (
+    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid #1f2937" }}>
+      <TecnicoLabel tecnico={tecnico} />
+      <div ref={setNodeRef} style={{
+        position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
+        background: isOver ? "rgba(59,130,246,0.07)" : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(255,255,255,0.04) ${HOUR_W - 1}px, rgba(255,255,255,0.04) ${HOUR_W}px)`,
+        transition: "background 0.12s",
+      }}>
+        {dayTickets.map((t) => {
+          const p = parseStart(t)!;
+          const left = (p.hour - DAY_START_H) * HOUR_W + (p.minute / 60) * HOUR_W;
+          return (
+            <div key={t.id} style={{ position: "absolute", left, top: 6, zIndex: 2 }}>
+              <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── DayCell ──────────────────────────────────────────────────────────────────
+
+function DayCell({ tecnico_id, date, tickets, onTicketClick, cellW }: {
+  tecnico_id: number; date: string; tickets: TicketData[];
+  onTicketClick: (t: TicketData) => void; cellW: number;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `cell-${tecnico_id}-${date}`,
+    data: { tecnico_id, date },
+  });
+  return (
+    <div ref={setNodeRef} style={{
+      width: cellW, minWidth: cellW, minHeight: ROW_H, padding: "4px 3px",
+      borderRight: "1px solid #1f2937",
+      background: isOver ? "rgba(59,130,246,0.08)" : "transparent",
+      transition: "background 0.12s", overflow: "hidden",
+      display: "flex", flexDirection: "column", gap: 1,
+    }}>
+      {tickets.map((t) => <TicketBlock key={t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} />)}
+    </div>
+  );
+}
+
+// ─── MultiDayRow ──────────────────────────────────────────────────────────────
+
+function MultiDayRow({ tecnico, tickets, days, view, onTicketClick }: {
+  tecnico: TecnicoData; tickets: TicketData[]; days: Date[]; view: ViewMode; onTicketClick: (t: TicketData) => void;
+}) {
+  const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
+  return (
+    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid #1f2937" }}>
+      <TecnicoLabel tecnico={tecnico} />
+      {days.map((day) => {
+        const dateStr = format(day, "yyyy-MM-dd");
+        return (
+          <DayCell
+            key={dateStr} tecnico_id={tecnico.id} date={dateStr}
+            tickets={tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; })}
+            onTicketClick={onTicketClick} cellW={cellW}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── TicketDetailDrawer ───────────────────────────────────────────────────────
+
+function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: () => void }) {
+  const s = tipoStyle(ticket.tipo);
+  const prioColor = PRIO_COLORS[ticket.priorita] ?? "#6b7280";
+  const rows = [
+    ["Stato", ticket.stato],
+    ["Priorità", ticket.priorita],
+    ["Tipo", ticket.tipo],
+    ["Asset", ticket.asset_name || "—"],
+    ["Durata stimata", ticket.durata_stimata_ore ? `${ticket.durata_stimata_ore}h` : "—"],
+    ["Inizio pianificato", ticket.planned_start ? format(parseISO(ticket.planned_start), "dd/MM/yyyy HH:mm", { locale: it }) : "—"],
+    ["Fine pianificata", ticket.planned_finish ? format(parseISO(ticket.planned_finish), "dd/MM/yyyy HH:mm", { locale: it }) : "—"],
+  ] as const;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex" }} onClick={onClose}>
+      <div style={{ flex: 1 }} />
+      <div style={{
+        width: 360, height: "100%", background: "#111827",
+        borderLeft: "1px solid #1f2937", padding: 24, overflowY: "auto",
+        display: "flex", flexDirection: "column", gap: 16,
+      }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <span style={{ fontSize: 9, letterSpacing: "0.15em", color: s.text, background: `${s.border}22`, border: `1px solid ${s.border}`, padding: "3px 8px" }}>
+            {ticket.tipo} · #{ticket.id}
+          </span>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb", lineHeight: 1.4 }}>{ticket.titolo}</div>
+          {ticket.descrizione && <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8, lineHeight: 1.6 }}>{ticket.descrizione}</div>}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {rows.map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "8px 0", borderBottom: "1px solid #1f2937" }}>
+              <span style={{ color: "#6b7280" }}>{label}</span>
+              <span style={{ color: label === "Priorità" ? prioColor : "#f9fafb", fontWeight: 500 }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modale pianificazione manuale ────────────────────────────────────────────
+
 const SLOT_PRESETS = [
-  { label: "08:00", h: 8 },
-  { label: "09:00", h: 9 },
-  { label: "10:00", h: 10 },
-  { label: "11:00", h: 11 },
-  { label: "13:00", h: 13 },
-  { label: "14:00", h: 14 },
-  { label: "15:00", h: 15 },
-  { label: "16:00", h: 16 },
+  { label: "08:00", h: 8 }, { label: "09:00", h: 9 }, { label: "10:00", h: 10 },
+  { label: "11:00", h: 11 }, { label: "13:00", h: 13 }, { label: "14:00", h: 14 },
+  { label: "15:00", h: 15 }, { label: "16:00", h: 16 },
 ];
 
-function ModalePianificaManuale({
-  ticket,
-  tecnici,
-  onSave,
-  onClose,
-}: {
-  ticket: TicketData;
-  tecnici: TecnicoData[];
-  onSave: (ticketId: number, tecnicoId: number, data: string, plannedStart?: string, plannedFinish?: string) => void;
+function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
+  ticket: TicketData; tecnici: TecnicoData[];
+  onSave: (ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) => void;
   onClose: () => void;
 }) {
   const [tecnicoId, setTecnicoId] = useState<number>(tecnici[0]?.id ?? 0);
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
-  const [oraInizio, setOraInizio] = useState(8); // 08:00 default
+  const [oraInizio, setOraInizio] = useState(8);
   const durata = ticket.durata_stimata_ore || 1;
-
   const fineDecimale = oraInizio + durata;
-  const oraFineH = Math.floor(fineDecimale);
-  const oraFineM = Math.round((fineDecimale - oraFineH) * 60);
-  const oraFineLabel = `${String(oraFineH).padStart(2, "0")}:${String(oraFineM).padStart(2, "0")}`;
-
-  const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
-  const tipo = ticket.tipo ?? "CM";
-
-  function handleSave() {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const startStr = `${data}T${pad(oraInizio)}:00:00`;
-    const finishStr = `${data}T${oraFineLabel}:00`;
-    onSave(ticket.id, tecnicoId, data, startStr, finishStr);
-    onClose();
-  }
+  const oraFineLabel = `${String(Math.floor(fineDecimale)).padStart(2, "0")}:${String(Math.round((fineDecimale - Math.floor(fineDecimale)) * 60)).padStart(2, "0")}`;
 
   return (
-    <div style={{
-      position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.75)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 1000,
-      backdropFilter: "blur(4px)",
-    }} onClick={onClose}>
-      <div
-        style={{
-          background: "#111827",
-          border: "1px solid #1f2937",
-          borderRadius: 16,
-          padding: 28,
-          width: 420,
-          boxShadow: "0 32px 80px rgba(0,0,0,0.7)",
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 16, padding: 28, width: 420, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#f9fafb" }}>
-              Pianifica Manualmente
-            </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-              #{ticket.id} — {ticket.titolo}
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#f9fafb" }}>Pianifica Manualmente</div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>#{ticket.id} — {ticket.titolo}</div>
           </div>
-          <span style={{
-            fontSize: 10, fontWeight: 800,
-            color: tipoColor[tipo] ?? "#fcd34d",
-            background: "rgba(255,255,255,0.06)",
-            border: `1px solid ${tipoColor[tipo] ?? "#fcd34d"}44`,
-            borderRadius: 4,
-            padding: "3px 8px",
-          }}>{tipo}</span>
-        </div>
-
-        {/* Riepilogo durata */}
-        <div style={{
-          background: "#1a2332",
-          border: "1px solid #2a3748",
-          borderRadius: 8,
-          padding: "10px 14px",
-          marginBottom: 18,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>
-            Durata stimata:
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#fcd34d" }}>
-            {durata}h → {String(oraInizio).padStart(2,"0")}:00 – {oraFineLabel}
-          </span>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 20 }}>×</button>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Tecnico */}
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em" }}>
-              TECNICO
-            </label>
-            <select
-              value={tecnicoId}
-              onChange={e => setTecnicoId(Number(e.target.value))}
-              style={{
-                width: "100%",
-                background: "#1f2937",
-                border: "1px solid #374151",
-                color: "#f9fafb",
-                borderRadius: 8,
-                padding: "9px 12px",
-                fontSize: 13,
-              }}
-            >
-              {tecnici.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.nome} {t.cognome ?? ""}
-                </option>
-              ))}
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>TECNICO</label>
+            <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "#1f2937", border: "1px solid #374151", color: "#f9fafb", borderRadius: 8, padding: "9px 12px", fontSize: 13 }}>
+              {tecnici.map((t) => <option key={t.id} value={t.id}>{t.nome} {t.cognome ?? ""}</option>)}
             </select>
           </div>
-
-          {/* Data */}
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em" }}>
-              DATA
-            </label>
-            <input
-              type="date"
-              value={data}
-              onChange={e => setData(e.target.value)}
-              style={{
-                width: "100%",
-                background: "#1f2937",
-                border: "1px solid #374151",
-                color: "#f9fafb",
-                borderRadius: 8,
-                padding: "9px 12px",
-                fontSize: 13,
-                boxSizing: "border-box",
-              }}
-            />
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>DATA</label>
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "#1f2937", border: "1px solid #374151", color: "#f9fafb", borderRadius: 8, padding: "9px 12px", fontSize: 13, boxSizing: "border-box" }} />
           </div>
-
-          {/* Ora inizio con preset rapidi */}
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em" }}>
-              ORA INIZIO
-            </label>
+            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>ORA INIZIO</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-              {SLOT_PRESETS.map(p => (
-                <button
-                  key={p.h}
-                  onClick={() => setOraInizio(p.h)}
-                  style={{
-                    fontSize: 11,
-                    padding: "5px 10px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#374151"}`,
-                    background: oraInizio === p.h ? "#1e3a5f" : "#1f2937",
-                    color: oraInizio === p.h ? "#60a5fa" : "#9ca3af",
-                    fontWeight: oraInizio === p.h ? 700 : 400,
-                    transition: "all 100ms",
-                  }}
-                >
+              {SLOT_PRESETS.map((p) => (
+                <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#374151"}`, background: oraInizio === p.h ? "#1e3a5f" : "#1f2937", color: oraInizio === p.h ? "#60a5fa" : "#9ca3af", fontWeight: oraInizio === p.h ? 700 : 400 }}>
                   {p.label}
                 </button>
               ))}
             </div>
-            <input
-              type="time"
-              value={`${String(oraInizio).padStart(2, "0")}:00`}
-              onChange={e => {
-                const [h] = e.target.value.split(":");
-                setOraInizio(parseInt(h ?? "8", 10));
-              }}
-              style={{
-                width: "100%",
-                background: "#1f2937",
-                border: "1px solid #374151",
-                color: "#f9fafb",
-                borderRadius: 8,
-                padding: "9px 12px",
-                fontSize: 13,
-                boxSizing: "border-box",
-                colorScheme: "dark",
-              }}
-            />
-          </div>
-
-          {/* Badge pianificazione manuale */}
-          <div style={{
-            background: "rgba(234,179,8,0.08)",
-            border: "1px solid rgba(234,179,8,0.3)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 11,
-            color: "#eab308",
-            fontWeight: 600,
-          }}>
-            ⚡ Il ticket verrà marcato come <strong>PIANIFICATO MANUALMENTE</strong> e trattato come vincolo dall'AI
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{
-            flex: 1, background: "#1f2937",
-            border: "1px solid #374151", color: "#9ca3af",
-            borderRadius: 8, padding: "10px 0",
-            cursor: "pointer", fontSize: 13,
-          }}>Annulla</button>
+          <button onClick={onClose} style={{ flex: 1, background: "#1f2937", border: "1px solid #374151", color: "#9ca3af", borderRadius: 8, padding: "10px 0", cursor: "pointer", fontSize: 13 }}>Annulla</button>
           <button
-            onClick={handleSave}
-            style={{
-              flex: 2,
-              background: "linear-gradient(135deg, #065f46, #059669)",
-              border: "1px solid #059669",
-              color: "#ecfdf5",
-              borderRadius: 8,
-              padding: "10px 0",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 700,
-              boxShadow: "0 4px 16px rgba(5,150,105,0.3)",
+            onClick={() => {
+              const pad = (n: number) => String(n).padStart(2, "0");
+              onSave(ticket.id, tecnicoId, data, `${data}T${pad(oraInizio)}:00:00`, `${data}T${oraFineLabel}:00`);
+              onClose();
             }}
+            style={{ flex: 2, background: "linear-gradient(135deg, #065f46, #059669)", border: "1px solid #059669", color: "#ecfdf5", borderRadius: 8, padding: "10px 0", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
           >
-            ✓ Pianifica — {String(oraInizio).padStart(2,"0")}:00–{oraFineLabel}
+            ✓ Pianifica — {String(oraInizio).padStart(2, "0")}:00–{oraFineLabel}
           </button>
         </div>
       </div>
@@ -424,102 +394,80 @@ function ModalePianificaManuale({
   );
 }
 
-// ── Pagina principale ──────────────────────────────────────────────────────────
-export default function PlanningPage() {
-  const [piano, setPiano] = useState<GeneratedPlan | null>(null);
-  const [tickets, setTickets] = useState<TicketData[]>([]);
+// ─── Pagina principale ────────────────────────────────────────────────────────
+
+export default function PianificazionePage() {
+  // Gantt state
+  const [view, setView] = useState<ViewMode>("week");
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
-  const [vistaAttiva, setVistaAttiva] = useState<VistaAttiva>("settimanale");
-  const [modalita, setModalita] = useState<Modalita>("ai");
-  const [weekStart, setWeekStart] = useState<Date>(() => {
-    // Lunedì della settimana corrente
-    const d = new Date();
-    const dow = d.getDay();
-    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-    d.setHours(0, 0, 0, 0);
-    return d;
-  });
-  const [selectedMese, setSelectedMese] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [scheduledTickets, setScheduledTickets] = useState<TicketData[]>([]);
+  const [unscheduledTickets, setUnscheduledTickets] = useState<TicketData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [draggingTicket, setDraggingTicket] = useState<TicketData | null>(null);
+  const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
+  const [filterTipo, setFilterTipo] = useState("");
+  const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
+
+  // Piano AI state
+  const [piano, setPiano] = useState<GeneratedPlan | null>(null);
   const [generando, setGenerando] = useState(false);
   const [confermando, setConfermando] = useState(false);
-  const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
-  const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
-  const [valutando, setValutando] = useState(false);
-  const [valutazioneScore, setValutazioneScore] = useState<number | null>(null);
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [storico, setStorico] = useState<GeneratedPlan[]>([]);
 
-  // ── Mappe per lookup O(1) ──────────────────────────────────────────────────
-  const ticketMap = useMemo(
-    () => new Map(tickets.map(t => [t.id, t])),
-    [tickets]
-  );
-  const tecnicoMap = useMemo(
-    () => new Map(tecnici.map(t => [t.id, t])),
-    [tecnici]
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  // ── Statistiche backlog ────────────────────────────────────────────────────
-  const backlogStats = useMemo(() => {
-    const open = tickets.filter(t => t.stato === "Aperto" || t.stato === "Pianificato");
-    const totalOre = open.reduce((s, t) => s + (t.durata_stimata_ore ?? 0), 0);
-    const bd = open.filter(t => t.tipo === "BD");
-    const pm = open.filter(t => t.tipo === "PM");
-    const cm = open.filter(t => t.tipo !== "BD" && t.tipo !== "PM");
-    const bdOre = bd.reduce((s, t) => s + (t.durata_stimata_ore ?? 0), 0);
-    const pmOre = pm.reduce((s, t) => s + (t.durata_stimata_ore ?? 0), 0);
-    const cmOre = cm.reduce((s, t) => s + (t.durata_stimata_ore ?? 0), 0);
-    return {
-      total: open.length, totalOre,
-      bd: { count: bd.length, ore: bdOre, pct: open.length ? (bd.length / open.length) * 100 : 0 },
-      pm: { count: pm.length, ore: pmOre, pct: open.length ? (pm.length / open.length) * 100 : 0 },
-      cm: { count: cm.length, ore: cmOre, pct: open.length ? (cm.length / open.length) * 100 : 0 },
-    };
-  }, [tickets]);
-
-  // ── Dati piano ────────────────────────────────────────────────────────────
+  // ── Dati piano ──────────────────────────────────────────────────────────────
   const planJson = piano?.plan_json ?? null;
-  const plannedWOs: PlannedWO[] = planJson?.planned_workorders ?? [];
-  const deferredWOs: DeferredWO[] = planJson?.deferred_workorders ?? [];
   const effScore: number | undefined = planJson?.efficiency_score;
   const effBreakdown: EfficiencyBreakdown | undefined = planJson?.efficiency_breakdown;
-  const effMotivations: EfficiencyMotivation[] = planJson?.efficiency_motivations ?? [];
-  const globalWarnings: string[] = planJson?.global_warnings ?? [];
 
-  // ── Caricamento dati ───────────────────────────────────────────────────────
+  // ── Statistiche backlog ─────────────────────────────────────────────────────
+  const tipoCounts = useMemo(() => {
+    const counts = { BD: 0, PM: 0, CM: 0 };
+    unscheduledTickets.forEach((t) => {
+      if (t.tipo in counts) counts[t.tipo as keyof typeof counts]++;
+    });
+    return counts;
+  }, [unscheduledTickets]);
+
+  // ── Caricamento dati ────────────────────────────────────────────────────────
   const loadStorico = useCallback(async () => {
     try {
       const res = await apiGet<GeneratedPlan[]>("/planning/history").catch(() => []);
       setStorico(res ?? []);
-    } catch {
-      // ignora errori storico silenziosamente
-    }
+    } catch { /* silenzioso */ }
   }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [planRes, ticketsRes, tecniciRes] = await Promise.all([
-        apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
-        apiGet<{ items: TicketData[] }>("/tickets?stato=Aperto,Pianificato&limit=200"),
+      const [tecniciRes, pianRes, inCorsoRes, apertiRes, planRes] = await Promise.all([
         apiGet<TecnicoAPI[]>("/tecnici"),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Pianificato"),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=100&stato=In%20corso"),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto"),
+        apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
       ]);
+
+      setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));
+      const scheduled = [
+        ...pianRes.items.filter((t) => t.planned_start != null),
+        ...inCorsoRes.items.filter((t) => t.planned_start != null),
+      ];
+      setScheduledTickets(scheduled);
+      setUnscheduledTickets(apertiRes.items.filter((t) => t.planned_start == null));
       setPiano(planRes);
-      setTickets(ticketsRes?.items ?? []);
-      setTecnici((tecniciRes ?? []).map(t => ({ ...t, competenze: t.skill ?? "" })));
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore caricamento dati planning");
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadStorico(); }, [loadStorico]);
+  useEffect(() => { loadData(); loadStorico(); }, [loadData, loadStorico]);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // Ricarica i ticket quando la pagina torna in focus (es. utente era su /ticket e ha cambiato stati)
   useEffect(() => {
     function onVisibilityChange() {
       if (document.visibilityState === "visible") loadData();
@@ -528,837 +476,381 @@ export default function PlanningPage() {
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [loadData]);
 
-  // ── Genera piano AI ────────────────────────────────────────────────────────
+  // ── Genera piano AI ─────────────────────────────────────────────────────────
   async function generateAIPlan() {
     setGenerando(true);
     try {
-      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number; score_improved?: boolean }>(
-        "/planning/generate", { days: 7, mode: engineMode }
-      );
+      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", { days: 7, mode: engineMode });
       const newScore = (res.plan_json as any)?.efficiency_score as number | undefined;
       const prevScore = res.previous_efficiency_score;
-
-      // Confronto con piano confermato precedente
       if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
-        toast.warning(
-          `Piano AI generato (score: ${Math.round(newScore)}) — inferiore al piano precedente (${Math.round(prevScore)}). Puoi modificarlo manualmente o scartarlo.`,
-          { duration: 8000 }
-        );
+        notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
       } else {
-        toast.success(
-          newScore !== undefined
-            ? `Piano AI generato — score ${Math.round(newScore)}`
-            : "Piano AI generato con successo"
-        );
+        notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
       }
-      // Strip extra fields from GeneratedPlan to avoid TypeScript issues
-      const { previous_efficiency_score: _p, score_improved: _s, ...cleanRes } = res as any;
+      const { previous_efficiency_score: _p, ...cleanRes } = res as any;
       setPiano(cleanRes as GeneratedPlan);
-      setValutazioneScore(null);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore generazione piano AI");
+      await loadData(); // aggiorna il Gantt con i ticket ora pianificati
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore generazione piano AI");
     } finally {
       setGenerando(false);
     }
   }
 
-  // ── Valutazione piano manuale ──────────────────────────────────────────────
-  async function valutaPianoManuale() {
-    setValutando(true);
-    try {
-      const res = await apiPost<{
-        efficiency_score: number;
-        efficiency_breakdown: Record<string, number>;
-        efficiency_motivations: any[];
-        ticket_pianificati: number;
-        ticket_aperti: number;
-      }>("/planning/evaluate", {});
-      setValutazioneScore(res.efficiency_score);
-      toast.success(
-        `Valutazione completata — Score: ${Math.round(res.efficiency_score)} · ${res.ticket_pianificati} pianificati, ${res.ticket_aperti} aperti`,
-        { duration: 6000 }
-      );
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore valutazione piano");
-    } finally {
-      setValutando(false);
-    }
-  }
-
-  // ── Conferma piano ─────────────────────────────────────────────────────────
+  // ── Conferma piano ──────────────────────────────────────────────────────────
   async function confirmPlan() {
     if (!piano) return;
     setConfermando(true);
     try {
-      const confirmedPlan = await apiPost<GeneratedPlan>(`/planning/confirm/${piano.id}`);
-      // Ricarica tickets aggiornati (stato → Pianificato, tecnico_id assegnato)
-      const ticketsRes = await apiGet<{ items: TicketData[] }>(
-        "/tickets?stato=Aperto,Pianificato&limit=200"
-      );
-      setTickets(ticketsRes?.items ?? []);
-      const nAgg = plannedWOs.filter(w => !w.is_continuation).length;
-      // Mantieni il piano visibile (solo status aggiornato) — le viste restano popolate
-      setPiano(confirmedPlan ?? { ...piano, status: "confirmed" });
-      toast.success(`Piano confermato — ${nAgg} ticket aggiornati`);
+      const confirmed = await apiPost<GeneratedPlan>(`/planning/confirm/${piano.id}`);
+      setPiano(confirmed ?? { ...piano, status: "confirmed" });
+      notify.success("Piano confermato");
+      await loadData();
       loadStorico();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore conferma piano");
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore conferma piano");
     } finally {
       setConfermando(false);
     }
   }
 
-  // ── Assegnazione manuale ───────────────────────────────────────────────────
-  async function savePianificazioneManuale(
-    ticketId: number,
-    tecnicoId: number,
-    data: string,
-    plannedStart?: string,
-    plannedFinish?: string,
-  ) {
+  // ── Pianificazione manuale ──────────────────────────────────────────────────
+  async function savePianificazioneManuale(ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) {
     try {
       await apiPut(`/tickets/${ticketId}`, {
         tecnico_id: tecnicoId,
-        planned_start: plannedStart ?? `${data}T08:00:00`,
-        planned_finish: plannedFinish ?? `${data}T17:00:00`,
+        planned_start: start ?? `${data}T08:00:00`,
+        planned_finish: finish ?? `${data}T17:00:00`,
         stato: "Pianificato",
         is_manual_plan: true,
       });
-      toast.success(`Ticket #${ticketId} pianificato manualmente`);
+      notify.success(`Ticket #${ticketId} pianificato`);
       loadData();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore salvataggio");
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore salvataggio");
     }
   }
 
-  // ── Sposta ticket nel piano (DnD calendario settimanale) ───────────────────
-  async function moveTicket(
-    woId: number,
-    newDate: string,
-    startHour: number,
-    startMinute: number,
-    tecnicoId?: number,
-  ) {
-    // Aggiornamento ottimistico del piano locale
-    setPiano(prev => {
-      if (!prev?.plan_json) return prev;
-      const durH = (() => {
-        const wo = prev.plan_json.planned_workorders.find(w => w.wo_id === woId);
-        return wo?.duration_hours ?? 2;
-      })();
-      const endH = startHour + Math.floor((startMinute + durH * 60) / 60);
-      const endM = Math.round((startMinute + durH * 60) % 60);
-      const newStart = `${String(startHour).padStart(2,"0")}:${String(startMinute).padStart(2,"0")}`;
-      const newEnd = `${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}`;
-
-      const newWOs = prev.plan_json.planned_workorders.map(wo =>
-        wo.wo_id !== woId ? wo : {
-          ...wo,
-          planned_date: newDate,
-          planned_start_time: newStart,
-          planned_end_time: newEnd,
-          time_slot: `${newStart}-${newEnd}`,
-          ...(tecnicoId ? { technician_id: tecnicoId } : {}),
-        }
-      );
-      return { ...prev, plan_json: { ...prev.plan_json, planned_workorders: newWOs } };
-    });
-
-    try {
-      await apiPost("/planning/move-ticket", {
-        ticket_id: woId,
-        new_date: newDate,
-        new_start_hour: startHour,
-        new_start_minute: startMinute,
-        ...(tecnicoId ? { tecnico_id: tecnicoId } : {}),
-      });
-      loadData();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore spostamento ticket");
-      loadData(); // ripristina stato reale
-    }
+  // ── DnD: drag start ─────────────────────────────────────────────────────────
+  function handleDragStart(event: DragStartEvent) {
+    const ticket = (event.active.data.current as { ticket?: TicketData })?.ticket;
+    if (ticket) setDraggingTicket(ticket);
   }
 
-  // ── Riassegna tecnico (doppio clic nel calendario) ─────────────────────────
-  async function reassignTecnico(woId: number, newTecnicoId: number) {
-    try {
-      await apiPost("/planning/move-ticket", {
-        ticket_id: woId,
-        tecnico_id: newTecnicoId,
-      });
-      toast.success(`Ticket #${woId} riassegnato`);
-      loadData();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore riassegnazione");
-    }
-  }
-
-  // ── DnD: gestione drop su slot del calendario settimanale ────────────────
-  function handleDragEnd(event: DragEndEvent) {
-    setActiveDragId(null);
+  // ── DnD: drag end ───────────────────────────────────────────────────────────
+  async function handleDragEnd(event: DragEndEvent) {
+    setDraggingTicket(null);
     const { active, over } = event;
     if (!over) return;
+    const ticket = (active.data.current as { ticket?: TicketData })?.ticket;
+    if (!ticket) return;
+    const dropData = over.data.current as { tecnico_id: number; date: string };
 
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    if (!overId.startsWith("slot||")) return;
-
-    // Parsing ID slot: "slot||YYYY-MM-DD||slotIndex"
-    const parts = overId.split("||");
-    const dateStr = parts[1];
-    const slotIdx = Number(parts[2]);
-    if (!dateStr || isNaN(slotIdx)) return;
-
-    // Orario start dal slot index (ogni slot = 30 min, da 08:00)
-    const totalMinutes = slotIdx * 30;
-    const startHour = 8 + Math.floor(totalMinutes / 60);
-    const startMinute = totalMinutes % 60;
-
-    if (activeId.startsWith("ticket-")) {
-      // Ticket dal pannello manuale sinistro → inserimento nel piano
-      const ticketId = Number(activeId.replace("ticket-", ""));
-      const ticket = ticketMap.get(ticketId);
-      if (!ticket) return;
-      const dur = ticket.durata_stimata_ore ?? 2;
-      const totalEndMin = totalMinutes + dur * 60;
-      const endH = 8 + Math.floor(totalEndMin / 60);
-      const endM = Math.round(totalEndMin % 60);
-      const startStr = `${dateStr}T${String(startHour).padStart(2,"0")}:${String(startMinute).padStart(2,"0")}:00`;
-      const finishStr = `${dateStr}T${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}:00`;
-      const firstTecnico = tecnici[0];
-      if (firstTecnico) {
-        savePianificazioneManuale(ticketId, firstTecnico.id, dateStr, startStr, finishStr);
-      } else {
-        // Nessun tecnico → apri modale
-        setTicketDaPianificare(ticket);
+    let newHour = 8;
+    let newMinute = 0;
+    if (view === "day") {
+      const droppableRect = over.rect;
+      const draggedRect = event.active.rect.current.translated;
+      if (draggedRect && droppableRect) {
+        const relX = Math.max(0, draggedRect.left - droppableRect.left);
+        const totalMin = (relX / HOUR_W) * 60;
+        const rounded = Math.round(totalMin / 30) * 30;
+        newHour = clamp(DAY_START_H + Math.floor(rounded / 60), DAY_START_H, DAY_END_H - 1);
+        newMinute = rounded % 60;
       }
-    } else if (activeId.startsWith("wo||")) {
-      // WO già nel piano → spostamento
-      const woId = Number(activeId.replace("wo||", ""));
-      if (woId) moveTicket(woId, dateStr, startHour, startMinute);
+    }
+
+    // Se il ticket non ha un tecnico assegnato e viene droppato → pianificazione manuale
+    if (!ticket.tecnico_id || ticket.stato === "Aperto") {
+      savePianificazioneManuale(ticket.id, dropData.tecnico_id, dropData.date,
+        `${dropData.date}T${String(newHour).padStart(2,"0")}:${String(newMinute).padStart(2,"0")}:00`,
+        `${dropData.date}T${String(newHour + (ticket.durata_stimata_ore || 1)).padStart(2,"0")}:00:00`
+      );
+      return;
+    }
+
+    try {
+      await apiPost("/planning/move-ticket", {
+        ticket_id: ticket.id,
+        new_date: dropData.date,
+        new_start_hour: newHour,
+        new_start_minute: newMinute,
+        tecnico_id: dropData.tecnico_id,
+      });
+      notify.success(`Ticket #${ticket.id} spostato`);
+      await loadData();
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore spostamento ticket");
     }
   }
 
-  // ── Ticket non pianificati nell'AI (backlog del piano) ────────────────────
-  const nonPianificatiEnriched = useMemo(
-    () => deferredWOs.map(d => ({
-      ...d,
-      ticket: ticketMap.get(d.wo_id),
-    })),
-    [deferredWOs, ticketMap]
-  );
-
-  // ── Sensor DnD (deve stare prima di qualsiasi early return) ──────────────
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
-
-  // ── Ticket da mostrare nel pannello sinistro in modalità manuale ──────────
-  // In modalità manuale mostra TUTTI i ticket (non solo quelli rimandati dall'AI)
-  const ticketsPerPannelloManuale = useMemo(() => {
-    return tickets
-      .filter(t => t.stato === "Aperto" || t.stato === "Pianificato")
-      .sort((a, b) => {
-        const pScore = { Alta: 3, Media: 2, Bassa: 1 };
-        const pa = pScore[a.priorita as keyof typeof pScore] ?? 1;
-        const pb = pScore[b.priorita as keyof typeof pScore] ?? 1;
-        if (pb !== pa) return pb - pa;
-        const tScore = { BD: 3, CM: 2, PM: 1 };
-        return (tScore[b.tipo as keyof typeof tScore] ?? 1) - (tScore[a.tipo as keyof typeof tScore] ?? 1);
-      });
-  }, [tickets]);
-
-  if (loading) {
-    return (
-      <div style={{
-        background: "#0a0f1e", minHeight: "100vh",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: "#9ca3af", fontSize: 14,
-      }}>
-        Caricamento piano in corso...
-      </div>
-    );
+  // ── Navigazione data ────────────────────────────────────────────────────────
+  function navigate(dir: 1 | -1) {
+    const delta = view === "day" ? 1 : view === "week" ? 7 : 14;
+    setCurrentDate((d) => (dir === 1 ? addDays(d, delta) : subDays(d, delta)));
   }
 
-  return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={e => setActiveDragId(String(e.active.id))}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveDragId(null)}
-    >
-    <div style={{
-      background: "#0a0f1e",
-      minHeight: "100vh",
-      color: "#f9fafb",
-      fontFamily: "var(--font-body, system-ui)",
-    }}>
-      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: "#111827",
-        borderBottom: "1px solid #1f2937",
-        padding: "14px 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: 12,
-      }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.5px" }}>
-            ◈ Piano di Manutenzione AI
-          </div>
-          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-            {backlogStats.total} ticket in backlog · {backlogStats.totalOre.toFixed(0)}h stimate
-          </div>
-        </div>
+  const days = getDays(currentDate, view);
+  const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
+  const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * HOUR_W : days.length * cellW);
+  const filteredUnscheduled = filterTipo ? unscheduledTickets.filter((t) => t.tipo === filterTipo) : unscheduledTickets;
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Toggle MANUALE / AI */}
-          <div style={{
-            display: "flex",
-            background: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: 8,
-            overflow: "hidden",
-          }}>
-            {(["manuale", "ai"] as Modalita[]).map(m => (
-              <button
-                key={m}
-                onClick={() => setModalita(m)}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: "none",
-                  background: modalita === m
-                    ? (m === "ai"
-                      ? "linear-gradient(135deg, #1d4ed8, #7c3aed)"
-                      : "#374151")
-                    : "transparent",
-                  color: modalita === m ? "#fff" : "#9ca3af",
-                  borderRight: m === "manuale" ? "1px solid #374151" : "none",
-                  transition: "background 150ms",
-                  boxShadow: modalita === m && m === "ai"
-                    ? "0 0 16px rgba(99,102,241,0.4)"
-                    : "none",
-                }}
-              >
-                {m === "manuale" ? "✏ Manuale" : "⚡ AI"}
+  const dateLabel =
+    view === "day"
+      ? format(days[0]!, "EEEE d MMMM yyyy", { locale: it })
+      : `${format(days[0]!, "d MMM", { locale: it })} – ${format(days[days.length - 1]!, "d MMM yyyy", { locale: it })}`;
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0a0f1e", fontFamily: "'IBM Plex Mono', monospace", color: "#f9fafb" }}>
+
+        {/* ── TOOLBAR ── */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+          borderBottom: "1px solid #1f2937", background: "#111827",
+          flexShrink: 0, flexWrap: "wrap",
+        }}>
+          {/* View toggle */}
+          <div style={{ display: "flex", border: "1px solid #374151", borderRadius: 4, overflow: "hidden" }}>
+            {(["day", "week", "2week"] as ViewMode[]).map((v, i, arr) => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: "5px 10px", fontSize: 10, letterSpacing: "0.1em",
+                background: view === v ? "#3b82f6" : "transparent",
+                color: view === v ? "#fff" : "#9ca3af",
+                border: "none", borderRight: i < arr.length - 1 ? "1px solid #374151" : "none",
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+                {v === "day" ? "GIORNO" : v === "week" ? "SETTIMANA" : "2 SETT."}
               </button>
             ))}
           </div>
 
-          {/* Toggle engine: Deterministico / AI GPT */}
-          {modalita === "ai" && (
-            <div style={{
-              display: "flex",
-              background: "#1f2937",
-              border: "1px solid #374151",
-              borderRadius: 8,
-              overflow: "hidden",
-              fontSize: 11,
-            }}>
-              {(["deterministic", "ai"] as EngineMode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setEngineMode(m)}
-                  title={m === "deterministic" ? "Motore deterministico — istantaneo, nessuna API" : "Motore GPT — richiede OpenAI, più lento"}
-                  style={{
-                    padding: "7px 12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    borderRight: m === "deterministic" ? "1px solid #374151" : "none",
-                    background: engineMode === m
-                      ? (m === "ai" ? "linear-gradient(135deg,#1d4ed8,#7c3aed)" : "#065f46")
-                      : "transparent",
-                    color: engineMode === m ? "#fff" : "#6b7280",
-                    transition: "background 150ms",
-                  }}
-                >
-                  {m === "deterministic" ? "⚙ Engine" : "🤖 GPT"}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Bottone Ricarica dati */}
-          <button
-            onClick={loadData}
-            disabled={loading}
-            title="Ricarica ticket dal server"
-            style={{
-              background: "transparent",
-              border: "1px solid #374151",
-              color: "#6b7280",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 14,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? "…" : "↻"}
-          </button>
-
-          {/* Bottone Diagnostica DB */}
-          <button
-            onClick={async () => {
-              try {
-                const s = await apiGet<any>("/planning/status");
-                const lines = [
-                  `tenant_id: ${s.tenant_id ?? "null"}`,
-                  `ticket pianificabili: ${s.ticket_pianificabili}`,
-                  `tecnici in servizio: ${s.tecnici_in_servizio}`,
-                  `OpenAI key: ${s.has_openai_key ? "sì" : "no"}`,
-                  `ultimo piano: #${s.ultimo_piano_id ?? "-"} (${s.ultimo_piano_status ?? "-"})`,
-                  `stati ticket: ${JSON.stringify(s.ticket_per_stato)}`,
-                ];
-                toast.info(lines.join(" | "), { duration: 10000 });
-              } catch (e: any) {
-                toast.error("Diagnostica fallita: " + (e?.message ?? "err"));
-              }
-            }}
-            title="Diagnostica: verifica ticket e tecnici nel DB"
-            style={{
-              background: "transparent",
-              border: "1px solid #374151",
-              color: "#6b7280",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            🔍 DB
-          </button>
-
-          {/* Bottone Valutazione Piano — solo in modalità manuale */}
-          {modalita === "manuale" && (
-            <button
-              onClick={valutaPianoManuale}
-              disabled={valutando}
-              style={{
-                background: valutando ? "#1f2937" : "#065f46",
-                border: "1px solid #059669",
-                color: valutando ? "#6b7280" : "#86efac",
-                borderRadius: 8,
-                padding: "9px 14px",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: valutando ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              {valutando ? "Valutando..." : (
-                valutazioneScore !== null
-                  ? `📊 Score: ${Math.round(valutazioneScore)}`
-                  : "📊 Valutazione Piano"
-              )}
-            </button>
-          )}
-
-          {/* Bottone Genera AI */}
-          {modalita === "ai" && (
-            <button
-              onClick={generateAIPlan}
-              disabled={generando}
-              style={{
-                background: generando
-                  ? "#1f2937"
-                  : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-                border: "none",
-                color: "#fff",
-                borderRadius: 8,
-                padding: "9px 18px",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: generando ? "not-allowed" : "pointer",
-                boxShadow: generando ? "none" : "0 0 20px rgba(99,102,241,0.4)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                transition: "filter 150ms",
-              }}
-              onMouseEnter={e => {
-                if (!generando) (e.currentTarget as HTMLElement).style.filter = "brightness(1.1)";
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.filter = "";
-              }}
-            >
-              {generando ? (
-                <>
-                  <span style={{
-                    display: "inline-block",
-                    width: 14, height: 14,
-                    border: "2px solid #ffffff44",
-                    borderTop: "2px solid #fff",
-                    borderRadius: "50%",
-                    animation: "spin 0.8s linear infinite",
-                  }} />
-                  Elaborazione...
-                </>
-              ) : (
-                <>⚡ Genera Piano AI</>
-              )}
-            </button>
-          )}
-
-          {/* Bottone Conferma — visibile solo se c'è un draft */}
-          {piano && piano.status === "draft" && (
-            <button
-              onClick={confirmPlan}
-              disabled={confermando}
-              style={{
-                background: confermando ? "#1f2937" : "#065f46",
-                border: "1px solid #059669",
-                color: "#86efac",
-                borderRadius: 8,
-                padding: "9px 18px",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: confermando ? "not-allowed" : "pointer",
-              }}
-            >
-              {confermando ? "Confermando..." : "✓ Conferma Piano"}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── BODY ───────────────────────────────────────────────────────────── */}
-      <div style={{
-        display: "flex",
-        gap: 0,
-        height: "calc(100vh - 73px)",
-      }}>
-        {/* ── COLONNA SINISTRA (backlog + non pianificati) ──────────────────── */}
-        <div style={{
-          width: 300,
-          flexShrink: 0,
-          background: "#111827",
-          borderRight: "1px solid #1f2937",
-          display: "flex",
-          flexDirection: "column",
-          overflowY: "auto",
-        }}>
-          {/* Backlog status */}
-          <div style={{
-            padding: "16px 16px 0",
-            borderTop: "2px solid #3b82f6",
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 14 }}>
-              BACKLOG
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <BacklogBar
-                label="BD — Guasti"
-                count={backlogStats.bd.count}
-                ore={backlogStats.bd.ore}
-                color="linear-gradient(90deg, #ef4444, #fca5a5)"
-                borderColor="#ef4444"
-                percent={Math.round(backlogStats.bd.pct)}
-              />
-              <BacklogBar
-                label="PM — Preventiva"
-                count={backlogStats.pm.count}
-                ore={backlogStats.pm.ore}
-                color="linear-gradient(90deg, #22c55e, #86efac)"
-                borderColor="#22c55e"
-                percent={Math.round(backlogStats.pm.pct)}
-              />
-              <BacklogBar
-                label="CM — Correttiva"
-                count={backlogStats.cm.count}
-                ore={backlogStats.cm.ore}
-                color="linear-gradient(90deg, #f59e0b, #fcd34d)"
-                borderColor="#f59e0b"
-                percent={Math.round(backlogStats.cm.pct)}
-              />
-            </div>
+          {/* Date nav */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid #374151", color: "#9ca3af", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>‹</button>
+            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid #374151", color: "#9ca3af", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}>OGGI</button>
+            <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid #374151", color: "#9ca3af", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>›</button>
           </div>
 
-          {/* Avvisi globali */}
-          {globalWarnings.length > 0 && (
-            <div style={{ padding: "12px 16px", borderTop: "1px solid #1f2937", marginTop: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>
-                AVVISI GLOBALI
-              </div>
-              {globalWarnings.map((w, i) => (
-                <div key={i} style={{ fontSize: 11, color: "#f59e0b", marginBottom: 4 }}>⚠ {w}</div>
-              ))}
-            </div>
+          <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 600, textTransform: "capitalize" }}>{dateLabel}</span>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Efficienza badge compatta */}
+          {effScore !== undefined && (
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 4,
+              background: effScore >= 80 ? "#14532d44" : effScore >= 60 ? "#78350f44" : "#7f1d1d44",
+              color: effScore >= 80 ? "#86efac" : effScore >= 60 ? "#fcd34d" : "#fca5a5",
+              border: `1px solid ${effScore >= 80 ? "#22c55e44" : effScore >= 60 ? "#f59e0b44" : "#ef444444"}`,
+            }}>
+              ◈ Score {Math.round(effScore)}
+            </span>
           )}
 
-          {/* Divider */}
-          <div style={{ height: 1, background: "#1f2937", margin: "16px 0 0" }} />
+          {/* Piano status badge */}
+          {piano && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 3,
+              background: piano.status === "draft" ? "#1e3a5f" : "#065f46",
+              color: piano.status === "draft" ? "#60a5fa" : "#86efac",
+              border: `1px solid ${piano.status === "draft" ? "#3b82f644" : "#22c55e44"}`,
+            }}>
+              {piano.status === "draft" ? "BOZZA" : "CONFERMATO"}
+            </span>
+          )}
 
-          {/* Pannello ticket — contenuto diverso per manuale vs AI */}
-          <div style={{ flex: 1, padding: "12px 16px", overflowY: "auto" }}>
-            {modalita === "manuale" ? (
-              <>
-                <div style={{
-                  fontSize: 11, fontWeight: 700, color: "#6b7280",
-                  letterSpacing: "0.08em", marginBottom: 4,
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
-                  <span>TICKET DA PIANIFICARE</span>
-                  <span style={{
-                    background: "#1e3a5f44", color: "#60a5fa",
-                    border: "1px solid #3b82f655",
-                    borderRadius: 3, padding: "1px 6px",
-                  }}>{ticketsPerPannelloManuale.length}</span>
-                </div>
-                <div style={{ fontSize: 10, color: "#4b5563", marginBottom: 10 }}>
-                  Trascina sul Gantt o clicca ✏ Pianifica
-                </div>
-                {ticketsPerPannelloManuale.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "#374151", textAlign: "center", padding: "20px 0" }}>
-                    Nessun ticket aperto o pianificato
-                  </div>
-                ) : (
-                  ticketsPerPannelloManuale.map(ticket => (
-                    <DraggableTicket
-                      key={ticket.id}
-                      ticket={ticket}
-                      onClickPlan={setTicketDaPianificare}
-                    />
-                  ))
-                )}
-              </>
-            ) : (
-              <>
-                <div style={{
-                  fontSize: 11, fontWeight: 700, color: "#6b7280",
-                  letterSpacing: "0.08em", marginBottom: 12,
-                  display: "flex", justifyContent: "space-between",
-                }}>
-                  <span>NON PIANIFICATI</span>
-                  {nonPianificatiEnriched.length > 0 && (
-                    <span style={{
-                      background: "#7f1d1d44", color: "#fca5a5",
-                      border: "1px solid #ef444455",
-                      borderRadius: 3, padding: "1px 6px",
+          <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {scheduledTickets.length} pianificati</span>
+
+          {/* Engine toggle */}
+          <div style={{ display: "flex", border: "1px solid #374151", borderRadius: 4, overflow: "hidden", fontSize: 10 }}>
+            {(["deterministic", "ai"] as EngineMode[]).map((m, i) => (
+              <button key={m} onClick={() => setEngineMode(m)} title={m === "deterministic" ? "Motore deterministico — istantaneo" : "Motore GPT — richiede OpenAI"} style={{
+                padding: "5px 10px", fontWeight: 600, cursor: "pointer", border: "none",
+                borderRight: i === 0 ? "1px solid #374151" : "none",
+                background: engineMode === m ? (m === "ai" ? "linear-gradient(135deg,#1d4ed8,#7c3aed)" : "#065f46") : "transparent",
+                color: engineMode === m ? "#fff" : "#6b7280", fontFamily: "inherit",
+              }}>
+                {m === "deterministic" ? "⚙ Engine" : "🤖 GPT"}
+              </button>
+            ))}
+          </div>
+
+          {/* Genera Piano AI */}
+          <button onClick={generateAIPlan} disabled={generando} style={{
+            background: generando ? "#1f2937" : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
+            border: "none", color: "#fff", borderRadius: 6, padding: "6px 14px",
+            fontSize: 12, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer",
+            boxShadow: generando ? "none" : "0 0 14px rgba(99,102,241,0.4)",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            {generando ? (
+              <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Elaborazione...</>
+            ) : "⚡ Genera Piano AI"}
+          </button>
+
+          {/* Conferma piano */}
+          {piano?.status === "draft" && (
+            <button onClick={confirmPlan} disabled={confermando} style={{
+              background: confermando ? "#1f2937" : "#065f46", border: "1px solid #059669",
+              color: "#86efac", borderRadius: 6, padding: "6px 14px",
+              fontSize: 12, fontWeight: 700, cursor: confermando ? "not-allowed" : "pointer",
+            }}>
+              {confermando ? "Confermando..." : "✓ Conferma"}
+            </button>
+          )}
+
+          {/* Refresh */}
+          <button onClick={loadData} disabled={loading} title="Aggiorna" style={{
+            background: "transparent", border: "1px solid #374151", color: "#9ca3af",
+            width: 28, height: 28, cursor: "pointer", fontSize: 14, opacity: loading ? 0.5 : 1,
+          }}>↻</button>
+        </div>
+
+        {/* ── BODY ── */}
+        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+          {/* ── SIDEBAR sinistra ── */}
+          <div style={{
+            width: 256, minWidth: 256, borderRight: "1px solid #1f2937",
+            background: "#111827", display: "flex", flexDirection: "column", overflow: "hidden",
+          }}>
+            {/* Header sidebar */}
+            <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid #1f2937", flexShrink: 0 }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#6b7280", marginBottom: 8 }}>NON PIANIFICATI</div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                {(["", "BD", "PM", "CM"] as const).map((tipo) => {
+                  const color = tipo === "BD" ? "#ef4444" : tipo === "PM" ? "#22c55e" : tipo === "CM" ? "#f59e0b" : "#6b7280";
+                  const cnt = tipo ? tipoCounts[tipo] : unscheduledTickets.length;
+                  return (
+                    <button key={tipo || "all"} onClick={() => setFilterTipo(tipo)} style={{
+                      fontSize: 9, padding: "2px 7px",
+                      background: filterTipo === tipo ? `${color}22` : "transparent",
+                      border: `1px solid ${color}`, color, borderRadius: 3, cursor: "pointer", fontFamily: "inherit",
                     }}>
-                      {nonPianificatiEnriched.length}
-                    </span>
-                  )}
+                      {tipo || "TUTTI"} ({cnt})
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 10, color: "#4b5563" }}>Trascina sulla timeline o clicca per pianificare →</div>
+            </div>
+
+            {/* Lista ticket non pianificati */}
+            <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
+              {loading ? (
+                <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Caricamento...</div>
+              ) : filteredUnscheduled.length === 0 ? (
+                <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Nessun ticket da pianificare</div>
+              ) : (
+                filteredUnscheduled.map((t) => (
+                  <UnscheduledItem key={t.id} ticket={t} onClick={() => setTicketDaPianificare(t)} />
+                ))
+              )}
+            </div>
+
+            {/* Efficienza breakdown compatto — se piano esiste */}
+            {effScore !== undefined && effBreakdown && (
+              <div style={{ borderTop: "1px solid #1f2937", padding: "12px 12px 16px", flexShrink: 0 }}>
+                <BadgeEfficienza score={effScore} breakdown={effBreakdown} />
+              </div>
+            )}
+          </div>
+
+          {/* ── GANTT TIMELINE ── */}
+          <div style={{ flex: 1, overflow: "auto", position: "relative", background: "#0a0f1e" }}>
+            {loading ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#6b7280", fontSize: 13 }}>
+                Caricamento dati...
+              </div>
+            ) : (
+              <div style={{ minWidth: timelineMinW }}>
+                {/* Header colonne */}
+                <div style={{
+                  display: "flex", height: 40, borderBottom: "1px solid #1f2937",
+                  background: "#111827", position: "sticky", top: 0, zIndex: 10,
+                }}>
+                  <div style={{
+                    width: LABEL_W, minWidth: LABEL_W, display: "flex", alignItems: "center",
+                    padding: "0 14px", borderRight: "1px solid #1f2937",
+                    fontSize: 10, color: "#6b7280", letterSpacing: "0.1em",
+                    position: "sticky", left: 0, background: "#111827", zIndex: 11,
+                  }}>
+                    TECNICO
+                  </div>
+                  {view === "day"
+                    ? Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => (
+                        <div key={i} style={{ width: HOUR_W, minWidth: HOUR_W, display: "flex", alignItems: "center", paddingLeft: 6, borderRight: "1px solid #1f2937", fontSize: 10, color: "#6b7280" }}>
+                          {String(DAY_START_H + i).padStart(2, "0")}:00
+                        </div>
+                      ))
+                    : days.map((day) => {
+                        const today = isToday(day);
+                        return (
+                          <div key={day.toISOString()} style={{
+                            width: cellW, minWidth: cellW, display: "flex", flexDirection: "column",
+                            alignItems: "center", justifyContent: "center",
+                            borderRight: "1px solid #1f2937",
+                            background: today ? "rgba(59,130,246,0.07)" : "transparent",
+                          }}>
+                            <div style={{ fontSize: 9, color: today ? "#60a5fa" : "#6b7280", letterSpacing: "0.1em" }}>
+                              {format(day, "EEE", { locale: it }).toUpperCase()}
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: today ? 700 : 500, color: today ? "#60a5fa" : "#e2e8f0" }}>
+                              {format(day, "d")}
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
 
-                {nonPianificatiEnriched.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "#374151", textAlign: "center", padding: "20px 0" }}>
-                    {piano ? "Tutti i ticket sono stati pianificati ✓" : "Genera un piano per vedere i ticket non pianificati"}
-                  </div>
+                {/* Righe tecnici */}
+                {tecnici.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 13 }}>Nessun tecnico attivo trovato</div>
                 ) : (
-                  nonPianificatiEnriched.map(({ wo_id, reason, ticket }) => {
-                    const tipo = ticket?.tipo ?? "CM";
-                    const tipoBg: Record<string, string> = { BD: "#7f1d1d44", PM: "#14532d44", CM: "#78350f44" };
-                    const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
-                    return (
-                      <div key={wo_id} style={{
-                        background: "#1a2332",
-                        border: "1px solid #2a3748",
-                        borderRadius: 6,
-                        padding: "10px 10px",
-                        marginBottom: 8,
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{
-                            fontSize: 10, fontWeight: 700,
-                            background: tipoBg[tipo] ?? "#78350f44",
-                            color: tipoColor[tipo] ?? "#fcd34d",
-                            padding: "1px 5px", borderRadius: 3,
-                          }}>{tipo}</span>
-                          <span style={{ fontSize: 10, color: "#6b7280" }}>#{wo_id}</span>
-                        </div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>
-                          {ticket?.titolo ?? "—"}
-                        </div>
-                        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, fontStyle: "italic" }}>
-                          {reason}
-                        </div>
-                      </div>
-                    );
+                  tecnici.map((tecnico) => {
+                    const tickets = scheduledTickets.filter((t) => t.tecnico_id === tecnico.id);
+                    if (view === "day") {
+                      return <DayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} day={days[0]!} onTicketClick={setDetailTicket} />;
+                    }
+                    return <MultiDayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} days={days} view={view} onTicketClick={setDetailTicket} />;
                   })
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        {/* ── COLONNA DESTRA (efficienza + viste) ──────────────────────────── */}
-        <div style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflowY: "auto",
-          background: "#0a0f1e",
-        }}>
-          {/* Badge + motivazioni */}
-          {effScore !== undefined && (
-            <div style={{ padding: "16px 20px 0", display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                <div style={{ flex: "0 0 340px" }}>
-                  <BadgeEfficienza score={effScore} breakdown={effBreakdown ?? null} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <PannelloMotivazioni motivations={effMotivations} score={effScore} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Tab viste */}
-          <div style={{
-            padding: "16px 20px 0",
-            display: "flex",
-            gap: 4,
-            borderBottom: "1px solid #1f2937",
-            paddingBottom: 0,
-          }}>
-            {(["settimanale", "mensile", "rolling", "gantt"] as VistaAttiva[]).map(v => (
-              <button
-                key={v}
-                onClick={() => setVistaAttiva(v)}
-                style={{
-                  padding: "10px 18px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: "none",
-                  background: "transparent",
-                  color: vistaAttiva === v ? "#60a5fa" : "#6b7280",
-                  borderBottom: vistaAttiva === v ? "2px solid #3b82f6" : "2px solid transparent",
-                  transition: "color 150ms",
-                }}
-              >
-                {v === "settimanale" ? "Settimana" : v === "mensile" ? "Mese" : v === "rolling" ? "◈ Rolling" : "▦ Gantt"}
-              </button>
-            ))}
-
-            {/* Info piano */}
-            {piano && (
-              <div style={{
-                marginLeft: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontSize: 11,
-                color: "#6b7280",
-                paddingBottom: 10,
-              }}>
-                <span style={{
-                  background: piano.status === "draft" ? "#1e3a5f" : "#065f46",
-                  color: piano.status === "draft" ? "#60a5fa" : "#86efac",
-                  border: `1px solid ${piano.status === "draft" ? "#3b82f655" : "#22c55e55"}`,
-                  borderRadius: 3,
-                  padding: "1px 6px",
-                  fontSize: 10,
-                  fontWeight: 700,
-                }}>
-                  {piano.status === "draft" ? "BOZZA" : "CONFERMATO"}
-                </span>
-                Piano {piano.horizon_days}gg ·{" "}
-                {new Date(piano.created_at).toLocaleDateString("it-IT")}
-                {piano.scadenza && (
-                  <span style={{ color: "#9ca3af" }}>
-                    · scade{" "}
-                    <span style={{ color: new Date(piano.scadenza) < new Date() ? "#fca5a5" : "#e2e8f0", fontWeight: 600 }}>
-                      {new Date(piano.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                    </span>
-                  </span>
-                )}
-                {piano.completion_pct !== null && piano.completion_pct !== undefined && (
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 48, height: 5, background: "#1f2937", borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{
-                        width: `${Math.min(piano.completion_pct, 100)}%`,
-                        height: "100%",
-                        background: piano.completion_pct >= 80 ? "#86efac" : piano.completion_pct >= 40 ? "#fcd34d" : "#60a5fa",
-                        borderRadius: 3,
-                      }} />
-                    </div>
-                    <span style={{ color: "#9ca3af" }}>{piano.completion_pct}% chiusi</span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Vista attiva */}
-          <div style={{ flex: 1, padding: "16px 20px", overflowY: "auto" }}>
-            {vistaAttiva === "gantt" ? (
-              <div style={{ height: "calc(100vh - 220px)", margin: "0 -20px" }}>
-                <GanttRisorse />
-              </div>
-            ) : plannedWOs.length === 0 && !loading ? (
-              <div style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 300,
-                gap: 16,
-                color: "#4b5563",
-              }}>
-                <div style={{ fontSize: 40 }}>◈</div>
-                <div style={{ fontSize: 15 }}>
-                  {modalita === "ai"
-                    ? "Clicca ⚡ Genera Piano AI per creare un piano ottimizzato"
-                    : "Trascina un ticket dalla colonna sinistra nel calendario settimanale"}
-                </div>
-              </div>
-            ) : (
-              <>
-                {vistaAttiva === "settimanale" && (
-                  <KanbanSettimanale
-                    wos={plannedWOs}
-                    ticketMap={ticketMap}
-                    tecnicoMap={tecnicoMap}
-                    tecnici={tecnici}
-                    weekStart={weekStart}
-                    onWeekChange={setWeekStart}
-                    onReassignTecnico={reassignTecnico}
-                  />
-                )}
-
-                {vistaAttiva === "mensile" && (
-                  <CalendarioMensile
-                    wos={plannedWOs}
-                    ticketMap={ticketMap}
-                    mese={selectedMese}
-                    onMeseChange={setSelectedMese}
-                    onDayClick={(dateStr) => {
-                      // Vai alla settimana del giorno cliccato nella vista settimanale
-                      const d = new Date(dateStr + "T00:00:00");
-                      const dow = d.getDay();
-                      d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-                      d.setHours(0, 0, 0, 0);
-                      setWeekStart(d);
-                      setVistaAttiva("settimanale");
-                    }}
-                  />
-                )}
-
-                {vistaAttiva === "rolling" && (
-                  <RollingAnalysisPanel />
-                )}
-              </>
-            )}
-          </div>
+        {/* ── STORICO PIANI ── */}
+        <div style={{ borderTop: "1px solid #1f2937", padding: "0 16px 24px", background: "#0a0f1e", maxHeight: 320, overflowY: "auto" }}>
+          <StoricoPiani piani={storico} onRefresh={loadStorico} />
         </div>
+
+        {/* Drag overlay */}
+        <DragOverlay>
+          {draggingTicket && (() => {
+            const s = tipoStyle(draggingTicket.tipo);
+            return (
+              <div style={{
+                background: s.bg, border: `2px solid ${s.border}`, borderRadius: 6,
+                padding: "8px 12px", color: s.text, fontSize: 12, fontWeight: 600,
+                boxShadow: "0 10px 30px rgba(0,0,0,0.6)", opacity: 0.92,
+                pointerEvents: "none", userSelect: "none", minWidth: 160,
+                transform: "rotate(2deg)",
+              }}>
+                <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 3 }}>{draggingTicket.tipo} · #{draggingTicket.id}</div>
+                <div>{draggingTicket.titolo}</div>
+                <div style={{ fontSize: 10, opacity: 0.7, marginTop: 3 }}>{draggingTicket.durata_stimata_ore || 1}h</div>
+              </div>
+            );
+          })()}
+        </DragOverlay>
       </div>
 
-      {/* ── STORICO PIANI ──────────────────────────────────────────────────── */}
-      <div style={{ padding: "0 24px 32px" }}>
-        <StoricoPiani piani={storico} onRefresh={loadStorico} />
-      </div>
+      {/* Drawer dettaglio ticket */}
+      {detailTicket && <TicketDetailDrawer ticket={detailTicket} onClose={() => setDetailTicket(null)} />}
 
       {/* Modale pianificazione manuale */}
       {ticketDaPianificare && (
@@ -1371,78 +863,8 @@ export default function PlanningPage() {
       )}
 
       <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
-
-      {/* DragOverlay: card floating visibile durante il drag */}
-      <DragOverlay dropAnimation={null}>
-        {activeDragId !== null && (() => {
-          const tipoBg: Record<string, string> = { BD: "#7f1d1d", PM: "#14532d", CM: "#78350f" };
-          const tipoColor: Record<string, string> = { BD: "#fca5a5", PM: "#86efac", CM: "#fcd34d" };
-          const tipoBorder: Record<string, string> = { BD: "#ef4444", PM: "#22c55e", CM: "#f59e0b" };
-
-          let id: number | undefined;
-          let label = "";
-          let tipo = "CM";
-          let durata = 0;
-
-          if (activeDragId.startsWith("ticket-")) {
-            id = Number(activeDragId.replace("ticket-", ""));
-            const t = ticketMap.get(id);
-            tipo = t?.tipo ?? "CM";
-            label = t?.titolo ?? "—";
-            durata = t?.durata_stimata_ore ?? 0;
-          } else if (activeDragId.startsWith("wo||")) {
-            id = Number(activeDragId.replace("wo||", ""));
-            const t = id ? ticketMap.get(id) : undefined;
-            tipo = t?.tipo ?? "CM";
-            label = t?.titolo ?? `WO #${id}`;
-            durata = t?.durata_stimata_ore ?? 0;
-          }
-
-          if (!id) return null;
-          const borderCol = tipoBorder[tipo] ?? "#3b82f6";
-          return (
-            <div style={{
-              background: `${tipoBg[tipo] ?? "#1a2332"}cc`,
-              border: `2px solid ${borderCol}`,
-              borderRadius: 8,
-              padding: "10px 14px",
-              width: 240,
-              boxShadow: `0 12px 40px rgba(0,0,0,0.7), 0 0 20px ${borderCol}44`,
-              pointerEvents: "none",
-              backdropFilter: "blur(4px)",
-              transform: "rotate(2deg)",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "center" }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 800,
-                  color: tipoColor[tipo] ?? "#fcd34d",
-                  padding: "2px 7px", borderRadius: 4,
-                  background: `${tipoBg[tipo] ?? "#1a2332"}`,
-                  border: `1px solid ${borderCol}55`,
-                }}>{tipo}</span>
-                <span style={{ fontSize: 10, color: "#9ca3af" }}>#{id}</span>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", lineHeight: 1.3, marginBottom: 4 }}>
-                {label}
-              </div>
-              {durata > 0 && (
-                <div style={{ fontSize: 10, color: tipoColor[tipo] ?? "#fcd34d", fontWeight: 600 }}>
-                  {durata}h stimate
-                </div>
-              )}
-              <div style={{ fontSize: 9, color: "#60a5fa", marginTop: 6, fontWeight: 600 }}>
-                ↓ Rilascia nello slot desiderato
-              </div>
-            </div>
-          );
-        })()}
-      </DragOverlay>
-    </div>
     </DndContext>
   );
 }
