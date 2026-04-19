@@ -109,7 +109,19 @@
       "Bash(__NEW_LINE_bd0ac4d408b1d18f__ curl:*)",
       "Bash(printf '%%PDF-1.4\\\\n1:*)",
       "Bash(__NEW_LINE_207a1c2cf6990594__ curl:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(npx:*)",
+      "Bash(taskkill /F /IM cargo.exe /T)",
+      "Bash(taskkill /F /IM rustc.exe /T)",
+      "Bash(powershell -Command \"Add-MpPreference -ExclusionPath ''C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3\\\\frontend\\\\src-tauri\\\\target''\")",
+      "Bash(echo $PATH)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash(cargo --version)",
+      "Bash(export CARGO_TARGET_DIR=\"C:\\\\Temp\\\\maintai_build\")",
+      "Bash(powershell -Command \"\n\\\\$WShell = New-Object -ComObject WScript.Shell\n\\\\$Shortcut = \\\\$WShell.CreateShortcut\\('\\\\$env:USERPROFILE\\\\Desktop\\\\MaintAI Desktop.lnk'\\)\n\\\\$Shortcut.TargetPath = 'C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3\\\\launch-desktop.vbs'\n\\\\$Shortcut.WorkingDirectory = 'C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3'\n\\\\$Shortcut.IconLocation = 'C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3\\\\frontend\\\\src-tauri\\\\icons\\\\icon.ico'\n\\\\$Shortcut.Description = 'MaintAI Desktop - Gestione Manutenzione Industriale'\n\\\\$Shortcut.Save\\(\\)\nWrite-Host 'Collegamento creato'\n\")",
+      "Bash(powershell -Command \"\n\\\\$WShell = New-Object -ComObject WScript.Shell\n\\\\$Desktop = [Environment]::GetFolderPath\\('Desktop'\\)\n\\\\$Shortcut = \\\\$WShell.CreateShortcut\\(\\\\$Desktop + '\\\\MaintAI Desktop.lnk'\\)\n\\\\$Shortcut.TargetPath = 'C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3\\\\launch-desktop.vbs'\n\\\\$Shortcut.WorkingDirectory = 'C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3'\n\\\\$Shortcut.IconLocation = 'C:\\\\Users\\\\aless\\\\Desktop\\\\maintai_v3\\\\frontend\\\\src-tauri\\\\icons\\\\icon.ico'\n\\\\$Shortcut.Description = 'MaintAI Desktop - Gestione Manutenzione Industriale'\n\\\\$Shortcut.Save\\(\\)\nWrite-Host \\('Collegamento creato in: ' + \\\\$Desktop\\)\n\")",
+      "Bash(find /c/Users/aless/Desktop/maintai_v3/frontend/app/planning -name *.tsx -o -name *.ts)",
+      "Bash(find /c/Users/aless/Desktop/maintai_v3/frontend -name toast* -o -name toast.ts)"
     ]
   }
 }

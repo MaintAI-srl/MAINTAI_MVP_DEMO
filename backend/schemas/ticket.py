@@ -1,18 +1,20 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
+
+TicketStato = Literal["Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"]
 
 
 class TicketCreate(BaseModel):
-    titolo: str = Field(..., min_length=1)
+    titolo: str = Field(..., min_length=1, max_length=500)
     asset_id: Optional[int] = None
     priorita: str
     tipo: str = "CM"
-    stato: str
+    stato: TicketStato
     asset_stato: str | None = None
-    durata_stimata_ore: float = Field(..., ge=0)
+    durata_stimata_ore: float = Field(..., gt=0)
     fascia_oraria: str
-    descrizione: str | None = None
+    descrizione: str | None = Field(default=None, max_length=5000)
     tecnico_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
@@ -21,12 +23,12 @@ class TicketCreate(BaseModel):
 
 
 class TicketUpdate(BaseModel):
-    stato: str | None = None
+    stato: TicketStato | None = None
     priorita: str | None = None
     tipo: str | None = None
     asset_stato: str | None = None
     fascia_oraria: str | None = None
-    durata_stimata_ore: float | None = None
+    durata_stimata_ore: float | None = Field(default=None, gt=0)
     tecnico_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None

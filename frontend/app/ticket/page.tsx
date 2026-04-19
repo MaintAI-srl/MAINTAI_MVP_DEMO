@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
+import { API_BASE, apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { SkeletonTable } from "../components/Skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -923,7 +923,7 @@ export default function TicketPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div onClick={e => e.stopPropagation()}>
-          <a href={`/ticket/${row.original.id}/diagnostic`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
+          <a href={`/diagnostic?id=${row.original.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
             DIAGNOSTICA →
           </a>
         </div>
@@ -945,10 +945,7 @@ export default function TicketPage() {
           <button 
             type="button" 
             onClick={() => {
-              const token = localStorage.getItem("maintai_jwt");
-              const url = new URL(`${window.location.origin === "http://localhost:3000" ? "http://localhost:8000" : "https://maintai-v3.onrender.com"}/export/tickets`);
-              if (token) url.searchParams.append("token", token);
-              window.open(url.toString(), "_blank");
+              window.open(`${API_BASE}/export/tickets`, "_blank", "noopener,noreferrer");
             }}
             style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.4)", color: "#10b981", fontWeight: 600, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}
           >

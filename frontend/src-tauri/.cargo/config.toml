@@ -1,0 +1,4 @@
+[build]
+# Sposta la cartella target fuori dal progetto per evitare
+# che Windows Defender blocchi i file .o durante la compilazione.
+target-dir = "C:\\Temp\\maintai_build"

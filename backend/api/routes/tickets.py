@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 
 STATI_VALIDI = {"Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"}
 MAX_ALLEGATO_BYTES = 20 * 1024 * 1024  # 20 MB
+MAX_FIRMA_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 class BulkStatusUpdate(PydanticModel):
@@ -43,6 +44,20 @@ def _aggiorna_scadenza_piano(db: Session, ticket: Ticket):
     if att.frequenza_giorni:
         att.prossima_scadenza = ticket.execution_finish + timedelta(days=att.frequenza_giorni)
     db.commit()
+
+
+def _validate_ticket_update(data: TicketUpdate, ticket: Ticket) -> None:
+    if data.stato is not None and data.stato not in STATI_VALIDI:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Stato non valido: '{data.stato}'. Valori ammessi: {sorted(STATI_VALIDI)}",
+        )
+    if data.stato == "Pianificato" and not data.planned_start and not ticket.planned_start:
+        raise HTTPException(status_code=400, detail="Pianificazione mancante: inserire data inizio.")
+    if data.stato == "Eliminato" and (not data.eliminazione_note or len(data.eliminazione_note) < 5):
+        raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione e obbligatorio (min 5 caratteri).")
+    if data.durata_stimata_ore is not None and data.durata_stimata_ore <= 0:
+        raise HTTPException(status_code=400, detail="La durata stimata deve essere maggiore di zero.")
 
 
 @router.get("/tickets")
@@ -192,6 +207,8 @@ def patch_ticket(
     if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 
+    _validate_ticket_update(data, ticket_orm)
+
     # Validazione transizione a Pianificato
     if data.stato == "Pianificato":
         if not data.planned_start and not ticket_orm.planned_start:
@@ -225,6 +242,8 @@ def update_ticket(
     ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
     if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
+
+    _validate_ticket_update(data, ticket_orm)
 
     # Validazione transizione a Pianificato
     if data.stato == "Pianificato":
@@ -329,6 +348,7 @@ def get_ticket_allegati(ticket_id: int, db: Session = Depends(get_db), tenant_id
     ]
 
 import base64
+import binascii
 
 @router.post("/tickets/{ticket_id}/firma")
 async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
@@ -343,7 +363,19 @@ async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(
         base64_str = base64_str.split(",")[1]
 
     filename = f"firma_{ticket_id}_{uuid.uuid4().hex[:8]}.png"
-    content = base64.b64decode(base64_str)
+    try:
+        content = base64.b64decode(base64_str, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Formato firma non valido")
+
+    if not content:
+        raise HTTPException(status_code=400, detail="Immagine firma vuota")
+    if len(content) > MAX_FIRMA_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Firma troppo grande: massimo {MAX_FIRMA_BYTES // (1024*1024)} MB consentiti.",
+        )
+
     url = storage.save_file(content, filename)
 
     ticket.firma_percorso = url

@@ -1,6 +1,5 @@
-import pytest
-from datetime import datetime, date, timedelta
-from backend.db.modelli import Ticket, Asset, Tecnico
+from backend.core.security import get_password_hash
+from backend.db.modelli import Asset, Tenant, Utente
 from sqlalchemy.orm import Session
 
 def test_db_session(db_session: Session):
@@ -13,8 +12,26 @@ def test_db_session(db_session: Session):
     assert asset is not None
     assert asset.area == "Prod"
 
-def test_scheduler_api(client):
+def test_scheduler_api(client, db_session: Session):
     """Verifica l'endpoint dello scheduler (mocked)."""
+    tenant = Tenant(nome="Tenant Test", slug="tenant-test")
+    db_session.add(tenant)
+    db_session.flush()
+    user = Utente(
+        username="scheduler_test",
+        password_hash=get_password_hash("password123"),
+        ruolo="responsabile",
+        tenant_id=tenant.id,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login = client.post(
+        "/auth/login",
+        data={"username": "scheduler_test", "password": "password123"},
+    )
+    assert login.status_code == 200
+
     # Creiamo un asset e un tecnico
     response_asset = client.post("/assets", json={
         "nome": "Pressa Alpha",

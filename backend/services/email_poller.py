@@ -1,19 +1,23 @@
 import os
-import time
+import re
+import uuid
 import logging
-from datetime import datetime, timezone
+from html import unescape
 from sqlalchemy.orm import Session
 from imap_tools import MailBox, AND
 from backend.core.database import SessionLocal
-from backend.db.modelli import EmailConfig, Ticket, TicketAllegato
+from backend.db.modelli import EmailConfig, Ticket, TicketAllegato, Tenant
 from backend.core.security import decrypt_data
 from backend.core.logger_db import db_info, db_error
+from backend.core import storage
 import mimetypes
 
 from backend.services.ai.anonymization_service import anonymizer
 
 logger = logging.getLogger("email_poller")
 ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx', '.csv', '.txt'}
+MAX_EMAIL_ATTACHMENT_BYTES = 20 * 1024 * 1024  # 20 MB
+HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 # Configurazione logger (se non già configurato a livello root)
 if not logger.handlers:
@@ -23,8 +27,23 @@ if not logger.handlers:
     logger.addHandler(ch)
     logger.setLevel(logging.INFO)
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "public", "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+def _html_to_text(html: str) -> str:
+    text = HTML_TAG_RE.sub(" ", html or "")
+    return re.sub(r"\s+", " ", unescape(text)).strip()
+
+
+def _message_body_text(msg) -> str:
+    if msg.text:
+        return msg.text
+    if msg.html:
+        return _html_to_text(msg.html)
+    return "Nessun corpo del messaggio fornito."
+
+
+def _safe_attachment_name(filename: str | None) -> str:
+    raw = filename or "allegato_sconosciuto"
+    safe = "".join(c for c in raw if c.isalnum() or c in " .-_").strip(" .")
+    return safe or "allegato_sconosciuto"
 
 def parse_and_create_tickets(db: Session, config: EmailConfig):
     try:
@@ -39,15 +58,15 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
                 # 1. Parsing base
                 subject = msg.subject or "Ticket senza oggetto (da Email)"
                 # Anonymize sender and subject for security (F-13.1)
-                safe_sender = anonymizer.mask_text(msg.from_)
+                safe_sender = anonymizer.mask_text(msg.from_ or "")
                 safe_subject = anonymizer.mask_text(subject)
                 
                 date_str = "Sconosciuta"
                 if msg.date:
                     date_str = msg.date.strftime('%Y-%m-%d %H:%M:%S')
 
-                # Preferiamo il plain text, altrimenti fallback ad HTML
-                body = msg.text or msg.html or "Nessun corpo del messaggio fornito."
+                # Preferiamo il plain text; l'HTML viene convertito per evitare markup nel ticket.
+                body = _message_body_text(msg)
                 
                 # Anonymize body before saving (GDPR F-13)
                 safe_body = anonymizer.mask_text(body)
@@ -79,32 +98,33 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
 
                 # 3. Gestione Allegati (immagini, pdf...)
                 for att in msg.attachments:
+                    safe_filename = _safe_attachment_name(att.filename)
+
                     # Whitelist check (F-09)
-                    _, ext = os.path.splitext(att.filename.lower())
+                    _, ext = os.path.splitext(safe_filename.lower())
                     if ext not in ALLOWED_EXTENSIONS:
-                        logger.warning(f"Allegato ignorato (estensione non permessa): {att.filename}")
+                        logger.warning("Allegato ignorato (estensione non permessa): %s", safe_filename)
                         continue
 
-                    # Sanitize filename
-                    safe_filename = "".join([c for c in att.filename if c.isalpha() or c.isdigit() or c in ' .-_']).rstrip()
-                    if not safe_filename:
-                        safe_filename = "allegato_sconosciuto"
+                    payload = att.payload or b""
+                    dimensione = len(payload)
+                    if dimensione > MAX_EMAIL_ATTACHMENT_BYTES:
+                        logger.warning(
+                            "Allegato ignorato (troppo grande): %s (%d byte)",
+                            safe_filename,
+                            dimensione,
+                        )
+                        continue
                         
-                    timestamp = int(time.time())
-                    hashed_filename = f"{new_ticket.id}_{timestamp}_{safe_filename}"
-                    file_path = os.path.join(UPLOAD_DIR, hashed_filename)
-                    
-                    # Salva su filesystem
-                    with open(file_path, "wb") as f:
-                        f.write(att.payload)
+                    stored_filename = f"email_{new_ticket.id}_{uuid.uuid4().hex[:8]}_{safe_filename}"
+                    url = storage.save_file(payload, stored_filename)
                         
                     mime_type, _ = mimetypes.guess_type(safe_filename)
-                    dimensione = len(att.payload)
                     
                     nuovo_allegato = TicketAllegato(
                         ticket_id=new_ticket.id,
                         nome_file=safe_filename,
-                        percorso=f"/uploads/{hashed_filename}", # Path servibile dal backend/frontend
+                        percorso=url,
                         tipo_mime=mime_type or "application/octet-stream",
                         dimensione_bytes=dimensione,
                         tenant_id=config.tenant_id
@@ -114,19 +134,25 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
                 if msg.attachments:
                     db.commit()
                     
-                msg_log = f"Creato Ticket #{new_ticket.id} da email mittente {sender}"
+                msg_log = f"Creato Ticket #{new_ticket.id} da email mittente {safe_sender}"
                 logger.info(msg_log)
-                db_info("EMAIL_POLLER", msg_log, {"ticket_id": new_ticket.id, "sender": sender}, config.tenant_id)
+                db_info("EMAIL_POLLER", msg_log, {"ticket_id": new_ticket.id, "sender": safe_sender}, config.tenant_id)
 
     except Exception as e:
-        err_msg = f"Errore IMAP - tenant {config.tenant_id} ({config.email_address}): {str(e)}"
+        safe_account = anonymizer.mask_text(config.email_address or "")
+        err_msg = f"Errore IMAP - tenant {config.tenant_id} ({safe_account}): {str(e)}"
         logger.error(err_msg)
         db_error("EMAIL_POLLER", err_msg, {"error": str(e)}, config.tenant_id)
 
 def check_all_mailboxes():
     db = SessionLocal()
     try:
-        active_configs = db.query(EmailConfig).filter(EmailConfig.active == True).all()
+        active_configs = (
+            db.query(EmailConfig)
+            .join(Tenant, EmailConfig.tenant_id == Tenant.id)
+            .filter(EmailConfig.active == True, Tenant.is_active == True)
+            .all()
+        )
         for config in active_configs:
             parse_and_create_tickets(db, config)
     finally:

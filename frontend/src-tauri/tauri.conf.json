@@ -1,17 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MaintAI Desktop",
-  "version": "2.7.0",
+  "version": "2.8.2",
   "identifier": "com.maintai.desktop",
   "build": {
-    "devUrl": "http://localhost:3000"
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../out"
   },
   "app": {
     "windows": [
       {
         "label": "main",
         "title": "MaintAI Desktop",
-        "url": "https://maintai-frontend.vercel.app",
+        "url": "index.html",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,

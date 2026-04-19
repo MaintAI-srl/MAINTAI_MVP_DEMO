@@ -1,4 +1,4 @@
-# MaintAI — Architettura di Sistema (v2.8.1)
+# MaintAI — Architettura di Sistema (v2.8.2)
 
 ## 🏢 Backend (FastAPI + SQLAlchemy)
 

@@ -45,6 +45,7 @@ router = APIRouter()
 
 _PRIO_MAP = {"high": "Alta", "medium": "Media", "low": "Bassa",
              "alta": "Alta", "media": "Media", "bassa": "Bassa"}
+MAX_IMPORT_BYTES = 25 * 1024 * 1024  # 25 MB
 
 
 def _freq_days(freq: dict | None) -> int | None:
@@ -692,6 +693,14 @@ async def import_pdf_to_piano(
         raise HTTPException(status_code=404, detail="Piano non trovato")
 
     content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="File vuoto.")
+    if len(content) > MAX_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB consentiti.",
+        )
+
     result = smart_read_pdf(content)
     text = result.get("text", "")
 
@@ -754,6 +763,14 @@ async def import_excel_to_piano(
         raise HTTPException(status_code=404, detail="Piano non trovato")
 
     content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="File vuoto.")
+    if len(content) > MAX_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB consentiti.",
+        )
+
     filename = (file.filename or "").lower()
 
     rows = []

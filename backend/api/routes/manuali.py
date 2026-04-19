@@ -16,6 +16,7 @@ from backend.core.security import check_tenant_ownership
 
 router = APIRouter()
 logger = get_logger(__name__)
+MAX_MANUALE_BYTES = 25 * 1024 * 1024  # 25 MB
 
 
 @router.post("/manuali/upload")
@@ -46,6 +47,14 @@ async def upload_manuale(
             check_tenant_ownership(db, Asset, resolved_asset_id, tenant_id)
 
     content = await file.read()
+    if not content:
+        raise AppError(status_code=400, message="File vuoto.")
+    if len(content) > MAX_MANUALE_BYTES:
+        raise AppError(
+            status_code=413,
+            message=f"File troppo grande: massimo {MAX_MANUALE_BYTES // (1024 * 1024)} MB consentiti.",
+        )
+
     result = smart_read_pdf(content)
     text = result.get("text", "")
 
@@ -296,7 +305,10 @@ def get_piano_manuale(manuale_id: int, db: Session = Depends(get_db), tenant_id:
 
     attivita = (
         db.query(AttivitaManutenzione)
-        .filter(AttivitaManutenzione.manuale_id == manuale_id)
+        .filter(
+            AttivitaManutenzione.manuale_id == manuale_id,
+            AttivitaManutenzione.tenant_id == tenant_id,
+        )
         .order_by(AttivitaManutenzione.id)
         .all()
     )

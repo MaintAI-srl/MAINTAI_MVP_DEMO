@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permessi di default per MaintAI Desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default"
+  ]
+}

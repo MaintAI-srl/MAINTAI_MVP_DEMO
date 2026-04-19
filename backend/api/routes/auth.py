@@ -91,6 +91,7 @@ def get_me(payload: dict = Depends(get_current_user_payload), db: Session = Depe
     if not user:
         raise HTTPException(status_code=404, detail="Utente non trovato")
     return {
+        "userid": user.id,
         "username": user.username,
         "ruolo": user.ruolo,
         "tenant_id": user.tenant_id,
