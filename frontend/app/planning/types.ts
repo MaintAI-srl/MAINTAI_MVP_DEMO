@@ -40,12 +40,29 @@ export interface PlannedWO {
   warnings: string[];
   is_continuation: boolean;
   parent_wo_id: number | null;
+  // v3: explainability
+  confidence_score?: number;
+  risk_level?: "LOW" | "MEDIUM" | "HIGH";
+  complexity?: "SIMPLE" | "STANDARD" | "COMPLEX";
 }
 
 export interface DeferredWO {
   wo_id: number;
   reason: string;
+  // v3: reason code strutturato
+  reason_code?: string;
+  reason_detail?: string;
+  earliest_possible_date?: string | null;
 }
+
+export const REASON_CODE_LABELS: Record<string, { label: string; color: string }> = {
+  NO_SKILL:              { label: "Skill mancante",        color: "#ef4444" },
+  NO_AVAILABILITY:       { label: "Non disponibile",       color: "#6b7280" },
+  TIME_WINDOW_CONFLICT:  { label: "Finestra temporale",    color: "#f59e0b" },
+  CAPACITY_EXCEEDED:     { label: "Capacità esaurita",     color: "#f97316" },
+  LIMITATION_MISMATCH:   { label: "Limitazione operativa", color: "#a855f7" },
+  MULTI_TECH_NOT_FOUND:  { label: "Multi-tecnico",         color: "#ec4899" },
+};
 
 export interface EfficiencyBreakdown {
   copertura_backlog: number;
@@ -63,6 +80,13 @@ export interface EfficiencyMotivation {
   suggerimento: string;
 }
 
+export interface PlanMetadata {
+  engine_version: string;
+  generated_by: string;
+  generation_time_ms: number;
+  confidence_avg: number | null;
+}
+
 export interface PlanJson {
   planned_workorders: PlannedWO[];
   deferred_workorders: DeferredWO[];
@@ -71,6 +95,7 @@ export interface PlanJson {
   efficiency_score?: number;
   efficiency_breakdown?: EfficiencyBreakdown;
   efficiency_motivations?: EfficiencyMotivation[];
+  plan_metadata?: PlanMetadata;
 }
 
 export interface GeneratedPlan {

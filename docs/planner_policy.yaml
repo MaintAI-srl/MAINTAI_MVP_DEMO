@@ -1,0 +1,135 @@
+# planner_policy.yaml — Regole planner MaintAI in formato machine-readable
+# Versione: 3.0 (Planning Engine v3)
+# Aggiornato: 2026-04-19
+
+engine:
+  name: "PlannerEngine"
+  version: "3.0"
+  type: "deterministic"
+  file: "backend/services/planner_engine.py"
+  bridge: "backend/services/planner_engine_bridge.py"
+
+horizon:
+  default_days: 7
+  min_days: 1
+  max_days: 90
+
+sorting:
+  ticket_priority_order:
+    - "Alta"
+    - "Media"
+    - "Bassa"
+  secondary_sort: "scadenza_sla ASC NULLS LAST"
+
+hard_constraints:
+  - id: NO_SKILL
+    description: "Il tecnico deve avere la skill corrispondente al tipo ticket (o competenza_richiesta esplicita)"
+    action: defer
+    priority: 1
+  - id: LIMITATION_MISMATCH
+    description: "Le limitazioni operative del ticket non devono conflittare con quelle del tecnico"
+    action: defer
+    priority: 2
+  - id: TIME_WINDOW_CONFLICT
+    description: "La finestra temporale del ticket deve intersecare l'orizzonte di pianificazione"
+    action: defer
+    priority: 3
+  - id: MULTI_TECH_NOT_FOUND
+    description: "Il numero di tecnici richiesti qualificati non è disponibile nello stesso slot"
+    action: defer
+    priority: 4
+  - id: CAPACITY_EXCEEDED
+    description: "La capacità giornaliera del tecnico è esaurita nell'intero orizzonte"
+    action: defer
+    priority: 5
+  - id: NO_AVAILABILITY
+    description: "Il tecnico è assente (ferie/malattia) per tutti i giorni dell'orizzonte"
+    action: defer
+    priority: 6
+
+soft_constraints:
+  - id: PREFER_SAME_ASSET_TECH
+    description: "Preferire il tecnico già assegnato ad altri ticket sullo stesso asset nella stessa settimana"
+    action: boost_score
+  - id: BALANCE_LOAD
+    description: "Bilanciare il carico tra tecnici (target: saturazione omogenea)"
+    action: adjust_order
+  - id: SLA_DEADLINE
+    description: "Schedulare ticket con scadenza SLA prima degli altri della stessa priorità"
+    action: sort_boost
+
+locked_ticket_logic:
+  condition: "tecnico_id IS NOT NULL AND planned_start IS NOT NULL OR is_manual_plan = TRUE"
+  effect: "excluded from replanning, counts toward capacity consumption"
+  reset_trigger: "stato = 'Aperto' → planned_start = NULL, planned_finish = NULL"
+
+skill_workaround:
+  enabled: true
+  implicit_skills:
+    - "PM"
+    - "CM"
+    - "BD"
+  description: >
+    Aggiunto a ogni tecnico attivo finché Ticket.competenza_richiesta non è valorizzato.
+    Evita deferrals NO_SKILL nei deployment con solo job-skill (Meccanico, Elettricista).
+  deprecation: "Rimuovere quando competenza_richiesta è valorizzato su tutti i ticket."
+
+splitting:
+  enabled: true
+  field: "splittabile"
+  continuation_fields:
+    - "is_continuation: True"
+    - "parent_wo_id: <id_principale>"
+  counted_in_wo_count: false
+
+fermo_assets:
+  trigger: "asset.fermo_on_schedule = True"
+  action: "asset.stato = 'Fermo' alla conferma del piano"
+  tracked_in: "plan_json.fermo_assets"
+
+efficiency_weights:
+  copertura_backlog: 0.30
+  utilizzo_tecnici: 0.25
+  bilanciamento_70_30: 0.20
+  match_skill: 0.15
+  ottimizzazione_meteo: 0.10
+
+confidence_scoring:
+  base: 1.0
+  penalties:
+    is_continuation: 0.90
+    finestra_lte2_days: 0.88
+    finestra_lte4_days: 0.94
+    saturazione_gt90pct: 0.85
+  clamp:
+    min: 0.4
+    max: 1.0
+  risk_levels:
+    LOW: {gte: 0.85}
+    MEDIUM: {gte: 0.65}
+    HIGH: {lt: 0.65}
+
+complexity:
+  SIMPLE: "durata <= 2h AND tecnici_richiesti <= 1"
+  COMPLEX: "durata > 8h OR tecnici_richiesti > 1"
+  STANDARD: "altrimenti"
+
+feedback_loop:
+  model: "PlannerFeedback"
+  table: "planner_feedback"
+  fields:
+    - actual_start
+    - actual_finish
+    - actual_duration_hours
+    - actual_technician_id
+    - execution_outcome
+    - duration_delta_hours
+    - date_delta_days
+    - technician_changed
+    - user_rating
+    - user_notes
+  outcomes:
+    - "completed"
+    - "partial"
+    - "cancelled"
+    - "rescheduled"

@@ -49,6 +49,60 @@ REASON_IT: Dict[str, str] = {
 
 # ── Helpers di conversione ────────────────────────────────────────────────────
 
+def _compute_wo_confidence(
+    assignment: "PlannerAssignment",
+    ticket: "PlannerTicket",
+    durata_assegnata_h: float,
+    ore_libere_giorno: float,
+    has_finestra: bool,
+    finestra_days: int,
+) -> dict:
+    """
+    Calcola confidence_score, risk_level e complexity per un WO pianificato.
+
+    Formula:
+    - base 1.0
+    - is_continuation → *0.90
+    - finestra stretta (<= 2gg) → *0.88, (<= 4gg) → *0.94
+    - slot quasi saturo (durata/ore_libere > 0.9) → *0.85
+    - clamp [0.4, 1.0]
+
+    Risk: LOW ≥0.85, MEDIUM ≥0.65, HIGH <0.65
+    Complexity: SIMPLE (≤2h, 1 tecnico), COMPLEX (>8h o multi), STANDARD altrimenti
+    """
+    conf = 1.0
+    if assignment.is_continuation:
+        conf *= 0.9
+    if has_finestra:
+        if finestra_days <= 2:
+            conf *= 0.88
+        elif finestra_days <= 4:
+            conf *= 0.94
+    if ore_libere_giorno > 0 and durata_assegnata_h / ore_libere_giorno > 0.9:
+        conf *= 0.85
+    conf = max(0.4, min(1.0, conf))
+
+    if conf >= 0.85:
+        risk = "LOW"
+    elif conf >= 0.65:
+        risk = "MEDIUM"
+    else:
+        risk = "HIGH"
+
+    if ticket.durata_stimata_ore <= 2.0 and ticket.tecnici_richiesti <= 1:
+        complexity = "SIMPLE"
+    elif ticket.durata_stimata_ore > 8.0 or ticket.tecnici_richiesti > 1:
+        complexity = "COMPLEX"
+    else:
+        complexity = "STANDARD"
+
+    return {
+        "confidence_score": round(conf, 3),
+        "risk_level": risk,
+        "complexity": complexity,
+    }
+
+
 def _split_competenze(raw: Optional[str]) -> List[str]:
     """Split stringa competenze (virgola/spazio/punto-e-virgola) → lista uppercase."""
     if not raw:
@@ -114,7 +168,7 @@ def _build_planner_tickets(
             priorita=t.priorita or "Media",
             tipo=t.tipo or "CM",
             durata_stimata_ore=float(t.durata_stimata_ore or 2.0),
-            competenza_richiesta=None,   # usa tipo come proxy (BD/PM/CM) — workaround
+            competenza_richiesta=t.competenza_richiesta or None,  # usa campo reale se valorizzato
             splittabile=True,
             area=area,
         ))
@@ -320,6 +374,18 @@ async def generate_deterministic_plan(
         len(engine_result.assignments), len(engine_result.unassigned),
     )
 
+    # ── Mappa ticket e tecnici per lookup O(1) nel confidence scoring ─────────
+    ticket_map: Dict[int, PlannerTicket] = {pt.id: pt for pt in planner_tickets}
+    tecnico_ore_map: Dict[int, float] = {pt.id: float(pt.ore_giornaliere) for pt in planner_tecnici}
+
+    # Pre-calcola ore consumate per tecnico/giorno dagli assignment esistenti
+    # (serve per stimare ore_libere al momento dell'assegnazione)
+    from collections import defaultdict
+    ore_consumate_per_giorno: Dict[int, Dict[Any, float]] = defaultdict(lambda: defaultdict(float))
+    for a in engine_result.assignments:
+        dur = round((a.end - a.start).total_seconds() / 3600, 2)
+        ore_consumate_per_giorno[a.tecnico_id][a.start.date()] += dur
+
     # ── Converti PlannerResult → planned_workorders ───────────────────────────
     planned_workorders = []
     for a in engine_result.assignments:
@@ -337,6 +403,30 @@ async def generate_deterministic_plan(
             if log_entry else "Pianificato dal motore deterministico MARCO-Engine"
         )
 
+        # Calcola confidence score per questo WO
+        ticket_obj = ticket_map.get(a.ticket_id)
+        ore_giornaliere = tecnico_ore_map.get(a.tecnico_id, 8.0)
+        ore_totali_giorno = ore_consumate_per_giorno[a.tecnico_id][a.start.date()]
+        ore_libere = max(0.0, ore_giornaliere - (ore_totali_giorno - duration_h))
+
+        has_finestra = False
+        finestra_days = 999
+        if ticket_obj and ticket_obj.finestra_inizio and ticket_obj.finestra_fine:
+            has_finestra = True
+            finestra_days = (ticket_obj.finestra_fine - ticket_obj.finestra_inizio).days + 1
+
+        if ticket_obj:
+            conf_data = _compute_wo_confidence(
+                assignment=a,
+                ticket=ticket_obj,
+                durata_assegnata_h=duration_h,
+                ore_libere_giorno=ore_libere,
+                has_finestra=has_finestra,
+                finestra_days=finestra_days,
+            )
+        else:
+            conf_data = {"confidence_score": 0.8, "risk_level": "MEDIUM", "complexity": "STANDARD"}
+
         planned_workorders.append({
             "wo_id":              a.ticket_id,
             "technician_id":      a.tecnico_id,
@@ -349,6 +439,9 @@ async def generate_deterministic_plan(
             "warnings":           [],
             "is_continuation":    a.is_continuation,
             "parent_wo_id":       a.parent_ticket_id,
+            "confidence_score":   conf_data["confidence_score"],
+            "risk_level":         conf_data["risk_level"],
+            "complexity":         conf_data["complexity"],
         })
 
     # ── Converti Unassigned → deferred_workorders ─────────────────────────────
@@ -356,8 +449,11 @@ async def generate_deterministic_plan(
     for u in engine_result.unassigned:
         reason_it = REASON_IT.get(u.reason_code, u.detail or u.reason_code)
         deferred_workorders.append({
-            "wo_id":  u.ticket_id,
-            "reason": reason_it,
+            "wo_id":         u.ticket_id,
+            "reason":        reason_it,
+            "reason_code":   u.reason_code,
+            "reason_detail": u.detail or "",
+            "earliest_possible_date": None,
         })
 
     plan_json: Dict[str, Any] = {

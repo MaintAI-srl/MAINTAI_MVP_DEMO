@@ -164,6 +164,8 @@ def _ensure_columns() -> None:
         ("ticket", "eliminazione_note",                "ALTER TABLE ticket ADD COLUMN {ifne}eliminazione_note TEXT"),
         # ticket — manual plan
         ("ticket", "is_manual_plan",                   "ALTER TABLE ticket ADD COLUMN {ifne}is_manual_plan BOOLEAN DEFAULT FALSE"),
+        # ticket — competenza richiesta esplicita (v2.9.0)
+        ("ticket", "competenza_richiesta",             "ALTER TABLE ticket ADD COLUMN {ifne}competenza_richiesta VARCHAR"),
         # ticket — piani_manutenzione
         ("ticket", "piano_manutenzione_id",            "ALTER TABLE ticket ADD COLUMN {ifne}piano_manutenzione_id INTEGER"),
         ("ticket", "origine_piano",                    "ALTER TABLE ticket ADD COLUMN {ifne}origine_piano VARCHAR"),
@@ -241,6 +243,58 @@ def _ensure_columns() -> None:
         )
     """
 
+    # planner_feedback — tabella feedback di esecuzione (v2.9.0)
+    pf_pg = """
+        CREATE TABLE IF NOT EXISTS planner_feedback (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id),
+            ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+            generated_plan_id INTEGER REFERENCES generated_plans(id),
+            planned_date DATE,
+            planned_technician_id INTEGER,
+            estimated_duration_hours FLOAT,
+            confidence_score_at_plan FLOAT,
+            actual_start TIMESTAMP,
+            actual_finish TIMESTAMP,
+            actual_duration_hours FLOAT,
+            actual_technician_id INTEGER,
+            execution_outcome VARCHAR DEFAULT 'completed',
+            duration_delta_hours FLOAT,
+            date_delta_days INTEGER,
+            technician_changed BOOLEAN DEFAULT FALSE,
+            user_rating INTEGER,
+            user_notes TEXT,
+            ticket_tipo VARCHAR,
+            asset_id INTEGER,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    pf_sqlite = """
+        CREATE TABLE IF NOT EXISTS planner_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER REFERENCES tenants(id),
+            ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+            generated_plan_id INTEGER REFERENCES generated_plans(id),
+            planned_date DATE,
+            planned_technician_id INTEGER,
+            estimated_duration_hours FLOAT,
+            confidence_score_at_plan FLOAT,
+            actual_start DATETIME,
+            actual_finish DATETIME,
+            actual_duration_hours FLOAT,
+            actual_technician_id INTEGER,
+            execution_outcome VARCHAR DEFAULT 'completed',
+            duration_delta_hours FLOAT,
+            date_delta_days INTEGER,
+            technician_changed BOOLEAN DEFAULT FALSE,
+            user_rating INTEGER,
+            user_notes TEXT,
+            ticket_tipo VARCHAR,
+            asset_id INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+
     def _apply_to(url: str, pg: bool) -> None:
         from sqlalchemy import create_engine, text
         ca = {"check_same_thread": False} if url.startswith("sqlite") else {}
@@ -286,6 +340,7 @@ def _ensure_columns() -> None:
         _exec_ddl(sl_pg if pg else sl_sqlite, "system_logs CREATE")
         _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
         _exec_ddl(paa_pg if pg else paa_sqlite, "piani_assets_association CREATE")
+        _exec_ddl(pf_pg if pg else pf_sqlite, "planner_feedback CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:

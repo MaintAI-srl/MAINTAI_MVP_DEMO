@@ -19,6 +19,9 @@ import { it } from "date-fns/locale";
 
 import BadgeEfficienza from "./components/BadgeEfficienza";
 import StoricoPiani from "./components/StoricoPiani";
+import PannelloMotivazioni from "./components/PannelloMotivazioni";
+import WODetailDrawer from "./components/WODetailDrawer";
+import DeferredWOPanel from "./components/DeferredWOPanel";
 
 import type {
   TicketData,
@@ -407,6 +410,7 @@ export default function PianificazionePage() {
   const [draggingTicket, setDraggingTicket] = useState<TicketData | null>(null);
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
   const [filterTipo, setFilterTipo] = useState("");
+  const [selectedWO, setSelectedWO] = useState<{ wo: PlannedWO; ticket: TicketData; tecnico: TecnicoData } | null>(null);
   const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
 
   // Piano AI state
@@ -422,6 +426,19 @@ export default function PianificazionePage() {
   const planJson = piano?.plan_json ?? null;
   const effScore: number | undefined = planJson?.efficiency_score;
   const effBreakdown: EfficiencyBreakdown | undefined = planJson?.efficiency_breakdown;
+
+  // ── Lookup maps per WODetailDrawer ─────────────────────────────────────────
+  const ticketMap = useMemo(() => {
+    const map = new Map<number, TicketData>();
+    [...scheduledTickets, ...unscheduledTickets].forEach((t) => map.set(t.id, t));
+    return map;
+  }, [scheduledTickets, unscheduledTickets]);
+
+  const tecnicoMap = useMemo(() => {
+    const map = new Map<number, TecnicoData>();
+    tecnici.forEach((t) => map.set(t.id, t));
+    return map;
+  }, [tecnici]);
 
   // ── Statistiche backlog ─────────────────────────────────────────────────────
   const tipoCounts = useMemo(() => {
@@ -757,6 +774,23 @@ export default function PianificazionePage() {
                 <BadgeEfficienza score={effScore} breakdown={effBreakdown} />
               </div>
             )}
+
+            {/* Pannello motivazioni — visibile automaticamente se score < 90 */}
+            {effScore !== undefined && planJson?.efficiency_motivations && planJson.efficiency_motivations.length > 0 && (
+              <div style={{ borderTop: "1px solid #1f2937", padding: "12px", flexShrink: 0 }}>
+                <PannelloMotivazioni motivations={planJson.efficiency_motivations} score={effScore} />
+              </div>
+            )}
+
+            {/* WO non pianificati con reason codes */}
+            {planJson?.deferred_workorders && planJson.deferred_workorders.length > 0 && (
+              <div style={{ borderTop: "1px solid #1f2937", padding: "12px", flexShrink: 0 }}>
+                <DeferredWOPanel
+                  deferredWOs={planJson.deferred_workorders}
+                  allTickets={[...scheduledTickets, ...unscheduledTickets]}
+                />
+              </div>
+            )}
           </div>
 
           {/* ── GANTT TIMELINE ── */}
@@ -812,10 +846,21 @@ export default function PianificazionePage() {
                 ) : (
                   tecnici.map((tecnico) => {
                     const tickets = scheduledTickets.filter((t) => t.tecnico_id === tecnico.id);
+                    const handleTicketClick = (t: TicketData) => {
+                      // Se esiste un WO nel piano per questo ticket, apre il drawer explainability
+                      const wo = planJson?.planned_workorders?.find((w) => w.wo_id === t.id) ?? null;
+                      if (wo) {
+                        const tec = tecnicoMap.get(wo.technician_id) ?? null;
+                        const ticket = ticketMap.get(t.id) ?? t;
+                        setSelectedWO({ wo, ticket, tecnico: tec ?? tecnico });
+                      } else {
+                        setDetailTicket(t);
+                      }
+                    };
                     if (view === "day") {
-                      return <DayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} day={days[0]!} onTicketClick={setDetailTicket} />;
+                      return <DayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} day={days[0]!} onTicketClick={handleTicketClick} />;
                     }
-                    return <MultiDayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} days={days} view={view} onTicketClick={setDetailTicket} />;
+                    return <MultiDayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} days={days} view={view} onTicketClick={handleTicketClick} />;
                   })
                 )}
               </div>
@@ -861,6 +906,14 @@ export default function PianificazionePage() {
           onClose={() => setTicketDaPianificare(null)}
         />
       )}
+
+      {/* WODetailDrawer — "Perché Qui?" */}
+      <WODetailDrawer
+        wo={selectedWO?.wo ?? null}
+        ticket={selectedWO?.ticket ?? null}
+        tecnico={selectedWO?.tecnico ?? null}
+        onClose={() => setSelectedWO(null)}
+      />
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

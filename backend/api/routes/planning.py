@@ -3,6 +3,7 @@ Router Planning — generazione, conferma, deautorizzazione e storico piani manu
 """
 from __future__ import annotations
 
+import time as _time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
@@ -16,7 +17,7 @@ from backend.core.rate_limiter import limiter
 from backend.core.security import get_current_tenant_id, get_current_user_payload
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
-from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant
+from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant, PlannerFeedback
 from backend.services.ai_planner_service import generate_ai_plan, calculate_plan_efficiency
 from backend.services.planner_engine_bridge import generate_deterministic_plan
 from backend.services.rolling_planner_engine import (
@@ -196,6 +197,7 @@ async def generate_plan(
     )
     db_info("PLANNING", f"Avvio generazione piano [{effective_mode}] — orizzonte {data.days}gg", tenant_id=tenant_id)
 
+    t_gen_start = _time.monotonic()
     try:
         if effective_mode == "deterministic":
             plan_json = await generate_deterministic_plan(
@@ -225,6 +227,21 @@ async def generate_plan(
         logger.error("Planning: eccezione non gestita — %s", exc, exc_info=True)
         db_error("PLANNING", f"Eccezione durante generazione piano: {exc}", tenant_id=tenant_id)
         raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
+
+    # Aggiungi plan_metadata al piano generato
+    gen_ms = round((_time.monotonic() - t_gen_start) * 1000)
+    conf_scores = [
+        w.get("confidence_score")
+        for w in plan_json.get("planned_workorders", [])
+        if not w.get("is_continuation") and w.get("confidence_score") is not None
+    ]
+    confidence_avg = round(sum(conf_scores) / len(conf_scores), 3) if conf_scores else None
+    plan_json["plan_metadata"] = {
+        "engine_version": "3.0",
+        "generated_by": effective_mode,
+        "generation_time_ms": gen_ms,
+        "confidence_avg": confidence_avg,
+    }
 
     # Recupera score del piano confermato precedente per confronto nel frontend
     previous_confirmed = db.query(GeneratedPlan).filter(
@@ -899,4 +916,263 @@ def get_rolling_analysis(
         "pm_protected_count": result.pm_protected_count,
         "kpi":     result.kpi,
         "warnings": result.warnings,
+    }
+
+
+# ── Pydantic schema per feedback ──────────────────────────────────────────────
+
+class FeedbackRequest(BaseModel):
+    ticket_id: int
+    generated_plan_id: Optional[int] = None
+    actual_start: Optional[str] = None       # ISO "YYYY-MM-DDTHH:MM:SS"
+    actual_finish: Optional[str] = None
+    actual_technician_id: Optional[int] = None
+    execution_outcome: str = "completed"     # completed|partial|cancelled|rescheduled
+    user_rating: Optional[int] = None        # 1-5
+    user_notes: Optional[str] = None
+
+
+# ── Endpoint POST /planning/feedback ─────────────────────────────────────────
+
+@router.post("/feedback")
+def submit_feedback(
+    data: FeedbackRequest,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Registra il feedback di esecuzione per un ticket pianificato.
+    Calcola automaticamente: actual_duration_hours, duration_delta_hours,
+    date_delta_days, technician_changed.
+    Isolamento multi-tenant: verifica che il ticket appartenga al tenant corrente.
+    """
+    # Validazione outcome
+    valid_outcomes = {"completed", "partial", "cancelled", "rescheduled"}
+    if data.execution_outcome not in valid_outcomes:
+        raise HTTPException(
+            status_code=422,
+            detail=f"execution_outcome non valido. Valori ammessi: {sorted(valid_outcomes)}",
+        )
+
+    # Validazione rating
+    if data.user_rating is not None and not (1 <= data.user_rating <= 5):
+        raise HTTPException(status_code=422, detail="user_rating deve essere compreso tra 1 e 5")
+
+    # Carica ticket — isolamento tenant
+    ticket = db.query(Ticket).filter(
+        Ticket.id == data.ticket_id,
+        Ticket.tenant_id == tenant_id,
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail=f"Ticket {data.ticket_id} non trovato")
+
+    # Calcola durata reale
+    actual_start_dt: Optional[datetime] = None
+    actual_finish_dt: Optional[datetime] = None
+    actual_duration_hours: Optional[float] = None
+    if data.actual_start:
+        try:
+            actual_start_dt = datetime.fromisoformat(data.actual_start)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="actual_start non è un datetime ISO valido")
+    if data.actual_finish:
+        try:
+            actual_finish_dt = datetime.fromisoformat(data.actual_finish)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="actual_finish non è un datetime ISO valido")
+    if actual_start_dt and actual_finish_dt:
+        actual_duration_hours = round(
+            (actual_finish_dt - actual_start_dt).total_seconds() / 3600, 2
+        )
+
+    # Calcola delta durata (reale - stimata)
+    estimated = float(ticket.durata_stimata_ore or 0.0)
+    duration_delta: Optional[float] = None
+    if actual_duration_hours is not None:
+        duration_delta = round(actual_duration_hours - estimated, 2)
+
+    # Calcola delta data (reale - pianificata, in giorni)
+    date_delta: Optional[int] = None
+    if actual_start_dt and ticket.planned_start:
+        planned_date = ticket.planned_start.date() if isinstance(ticket.planned_start, datetime) else ticket.planned_start
+        actual_date = actual_start_dt.date()
+        date_delta = (actual_date - planned_date).days
+
+    # Verifica cambio tecnico
+    technician_changed = False
+    if data.actual_technician_id is not None and ticket.tecnico_id is not None:
+        technician_changed = (data.actual_technician_id != ticket.tecnico_id)
+
+    # Ricava confidence_score_at_plan se disponibile nel piano
+    confidence_at_plan: Optional[float] = None
+    if data.generated_plan_id:
+        plan = db.query(GeneratedPlan).filter(
+            GeneratedPlan.id == data.generated_plan_id,
+            GeneratedPlan.tenant_id == tenant_id,
+        ).first()
+        if plan and plan.plan_json:
+            for wo in plan.plan_json.get("planned_workorders", []):
+                if wo.get("wo_id") == data.ticket_id:
+                    confidence_at_plan = wo.get("confidence_score")
+                    break
+
+    # Salva feedback
+    feedback = PlannerFeedback(
+        tenant_id=tenant_id,
+        ticket_id=data.ticket_id,
+        generated_plan_id=data.generated_plan_id,
+        planned_date=ticket.planned_start.date() if ticket.planned_start else None,
+        planned_technician_id=ticket.tecnico_id,
+        estimated_duration_hours=estimated if estimated > 0 else None,
+        confidence_score_at_plan=confidence_at_plan,
+        actual_start=actual_start_dt,
+        actual_finish=actual_finish_dt,
+        actual_duration_hours=actual_duration_hours,
+        actual_technician_id=data.actual_technician_id,
+        execution_outcome=data.execution_outcome,
+        duration_delta_hours=duration_delta,
+        date_delta_days=date_delta,
+        technician_changed=technician_changed,
+        user_rating=data.user_rating,
+        user_notes=data.user_notes,
+        ticket_tipo=ticket.tipo,
+        asset_id=ticket.asset_id,
+    )
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+
+    db_info(
+        db, "PLANNING_FEEDBACK",
+        f"Feedback ticket #{data.ticket_id}: outcome={data.execution_outcome}, delta_h={duration_delta}, delta_gg={date_delta}",
+        tenant_id=tenant_id,
+    )
+
+    return {
+        "id": feedback.id,
+        "ticket_id": feedback.ticket_id,
+        "execution_outcome": feedback.execution_outcome,
+        "actual_duration_hours": feedback.actual_duration_hours,
+        "duration_delta_hours": feedback.duration_delta_hours,
+        "date_delta_days": feedback.date_delta_days,
+        "technician_changed": feedback.technician_changed,
+        "confidence_score_at_plan": feedback.confidence_score_at_plan,
+        "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+    }
+
+
+# ── Endpoint GET /planning/feedback/{ticket_id} ───────────────────────────────
+
+@router.get("/feedback/{ticket_id}")
+def get_feedback(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Ritorna la lista dei feedback di esecuzione per un ticket.
+    Isolamento multi-tenant: filtra per tenant_id.
+    """
+    # Verifica che il ticket appartenga al tenant
+    ticket = db.query(Ticket).filter(
+        Ticket.id == ticket_id,
+        Ticket.tenant_id == tenant_id,
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} non trovato")
+
+    feedbacks = db.query(PlannerFeedback).filter(
+        PlannerFeedback.ticket_id == ticket_id,
+        PlannerFeedback.tenant_id == tenant_id,
+    ).order_by(PlannerFeedback.created_at.desc()).all()
+
+    return [
+        {
+            "id": f.id,
+            "ticket_id": f.ticket_id,
+            "generated_plan_id": f.generated_plan_id,
+            "planned_date": f.planned_date.isoformat() if f.planned_date else None,
+            "planned_technician_id": f.planned_technician_id,
+            "estimated_duration_hours": f.estimated_duration_hours,
+            "confidence_score_at_plan": f.confidence_score_at_plan,
+            "actual_start": f.actual_start.isoformat() if f.actual_start else None,
+            "actual_finish": f.actual_finish.isoformat() if f.actual_finish else None,
+            "actual_duration_hours": f.actual_duration_hours,
+            "actual_technician_id": f.actual_technician_id,
+            "execution_outcome": f.execution_outcome,
+            "duration_delta_hours": f.duration_delta_hours,
+            "date_delta_days": f.date_delta_days,
+            "technician_changed": f.technician_changed,
+            "user_rating": f.user_rating,
+            "user_notes": f.user_notes,
+            "ticket_tipo": f.ticket_tipo,
+            "asset_id": f.asset_id,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        }
+        for f in feedbacks
+    ]
+
+
+# ── Endpoint GET /planning/feedback/analytics ─────────────────────────────────
+
+@router.get("/feedback/analytics")
+def feedback_analytics(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Aggregazioni sui feedback di esecuzione per il tenant.
+    Periodo: ultimi N giorni (default 30).
+    Ritorna metriche aggregate utili per valutare la qualità delle stime del planner.
+    """
+    from datetime import date as date_type
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    feedbacks = db.query(PlannerFeedback).filter(
+        PlannerFeedback.tenant_id == tenant_id,
+        PlannerFeedback.created_at >= since,
+    ).all()
+
+    total = len(feedbacks)
+    if total == 0:
+        return {
+            "period_days": days,
+            "total_records": 0,
+            "avg_duration_delta_hours": None,
+            "on_time_rate": None,
+            "technician_change_rate": None,
+            "by_tipo": {},
+        }
+
+    # Calcola metriche globali
+    duration_deltas = [f.duration_delta_hours for f in feedbacks if f.duration_delta_hours is not None]
+    avg_duration_delta = round(sum(duration_deltas) / len(duration_deltas), 2) if duration_deltas else None
+
+    on_time = sum(1 for f in feedbacks if f.date_delta_days is not None and f.date_delta_days <= 0)
+    on_time_rate = round(on_time / total, 3) if total > 0 else None
+
+    tech_changed = sum(1 for f in feedbacks if f.technician_changed)
+    technician_change_rate = round(tech_changed / total, 3) if total > 0 else None
+
+    # Breakdown per tipo ticket
+    by_tipo: Dict[str, dict] = {}
+    for tipo in ("PM", "CM", "BD"):
+        subset = [f for f in feedbacks if f.ticket_tipo == tipo]
+        if not subset:
+            continue
+        deltas = [f.duration_delta_hours for f in subset if f.duration_delta_hours is not None]
+        by_tipo[tipo] = {
+            "count": len(subset),
+            "avg_delta": round(sum(deltas) / len(deltas), 2) if deltas else None,
+        }
+
+    return {
+        "period_days": days,
+        "total_records": total,
+        "avg_duration_delta_hours": avg_duration_delta,
+        "on_time_rate": on_time_rate,
+        "technician_change_rate": technician_change_rate,
+        "by_tipo": by_tipo,
     }

@@ -219,6 +219,9 @@ class Ticket(Base):
     # Pianificazione manuale - ignora AI planner
     is_manual_plan = Column(Boolean, default=False)
 
+    # Competenza richiesta esplicita (es: "ELETTRICISTA", "MECCANICO"). None → usa tipo come proxy
+    competenza_richiesta = Column(String, nullable=True)
+
     # Riferimento al Piano di Manutenzione reale
     piano_manutenzione_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True)
     origine_piano = Column(String, nullable=True) # "manuale", "excel", "manuale_interno_piano"
@@ -439,3 +442,41 @@ class GeneratedPlan(Base):
     deauthorization_reason = Column(String, nullable=True)
 
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+
+class PlannerFeedback(Base):
+    """Feedback di esecuzione per il ciclo di apprendimento del planner."""
+    __tablename__ = "planner_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=False, index=True)
+    generated_plan_id = Column(Integer, ForeignKey("generated_plans.id"), nullable=True)
+
+    # Dati pianificati (snapshot al momento del feedback)
+    planned_date = Column(Date, nullable=True)
+    planned_technician_id = Column(Integer, nullable=True)
+    estimated_duration_hours = Column(Float, nullable=True)
+    confidence_score_at_plan = Column(Float, nullable=True)
+
+    # Dati di esecuzione reale
+    actual_start = Column(DateTime, nullable=True)
+    actual_finish = Column(DateTime, nullable=True)
+    actual_duration_hours = Column(Float, nullable=True)
+    actual_technician_id = Column(Integer, nullable=True)
+
+    # Outcome e delta
+    execution_outcome = Column(String, default="completed")  # completed|partial|cancelled|rescheduled
+    duration_delta_hours = Column(Float, nullable=True)  # actual - estimated (positivo = più lungo)
+    date_delta_days = Column(Integer, nullable=True)     # actual_date - planned_date (positivo = in ritardo)
+    technician_changed = Column(Boolean, default=False)
+
+    # Valutazione utente (opzionale)
+    user_rating = Column(Integer, nullable=True)  # 1-5
+    user_notes = Column(Text, nullable=True)
+
+    # Classificatori per analytics
+    ticket_tipo = Column(String, nullable=True)   # BD|PM|CM
+    asset_id = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=_utcnow)

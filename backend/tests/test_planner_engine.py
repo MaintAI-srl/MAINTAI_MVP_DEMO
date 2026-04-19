@@ -413,3 +413,48 @@ def test_TC11_priority_ordering_BD_before_PM():
     assert result.unassigned[0].ticket_id == 202, (
         f"PM (id=202) deve essere rimandato, ma è rimandato {result.unassigned[0].ticket_id}"
     )
+
+
+# ── TC-12: reason_code strutturato nei deferred ───────────────────────────────
+
+def test_TC12_reason_code_strutturato():
+    """
+    Un ticket con skill BD non può essere pianificato da un tecnico con solo skill PM.
+    L'Unassigned deve avere reason_code == REASON_NO_SKILL e il campo non deve essere vuoto.
+    """
+    from backend.services.planner_engine import REASON_NO_SKILL as _NO_SKILL
+
+    tecnico = make_tecnico(id=1, competenze=["PM"])
+    ticket = make_ticket(id=112, tipo="BD", competenza="BD", durata=2.0)
+    result = run([tecnico], [ticket])
+
+    assert len(result.unassigned) == 1, "Il ticket BD deve essere deferrito (tecnico ha solo skill PM)"
+    u = result.unassigned[0]
+    assert u.reason_code == _NO_SKILL, (
+        f"reason_code atteso={_NO_SKILL}, ottenuto={u.reason_code}"
+    )
+    assert u.reason_code != "", "reason_code non deve essere vuoto"
+
+
+# ── TC-13: competenza_richiesta esplicita sul ticket ─────────────────────────
+
+def test_TC13_competenza_richiesta_esplicita():
+    """
+    Un ticket con competenza_richiesta='ELETTRICISTA' deve essere pianificato solo
+    dal tecnico con quella skill esplicita, non da un tecnico MECCANICO.
+    """
+    from backend.services.planner_engine import REASON_NO_SKILL as _NO_SKILL
+
+    tecnico_ok = make_tecnico(id=1, competenze=["ELETTRICISTA", "PM", "CM", "BD"])
+    tecnico_ko = make_tecnico(id=2, competenze=["MECCANICO", "PM", "CM", "BD"])
+    ticket = make_ticket(id=113, tipo="PM", durata=2.0, competenza="ELETTRICISTA")
+
+    # Solo tecnico KO → deve deferire
+    result_ko = run([tecnico_ko], [ticket])
+    assert len(result_ko.unassigned) == 1, "Tecnico MECCANICO non può pianificare ticket ELETTRICISTA"
+    assert result_ko.unassigned[0].reason_code == _NO_SKILL
+
+    # Solo tecnico OK → deve assegnare
+    result_ok = run([tecnico_ok], [ticket])
+    assert len(result_ok.assignments) == 1, "Tecnico ELETTRICISTA deve pianificare ticket ELETTRICISTA"
+    assert result_ok.assignments[0].tecnico_id == 1

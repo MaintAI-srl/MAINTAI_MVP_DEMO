@@ -1,0 +1,51 @@
+{
+  "_comment": "Pesi per il calcolo dell'efficiency_score del piano. Aggiornato alla versione 2.8.2.",
+  "efficiency_components": {
+    "copertura_backlog": {
+      "weight": 0.30,
+      "target": 100,
+      "description": "% ticket aperti pianificati sul totale backlog"
+    },
+    "utilizzo_tecnici": {
+      "weight": 0.25,
+      "target": 85,
+      "description": "% media saturazione ore tecnici (ore assegnate / ore disponibili)"
+    },
+    "bilanciamento_70_30": {
+      "weight": 0.20,
+      "target": 100,
+      "description": "Bilanciamento tra PM/CM (70%) e BD/reattivo (30%)"
+    },
+    "match_skill": {
+      "weight": 0.15,
+      "target": 100,
+      "description": "% WO con tecnico che ha la skill esatta (non implicita)"
+    },
+    "ottimizzazione_meteo": {
+      "weight": 0.10,
+      "target": 100,
+      "description": "% WO outdoor pianificati in giornate senza vincoli meteo violati"
+    }
+  },
+  "efficiency_formula": "sum(valore_componente * peso) per ogni componente",
+  "confidence_formula": {
+    "base": 1.0,
+    "penalties": {
+      "is_continuation": {"factor": 0.9, "reason": "WO spezzato su più giorni"},
+      "finestra_stretta_lte2": {"factor": 0.88, "reason": "Finestra temporale <= 2 giorni"},
+      "finestra_stretta_lte4": {"factor": 0.94, "reason": "Finestra temporale <= 4 giorni"},
+      "alta_saturazione": {"factor": 0.85, "condition": "durata / ore_libere > 0.9", "reason": "Slot quasi saturo"}
+    },
+    "clamp": {"min": 0.4, "max": 1.0},
+    "risk_thresholds": {
+      "LOW": {"gte": 0.85},
+      "MEDIUM": {"gte": 0.65},
+      "HIGH": {"lt": 0.65}
+    }
+  },
+  "complexity_rules": {
+    "SIMPLE": "durata_stimata_ore <= 2.0 AND tecnici_richiesti <= 1",
+    "COMPLEX": "durata_stimata_ore > 8.0 OR tecnici_richiesti > 1",
+    "STANDARD": "tutto il resto"
+  }
+}
