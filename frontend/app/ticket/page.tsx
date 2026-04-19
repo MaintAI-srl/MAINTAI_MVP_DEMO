@@ -349,10 +349,13 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       style={{
         background: "#111827",
         color: "var(--text-primary)",
-        boxShadow: "var(--shadow-lg)",
-        border: "1px solid #1f2937",
-        width: "min(90vw, 680px)",
-        maxWidth: "min(90vw, 680px)",
+        boxShadow: "0 25px 60px rgba(0,0,0,0.7)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        width: "min(92vw, 700px)",
+        maxWidth: "min(92vw, 700px)",
+        maxHeight: "90vh",
+        overflowY: "auto",
+        borderRadius: 16,
       }}
     >
       {/* Header Premium */}
