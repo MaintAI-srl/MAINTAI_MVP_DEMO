@@ -806,7 +806,7 @@ export default function PlanningPage() {
       }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.5px" }}>
-            ◈ Piano Manutenzione MARCO
+            ◈ Piano di Manutenzione AI
           </div>
           <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
             {backlogStats.total} ticket in backlog · {backlogStats.totalOre.toFixed(0)}h stimate

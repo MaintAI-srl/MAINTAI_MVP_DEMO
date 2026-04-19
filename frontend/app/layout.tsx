@@ -57,7 +57,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/assets":     "Asset",
   "/impianti":   "Impianti",
   "/tecnici":    "Tecnici",
-  "/planning":          "Piano AI — MARCO",
+  "/planning":          "Piano AI",
   "/planning/risorse":  "Scheduler Risorse",
   "/ticket":     "Ticket",
   "/piani":              "Piano di Manutenzione — Task",
