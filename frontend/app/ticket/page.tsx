@@ -597,11 +597,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           </Button>
         </DialogContent>
       </Dialog>
-        </div>
-      </div>
     </div>
-  );
+  </div>
+);
 }
+
 
 // ── Pagina principale ─────────────────────────────────────────────────────
 
