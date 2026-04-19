@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guida per Claude Code su questo repository. Aggiornato alla versione **3.0.0** (2026-04-19).
+Guida per Claude Code su questo repository. Aggiornato alla versione **3.0.1** (2026-04-19).
 
 ---
 

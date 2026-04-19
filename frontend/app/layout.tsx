@@ -39,10 +39,10 @@ const NAV = [
   {
     section: "IMPOSTAZIONI",
     items: [
-      { href: "/asset",    label: "Siti & Asset",        icon: <Factory size={15} /> },
-      { href: "/tecnici",  label: "Tecnici",             icon: <Users size={15} /> },
-      { href: "/piani",    label: "Piano Manutenzione",  icon: <Wrench size={15} /> },
-      { href: "/scadenze", label: "Scadenze PM",         icon: <CalendarDays size={15} /> },
+      { href: "/asset",    label: "Siti & Asset",       icon: <Factory size={15} /> },
+      { href: "/tecnici",  label: "Tecnici",            icon: <Users size={15} /> },
+      { href: "/piani",    label: "Piano Manutenzione", icon: <Wrench size={15} /> },
+      { href: "/scadenze", label: "Scadenze PM",        icon: <CalendarDays size={15} /> },
     ],
   },
   {
@@ -57,24 +57,23 @@ const NAV = [
 ];
 
 const PAGE_LABELS: Record<string, string> = {
-  "/dashboard":  "Dashboard",
-  "/asset":      "Siti & Asset",
-  "/assets":     "Asset",
-  "/impianti":   "Impianti",
-  "/tecnici":    "Tecnici",
-  "/planning":          "Pianificazione",
-  "/ticket":     "Ticket",
-  "/piani":              "Piano di Manutenzione — Task",
-  "/piani-manutenzione": "Piano di Manutenzione — Task",
-  "/scadenze":       "Calendario Scadenze PM",
-  "/admin/tenants":     "Gestione Clienti",
-  "/admin/bulk-import": "Import Massivo",
-  "/admin/logs":        "Log di Sistema",
-  "/admin/email":       "Integrazione Email-to-Ticket",
-  "/profilo":       "Mio Profilo",
+  "/dashboard":          "Dashboard",
+  "/asset":              "Siti & Asset",
+  "/assets":             "Asset",
+  "/impianti":           "Impianti",
+  "/tecnici":            "Tecnici",
+  "/planning":           "Pianificazione",
+  "/ticket":             "Ticket",
+  "/piani":              "Piano di Manutenzione",
+  "/piani-manutenzione": "Piano di Manutenzione",
+  "/scadenze":           "Calendario Scadenze PM",
+  "/admin/tenants":      "Gestione Clienti",
+  "/admin/bulk-import":  "Import Massivo",
+  "/admin/logs":         "Log di Sistema",
+  "/admin/email":        "Integrazione Email-to-Ticket",
+  "/profilo":            "Mio Profilo",
 };
 
-// ── Indicatore connessione — visibile a tutti gli utenti ─────────────────────
 function GlobalOfflineIndicator() {
   const [isOnline, setIsOnline] = useState(true);
 
@@ -122,24 +121,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState("dark");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ── Service Worker registration (#23 PWA, #26 Offline) ───────────────────
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js")
-        .then((reg) => {
-          console.log("[MaintAI] Service Worker registrato:", reg.scope);
-        })
-        .catch((err) => {
-          // Non-critical: log ma non interrompere l'app
-          console.warn("[MaintAI] Service Worker non registrato:", err);
-        });
+        .then((reg) => { console.log("[MaintAI] Service Worker registrato:", reg.scope); })
+        .catch((err) => { console.warn("[MaintAI] Service Worker non registrato:", err); });
     }
   }, []);
 
   const isTecnico = user?.ruolo === "tecnico";
   const isSuperadmin = user?.ruolo === "superadmin";
 
-  // Filtra la navigazione in base al ruolo
   const filteredNav = NAV.map(section => ({
     ...section,
     items: section.items.filter((item: any) => {
@@ -153,7 +145,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isTecnico && (pathname === "/dashboard" || pathname === "/")) {
-      router.push("/mobile"); // Reindirizza il tecnico alla dashboard semplificata
+      router.push("/mobile");
     }
   }, [isTecnico, pathname, router]);
 
@@ -185,7 +177,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, pathname, router]);
 
   if (!isAuthenticated || pathname === "/login") {
-     return <main style={{ height: '100vh', width: '100vw' }}>{children}</main>;
+    return <main style={{ height: "100vh", width: "100vw" }}>{children}</main>;
   }
 
   const pageLabel = Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI";
@@ -195,133 +187,205 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   )?.section ?? "OPERAZIONI";
 
   return (
-    <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : ''}`}>
+    <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`}>
 
-          {/* ── SIDEBAR ── */}
-          <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
-            {/* Overlay mobile per chiudere */}
-            <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
+      {/* ── SIDEBAR ────────────────────────────────────────────── */}
+      <aside className={`app-sidebar${sidebarOpen ? " open" : ""}`}>
 
-            {/* Logo */}
-            <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: "none", cursor: "pointer" }} onClick={() => setSidebarOpen(false)}>
-              <img
-                src="/logo.png"
-                alt="Logo MaintAI"
-                style={{ width: "32px", height: "32px", objectFit: "contain", marginRight: "12px" }}
-              />
-              <div className="sidebar-logo-text">
-                <span className="sidebar-logo-name">MAINTAI</span>
-                <span className="sidebar-logo-sub">Manutenzione</span>
-                <span style={{ fontSize: "11px", color: "var(--blue)", opacity: 0.9, letterSpacing: "0.5px", fontWeight: 600 }}>v{VERSION}</span>
-              </div>
-            </Link>
+        {/* Mobile overlay */}
+        <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
-            {/* Navigation */}
-            {filteredNav.map((group) => (
-              <div className="sidebar-section" key={group.section}>
-                <div className="sidebar-section-label">{group.section}</div>
-                <nav className="sidebar-nav">
-                  {group.items.map((item) => {
-                    const active = pathname === item.href || pathname.startsWith(item.href + "/");
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={`nav-item${active ? " active" : ""}`}
-                        onClick={() => setSidebarOpen(false)}
-                      >
-                        <span style={{ lineHeight: 1, display: "flex", alignItems: "center" }}>{item.icon}</span>
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-            ))}
+        {/* Logo */}
+        <Link
+          href="/dashboard"
+          className="sidebar-logo"
+          style={{ textDecoration: "none" }}
+          onClick={() => setSidebarOpen(false)}
+        >
+          <img
+            src="/logo.png"
+            alt="MaintAI"
+            style={{ width: 28, height: 28, objectFit: "contain", flexShrink: 0 }}
+          />
+          <div className="sidebar-logo-text">
+            <span className="sidebar-logo-name">MAINTAI</span>
+            <span className="sidebar-logo-sub">Manutenzione Industriale</span>
+          </div>
+        </Link>
 
-            <div className="sidebar-footer">
-              {isSuperadmin && (
-                <div style={{ marginBottom: "12px" }}>
-                  <label style={{ fontSize: "9px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>CONTESTO TENANT</label>
-                  <select 
-                    style={{ background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border-strong)", borderRadius: "4px", fontSize: "11px", padding: "4px", width: "100%", outline: "none" }}
-                    value={localStorage.getItem("maintai_tenant_context") || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val) localStorage.setItem("maintai_tenant_context", val);
-                      else localStorage.removeItem("maintai_tenant_context");
-                      window.location.reload(); // Ricarica per applicare il nuovo contesto
-                    }}
+        {/* Nav groups */}
+        {filteredNav.map((group) => (
+          <div className="sidebar-section" key={group.section}>
+            <div className="sidebar-section-label">{group.section}</div>
+            <nav className="sidebar-nav">
+              {group.items.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`nav-item${active ? " active" : ""}`}
+                    onClick={() => setSidebarOpen(false)}
                   >
-                    <option value="">Global (Tutti)</option>
-                    {/* Qui servirebbe una lista di tenant, ma per ora il superadmin può inserirne uno o gestire da /admin/tenants */}
-                    <option value="1">Tenant Demo (#1)</option>
-                  </select>
-                </div>
-              )}
-              {user?.tenant_nome && (
-                <div style={{ fontSize: "10px", color: "var(--text-secondary)", opacity: 0.7, marginBottom: "6px", letterSpacing: "0.5px", textTransform: "uppercase" }}>
-                  ◈ {user.tenant_nome}
-                </div>
-              )}
-              <div className="system-status">
-                <span className="status-pulse" />
-                <span className="status-text">{isSuperadmin ? "SUPERADMIN" : isTecnico ? "MODALITÀ CAMPO" : "SISTEMA OK"}</span>
-              </div>
+                    <span className="nav-icon" style={{ display: "flex", alignItems: "center" }}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
+
+        {/* Footer */}
+        <div className="sidebar-footer">
+          {isSuperadmin && (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 9, color: "var(--text-muted)", display: "block", marginBottom: 4, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700 }}>
+                Contesto Tenant
+              </label>
+              <select
+                style={{
+                  background: "var(--surface-2)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  padding: "4px 8px",
+                  width: "100%",
+                  outline: "none",
+                }}
+                defaultValue={typeof window !== "undefined" ? (localStorage.getItem("maintai_tenant_context") || "") : ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) localStorage.setItem("maintai_tenant_context", val);
+                  else localStorage.removeItem("maintai_tenant_context");
+                  window.location.reload();
+                }}
+              >
+                <option value="">Global (Tutti)</option>
+                <option value="1">Tenant Demo (#1)</option>
+              </select>
             </div>
+          )}
 
-          </aside>
+          {user?.tenant_nome && (
+            <div style={{
+              fontSize: 10,
+              color: "var(--text-muted)",
+              marginBottom: 8,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              paddingLeft: 2,
+            }}>
+              <span style={{ opacity: 0.6 }}>◈</span>
+              <span>{user.tenant_nome}</span>
+            </div>
+          )}
 
-          {/* ── MAIN ── */}
-          <div className="app-main">
-
-            {/* Topbar */}
-            <header className="app-topbar">
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <button 
-                  className="mobile-menu-btn"
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                >
-                  ☰
-                </button>
-                <div className="topbar-breadcrumb">
-                  <span className="topbar-section">{sectionLabel}</span>
-                  <span className="topbar-sep">›</span>
-                  <span className="topbar-page">{pageLabel}</span>
-                </div>
-              </div>
-              <div className="topbar-right">
-                <GlobalQuickTicket />
-                <NotificationPanel />
-                <WeatherWidget />
-                <span className="topbar-time">{time}</span>
-                <button 
-                  onClick={toggleTheme} 
-                  style={{ background: "transparent", border: "1px solid var(--border-strong)", borderRadius: "6px", width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "14px" }}
-                  title="Cambia tema"
-                >
-                  {theme === "dark" ? "🌞" : "🌙"}
-                </button>
-                <span className="badge badge-green" style={{ marginRight: "12px" }}>● ONLINE</span>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", borderLeft: "1px solid var(--border-strong)", paddingLeft: "12px" }}>
-                  <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-secondary)" }}>{user?.username} ({user?.ruolo})</span>
-                  <button 
-                    onClick={logout} 
-                    style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "#fca5a5", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" }}
-                  >
-                    Esci
-                  </button>
-                </div>
-              </div>
-            </header>
-
-            {/* Page content */}
-            <main className="app-content">
-              {children}
-            </main>
-
+          <div className="system-status">
+            <span className="status-pulse" />
+            <span className="status-text">
+              {isSuperadmin ? "SUPERADMIN" : isTecnico ? "CAMPO" : "SISTEMA OK"}
+            </span>
+            <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+              v{VERSION}
+            </span>
           </div>
         </div>
+      </aside>
+
+      {/* ── MAIN ───────────────────────────────────────────────── */}
+      <div className="app-main">
+
+        {/* Topbar */}
+        <header className="app-topbar">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Apri menu"
+            >
+              ☰
+            </button>
+            <div className="topbar-breadcrumb">
+              <span className="topbar-section">{sectionLabel}</span>
+              <span className="topbar-sep">›</span>
+              <span className="topbar-page">{pageLabel}</span>
+            </div>
+          </div>
+
+          <div className="topbar-right">
+            <GlobalQuickTicket />
+            <NotificationPanel />
+            <WeatherWidget />
+
+            <span className="topbar-time">{time}</span>
+
+            <button
+              onClick={toggleTheme}
+              className="topbar-icon-btn"
+              title="Cambia tema"
+            >
+              {theme === "dark" ? "🌞" : "🌙"}
+            </button>
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              borderLeft: "1px solid var(--border-subtle)",
+              paddingLeft: 10,
+              marginLeft: 2,
+            }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1 }}>
+                  {user?.username}
+                </span>
+                <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, lineHeight: 1 }}>
+                  {user?.ruolo}
+                </span>
+              </div>
+              <button
+                onClick={logout}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border-default)",
+                  color: "#fca5a5",
+                  padding: "4px 10px",
+                  borderRadius: 5,
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  transition: "background 120ms, border-color 120ms",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.10)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.30)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-default)";
+                }}
+              >
+                ESCI
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="app-content">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }
 
@@ -329,11 +393,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const themeScript = `
     (function() {
       try {
-        var localTheme = localStorage.getItem('maintai_theme');
-        if (localTheme) {
-          document.documentElement.setAttribute('data-theme', localTheme);
-        }
-      } catch (e) {}
+        var t = localStorage.getItem('maintai_theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      } catch(e) {}
     })();
   `;
 
@@ -356,7 +418,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           position="bottom-right"
           toastOptions={{
             style: {
-              background: "var(--bg-elevated)",
+              background: "var(--surface-2)",
               border: "1px solid var(--border-strong)",
               color: "var(--text-primary)",
               fontFamily: "var(--font-body)",

@@ -41,21 +41,30 @@ const STATI_ARCHIVIO = ["Chiuso", "Eliminato"];
 
 function statoStyle(s: string): React.CSSProperties {
   switch (s?.toLowerCase()) {
-    case "aperto":      return { color: "#60a5fa", background: "rgba(96,165,250,0.1)",   border: "1px solid rgba(96,165,250,0.3)" };
-    case "pianificato": return { color: "#a78bfa", background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)" };
-    case "in corso":    return { color: "#fbbf24", background: "rgba(251,191,36,0.1)",  border: "1px solid rgba(251,191,36,0.3)" };
-    case "chiuso":      return { color: "#34d399", background: "rgba(52,211,153,0.1)",  border: "1px solid rgba(52,211,153,0.3)" };
-    case "eliminato":   return { color: "#f87171", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)" };
+    case "aperto":      return { color: "#93c5fd", background: "rgba(59,130,246,0.10)",  border: "1px solid rgba(59,130,246,0.20)" };
+    case "pianificato": return { color: "#c4b5fd", background: "rgba(139,92,246,0.10)", border: "1px solid rgba(139,92,246,0.22)" };
+    case "in corso":    return { color: "#67e8f9", background: "rgba(6,182,212,0.10)",   border: "1px solid rgba(6,182,212,0.22)" };
+    case "chiuso":      return { color: "#86efac", background: "rgba(34,197,94,0.10)",   border: "1px solid rgba(34,197,94,0.22)" };
+    case "eliminato":   return { color: "#94a3b8", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
     default:            return { color: "var(--text-secondary)", background: "rgba(156,163,175,0.1)", border: "1px solid rgba(156,163,175,0.3)" };
   }
 }
 
 function getPrioritaStyle(p: string): React.CSSProperties {
   switch (p?.toLowerCase()) {
-    case "alta":  return { color: "#f87171", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)" };
-    case "media": return { color: "#fbbf24", background: "rgba(251,191,36,0.1)",  border: "1px solid rgba(251,191,36,0.3)" };
-    case "bassa": return { color: "#34d399", background: "rgba(52,211,153,0.1)",  border: "1px solid rgba(52,211,153,0.3)" };
+    case "alta":  return { color: "#fca5a5", background: "rgba(239,68,68,0.10)",  border: "1px solid rgba(239,68,68,0.22)" };
+    case "media": return { color: "#fcd34d", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.22)" };
+    case "bassa": return { color: "#94a3b8", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
     default:      return { color: "var(--text-secondary)", background: "rgba(156,163,175,0.1)", border: "1px solid rgba(156,163,175,0.3)" };
+  }
+}
+
+function getTipoStyle(t: string): React.CSSProperties {
+  switch (t?.toUpperCase()) {
+    case "BD":  return { background: "rgba(239,68,68,0.12)",   color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" };
+    case "PM":  return { background: "rgba(34,197,94,0.10)",   color: "#86efac", border: "1px solid rgba(34,197,94,0.22)" };
+    case "CM":  return { background: "rgba(245,158,11,0.12)",  color: "#fcd34d", border: "1px solid rgba(245,158,11,0.25)" };
+    default:    return { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.10)" };
   }
 }
 
@@ -821,7 +830,7 @@ export default function TicketPage() {
         const t = row.original;
         return (
           <>
-            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.08)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.1)" }}>{t.tipo}</span>
+            <span style={{ ...getTipoStyle(t.tipo), fontSize: 10, padding: "2px 7px", borderRadius: 4, fontWeight: 700, letterSpacing: "0.04em" }}>{t.tipo}</span>
             {t.diagnosi_eseguita && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>AI</span>}
             {t.parent_id && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)", fontWeight: 700 }}>↳#{t.parent_id}</span>}
           </>
@@ -833,7 +842,7 @@ export default function TicketPage() {
       header: "Priorità",
       cell: ({ getValue }) => {
         const p = getValue<string>();
-        return <span style={{ ...getPrioritaStyle(p), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{p}</span>;
+        return <span style={{ ...getPrioritaStyle(p), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{p}</span>;
       },
     },
     {
@@ -946,25 +955,27 @@ export default function TicketPage() {
   ];
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="page-title">Ticket</h1>
-        <p className="page-subtitle">Ticket operativi che alimentano il planner automatico.</p>
+    <div style={{ background: "#060d1a", minHeight: "100%" }}>
+      <div className="mb-8" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 className="page-title" style={{ marginBottom: 4 }}>Ticket</h1>
+          <p className="page-subtitle" style={{ margin: 0 }}>Ticket operativi che alimentano il planner automatico.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            window.open(`${API_BASE}/export/tickets`, "_blank", "noopener,noreferrer");
+          }}
+          style={{ padding: "9px 20px", borderRadius: 8, background: "linear-gradient(135deg, #1d4ed8, #6366f1)", border: "none", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", fontSize: 13, boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}
+        >
+          <span>📊</span> Esporta Excel
+        </button>
       </div>
 
 
-      <div className="dark-card card-body mb-8">
+      <div style={{ background: "#0c1628", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "20px 24px", marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ marginTop: 0, marginBottom: 0 }}>Nuovo ticket</h2>
-          <button 
-            type="button" 
-            onClick={() => {
-              window.open(`${API_BASE}/export/tickets`, "_blank", "noopener,noreferrer");
-            }}
-            style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.4)", color: "#10b981", fontWeight: 600, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}
-          >
-            <span>📊</span> Esporta Excel
-          </button>
+          <h2 style={{ marginTop: 0, marginBottom: 0, fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>Nuovo ticket</h2>
         </div>
         <form onSubmit={handleSubmit} className="form-grid-3">
           <div className="span-3">
@@ -1080,9 +1091,9 @@ export default function TicketPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, background: "#0c1628", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "6px 8px", width: "fit-content" }}>
         {(["attivi", "archivio", "kanban"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: "6px 18px", borderRadius: 6, border: "1px solid", fontSize: 13, cursor: "pointer", background: tab === t ? "rgba(99,102,241,0.2)" : "transparent", color: tab === t ? "#818cf8" : "var(--text-muted)", borderColor: tab === t ? "rgba(99,102,241,0.5)" : "rgba(75,85,99,0.4)" }}>
+          <button key={t} onClick={() => setTab(t)} style={{ padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, cursor: "pointer", fontWeight: 600, background: tab === t ? "rgba(99,102,241,0.25)" : "transparent", color: tab === t ? "#a5b4fc" : "rgba(148,163,184,0.6)", transition: "all 0.15s" }}>
             {t === "attivi" ? `Attivi (${result?.total ?? 0})` : t === "archivio" ? `Archivio (${archivio?.total ?? 0})` : "Kanban"}
           </button>
         ))}
@@ -1104,14 +1115,14 @@ export default function TicketPage() {
           onRowClick={(t) => setDetailTicket(t)}
           getRowProps={(t) => ({
             onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
-            style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined },
+            style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
           })}
         />
       )}
 
       {tab === "archivio" && (
         <>
-          <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 12 }}>
+          <div style={{ color: "rgba(148,163,184,0.7)", fontSize: 12, marginBottom: 12 }}>
             Ticket chiusi ed eliminati — visibili all&apos;AI per analisi storiche.
           </div>
           <DataTable
@@ -1125,7 +1136,7 @@ export default function TicketPage() {
             onRowClick={(t) => setDetailTicket(t)}
             getRowProps={(t) => ({
               onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
-              style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.06)" : undefined },
+              style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
             })}
           />
         </>

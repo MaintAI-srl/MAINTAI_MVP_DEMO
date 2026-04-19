@@ -113,7 +113,7 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
           background: s.bg,
           border: `1px solid ${s.border}`,
           borderLeft: `3px solid ${s.border}`,
-          borderRadius: 3,
+          borderRadius: 5,
           padding: "4px 6px",
           cursor: isDragging ? "grabbing" : "grab",
           opacity: isDragging ? 0.25 : 1,
@@ -121,10 +121,14 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
           userSelect: "none",
           boxSizing: "border-box",
           zIndex: isDragging ? 0 : 2,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+          transition: "filter 0.12s",
         }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)"; }}
       >
         <div style={{ fontSize: 9, color: s.text, opacity: 0.7, letterSpacing: "0.08em" }}>{ticket.tipo} · {dur}h</div>
-        <div style={{ fontSize: 11, color: s.text, fontWeight: 600, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
+        <div style={{ fontSize: 11, color: s.text, fontWeight: 700, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
         {ticket.asset_name && (
           <div style={{ fontSize: 9, color: s.text, opacity: 0.6, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.asset_name}</div>
         )}
@@ -138,12 +142,16 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       style={{
         background: s.bg, border: `1px solid ${s.border}`, borderLeft: `3px solid ${s.border}`,
-        borderRadius: 3, padding: "3px 5px", marginBottom: 2,
+        borderRadius: 5, padding: "3px 5px", marginBottom: 2,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.25 : 1,
         overflow: "hidden", userSelect: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+        transition: "filter 0.12s",
       }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)"; }}
     >
-      <div style={{ fontSize: 10, color: s.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
+      <div style={{ fontSize: 10, color: s.text, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
       <div style={{ fontSize: 9, color: s.text, opacity: 0.7 }}>{ticket.tipo} · {dur}h</div>
     </div>
   );
@@ -164,17 +172,27 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
       ref={setNodeRef} {...listeners} {...attributes}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       style={{
-        background: "#1a2332", border: "1px solid #2a3748", borderLeft: `3px solid ${s.border}`,
-        borderRadius: 4, padding: "8px 10px", marginBottom: 6,
+        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderLeft: `3px solid ${s.border}`,
+        borderRadius: 6, padding: "8px 10px", marginBottom: 6,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.35 : 1, userSelect: "none",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+        transition: "background 0.12s, border-color 0.12s",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.background = "rgba(59,130,246,0.05)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(59,130,246,0.2)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-        <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}20`, padding: "1px 5px", borderRadius: 2 }}>{ticket.tipo}</span>
+        <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}22`, border: `1px solid ${s.border}44`, padding: "1px 5px", borderRadius: 4 }}>{ticket.tipo}</span>
         <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>
       </div>
       <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{ticket.titolo}</div>
-      <div style={{ fontSize: 10, color: "#6b7280" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
+      <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
     </div>
   );
 }
@@ -186,14 +204,15 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
     <div style={{
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
-      borderRight: "1px solid #1f2937", background: "#111827",
+      borderRight: "1px solid rgba(59,130,246,0.1)",
+      background: "linear-gradient(90deg, #0c1628 0%, rgba(12,22,40,0.95) 100%)",
       position: "sticky", left: 0, zIndex: 3,
     }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "#f9fafb", lineHeight: 1.3 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.3 }}>
           {tecnico.nome} {tecnico.cognome ?? ""}
         </div>
-        <div style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>
+        <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)", marginTop: 1 }}>
           {(tecnico as any).skill ?? tecnico.competenze ?? ""}
         </div>
       </div>
@@ -215,11 +234,11 @@ function DayRow({ tecnico, tickets, day, onTicketClick }: {
   const timelineW = (DAY_END_H - DAY_START_H) * HOUR_W;
 
   return (
-    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid #1f2937" }}>
+    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
       <TecnicoLabel tecnico={tecnico} />
       <div ref={setNodeRef} style={{
         position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
-        background: isOver ? "rgba(59,130,246,0.07)" : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(255,255,255,0.04) ${HOUR_W - 1}px, rgba(255,255,255,0.04) ${HOUR_W}px)`,
+        background: isOver ? "rgba(59,130,246,0.07)" : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(59,130,246,0.05) ${HOUR_W - 1}px, rgba(59,130,246,0.05) ${HOUR_W}px)`,
         transition: "background 0.12s",
       }}>
         {dayTickets.map((t) => {
@@ -249,7 +268,7 @@ function DayCell({ tecnico_id, date, tickets, onTicketClick, cellW }: {
   return (
     <div ref={setNodeRef} style={{
       width: cellW, minWidth: cellW, minHeight: ROW_H, padding: "4px 3px",
-      borderRight: "1px solid #1f2937",
+      borderRight: "1px solid rgba(59,130,246,0.06)",
       background: isOver ? "rgba(59,130,246,0.08)" : "transparent",
       transition: "background 0.12s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
@@ -266,7 +285,7 @@ function MultiDayRow({ tecnico, tickets, days, view, onTicketClick }: {
 }) {
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   return (
-    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid #1f2937" }}>
+    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
       <TecnicoLabel tecnico={tecnico} />
       {days.map((day) => {
         const dateStr = format(day, "yyyy-MM-dd");
@@ -630,19 +649,22 @@ export default function PianificazionePage() {
 
         {/* ── TOOLBAR ── */}
         <div style={{
-          display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
-          borderBottom: "1px solid #1f2937", background: "#111827",
-          flexShrink: 0, flexWrap: "wrap",
+          display: "flex", alignItems: "center", gap: 8, padding: "0 16px",
+          borderBottom: "1px solid rgba(59,130,246,0.15)",
+          background: "linear-gradient(90deg, #0a1628 0%, #0d1e38 100%)",
+          flexShrink: 0, flexWrap: "wrap", height: 52,
         }}>
           {/* View toggle */}
-          <div style={{ display: "flex", border: "1px solid #374151", borderRadius: 4, overflow: "hidden" }}>
-            {(["day", "week", "2week"] as ViewMode[]).map((v, i, arr) => (
+          <div style={{ display: "flex", gap: 3 }}>
+            {(["day", "week", "2week"] as ViewMode[]).map((v) => (
               <button key={v} onClick={() => setView(v)} style={{
                 padding: "5px 10px", fontSize: 10, letterSpacing: "0.1em",
-                background: view === v ? "#3b82f6" : "transparent",
-                color: view === v ? "#fff" : "#9ca3af",
-                border: "none", borderRight: i < arr.length - 1 ? "1px solid #374151" : "none",
-                cursor: "pointer", fontFamily: "inherit",
+                background: view === v ? "rgba(59,130,246,0.15)" : "transparent",
+                color: view === v ? "#60a5fa" : "rgba(148,163,184,0.7)",
+                border: view === v ? "1px solid rgba(59,130,246,0.3)" : "1px solid transparent",
+                borderRadius: 5,
+                cursor: "pointer", fontFamily: "inherit", fontWeight: view === v ? 700 : 500,
+                transition: "all 0.12s",
               }}>
                 {v === "day" ? "GIORNO" : v === "week" ? "SETTIMANA" : "2 SETT."}
               </button>
@@ -650,23 +672,33 @@ export default function PianificazionePage() {
           </div>
 
           {/* Date nav */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid #374151", color: "#9ca3af", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>‹</button>
-            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid #374151", color: "#9ca3af", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}>OGGI</button>
-            <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid #374151", color: "#9ca3af", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>›</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>‹</button>
+            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>OGGI</button>
+            <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>›</button>
           </div>
 
-          <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 600, textTransform: "capitalize" }}>{dateLabel}</span>
+          <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 700, textTransform: "capitalize" }}>{dateLabel}</span>
 
           <div style={{ flex: 1 }} />
 
-          {/* Efficienza badge compatta */}
+          {/* Efficienza badge compatta — pill premium */}
           {effScore !== undefined && (
             <span style={{
-              fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 4,
-              background: effScore >= 80 ? "#14532d44" : effScore >= 60 ? "#78350f44" : "#7f1d1d44",
+              fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
+              background: effScore >= 80
+                ? "linear-gradient(135deg, rgba(20,83,45,0.6), rgba(5,150,105,0.3))"
+                : effScore >= 60
+                  ? "linear-gradient(135deg, rgba(120,53,15,0.6), rgba(245,158,11,0.2))"
+                  : "linear-gradient(135deg, rgba(127,29,29,0.6), rgba(239,68,68,0.2))",
               color: effScore >= 80 ? "#86efac" : effScore >= 60 ? "#fcd34d" : "#fca5a5",
-              border: `1px solid ${effScore >= 80 ? "#22c55e44" : effScore >= 60 ? "#f59e0b44" : "#ef444444"}`,
+              border: `1px solid ${effScore >= 80 ? "rgba(34,197,94,0.4)" : effScore >= 60 ? "rgba(245,158,11,0.4)" : "rgba(239,68,68,0.4)"}`,
+              boxShadow: effScore >= 80
+                ? "0 0 10px rgba(34,197,94,0.15)"
+                : effScore >= 60
+                  ? "0 0 10px rgba(245,158,11,0.15)"
+                  : "0 0 10px rgba(239,68,68,0.15)",
+              letterSpacing: "0.05em",
             }}>
               ◈ Score {Math.round(effScore)}
             </span>
@@ -687,13 +719,17 @@ export default function PianificazionePage() {
           <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {scheduledTickets.length} pianificati</span>
 
           {/* Engine toggle */}
-          <div style={{ display: "flex", border: "1px solid #374151", borderRadius: 4, overflow: "hidden", fontSize: 10 }}>
-            {(["deterministic", "ai"] as EngineMode[]).map((m, i) => (
+          <div style={{ display: "flex", gap: 3, fontSize: 11 }}>
+            {(["deterministic", "ai"] as EngineMode[]).map((m) => (
               <button key={m} onClick={() => setEngineMode(m)} title={m === "deterministic" ? "Motore deterministico — istantaneo" : "Motore GPT — richiede OpenAI"} style={{
-                padding: "5px 10px", fontWeight: 600, cursor: "pointer", border: "none",
-                borderRight: i === 0 ? "1px solid #374151" : "none",
-                background: engineMode === m ? (m === "ai" ? "linear-gradient(135deg,#1d4ed8,#7c3aed)" : "#065f46") : "transparent",
-                color: engineMode === m ? "#fff" : "#6b7280", fontFamily: "inherit",
+                padding: "4px 10px", fontWeight: 600, cursor: "pointer",
+                border: engineMode === m
+                  ? (m === "ai" ? "1px solid rgba(124,58,237,0.5)" : "1px solid rgba(5,150,105,0.5)")
+                  : "1px solid transparent",
+                borderRadius: 6,
+                background: engineMode === m ? (m === "ai" ? "linear-gradient(135deg,rgba(29,78,216,0.5),rgba(124,58,237,0.5))" : "rgba(6,95,70,0.6)") : "transparent",
+                color: engineMode === m ? "#fff" : "rgba(100,116,139,0.7)", fontFamily: "inherit",
+                transition: "all 0.12s",
               }}>
                 {m === "deterministic" ? "⚙ Engine" : "🤖 GPT"}
               </button>
@@ -702,11 +738,11 @@ export default function PianificazionePage() {
 
           {/* Genera Piano AI */}
           <button onClick={generateAIPlan} disabled={generando} style={{
-            background: generando ? "#1f2937" : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-            border: "none", color: "#fff", borderRadius: 6, padding: "6px 14px",
-            fontSize: 12, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer",
-            boxShadow: generando ? "none" : "0 0 14px rgba(99,102,241,0.4)",
-            display: "flex", alignItems: "center", gap: 6,
+            background: generando ? "rgba(31,41,55,0.8)" : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
+            border: "none", color: "#fff", borderRadius: 8, padding: "8px 20px",
+            fontSize: 12, fontWeight: 800, cursor: generando ? "not-allowed" : "pointer",
+            boxShadow: generando ? "none" : "0 0 18px rgba(99,102,241,0.45), 0 4px 12px rgba(29,78,216,0.3)",
+            display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s",
           }}>
             {generando ? (
               <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Elaborazione...</>
@@ -716,9 +752,11 @@ export default function PianificazionePage() {
           {/* Conferma piano */}
           {piano?.status === "draft" && (
             <button onClick={confirmPlan} disabled={confermando} style={{
-              background: confermando ? "#1f2937" : "#065f46", border: "1px solid #059669",
-              color: "#86efac", borderRadius: 6, padding: "6px 14px",
+              background: confermando ? "rgba(31,41,55,0.8)" : "#065f46",
+              border: "1px solid #059669",
+              color: "#86efac", borderRadius: 8, padding: "8px 16px",
               fontSize: 12, fontWeight: 700, cursor: confermando ? "not-allowed" : "pointer",
+              transition: "all 0.12s",
             }}>
               {confermando ? "Confermando..." : "✓ Conferma"}
             </button>
@@ -731,13 +769,14 @@ export default function PianificazionePage() {
               title="Ricalcola piano adattivamente"
               style={{
                 background: "transparent",
-                border: "1px solid #374151",
-                color: "#9ca3af",
+                border: "1px solid rgba(55,65,81,0.8)",
+                color: "rgba(148,163,184,0.8)",
                 borderRadius: 6,
                 padding: "6px 12px",
                 fontSize: 12,
                 cursor: "pointer",
                 fontFamily: "inherit",
+                transition: "border-color 0.12s, color 0.12s",
               }}
             >
               ↻ Ricalcola
@@ -746,8 +785,9 @@ export default function PianificazionePage() {
 
           {/* Refresh */}
           <button onClick={loadData} disabled={loading} title="Aggiorna" style={{
-            background: "transparent", border: "1px solid #374151", color: "#9ca3af",
+            background: "transparent", border: "1px solid rgba(55,65,81,0.8)", color: "rgba(148,163,184,0.8)",
             width: 28, height: 28, cursor: "pointer", fontSize: 14, opacity: loading ? 0.5 : 1,
+            borderRadius: 6, transition: "border-color 0.12s",
           }}>↻</button>
         </div>
 
@@ -756,12 +796,16 @@ export default function PianificazionePage() {
 
           {/* ── SIDEBAR sinistra ── */}
           <div style={{
-            width: 256, minWidth: 256, borderRight: "1px solid #1f2937",
-            background: "#111827", display: "flex", flexDirection: "column", overflow: "hidden",
+            width: 256, minWidth: 256, borderRight: "1px solid rgba(59,130,246,0.1)",
+            background: "#0c1628", display: "flex", flexDirection: "column", overflow: "hidden",
           }}>
             {/* Header sidebar */}
-            <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid #1f2937", flexShrink: 0 }}>
-              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#6b7280", marginBottom: 8 }}>NON PIANIFICATI</div>
+            <div style={{
+              padding: "10px 12px", flexShrink: 0,
+              background: "linear-gradient(90deg, rgba(59,130,246,0.08), transparent)",
+              borderBottom: "1px solid rgba(59,130,246,0.12)",
+            }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "rgba(148,163,184,0.7)", marginBottom: 8, fontWeight: 700 }}>NON PIANIFICATI</div>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
                 {(["", "BD", "PM", "CM"] as const).map((tipo) => {
                   const color = tipo === "BD" ? "#ef4444" : tipo === "PM" ? "#22c55e" : tipo === "CM" ? "#f59e0b" : "#6b7280";
@@ -795,21 +839,43 @@ export default function PianificazionePage() {
 
             {/* Efficienza breakdown compatto — se piano esiste */}
             {effScore !== undefined && effBreakdown && (
-              <div style={{ borderTop: "1px solid #1f2937", padding: "12px 12px 16px", flexShrink: 0 }}>
+              <div style={{
+                borderTop: "1px solid rgba(59,130,246,0.1)",
+                padding: "12px 12px 16px", flexShrink: 0,
+                background: "rgba(59,130,246,0.05)",
+                margin: "0 8px 8px",
+                borderRadius: 8,
+                border: "1px solid rgba(59,130,246,0.12)",
+                marginTop: 8,
+              }}>
                 <BadgeEfficienza score={effScore} breakdown={effBreakdown} />
               </div>
             )}
 
             {/* Pannello motivazioni — visibile automaticamente se score < 90 */}
             {effScore !== undefined && planJson?.efficiency_motivations && planJson.efficiency_motivations.length > 0 && (
-              <div style={{ borderTop: "1px solid #1f2937", padding: "12px", flexShrink: 0 }}>
+              <div style={{
+                borderTop: "1px solid rgba(59,130,246,0.08)",
+                padding: "12px", flexShrink: 0,
+                background: "rgba(59,130,246,0.04)",
+                margin: "0 8px 8px",
+                borderRadius: 8,
+                border: "1px solid rgba(59,130,246,0.1)",
+              }}>
                 <PannelloMotivazioni motivations={planJson.efficiency_motivations} score={effScore} />
               </div>
             )}
 
             {/* WO non pianificati con reason codes */}
             {planJson?.deferred_workorders && planJson.deferred_workorders.length > 0 && (
-              <div style={{ borderTop: "1px solid #1f2937", padding: "12px", flexShrink: 0 }}>
+              <div style={{
+                borderTop: "1px solid rgba(59,130,246,0.08)",
+                padding: "12px", flexShrink: 0,
+                background: "rgba(59,130,246,0.04)",
+                margin: "0 8px 8px",
+                borderRadius: 8,
+                border: "1px solid rgba(59,130,246,0.1)",
+              }}>
                 <DeferredWOPanel
                   deferredWOs={planJson.deferred_workorders}
                   allTickets={[...scheduledTickets, ...unscheduledTickets]}
@@ -819,7 +885,7 @@ export default function PianificazionePage() {
           </div>
 
           {/* ── GANTT TIMELINE ── */}
-          <div style={{ flex: 1, overflow: "auto", position: "relative", background: "#0a0f1e" }}>
+          <div style={{ flex: 1, overflow: "auto", position: "relative", background: "#060d1a" }}>
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#6b7280", fontSize: 13 }}>
                 Caricamento dati...
@@ -828,20 +894,23 @@ export default function PianificazionePage() {
               <div style={{ minWidth: timelineMinW }}>
                 {/* Header colonne */}
                 <div style={{
-                  display: "flex", height: 40, borderBottom: "1px solid #1f2937",
-                  background: "#111827", position: "sticky", top: 0, zIndex: 10,
+                  display: "flex", height: 40,
+                  borderBottom: "1px solid rgba(59,130,246,0.12)",
+                  background: "linear-gradient(180deg, #0c1628 0%, #0a1422 100%)",
+                  position: "sticky", top: 0, zIndex: 10,
                 }}>
                   <div style={{
                     width: LABEL_W, minWidth: LABEL_W, display: "flex", alignItems: "center",
-                    padding: "0 14px", borderRight: "1px solid #1f2937",
-                    fontSize: 10, color: "#6b7280", letterSpacing: "0.1em",
-                    position: "sticky", left: 0, background: "#111827", zIndex: 11,
+                    padding: "0 14px", borderRight: "1px solid rgba(59,130,246,0.1)",
+                    fontSize: 10, color: "rgba(148,163,184,0.7)", letterSpacing: "0.08em", fontWeight: 700,
+                    position: "sticky", left: 0,
+                    background: "linear-gradient(180deg, #0c1628 0%, #0a1422 100%)", zIndex: 11,
                   }}>
                     TECNICO
                   </div>
                   {view === "day"
                     ? Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => (
-                        <div key={i} style={{ width: HOUR_W, minWidth: HOUR_W, display: "flex", alignItems: "center", paddingLeft: 6, borderRight: "1px solid #1f2937", fontSize: 10, color: "#6b7280" }}>
+                        <div key={i} style={{ width: HOUR_W, minWidth: HOUR_W, display: "flex", alignItems: "center", paddingLeft: 6, borderRight: "1px solid rgba(59,130,246,0.06)", fontSize: 10, color: "rgba(148,163,184,0.7)", fontWeight: 700, letterSpacing: "0.08em" }}>
                           {String(DAY_START_H + i).padStart(2, "0")}:00
                         </div>
                       ))
@@ -851,13 +920,16 @@ export default function PianificazionePage() {
                           <div key={day.toISOString()} style={{
                             width: cellW, minWidth: cellW, display: "flex", flexDirection: "column",
                             alignItems: "center", justifyContent: "center",
-                            borderRight: "1px solid #1f2937",
-                            background: today ? "rgba(59,130,246,0.07)" : "transparent",
+                            borderRight: "1px solid rgba(59,130,246,0.06)",
+                            background: today ? "rgba(59,130,246,0.15)" : "transparent",
                           }}>
-                            <div style={{ fontSize: 9, color: today ? "#60a5fa" : "#6b7280", letterSpacing: "0.1em" }}>
+                            <div style={{ fontSize: 9, color: today ? "#60a5fa" : "rgba(148,163,184,0.7)", letterSpacing: "0.08em", fontWeight: 700 }}>
                               {format(day, "EEE", { locale: it }).toUpperCase()}
                             </div>
-                            <div style={{ fontSize: 13, fontWeight: today ? 700 : 500, color: today ? "#60a5fa" : "#e2e8f0" }}>
+                            <div style={{
+                              fontSize: 13, fontWeight: 700, color: today ? "#60a5fa" : "#e2e8f0",
+                              textShadow: today ? "0 0 8px rgba(96,165,250,0.6)" : "none",
+                            }}>
                               {format(day, "d")}
                             </div>
                           </div>
@@ -894,7 +966,12 @@ export default function PianificazionePage() {
         </div>
 
         {/* ── STORICO PIANI ── */}
-        <div style={{ borderTop: "1px solid #1f2937", padding: "0 16px 24px", background: "#0a0f1e", maxHeight: 320, overflowY: "auto" }}>
+        <div style={{
+          borderTop: "1px solid rgba(59,130,246,0.08)",
+          padding: "0 16px 24px",
+          background: "linear-gradient(180deg, #060d1a 0%, #040a14 100%)",
+          maxHeight: 320, overflowY: "auto",
+        }}>
           <StoricoPiani piani={storico} onRefresh={loadStorico} />
         </div>
 

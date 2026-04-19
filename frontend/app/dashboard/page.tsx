@@ -121,29 +121,29 @@ function RingProgress({ value, max, color, size = 100, label, sublabel }: { valu
 function KpiCard({ label, value, accent, sub, icon }: { label: string; value: number | string; accent: string; sub?: string; icon: React.ReactNode }) {
   return (
     <div style={{
-      background: "linear-gradient(135deg, var(--bg-card) 0%, rgba(15,23,42,0.8) 100%)",
-      border: `1px solid ${accent}30`,
-      borderRadius: 16,
-      padding: "22px 24px",
-      display: "flex", flexDirection: "column", gap: 16,
+      background: "linear-gradient(145deg, #111f35 0%, #0c1628 100%)",
+      border: `1px solid rgba(59,130,246,0.12)`,
+      borderRadius: 12,
+      padding: "20px 22px",
+      display: "flex", flexDirection: "column", gap: 14,
       position: "relative", overflow: "hidden",
-      boxShadow: `0 0 0 1px ${accent}10, 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)`,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
       transition: "transform 0.2s, box-shadow 0.2s",
     }}
-      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 1px ${accent}30, 0 16px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)`; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 1px ${accent}10, 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)`; }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 1px ${accent}30, 0 16px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
     >
       {/* Glow blob */}
-      <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: accent, opacity: 0.12, filter: "blur(35px)", borderRadius: "50%", pointerEvents: "none" }} />
-      {/* Top accent line */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
+      <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: accent, opacity: 0.10, filter: "blur(35px)", borderRadius: "50%", pointerEvents: "none" }} />
+      {/* Left accent bar */}
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${accent}, ${accent}40)`, borderRadius: "12px 0 0 12px" }} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 1 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>{label}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(148,163,184,0.7)" }}>{label}</div>
         <div style={{ padding: "6px", background: `${accent}18`, borderRadius: 8, border: `1px solid ${accent}25`, color: accent }}>{icon}</div>
       </div>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: 48, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1, zIndex: 1, letterSpacing: "-0.02em" }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: "var(--text-muted)", zIndex: 1, fontWeight: 500, borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 12, marginTop: -4 }}>{sub}</div>}
+      <div style={{ fontFamily: "var(--font-display)", fontSize: 36, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1, zIndex: 1, letterSpacing: "-1px" }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "rgba(148,163,184,0.7)", zIndex: 1, fontWeight: 500, borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 10, marginTop: -2 }}>{sub}</div>}
     </div>
   );
 }
@@ -164,7 +164,9 @@ function ChartCard({ title, subtitle, accent = "#3b82f6", children }: { title: s
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "0.02em" }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>{subtitle}</div>}
       </div>
-      {children}
+      <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.04)", padding: "8px 4px" }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -241,51 +243,50 @@ export default function DashboardPage() {
   const trendChartData = trend ? trend.labels.map((l, i) => ({ name: l, value: trend.values[i] })) : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28, paddingBottom: 48 }}>
+    <div className="anim-fade-in-up" style={{ display: "flex", flexDirection: "column", gap: 28, paddingBottom: 48, background: "#060d1a", minHeight: "100%", padding: "0 0 48px" }}>
 
       {/* ── Hero Header ─────────────────────────────────────────────────────── */}
       <div style={{
-        position: "relative", borderRadius: 20, overflow: "hidden",
+        position: "relative", borderRadius: 12, overflow: "hidden",
         background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)",
         border: "1px solid rgba(99,102,241,0.2)",
-        padding: "32px 36px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)",
+        padding: "0 24px",
+        height: 64,
+        display: "flex", alignItems: "center",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)",
+        flexShrink: 0,
       }}>
         {/* Grid mesh */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
-        {/* Glow blobs */}
-        <div style={{ position: "absolute", top: -60, right: 80, width: 300, height: 300, background: "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: -40, left: 40, width: 200, height: 200, background: "radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: -40, right: 80, width: 200, height: 200, background: "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "#818cf8", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", padding: "3px 10px", borderRadius: 20 }}>
-                Overview
-              </span>
-            </div>
-            <h1 style={{ margin: 0, fontSize: 36, fontWeight: 800, fontFamily: "var(--font-display)", color: "#f8fafc", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "#818cf8", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", padding: "3px 10px", borderRadius: 20, flexShrink: 0 }}>
+              Overview
+            </span>
+            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, fontFamily: "var(--font-display)", color: "#f8fafc", lineHeight: 1, letterSpacing: "-0.02em" }}>
               Ciao,{" "}
               <span style={{ background: "linear-gradient(135deg, #818cf8, #38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 {user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : "Operatore"}
               </span>
             </h1>
-            <p style={{ margin: "10px 0 0", fontSize: 14, color: "rgba(148,163,184,0.85)", fontWeight: 400 }}>
-              KPI manutentivi · MTBF · OEE · Stato asset in tempo reale
-            </p>
+            <span style={{ fontSize: 12, color: "rgba(148,163,184,0.6)", fontWeight: 400, display: "none" }}>
+              KPI manutentivi · MTBF · OEE
+            </span>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* Live badge */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 30, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", fontSize: 12, color: "#34d399", fontWeight: 600 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", display: "inline-block", boxShadow: "0 0 0 3px rgba(52,211,153,0.3)", animation: "pulse 2s infinite" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 30, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", fontSize: 11, color: "#34d399", fontWeight: 600 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399", display: "inline-block", boxShadow: "0 0 0 3px rgba(52,211,153,0.3)", animation: "pulse 2s infinite" }} />
               {lastUpdate ? `Live · ${lastUpdate.toLocaleTimeString("it-IT")}` : "Connessione..."}
             </div>
             {/* Trend mini */}
             {trendChartData.length > 0 && (
-              <div>
-                <div style={{ fontSize: 10, color: "rgba(148,163,184,0.5)", textAlign: "right", marginBottom: 4, letterSpacing: "0.08em", textTransform: "uppercase" }}>Trend 30gg</div>
-                <ResponsiveContainer width={160} height={40}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: "rgba(148,163,184,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>30gg</span>
+                <ResponsiveContainer width={100} height={32}>
                   <AreaChart data={trendChartData}>
                     <defs>
                       <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
@@ -300,25 +301,25 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-
-        {/* Stat strip */}
-        {dashboard && (
-          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 1, marginTop: 28, background: "rgba(255,255,255,0.04)", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
-            {[
-              { label: "Asset Totali", value: dashboard.assets, color: "#38bdf8" },
-              { label: "In Servizio", value: dashboard.asset_stati?.service ?? 0, color: "#34d399" },
-              { label: "Fuori Servizio", value: dashboard.asset_stati?.["out of service"] ?? 0, color: "#f87171" },
-              { label: "Ticket Aperti", value: dashboard.ticket_aperti, color: "#fbbf24" },
-              { label: "In Corso", value: dashboard.ticket_in_corso, color: "#a78bfa" },
-            ].map((s, i) => (
-              <div key={i} style={{ padding: "14px 20px", background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent", textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: 10, color: "rgba(148,163,184,0.6)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Stat strip */}
+      {dashboard && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 1, background: "rgba(255,255,255,0.04)", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {[
+            { label: "Asset Totali", value: dashboard.assets, color: "#38bdf8" },
+            { label: "In Servizio", value: dashboard.asset_stati?.service ?? 0, color: "#34d399" },
+            { label: "Fuori Servizio", value: dashboard.asset_stati?.["out of service"] ?? 0, color: "#f87171" },
+            { label: "Ticket Aperti", value: dashboard.ticket_aperti, color: "#fbbf24" },
+            { label: "In Corso", value: dashboard.ticket_in_corso, color: "#a78bfa" },
+          ].map((s, i) => (
+            <div key={i} style={{ padding: "12px 16px", background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent", textAlign: "center" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 9, color: "rgba(148,163,184,0.6)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 4 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── KPI Cards ───────────────────────────────────────────────────────── */}
       {loading ? (
