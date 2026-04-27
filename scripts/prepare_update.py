@@ -77,7 +77,7 @@ def sign_file(file_path: Path, private_key: str) -> str:
     env["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = ""
 
     result = subprocess.run(
-        ["npx", "@tauri-apps/cli@2", "signer", "sign", str(file_path), "--ci"],
+        ["npx", "@tauri-apps/cli@2", "signer", "sign", str(file_path)],
         capture_output=True,
         text=True,
         env=env,
