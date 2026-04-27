@@ -164,7 +164,7 @@ def _ensure_columns() -> None:
         ("ticket", "eliminazione_note",                "ALTER TABLE ticket ADD COLUMN {ifne}eliminazione_note TEXT"),
         # ticket — manual plan
         ("ticket", "is_manual_plan",                   "ALTER TABLE ticket ADD COLUMN {ifne}is_manual_plan BOOLEAN DEFAULT FALSE"),
-        # ticket — competenza richiesta esplicita (v2.9.0)
+        # ticket — competenza richiesta esplicita (v3.1.3)
         ("ticket", "competenza_richiesta",             "ALTER TABLE ticket ADD COLUMN {ifne}competenza_richiesta VARCHAR"),
         # ticket — piani_manutenzione
         ("ticket", "piano_manutenzione_id",            "ALTER TABLE ticket ADD COLUMN {ifne}piano_manutenzione_id INTEGER"),
@@ -243,7 +243,7 @@ def _ensure_columns() -> None:
         )
     """
 
-    # planner_feedback — tabella feedback di esecuzione (v2.9.0)
+    # planner_feedback — tabella feedback di esecuzione (v3.1.3)
     pf_pg = """
         CREATE TABLE IF NOT EXISTS planner_feedback (
             id SERIAL PRIMARY KEY,

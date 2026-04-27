@@ -9,6 +9,7 @@ import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type Ticket = {
   id: number;
@@ -342,66 +343,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)", padding: "16px" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{
-        background: "#111827",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 18,
-        boxShadow: "0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(59,130,246,0.08)",
-        width: "min(92vw, 700px)",
-        maxHeight: "90vh",
-        overflowY: "auto",
-        color: "var(--text-primary)",
-        display: "flex",
-        flexDirection: "column",
-      }}>
-        {/* Header Premium */}
-        <div style={{ padding: "24px 28px", background: "linear-gradient(to bottom, rgba(59,130,246,0.05), transparent)", borderBottom: "1px solid rgba(255,255,255,0.05)", position: "relative", flexShrink: 0 }}>
-        {/* Pulsante chiusura — unico, position absolute */}
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            background: "transparent",
-            border: "none",
-            color: "var(--text-muted)",
-            cursor: "pointer",
-            fontSize: 20,
-            lineHeight: 1,
-            zIndex: 10,
-            padding: 4,
-          }}
-        >
-          &times;
-        </button>
-        <div style={{ marginBottom: 12, paddingRight: 32 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
-            Dettaglio Ticket #{ticket.id}
-          </div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em", margin: 0 }}>
-            {ticket.titolo}
-          </h2>
-        </div>
-        
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ ...getPrioritaStyle(ticket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{ticket.priorita}</span>
-          <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{ticket.asset_name ?? "Asset non specificato"}</span>
-          <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{ticket.tipo} · {ticket.durata_stimata_ore?.toFixed(1)}h</span>
-          {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
-            <>
-              <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
-              <span style={{ fontSize: 10, padding: "2px 6px", background: "rgba(234,179,8,0.2)", border: "1px solid rgba(234,179,8,0.4)", borderRadius: 4, color: "#eab308", fontWeight: 700, textTransform: "uppercase" }}>PIANIFICATO MANUALMENTE</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div style={{ padding: "28px" }}>
-        {/* Sezione Stato */}
+    <div style={{ position: "relative", width: "100%", color: "var(--text-primary)", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "0" }}>
         <div style={{ marginBottom: 32 }}>
           <label style={{ ...modalLabel, fontSize: 11, marginBottom: 12 }}>Stato Corrente</label>
           <StatusToggle 
@@ -604,10 +547,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         </div>
       )}
     </div>
-  </div>
-);
+  );
 }
-
 
 // ── Pagina principale ─────────────────────────────────────────────────────
 
@@ -1198,13 +1139,42 @@ export default function TicketPage() {
       )}
 
       {/* Detail modal */}
-      {detailTicket && (
-        <DetailModal
-          ticket={detailTicket}
-          onClose={() => setDetailTicket(null)}
-          onSaved={handleSaved}
-        />
-      )}
+      <Sheet open={!!detailTicket} onOpenChange={(o) => { if (!o) setDetailTicket(null); }}>
+        <SheetContent side="right" style={{ width: "min(95vw, 600px)", background: "#0d1421", borderLeft: "1px solid rgba(255,255,255,0.08)", overflowY: "auto", padding: "24px" }}>
+          {detailTicket && (
+            <>
+              <SheetHeader style={{ marginBottom: 24, padding: 0, gap: 12 }}>
+                <div style={{ paddingRight: 36 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
+                    Dettaglio Ticket #{detailTicket.id}
+                  </div>
+                  <SheetTitle style={{ fontSize: 22, fontWeight: 800, color: "#e2e8f0", margin: 0, lineHeight: 1.2 }}>
+                    {detailTicket.titolo}
+                  </SheetTitle>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{detailTicket.priorita}</span>
+                  <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{detailTicket.asset_name ?? "Asset non specificato"}</span>
+                  <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
+                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{detailTicket.tipo} · {detailTicket.durata_stimata_ore?.toFixed(1)}h</span>
+                  {detailTicket.is_manual_plan && detailTicket.stato === "Pianificato" && (
+                    <>
+                      <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
+                      <span style={{ fontSize: 10, padding: "2px 6px", background: "rgba(234,179,8,0.2)", border: "1px solid rgba(234,179,8,0.4)", borderRadius: 4, color: "#eab308", fontWeight: 700, textTransform: "uppercase" }}>PIANIFICATO MANUALMENTE</span>
+                    </>
+                  )}
+                </div>
+              </SheetHeader>
+              
+              <DetailModal
+                ticket={detailTicket}
+                onClose={() => setDetailTicket(null)}
+                onSaved={handleSaved}
+              />
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Modal pianificazione rapida (cambi stato → Pianificato) */}
       {pianificaModal && (

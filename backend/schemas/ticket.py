@@ -38,6 +38,7 @@ class TicketUpdate(BaseModel):
     is_manual_plan: bool | None = None
     piano_manutenzione_id: int | None = None
     origine_piano: str | None = None
+    note_vocali: str | None = Field(default=None, max_length=10000)  # Note vocali trascritte da mobile
 
 
 class TicketResponse(BaseModel):

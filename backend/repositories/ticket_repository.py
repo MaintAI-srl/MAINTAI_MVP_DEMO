@@ -188,6 +188,14 @@ class TicketRepository:
         if data.stato == "Eliminato" and ticket.deleted_at is None:
             from datetime import datetime, timezone
             ticket.deleted_at = datetime.now(timezone.utc)
+
+        # Note vocali: append alla descrizione con timestamp
+        if getattr(data, "note_vocali", None):
+            from datetime import datetime, timezone
+            ts = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+            prefix = ticket.descrizione.strip() + "\n\n" if ticket.descrizione else ""
+            ticket.descrizione = f"{prefix}📢 Nota vocale [{ts}]:\n{data.note_vocali}"
+
         db.commit()
         db.refresh(ticket)
         return _ticket_to_dict(ticket)

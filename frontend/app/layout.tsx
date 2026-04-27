@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
-import { VERSION } from "./lib/version";
+import { DISPLAY_VERSION } from "./lib/version";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
@@ -20,15 +20,15 @@ import { BackendStatus } from "./components/BackendStatus";
 import {
   LayoutDashboard, CalendarClock, ClipboardList, Factory,
   Users, Wrench, CalendarDays, Building, UploadCloud,
-  ScrollText, Mail, UserCheck, LogOut, Sun, Moon,
-  Activity, Cpu, Zap
+  ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
+  Activity, Cpu, Zap, BrainCircuit, Settings
 } from "lucide-react";
 
 // Fonts now loaded above individually
 
 const NAV = [
   {
-    section: "OVERVIEW",
+    section: "DASHBOARD",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} strokeWidth={1.8} /> },
     ],
@@ -36,27 +36,29 @@ const NAV = [
   {
     section: "OPERAZIONI",
     items: [
-      { href: "/planning",  label: "Pianificazione", icon: <Zap size={14} strokeWidth={1.8} /> },
-      { href: "/ticket",    label: "Ticket",         icon: <Activity size={14} strokeWidth={1.8} /> },
-      { href: "/profilo",   label: "Mio Profilo",    icon: <UserCheck size={14} strokeWidth={1.8} /> },
+      { href: "/ticket",     label: "Ticket",               icon: <Activity size={14} strokeWidth={1.8} /> },
+      { href: "/planning",   label: "Pianificazione",       icon: <Zap size={14} strokeWidth={1.8} /> },
+      { href: "/diagnostic", label: "Analisi Ingegneria AI", icon: <BrainCircuit size={14} strokeWidth={1.8} /> },
     ],
   },
   {
     section: "RISORSE",
     items: [
-      { href: "/asset",    label: "Siti & Asset",       icon: <Cpu size={14} strokeWidth={1.8} /> },
-      { href: "/tecnici",  label: "Tecnici",            icon: <Users size={14} strokeWidth={1.8} /> },
-      { href: "/piani",    label: "Piano Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
-      { href: "/scadenze", label: "Scadenze PM",        icon: <CalendarDays size={14} strokeWidth={1.8} /> },
+      { href: "/asset",    label: "Siti & Asset",         icon: <Cpu size={14} strokeWidth={1.8} /> },
+      { href: "/tecnici",  label: "Tecnici",              icon: <Users size={14} strokeWidth={1.8} /> },
+      { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
+      { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} /> },
     ],
   },
   {
-    section: "ADMIN",
+    section: "IMPOSTAZIONI",
     items: [
-      { href: "/admin/tenants",     label: "Clienti",            icon: <Building size={14} strokeWidth={1.8} />,    superadminOnly: true },
-      { href: "/admin/bulk-import", label: "Import Massivo",     icon: <UploadCloud size={14} strokeWidth={1.8} />, superadminOnly: true },
-      { href: "/admin/logs",        label: "Log Sistema",        icon: <ScrollText size={14} strokeWidth={1.8} />,  adminOnly: true },
-      { href: "/admin/email",       label: "Email-to-Ticket",    icon: <Mail size={14} strokeWidth={1.8} />,        adminOnly: true },
+      { href: "/admin/tenants",     label: "Clienti",          icon: <Building size={14} strokeWidth={1.8} />,    superadminOnly: true },
+      { href: "/admin/bulk-import", label: "Import Massivo",   icon: <UploadCloud size={14} strokeWidth={1.8} />, adminOnly: true },
+      { href: "/admin/logs",        label: "Log di Sistema",   icon: <ScrollText size={14} strokeWidth={1.8} />,  adminOnly: true },
+      { href: "/admin/email",       label: "Email to Ticket",  icon: <Mail size={14} strokeWidth={1.8} />,        adminOnly: true },
+      { href: "/profilo",           label: "Mio Profilo",      icon: <UserCheck size={14} strokeWidth={1.8} /> },
+      { href: "/admin/utenti",      label: "Gestione Utenti",  icon: <UserCog size={14} strokeWidth={1.8} />,     adminOnly: true },
     ],
   },
 ];
@@ -69,13 +71,15 @@ const PAGE_LABELS: Record<string, string> = {
   "/tecnici":            "Tecnici",
   "/planning":           "Pianificazione",
   "/ticket":             "Ticket",
-  "/piani":              "Piano di Manutenzione",
-  "/piani-manutenzione": "Piano di Manutenzione",
-  "/scadenze":           "Calendario Scadenze PM",
-  "/admin/tenants":      "Gestione Clienti",
+  "/diagnostic":         "Analisi Ingegneria AI",
+  "/piani":              "Piani di Manutenzione",
+  "/piani-manutenzione": "Piani di Manutenzione",
+  "/scadenze":           "Scadenziario",
+  "/admin/tenants":      "Clienti",
   "/admin/bulk-import":  "Import Massivo",
   "/admin/logs":         "Log di Sistema",
-  "/admin/email":        "Integrazione Email-to-Ticket",
+  "/admin/email":        "Email to Ticket",
+  "/admin/utenti":       "Gestione Utenti",
   "/profilo":            "Mio Profilo",
 };
 
@@ -421,7 +425,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               {isSuperadmin ? "SUPERADMIN" : isTecnico ? "CAMPO" : "SISTEMA OK"}
             </span>
             <span style={{ marginLeft: "auto", fontSize: 9, color: "rgba(91,143,255,0.4)", fontFamily: "var(--font-mono)" }}>
-              v{VERSION}
+              v{DISPLAY_VERSION}
             </span>
           </div>
         </div>
