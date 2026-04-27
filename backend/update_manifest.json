@@ -1,0 +1,11 @@
+{
+  "version": "3.1.6",
+  "notes": "Collegamento Utente-Tecnico, Gestione Utenti, side menu ristrutturato",
+  "pub_date": "2026-04-27T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "",
+      "url": ""
+    }
+  }
+}
