@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from backend.db.modelli import Tecnico
 from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate
 
@@ -6,6 +6,9 @@ from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate
 class TecnicoRepository:
 
     def _to_dict(self, tecnico: Tecnico) -> dict:
+        utente_username = None
+        if tecnico.utente is not None:
+            utente_username = tecnico.utente.username
         return {
             "id": tecnico.id,
             "nome": tecnico.nome,
@@ -17,23 +20,24 @@ class TecnicoRepository:
             "orario_fine": tecnico.orario_fine or "17:00",
             "limitazioni_orarie": tecnico.limitazioni_orarie or "",
             "utente_id": tecnico.utente_id,
+            "utente_username": utente_username,
             "tenant_id": tecnico.tenant_id,
         }
 
     def get_all(self, db: Session, tenant_id: int | None) -> list[dict]:
-        query = db.query(Tecnico)
+        query = db.query(Tecnico).options(joinedload(Tecnico.utente))
         if tenant_id is not None:
             query = query.filter(Tecnico.tenant_id == tenant_id)
         return [self._to_dict(t) for t in query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()]
 
     def get_disponibili(self, db: Session, tenant_id: int | None) -> list[dict]:
-        query = db.query(Tecnico).filter(Tecnico.stato == "in servizio")
+        query = db.query(Tecnico).options(joinedload(Tecnico.utente)).filter(Tecnico.stato == "in servizio")
         if tenant_id is not None:
             query = query.filter(Tecnico.tenant_id == tenant_id)
         return [self._to_dict(t) for t in query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()]
 
     def get_by_id(self, db: Session, tecnico_id: int, tenant_id: int | None) -> dict | None:
-        query = db.query(Tecnico).filter(Tecnico.id == tecnico_id)
+        query = db.query(Tecnico).options(joinedload(Tecnico.utente)).filter(Tecnico.id == tecnico_id)
         if tenant_id is not None:
             query = query.filter(Tecnico.tenant_id == tenant_id)
         t = query.first()
@@ -49,11 +53,14 @@ class TecnicoRepository:
             orario_inizio=data.orario_inizio or "08:00",
             orario_fine=data.orario_fine or "17:00",
             limitazioni_orarie=data.limitazioni_orarie,
+            utente_id=data.utente_id,
             tenant_id=tenant_id,
         )
         db.add(tecnico)
         db.commit()
         db.refresh(tecnico)
+        # Ricarica con utente per popolare utente_username
+        tecnico = db.query(Tecnico).options(joinedload(Tecnico.utente)).filter(Tecnico.id == tecnico.id).first()
         return self._to_dict(tecnico)
 
     def update(self, db: Session, tecnico_id: int, data: TecnicoUpdate, tenant_id: int | None) -> dict | None:
@@ -79,8 +86,12 @@ class TecnicoRepository:
             tecnico.orario_fine = data.orario_fine
         if data.limitazioni_orarie is not None:
             tecnico.limitazioni_orarie = data.limitazioni_orarie
+        if "utente_id" in data.model_fields_set:
+            tecnico.utente_id = data.utente_id  # None = scollega
         db.commit()
         db.refresh(tecnico)
+        # Ricarica con utente per popolare utente_username
+        tecnico = db.query(Tecnico).options(joinedload(Tecnico.utente)).filter(Tecnico.id == tecnico.id).first()
         return self._to_dict(tecnico)
 
     def delete(self, db: Session, tecnico_id: int, tenant_id: int | None) -> bool:

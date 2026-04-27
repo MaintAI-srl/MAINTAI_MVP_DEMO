@@ -38,6 +38,7 @@ try:
     from backend.api.routes.planning import router as planning_router
     from backend.api.routes.bulk_import import router as bulk_import_router
     from backend.api.routes.piano_manutenzione import router as piano_manutenzione_router
+    from backend.api.routes.utenti import router as utenti_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -465,6 +466,7 @@ app.include_router(email_config_router)
 app.include_router(planning_router)
 app.include_router(bulk_import_router)
 app.include_router(piano_manutenzione_router)
+app.include_router(utenti_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.

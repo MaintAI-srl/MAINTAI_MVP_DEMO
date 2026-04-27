@@ -99,6 +99,25 @@ def create_tecnico(tecnico: TecnicoCreate, db: Session = Depends(get_db), tenant
 def update_tecnico(tecnico_id: int, data: TecnicoUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     if data.stato and data.stato not in STATI_VALIDI:
         raise HTTPException(status_code=422, detail=f"Stato non valido. Valori ammessi: {', '.join(STATI_VALIDI)}")
+
+    # Verifica che utente_id appartenga allo stesso tenant (se fornito)
+    if "utente_id" in data.model_fields_set and data.utente_id is not None:
+        from backend.db.modelli import Utente  # noqa: import locale per evitare circular
+        utente = db.query(Utente).filter(
+            Utente.id == data.utente_id,
+            Utente.tenant_id == tenant_id,
+        ).first()
+        if not utente:
+            raise HTTPException(status_code=404, detail="Utente non trovato nel tenant corrente.")
+        # Verifica che l'utente non sia già collegato a un altro tecnico
+        other = db.query(Tecnico).filter(
+            Tecnico.utente_id == data.utente_id,
+            Tecnico.id != tecnico_id,
+            Tecnico.tenant_id == tenant_id,
+        ).first()
+        if other:
+            raise HTTPException(status_code=409, detail=f"L'utente è già collegato al tecnico #{other.id} ({other.nome} {other.cognome or ''}).".strip())
+
     updated = tecnico_repository.update(db, tecnico_id, data, tenant_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Tecnico non trovato")

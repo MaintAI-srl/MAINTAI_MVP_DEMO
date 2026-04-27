@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { useAuth } from "../lib/auth";
 import StatusToggle from "../components/StatusToggle";
 import styles from "./tecnici.module.css";
 import AssenzeModal from "../components/AssenzeModal";
@@ -17,6 +18,16 @@ type Tecnico = {
   orario_inizio: string;
   orario_fine: string;
   limitazioni_orarie: string;
+  utente_id?: number | null;
+  utente_username?: string | null;
+};
+
+type UtenteItem = {
+  id: number;
+  username: string;
+  ruolo: string;
+  is_active: boolean;
+  tecnico_id?: number | null;
 };
 
 type OreStats = {
@@ -64,9 +75,13 @@ const colFilterInput: React.CSSProperties = {
 };
 
 export default function TecniciPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.ruolo === "responsabile" || user?.ruolo === "superadmin";
+
   const [tecnici, setTecnici] = useState<Tecnico[]>([]);
   const [stats, setStats] = useState<OreStats | null>(null);
   const [showAssenzeFor, setShowAssenzeFor] = useState<Tecnico | null>(null);
+  const [utenti, setUtenti] = useState<UtenteItem[]>([]);
 
   // Form
   const [nome, setNome] = useState("");
@@ -77,6 +92,7 @@ export default function TecniciPage() {
   const [orarioInizio, setOrarioInizio] = useState("08:00");
   const [orarioFine, setOrarioFine] = useState("17:00");
   const [limitazioniOrarie, setLimitazioniOrarie] = useState("");
+  const [utenteId, setUtenteId] = useState<number | null>(null);
 
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -110,7 +126,8 @@ export default function TecniciPage() {
   useEffect(() => {
     loadTecnici();
     loadStats();
-  }, []);
+    if (isAdmin) loadUtenti();
+  }, [isAdmin]);
 
   async function loadTecnici() {
     try {
@@ -130,10 +147,19 @@ export default function TecniciPage() {
     }
   }
 
+  async function loadUtenti() {
+    try {
+      const d = await apiGet<UtenteItem[]>("/utenti");
+      setUtenti(d);
+    } catch {
+      // Non bloccare il caricamento se utenti non disponibili
+    }
+  }
+
   function resetForm() {
     setNome(""); setCognome(""); setSkill(""); setOre(8);
     setStatoCampo("in servizio"); setOrarioInizio("08:00"); setOrarioFine("17:00");
-    setLimitazioniOrarie("");
+    setLimitazioniOrarie(""); setUtenteId(null);
   }
 
   function startEdit(t: Tecnico) {
@@ -141,6 +167,7 @@ export default function TecniciPage() {
     setNome(t.nome); setCognome(t.cognome || ""); setSkill(t.skill); setOre(t.ore_giornaliere);
     setStatoCampo(t.stato || "in servizio"); setOrarioInizio(t.orario_inizio || "08:00");
     setOrarioFine(t.orario_fine || "17:00"); setLimitazioniOrarie(t.limitazioni_orarie || "");
+    setUtenteId(t.utente_id ?? null);
   }
 
   function cancelEdit() { setEditId(null); resetForm(); }
@@ -150,10 +177,11 @@ export default function TecniciPage() {
     if (!nome.trim()) { notify.error("Il campo 'Nome' è obbligatorio."); return; }
     try {
       setIsSaving(true);
-      const payload = {
+      const payload: Record<string, unknown> = {
         nome, cognome, skill, ore_giornaliere: ore,
         stato: statoCampo, orario_inizio: orarioInizio,
         orario_fine: orarioFine, limitazioni_orarie: limitazioniOrarie,
+        utente_id: utenteId,
       };
       const path = editId !== null ? `/tecnici/${editId}` : `/tecnici`;
       const saved = editId !== null 
@@ -312,6 +340,27 @@ export default function TecniciPage() {
               <label className={styles.label}>Limitazioni orarie</label>
               <input className={styles.input} value={limitazioniOrarie} onChange={e => setLimitazioniOrarie(e.target.value)} placeholder="Es. no turno notturno, solo mattina" />
             </div>
+            {isAdmin && (
+              <div className={`${styles.field} ${styles.span2}`} style={{ display: "flex", flexDirection: "column" }}>
+                <label className={styles.label}>Collega account utente</label>
+                <select
+                  className={styles.input}
+                  value={utenteId ?? ""}
+                  onChange={e => setUtenteId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">— Nessuno (scollega) —</option>
+                  {utenti
+                    .filter(u => u.ruolo === "tecnico" && u.is_active && (u.tecnico_id == null || u.tecnico_id === editId))
+                    .map(u => (
+                      <option key={u.id} value={u.id}>{u.username}</option>
+                    ))
+                  }
+                </select>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>
+                  Solo utenti con ruolo "tecnico" non ancora associati ad altro tecnico
+                </span>
+              </div>
+            )}
             <div className={styles.actions}>
               <button className={styles.button} type="submit" disabled={isSaving}>{isSaving ? "Salvataggio..." : editId !== null ? "Salva modifiche" : "Salva tecnico"}</button>
               {editId !== null && (
@@ -343,12 +392,13 @@ export default function TecniciPage() {
                   <SortTh label="Ore/gg" col="ore_giornaliere" />
                   <SortTh label="Orario" col="orario_inizio" />
                   <SortTh label="Stato" col="stato" />
+                  {isAdmin && <th style={{ fontSize: 10, color: "var(--text-muted)" }}>Account</th>}
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTecnici.length === 0 ? (
-                  <tr><td colSpan={8}><div className={styles.empty}>Nessun tecnico trovato</div></td></tr>
+                  <tr><td colSpan={isAdmin ? 9 : 8}><div className={styles.empty}>Nessun tecnico trovato</div></td></tr>
                 ) : (
                   filteredTecnici.map(t => (
                     <tr key={t.id} style={editId === t.id ? { background: "rgba(99,102,241,0.07)" } : undefined}>
@@ -378,6 +428,17 @@ export default function TecniciPage() {
                           ]}
                         />
                       </td>
+                      {isAdmin && (
+                        <td>
+                          {t.utente_username ? (
+                            <span style={{ fontSize: 11, padding: "2px 8px", background: "rgba(99,102,241,.12)", border: "1px solid rgba(99,102,241,.3)", borderRadius: 4, color: "#818cf8", fontWeight: 600 }}>
+                              {t.utente_username}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>
+                          )}
+                        </td>
+                      )}
                       <td style={{ display: "flex", gap: "8px" }}>
                         <button onClick={() => editId === t.id ? cancelEdit() : startEdit(t)} style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,.4)", color: editId === t.id ? "var(--text-secondary)" : "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4 }}>
                           {editId === t.id ? "Annulla" : "Modifica"}
