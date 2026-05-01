@@ -71,6 +71,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
     return {
         "message": "Autenticazione completata. Credenziali emesse nel cookie.",
         "token_type": "bearer",
+        "access_token": access_token,   # incluso per client nativi (Tauri) che non usano cookie
         "ruolo": user.ruolo,
         "username": user.username,
         "userid": user.id,

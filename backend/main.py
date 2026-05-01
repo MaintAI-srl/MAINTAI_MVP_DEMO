@@ -416,14 +416,19 @@ async def csrf_origin_check(request: Request, call_next):
     Adotta un approccio Fail-Closed: se mancano gli header, blocca la richiesta mutante.
     """
     if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # Bearer token = client nativo (Tauri desktop) o API diretta.
+        # Le richieste con Authorization header non possono essere forgiate da form cross-site.
+        if request.headers.get("authorization", "").startswith("Bearer "):
+            return await call_next(request)
+
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
-        
+
         # 1. Verifica Origin (header primario per browser moderni)
         if origin:
             if origin not in _origins:
                 return JSONResponse(
-                    status_code=403, 
+                    status_code=403,
                     content={"detail": "Richiesta bloccata: Origin mismatch (Possibile CSRF)."}
                 )
         # 2. Fallback su Referer (per browser o casi edge in cui Origin manca)
@@ -433,13 +438,13 @@ async def csrf_origin_check(request: Request, call_next):
             ref_origin = f"{urlparse(referer).scheme}://{urlparse(referer).netloc}"
             if ref_origin not in _origins:
                 return JSONResponse(
-                    status_code=403, 
+                    status_code=403,
                     content={"detail": "Richiesta bloccata: Referer mismatch (Possibile CSRF)."}
                 )
         # 3. Fail-Closed: Se mancano entrambi, blocca (previene bypass tramite omissione header)
         else:
             return JSONResponse(
-                status_code=403, 
+                status_code=403,
                 content={"detail": "Richiesta bloccata: Origin/Referer mancanti (Obbligatori per azioni mutanti)."}
             )
             

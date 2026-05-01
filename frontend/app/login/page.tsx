@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
-import { API_BASE } from "../lib/api";
+import { API_BASE, isTauri, saveTauriToken } from "../lib/api";
 import { notify } from "@/lib/toast";
 
 export default function LoginPage() {
@@ -25,8 +25,12 @@ export default function LoginPage() {
 
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
-        credentials: "include",   // necessario per ricevere il cookie HttpOnly
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          // In Tauri il browser non manda Origin automaticamente — lo aggiungiamo manualmente
+          ...(isTauri() ? { "Origin": "http://tauri.localhost" } : {}),
+        },
         body: formBody,
       });
 
@@ -35,6 +39,10 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
+      // In modalità Tauri salva il JWT per le richieste successive con Bearer
+      if (isTauri() && data.access_token) {
+        saveTauriToken(data.access_token);
+      }
       auth.login(data.username, data.ruolo, data.userid, data.tenant_id, data.tenant_nome);
 
       if (data.ruolo === "tecnico") {

@@ -1,6 +1,27 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
 
+/** True quando l'app gira dentro Tauri (desktop). */
+export function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/** Legge il JWT da localStorage (usato solo in modalità Tauri). */
+export function getTauriToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("maintai_jwt");
+}
+
+/** Salva il JWT in localStorage (chiamato al login in modalità Tauri). */
+export function saveTauriToken(token: string) {
+  localStorage.setItem("maintai_jwt", token);
+}
+
+/** Rimuove il JWT da localStorage (chiamato al logout in modalità Tauri). */
+export function clearTauriToken() {
+  localStorage.removeItem("maintai_jwt");
+}
+
 type RequestOptions = Omit<RequestInit, "method" | "body">;
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -37,11 +58,16 @@ async function request<T>(
     if (tenantContext) {
       extraHeaders["X-Tenant-Id"] = tenantContext;
     }
+    // In modalità Tauri i cookie HttpOnly non funzionano → usa Bearer token
+    if (isTauri()) {
+      const token = getTauriToken();
+      if (token) extraHeaders["Authorization"] = `Bearer ${token}`;
+    }
   }
 
   const init: RequestInit = {
     method,
-    credentials: "include",   // invia il cookie HttpOnly maintai_jwt
+    credentials: "include",   // invia il cookie HttpOnly maintai_jwt (web)
     headers: {
       "Content-Type": "application/json",
       ...extraHeaders,
@@ -119,12 +145,16 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
     if (tenantContext) {
       extraHeaders["X-Tenant-Id"] = tenantContext;
     }
+    if (isTauri()) {
+      const token = getTauriToken();
+      if (token) extraHeaders["Authorization"] = `Bearer ${token}`;
+    }
   }
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      credentials: "include",   // invia il cookie HttpOnly maintai_jwt
+      credentials: "include",   // invia il cookie HttpOnly maintai_jwt (web)
       headers: extraHeaders,
       body: formData,
       signal: controller.signal,

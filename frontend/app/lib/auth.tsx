@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { apiGet, apiPost } from "./api";
+import { apiGet, apiPost, clearTauriToken } from "./api";
 
 type User = {
   username: string;
@@ -100,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Il backend potrebbe non essere raggiungibile — procedi comunque
     }
     clearUserMeta();
+    clearTauriToken();
     setUser(null);
   }, []);
 
