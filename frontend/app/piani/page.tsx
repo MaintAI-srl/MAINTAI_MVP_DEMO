@@ -392,17 +392,22 @@ function DrawerTask({
     priorita: task.priorita || "Media",
     task_stato: task.task_stato || "active",
     is_repeatable: task.is_repeatable ?? true,
-    generate_days_before_due: task.generate_days_before_due || 7,
+    generation_mode: task.generation_mode || "manual",
+    generate_days_before_due: task.generate_days_before_due ?? 7,
   });
   const [saving, setSaving] = useState(false);
   const isNew = !task.id;
 
   async function handleSave() {
     setSaving(true);
+    const payload = {
+      ...form,
+      generate_days_before_due: form.generate_days_before_due || 7,
+    };
     try {
       const res = isNew
-        ? await apiPost<Task>(`/piani-manutenzione/${pianoId}/tasks`, form)
-        : await apiPut<Task>(`/piani-manutenzione/${pianoId}/tasks/${task.id}`, form);
+        ? await apiPost<Task>(`/piani-manutenzione/${pianoId}/tasks`, payload)
+        : await apiPut<Task>(`/piani-manutenzione/${pianoId}/tasks/${task.id}`, payload);
       notify.success(isNew ? "Attività creata" : "Attività aggiornata");
       onUpdated(res);
       onClose();
@@ -499,7 +504,7 @@ function DrawerTask({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
             {fieldLabel("Priorità")}
-            <select 
+            <select
               value={form.priorita}
               onChange={e => setForm(f => ({ ...f, priorita: e.target.value }))}
               style={{
@@ -515,12 +520,75 @@ function DrawerTask({
             </select>
           </div>
           <div>
-            {fieldLabel("Anticipo generazione (gg)")}
-            {fieldInput({ 
-              type: "number", value: form.generate_days_before_due,
-              onChange: e => setForm(f => ({ ...f, generate_days_before_due: parseInt(e.target.value) || 0 }))
-            })}
+            {fieldLabel("Stato task")}
+            <select
+              value={form.task_stato}
+              onChange={e => setForm(f => ({ ...f, task_stato: e.target.value }))}
+              style={{
+                width: "100%", background: "var(--bg-surface)",
+                border: "1px solid var(--border-strong)", borderRadius: 8,
+                padding: "9px 12px", fontSize: 13, color: "var(--text-primary)",
+                outline: "none", fontFamily: "var(--font-body)", appearance: "none", cursor: "pointer"
+              }}
+            >
+              <option value="active">Attivo</option>
+              <option value="paused">In pausa</option>
+              <option value="archived">Archiviato</option>
+            </select>
           </div>
+        </div>
+
+        {/* Generazione automatica */}
+        <div style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+            Generazione automatica ticket
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div>
+              {fieldLabel("Modalità")}
+              <select
+                value={form.generation_mode}
+                onChange={e => setForm(f => ({ ...f, generation_mode: e.target.value }))}
+                style={{
+                  width: "100%", background: "var(--bg-surface)",
+                  border: "1px solid var(--border-strong)", borderRadius: 8,
+                  padding: "9px 12px", fontSize: 13, color: "var(--text-primary)",
+                  outline: "none", fontFamily: "var(--font-body)", appearance: "none", cursor: "pointer"
+                }}
+              >
+                <option value="manual">Manuale</option>
+                <option value="auto">Automatica</option>
+                <option value="disabled">Disabilitata</option>
+              </select>
+            </div>
+            <div>
+              {fieldLabel("Giorni di anticipo (default: 7)")}
+              {fieldInput({
+                type: "number",
+                min: 1,
+                placeholder: "7",
+                value: form.generate_days_before_due,
+                disabled: form.generation_mode !== "auto",
+                onChange: e => setForm(f => ({ ...f, generate_days_before_due: parseInt(e.target.value) || 7 })),
+                style: { opacity: form.generation_mode !== "auto" ? 0.4 : 1 }
+              })}
+            </div>
+          </div>
+          {form.generation_mode === "auto" && (
+            <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+              Il sistema genererà automaticamente un ticket <strong style={{ color: "#a5b4fc" }}>{form.generate_days_before_due || 7} giorni prima</strong> della scadenza calcolata in base alla frequenza. Se il campo è vuoto viene usato il default di 7 giorni.
+            </div>
+          )}
+          {form.generation_mode === "manual" && (
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              I ticket vengono generati solo manualmente premendo "Genera Ticket".
+            </div>
+          )}
+          {form.generation_mode === "disabled" && (
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              La generazione ticket e' disabilitata per questa attivita'.
+            </div>
+          )}
         </div>
       </div>
 
@@ -873,7 +941,7 @@ export default function PianiPage() {
                         />
                       </label>
                       <button
-                        onClick={() => setSelectedTask({ id: 0, nome: "", descrizione: "", frequenza_giorni: 30, durata_ore: 1, priorita: "Media", task_stato: "active", is_repeatable: true, generate_days_before_due: 7, piano_id: selectedPianoId, asset_id: null, asset_nome: null, codice: null, generation_mode: "manual", source_type: "manual_task", next_due_at: null } as unknown as Task)}
+                        onClick={() => setSelectedTask({ id: 0, nome: "", descrizione: "", frequenza_giorni: 30, durata_ore: 1, priorita: "Media", task_stato: "active", is_repeatable: true, generate_days_before_due: 7, generation_mode: "manual", piano_id: selectedPianoId, asset_id: null, asset_nome: null, codice: null, source_type: "manual_task", next_due_at: null } as unknown as Task)}
                         style={{
                           padding: "9px 16px", background: "#6366f1", border: "1px solid #4f46e5",
                           borderRadius: 8, color: "white", fontSize: 12, fontWeight: 700,

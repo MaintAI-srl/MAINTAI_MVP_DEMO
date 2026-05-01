@@ -46,6 +46,7 @@ try:
     from backend.core.logging_config import setup_logging
     from backend.services.email_poller import check_all_mailboxes
     from backend.services.retention_service import run_retention_job
+    from backend.services.auto_ticket_service import run_auto_ticket_job
 except ImportError as e:
     print(f"❌ CRITICAL IMPORT ERROR: {e}")
     import traceback
@@ -180,6 +181,11 @@ def _ensure_columns() -> None:
         ("attivita_manutenzione", "source_type",             "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}source_type VARCHAR"),
         ("attivita_manutenzione", "last_generated_at",       "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}last_generated_at TIMESTAMP"),
         ("attivita_manutenzione", "next_due_at",             "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}next_due_at TIMESTAMP"),
+        # attivita_manutenzione — manutenzione su condizione (v3.2)
+        ("attivita_manutenzione", "trigger_mode",            "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}trigger_mode VARCHAR DEFAULT 'calendar'"),
+        ("attivita_manutenzione", "condition_metric",        "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}condition_metric VARCHAR"),
+        ("attivita_manutenzione", "condition_threshold_hours","ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}condition_threshold_hours FLOAT"),
+        ("attivita_manutenzione", "condition_last_done_hours","ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}condition_last_done_hours FLOAT"),
         # attivita_manutenzione — collegamento strutturale al piano (v2.5.1)
         ("attivita_manutenzione", "piano_id",                "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}piano_id INTEGER"),
         ("attivita_manutenzione", "is_repeatable",           "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}is_repeatable BOOLEAN DEFAULT TRUE"),
@@ -297,6 +303,31 @@ def _ensure_columns() -> None:
         )
     """
 
+    acr_pg = """
+        CREATE TABLE IF NOT EXISTS asset_condition_readings (
+            id SERIAL PRIMARY KEY,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            metric VARCHAR NOT NULL DEFAULT 'running_hours',
+            value FLOAT NOT NULL,
+            recorded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    acr_sqlite = """
+        CREATE TABLE IF NOT EXISTS asset_condition_readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            metric VARCHAR NOT NULL DEFAULT 'running_hours',
+            value FLOAT NOT NULL,
+            recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            note TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+
     def _apply_to(url: str, pg: bool) -> None:
         from sqlalchemy import create_engine, text
         ca = {"check_same_thread": False} if url.startswith("sqlite") else {}
@@ -343,6 +374,7 @@ def _ensure_columns() -> None:
         _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
         _exec_ddl(paa_pg if pg else paa_sqlite, "piani_assets_association CREATE")
         _exec_ddl(pf_pg if pg else pf_sqlite, "planner_feedback CREATE")
+        _exec_ddl(acr_pg if pg else acr_sqlite, "asset_condition_readings CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:
@@ -378,14 +410,16 @@ async def lifespan(app: FastAPI):
     # Avvio tasks in background
     poller_task = asyncio.create_task(email_poller_task())
     retention_task = asyncio.create_task(run_retention_job())
+    auto_ticket_task = asyncio.create_task(run_auto_ticket_job())
     print("✅ background tasks started")
-    
+
     yield
-    
+
     # Pulizia
     print("🛑 APP LIFESPAN ENDING...")
     poller_task.cancel()
     retention_task.cancel()
+    auto_ticket_task.cancel()
 
 app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 
