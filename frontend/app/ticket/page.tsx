@@ -751,6 +751,33 @@ export default function TicketPage() {
   const tickets = result?.items ?? [];
   const archivioItems = archivio?.items ?? [];
 
+  // Colonne per la tabella archivio — stato come badge statico colorato
+  const archivioColumns: ColumnDef<Ticket>[] = ticketColumns.map(col => {
+    if ((col as any).accessorKey === "stato") {
+      return {
+        accessorKey: "stato",
+        header: "Stato",
+        enableSorting: false,
+        cell: ({ getValue }: any) => {
+          const s = getValue<string>();
+          const isEliminato = s === "Eliminato";
+          return (
+            <span style={{
+              fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700,
+              letterSpacing: "0.05em", textTransform: "uppercase" as const,
+              background: isEliminato ? "rgba(248,113,113,0.15)" : "rgba(52,211,153,0.12)",
+              color: isEliminato ? "#f87171" : "#34d399",
+              border: `1px solid ${isEliminato ? "rgba(248,113,113,0.35)" : "rgba(52,211,153,0.3)"}`,
+            }}>
+              {s}
+            </span>
+          );
+        },
+      } as ColumnDef<Ticket>;
+    }
+    return col;
+  });
+
   const ticketColumns: ColumnDef<Ticket>[] = [
     {
       id: "select",
@@ -890,7 +917,7 @@ export default function TicketPage() {
       cell: ({ row }) => {
         const t = row.original;
         return (
-          <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             {(t.stato === "Aperto" || t.stato === "Pianificato") && (
               <button
                 onClick={() => handleStatoChange(t.id, "In corso")}
@@ -906,6 +933,13 @@ export default function TicketPage() {
             <a href={`/diagnostic?id=${t.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
               DIAGNOSTICA →
             </a>
+            {t.stato !== "Eliminato" && (
+              <button
+                onClick={() => handleStatoChange(t.id, "Eliminato")}
+                style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                title="Elimina ticket"
+              >🗑 ELIMINA</button>
+            )}
           </div>
         );
       },
@@ -1085,7 +1119,7 @@ export default function TicketPage() {
           </div>
           <DataTable
             data={archivioItems}
-            columns={ticketColumns}
+            columns={archivioColumns}
             manualPagination
             pageCount={archivio?.pages ?? 1}
             pageIndex={pageArch - 1}
