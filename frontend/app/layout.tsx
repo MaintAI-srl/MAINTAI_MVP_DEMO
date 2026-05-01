@@ -21,7 +21,7 @@ import {
   LayoutDashboard, CalendarClock, ClipboardList, Factory,
   Users, Wrench, CalendarDays, Building, UploadCloud,
   ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
-  Activity, Cpu, Zap, BrainCircuit, Settings
+  Activity, Cpu, Zap, BrainCircuit, Settings, Gauge
 } from "lucide-react";
 
 // Fonts now loaded above individually
@@ -48,6 +48,7 @@ const NAV = [
       { href: "/tecnici",  label: "Tecnici",              icon: <Users size={14} strokeWidth={1.8} /> },
       { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
       { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} /> },
+      { href: "/condizioni", label: "Condizioni Asset",   icon: <Gauge size={14} strokeWidth={1.8} /> },
     ],
   },
   {
@@ -75,6 +76,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/piani":              "Piani di Manutenzione",
   "/piani-manutenzione": "Piani di Manutenzione",
   "/scadenze":           "Scadenziario",
+  "/condizioni":          "Condizioni Asset",
   "/admin/tenants":      "Clienti",
   "/admin/bulk-import":  "Import Massivo",
   "/admin/logs":         "Log di Sistema",

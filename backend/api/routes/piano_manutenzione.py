@@ -35,6 +35,12 @@ from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, check_tenant_ownership
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione, Asset, Manuale, piano_asset_association
+from backend.services.condition_maintenance_service import (
+    METRIC_RUNNING_HOURS,
+    latest_running_hours_by_asset,
+    normalize_trigger_mode,
+    task_due_summary,
+)
 from backend.schemas.piano_manutenzione import (
     PianoManutenzioneCreate, PianoManutenzioneUpdate, PianoManutenzioneResponse,
     PianoManutenzioneListItem, TaskCreate, TaskUpdate, TaskResponse,
@@ -59,13 +65,23 @@ def _freq_days(freq: dict | None) -> int | None:
     return int(value * multipliers.get(unit, 1))
 
 
-def _task_to_dict(t: AttivitaManutenzione, open_ticket_count: int = 0, asset_nome: str | None = None) -> dict:
+def _task_to_dict(
+    t: AttivitaManutenzione,
+    open_ticket_count: int = 0,
+    asset_nome: str | None = None,
+    latest_reading=None,
+) -> dict:
     """Serializza un task con informazioni aggiuntive."""
     next_due = None
     if t.last_generated_at and t.frequenza_giorni:
         next_due = t.last_generated_at + timedelta(days=t.frequenza_giorni)
     elif t.prossima_scadenza:
         next_due = t.prossima_scadenza
+    elif t.next_due_at:
+        next_due = t.next_due_at
+
+    due = task_due_summary(t, latest_reading)
+    condition = due["condition"]
 
     return {
         "id": t.id,
@@ -86,6 +102,14 @@ def _task_to_dict(t: AttivitaManutenzione, open_ticket_count: int = 0, asset_nom
         "last_generated_at": t.last_generated_at.isoformat() if t.last_generated_at else None,
         "next_due_at": next_due.isoformat() if next_due else None,
         "open_ticket_count": open_ticket_count,
+        "trigger_mode": normalize_trigger_mode(getattr(t, "trigger_mode", None)),
+        "condition_metric": getattr(t, "condition_metric", None),
+        "condition_threshold_hours": getattr(t, "condition_threshold_hours", None),
+        "condition_last_done_hours": getattr(t, "condition_last_done_hours", None),
+        "current_running_hours": condition.get("current_hours"),
+        "condition_due_at_hours": condition.get("due_at_hours"),
+        "condition_remaining_hours": condition.get("remaining_hours"),
+        "condition_is_due": condition.get("is_due", False),
     }
 
 
@@ -393,13 +417,23 @@ def list_piano_tasks(
     )
 
     # Asset name (dal piano — tutti i task del piano condividono l'asset)
-    asset_nome = None
-    if piano.asset_id:
-        asset = db.query(Asset).filter(Asset.id == piano.asset_id).first()
-        asset_nome = asset.nome if asset else None
+    asset_ids = {t.asset_id for t in tasks if t.asset_id}
+    latest_readings = latest_running_hours_by_asset(db, tenant_id, asset_ids)
+    asset_names = {
+        a.id: a.nome
+        for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()
+    } if asset_ids else {}
 
     return {
-        "items": [_task_to_dict(t, open_counts.get(t.id, 0), asset_nome) for t in tasks],
+        "items": [
+            _task_to_dict(
+                t,
+                open_counts.get(t.id, 0),
+                asset_names.get(t.asset_id),
+                latest_readings.get(t.asset_id),
+            )
+            for t in tasks
+        ],
         "total": total,
         "page": page,
         "pages": max(1, math.ceil(total / limit)),
@@ -438,11 +472,16 @@ def create_piano_task(
         generate_days_before_due=data.generate_days_before_due,
         task_stato="active",
         source_type=data.source_type,
+        trigger_mode=normalize_trigger_mode(data.trigger_mode),
+        condition_metric=data.condition_metric or (METRIC_RUNNING_HOURS if normalize_trigger_mode(data.trigger_mode) != "calendar" else None),
+        condition_threshold_hours=data.condition_threshold_hours,
+        condition_last_done_hours=data.condition_last_done_hours,
     )
     db.add(task)
     db.commit()
     db.refresh(task)
-    return _task_to_dict(task, 0)
+    latest = latest_running_hours_by_asset(db, tenant_id, [task.asset_id]).get(task.asset_id) if task.asset_id else None
+    return _task_to_dict(task, 0, latest_reading=latest)
 
 
 @router.put("/piani-manutenzione/{piano_id}/tasks/{task_id}")
@@ -464,10 +503,19 @@ def update_piano_task(
 
     for field in ("nome", "descrizione", "frequenza_giorni", "durata_ore", "priorita",
                   "codice", "is_repeatable", "generation_mode", "generate_days_before_due",
-                  "task_stato", "asset_id"):
+                  "task_stato", "asset_id", "trigger_mode", "condition_metric",
+                  "condition_threshold_hours", "condition_last_done_hours"):
         val = getattr(data, field, None)
         if val is not None:
             setattr(task, field, val)
+
+    task.trigger_mode = normalize_trigger_mode(task.trigger_mode)
+    if task.trigger_mode == "calendar":
+        task.condition_metric = None
+        task.condition_threshold_hours = None
+        task.condition_last_done_hours = None
+    elif not task.condition_metric:
+        task.condition_metric = METRIC_RUNNING_HOURS
 
     db.commit()
     db.refresh(task)
@@ -477,7 +525,8 @@ def update_piano_task(
         Ticket.stato.in_(["Aperto", "Pianificato", "In corso"]),
         Ticket.deleted_at.is_(None),
     ).scalar() or 0
-    return _task_to_dict(task, open_count)
+    latest = latest_running_hours_by_asset(db, tenant_id, [task.asset_id]).get(task.asset_id) if task.asset_id else None
+    return _task_to_dict(task, open_count, latest_reading=latest)
 
 
 @router.delete("/piani-manutenzione/{piano_id}/tasks/{task_id}")

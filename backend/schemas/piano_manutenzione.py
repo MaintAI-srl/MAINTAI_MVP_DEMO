@@ -78,6 +78,10 @@ class TaskCreate(BaseModel):
     generation_mode: str = "manual"           # manual | auto | disabled
     generate_days_before_due: int = 7
     source_type: str = "manual_task"          # manual_task | imported_from_manual
+    trigger_mode: str = "calendar"            # calendar | condition | calendar_or_condition
+    condition_metric: Optional[str] = None
+    condition_threshold_hours: Optional[float] = None
+    condition_last_done_hours: Optional[float] = None
 
 
 class TaskUpdate(BaseModel):
@@ -91,6 +95,10 @@ class TaskUpdate(BaseModel):
     generation_mode: Optional[str] = None
     generate_days_before_due: Optional[int] = None
     task_stato: Optional[str] = None
+    trigger_mode: Optional[str] = None
+    condition_metric: Optional[str] = None
+    condition_threshold_hours: Optional[float] = None
+    condition_last_done_hours: Optional[float] = None
 
 
 class TaskResponse(BaseModel):
@@ -114,6 +122,14 @@ class TaskResponse(BaseModel):
     last_generated_at: Optional[datetime] = None
     next_due_at: Optional[datetime] = None
     open_ticket_count: int = 0
+    trigger_mode: Optional[str] = "calendar"
+    condition_metric: Optional[str] = None
+    condition_threshold_hours: Optional[float] = None
+    condition_last_done_hours: Optional[float] = None
+    current_running_hours: Optional[float] = None
+    condition_due_at_hours: Optional[float] = None
+    condition_remaining_hours: Optional[float] = None
+    condition_is_due: bool = False
 
 
 # Mantenuto per backward compatibility con /piani-manutenzione/{id}/ticket

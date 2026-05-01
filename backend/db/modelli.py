@@ -283,12 +283,34 @@ class AttivitaManutenzione(Base):
     last_generated_at = Column(DateTime, nullable=True)
     next_due_at = Column(DateTime, nullable=True)
 
+    # Manutenzione su condizione (default calendario per retrocompatibilita)
+    trigger_mode = Column(String, default="calendar", nullable=True)  # calendar | condition | calendar_or_condition
+    condition_metric = Column(String, nullable=True)  # running_hours
+    condition_threshold_hours = Column(Float, nullable=True)
+    condition_last_done_hours = Column(Float, nullable=True)
+
     # Collegamento al Piano di Manutenzione (v2.5.1) — FK obbligatoria per nuovi task
     # Workaround: nullable=True per compatibilità con task esistenti senza piano (creati da manuali pre-v2.5.1)
     piano_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True, index=True)
     is_repeatable = Column(Boolean, default=True, nullable=True)  # True = task ricorrente
 
     piano = relationship("PianoManutenzione", back_populates="tasks")
+
+
+class AssetConditionReading(Base):
+    """Lettura storica condizioni per singolo asset."""
+    __tablename__ = "asset_condition_readings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    metric = Column(String, nullable=False, default="running_hours", index=True)
+    value = Column(Float, nullable=False)
+    recorded_at = Column(DateTime, default=_utcnow, nullable=False, index=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    asset = relationship("Asset")
 
 
 class AnalisiGuasto(Base):

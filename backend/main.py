@@ -40,6 +40,7 @@ try:
     from backend.api.routes.piano_manutenzione import router as piano_manutenzione_router
     from backend.api.routes.utenti import router as utenti_router
     from backend.api.routes.desktop_update import router as desktop_update_router
+    from backend.api.routes.conditions import router as conditions_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -508,6 +509,7 @@ app.include_router(bulk_import_router)
 app.include_router(piano_manutenzione_router)
 app.include_router(utenti_router)
 app.include_router(desktop_update_router)
+app.include_router(conditions_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
@@ -516,6 +518,7 @@ _V1_ROUTERS = [
     auth_router, dashboard_router, assets_router, tecnici_router, tickets_router,
     scadenze_router, manuali_router, diagnostic_router, piani_router, impianti_router,
     siti_router, problem_analysis_router, planning_router, piano_manutenzione_router,
+    conditions_router,
 ]
 for _r in _V1_ROUTERS:
     app.include_router(_r, prefix="/v1")

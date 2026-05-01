@@ -46,6 +46,14 @@ type Task = {
   task_stato: string;
   source_type: string | null;
   next_due_at: string | null;
+  trigger_mode?: "calendar" | "condition" | "calendar_or_condition";
+  condition_metric?: string | null;
+  condition_threshold_hours?: number | null;
+  condition_last_done_hours?: number | null;
+  current_running_hours?: number | null;
+  condition_due_at_hours?: number | null;
+  condition_remaining_hours?: number | null;
+  condition_is_due?: boolean;
 };
 
 type Manuale = {
@@ -394,6 +402,10 @@ function DrawerTask({
     is_repeatable: task.is_repeatable ?? true,
     generation_mode: task.generation_mode || "manual",
     generate_days_before_due: task.generate_days_before_due ?? 7,
+    trigger_mode: task.trigger_mode || "calendar",
+    condition_metric: task.condition_metric || "running_hours",
+    condition_threshold_hours: task.condition_threshold_hours || 0,
+    condition_last_done_hours: task.condition_last_done_hours ?? undefined,
   });
   const [saving, setSaving] = useState(false);
   const isNew = !task.id;
@@ -403,6 +415,9 @@ function DrawerTask({
     const payload = {
       ...form,
       generate_days_before_due: form.generate_days_before_due || 7,
+      condition_metric: form.trigger_mode === "calendar" ? null : "running_hours",
+      condition_threshold_hours: form.trigger_mode === "calendar" ? null : form.condition_threshold_hours,
+      condition_last_done_hours: form.trigger_mode === "calendar" ? null : form.condition_last_done_hours,
     };
     try {
       const res = isNew
@@ -499,6 +514,87 @@ function DrawerTask({
               onChange: e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))
             })}
           </div>
+        </div>
+
+        <div style={{ background: "rgba(16,217,176,0.045)", border: "1px solid rgba(16,217,176,0.18)", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#43edd3", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                Regola scadenza
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                Calendario, ore di funzionamento, oppure la prima tra le due condizioni.
+              </div>
+            </div>
+            {task.current_running_hours !== null && task.current_running_hours !== undefined && (
+              <span style={{ fontSize: 11, color: "#43edd3", fontFamily: "var(--font-mono)", background: "rgba(16,217,176,0.08)", border: "1px solid rgba(16,217,176,0.22)", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>
+                {task.current_running_hours.toFixed(1)} h asset
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {[
+              { value: "calendar", label: "Solo calendario" },
+              { value: "condition", label: "Solo condizione" },
+              { value: "calendar_or_condition", label: "Calendario + condizione" },
+            ].map(option => {
+              const active = form.trigger_mode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, trigger_mode: option.value as "calendar" | "condition" | "calendar_or_condition" }))}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 7,
+                    border: active ? "1px solid rgba(16,217,176,0.42)" : "1px solid rgba(91,143,255,0.12)",
+                    background: active ? "rgba(16,217,176,0.12)" : "rgba(255,255,255,0.025)",
+                    color: active ? "#43edd3" : "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 750,
+                    cursor: "pointer",
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {form.trigger_mode !== "calendar" && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  {fieldLabel("Soglia ore funzionamento")}
+                  {fieldInput({
+                    type: "number",
+                    min: 0,
+                    step: "0.1",
+                    value: form.condition_threshold_hours,
+                    onChange: e => setForm(f => ({ ...f, condition_threshold_hours: parseFloat(e.target.value) || 0 })),
+                  })}
+                </div>
+                <div>
+                  {fieldLabel("Ore ultimo intervento")}
+                  {fieldInput({
+                    type: "number",
+                    min: 0,
+                    step: "0.1",
+                    value: form.condition_last_done_hours ?? "",
+                    placeholder: "vuoto = 0",
+                    onChange: e => setForm(f => ({ ...f, condition_last_done_hours: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0 })),
+                  })}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                Il trigger scatta quando le ore dell&apos;asset raggiungono <strong style={{ color: "#43edd3" }}>{((form.condition_last_done_hours || 0) + (form.condition_threshold_hours || 0)).toFixed(1)} h</strong>.
+                {task.condition_remaining_hours !== null && task.condition_remaining_hours !== undefined && (
+                  <span> Ore residue attuali: <strong style={{ color: task.condition_remaining_hours <= 0 ? "#f87171" : "#f6a233" }}>{task.condition_remaining_hours.toFixed(1)} h</strong>.</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -941,7 +1037,7 @@ export default function PianiPage() {
                         />
                       </label>
                       <button
-                        onClick={() => setSelectedTask({ id: 0, nome: "", descrizione: "", frequenza_giorni: 30, durata_ore: 1, priorita: "Media", task_stato: "active", is_repeatable: true, generate_days_before_due: 7, generation_mode: "manual", piano_id: selectedPianoId, asset_id: null, asset_nome: null, codice: null, source_type: "manual_task", next_due_at: null } as unknown as Task)}
+                        onClick={() => setSelectedTask({ id: 0, nome: "", descrizione: "", frequenza_giorni: 30, durata_ore: 1, priorita: "Media", task_stato: "active", is_repeatable: true, generate_days_before_due: 7, generation_mode: "manual", trigger_mode: "calendar", condition_metric: null, condition_threshold_hours: null, condition_last_done_hours: null, piano_id: selectedPianoId, asset_id: null, asset_nome: null, codice: null, source_type: "manual_task", next_due_at: null } as unknown as Task)}
                         style={{
                           padding: "9px 16px", background: "#6366f1", border: "1px solid #4f46e5",
                           borderRadius: 8, color: "white", fontSize: 12, fontWeight: 700,
@@ -984,7 +1080,9 @@ export default function PianiPage() {
                             </div>
                             <div style={{ display: "flex", gap: 16 }}>
                               <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>#{task.codice || task.id}</span>
-                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>ogni {task.frequenza_giorni}g</span>
+                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.trigger_mode === "condition" ? "solo condizione" : `ogni ${task.frequenza_giorni}g`}</span>
+                              {task.trigger_mode === "calendar_or_condition" && <span style={{ fontSize: 11, color: "#43edd3" }}>cal+cond</span>}
+                              {task.condition_remaining_hours !== null && task.condition_remaining_hours !== undefined && <span style={{ fontSize: 11, color: task.condition_remaining_hours <= 0 ? "#f87171" : "var(--text-muted)" }}>{task.condition_remaining_hours.toFixed(0)}h residue</span>}
                               <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.durata_ore}h</span>
                             </div>
                           </div>

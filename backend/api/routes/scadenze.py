@@ -5,6 +5,11 @@ from datetime import datetime, timedelta, timezone
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.db.modelli import AttivitaManutenzione, Asset, Ticket, PianoManutenzione
+from backend.services.condition_maintenance_service import (
+    latest_running_hours_by_asset,
+    normalize_trigger_mode,
+    task_due_summary,
+)
 
 router = APIRouter()
 
@@ -180,6 +185,7 @@ def get_scadenziario_piani(
                 AttivitaManutenzione.next_due_at.isnot(None),
                 AttivitaManutenzione.last_generated_at.isnot(None),
                 AttivitaManutenzione.ultima_esecuzione.isnot(None),
+                AttivitaManutenzione.condition_threshold_hours.isnot(None),
             ),
         )
         .order_by(AttivitaManutenzione.id.asc())
@@ -209,6 +215,7 @@ def get_scadenziario_piani(
             Asset.tenant_id == tenant_id,
         ).all()
     } if asset_ids else {}
+    latest_readings = latest_running_hours_by_asset(db, tenant_id, asset_ids)
 
     tickets = (
         db.query(Ticket)
@@ -234,8 +241,12 @@ def get_scadenziario_piani(
 
     rows = []
     for task in tasks:
-        next_due = _compute_next_due(task)
-        if not next_due:
+        summary = task_due_summary(task, latest_readings.get(task.asset_id), now)
+        next_due = summary["effective_due_at"] or summary["calendar_due_at"]
+        condition = summary["condition"]
+        if not next_due and summary["trigger_mode"] == "condition":
+            next_due = None
+        if not next_due and condition.get("due_at_hours") is None:
             continue
 
         asset = assets.get(task.asset_id)
@@ -245,7 +256,7 @@ def get_scadenziario_piani(
         last_ticket = closed_by_task.get(task.id)
         next_ticket = active_by_task.get(task.id)
 
-        days_remaining = (next_due.date() - now.date()).days
+        days_remaining = (next_due.date() - now.date()).days if next_due else None
         rows.append({
             "id": task.id,
             "sito": sito.nome if sito else "",
@@ -267,10 +278,16 @@ def get_scadenziario_piani(
             ),
             "prossima": _ticket_label(next_ticket, next_due),
             "prossima_ticket_id": next_ticket.id if next_ticket else None,
-            "prossima_data": next_due.isoformat(),
+            "prossima_data": next_due.isoformat() if next_due else None,
             "giorni_rimanenti": days_remaining,
             "priorita": task.priorita or "Media",
+            "trigger_mode": normalize_trigger_mode(task.trigger_mode),
+            "trigger_kind": summary["effective_kind"],
+            "current_running_hours": condition.get("current_hours"),
+            "condition_due_at_hours": condition.get("due_at_hours"),
+            "condition_remaining_hours": condition.get("remaining_hours"),
+            "condition_is_due": condition.get("is_due", False),
         })
 
-    rows.sort(key=lambda row: (row["giorni_rimanenti"], row["sito"], row["impianto"], row["asset"]))
+    rows.sort(key=lambda row: (row["giorni_rimanenti"] if row["giorni_rimanenti"] is not None else 10**9, row["sito"], row["impianto"], row["asset"]))
     return {"items": rows, "total": len(rows), "generated_at": now.isoformat()}

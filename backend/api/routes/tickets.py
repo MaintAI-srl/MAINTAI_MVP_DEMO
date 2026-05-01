@@ -14,6 +14,7 @@ from backend.core.logging_config import get_logger
 from backend.core.exceptions import AppError
 from backend.core.logger_db import log_to_db
 from backend.db.modelli import Ticket, AttivitaManutenzione
+from backend.services.condition_maintenance_service import latest_running_hours_by_asset
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -44,6 +45,10 @@ def _aggiorna_scadenza_piano(db: Session, ticket: Ticket):
     att.ultima_esecuzione = ticket.execution_finish
     if att.frequenza_giorni:
         att.prossima_scadenza = ticket.execution_finish + timedelta(days=att.frequenza_giorni)
+    if getattr(att, "condition_metric", None) == "running_hours" and ticket.asset_id:
+        latest = latest_running_hours_by_asset(db, ticket.tenant_id, [ticket.asset_id]).get(ticket.asset_id)
+        if latest:
+            att.condition_last_done_hours = latest.value
     db.commit()
 
 

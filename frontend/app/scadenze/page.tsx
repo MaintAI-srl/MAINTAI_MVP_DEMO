@@ -23,9 +23,15 @@ type ScadenzaRow = {
   ultima_data: string | null;
   prossima: string;
   prossima_ticket_id: number | null;
-  prossima_data: string;
-  giorni_rimanenti: number;
+  prossima_data: string | null;
+  giorni_rimanenti: number | null;
   priorita: string;
+  trigger_mode?: "calendar" | "condition" | "calendar_or_condition";
+  trigger_kind?: "calendar" | "condition";
+  current_running_hours?: number | null;
+  condition_due_at_hours?: number | null;
+  condition_remaining_hours?: number | null;
+  condition_is_due?: boolean;
 };
 
 type ScadenziarioResponse = {
@@ -43,14 +49,28 @@ function formatDate(iso: string | null) {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function formatDays(days: number) {
+function formatDays(days: number | null, row?: ScadenzaRow) {
+  if (days === null) {
+    if (row?.trigger_kind === "condition") {
+      if (row.condition_remaining_hours === null || row.condition_remaining_hours === undefined) return "In attesa ore";
+      if (row.condition_remaining_hours <= 0) return "Soglia raggiunta";
+      return `${row.condition_remaining_hours.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`;
+    }
+    return "-";
+  }
   if (days < 0) return `Scaduta da ${Math.abs(days)}g`;
   if (days === 0) return "Oggi";
   if (days === 1) return "1 giorno";
   return `${days} giorni`;
 }
 
-function statusForDays(days: number) {
+function statusForDays(days: number | null, row?: ScadenzaRow) {
+  if (row?.trigger_kind === "condition") {
+    if (row.condition_is_due) return { label: "Condizione", color: "#f05252", bg: "rgba(240,82,82,0.12)", border: "rgba(240,82,82,0.34)" };
+    if (row.condition_remaining_hours === null || row.condition_remaining_hours === undefined) return { label: "Senza lettura", color: "#f6a233", bg: "rgba(246,162,51,0.12)", border: "rgba(246,162,51,0.34)" };
+    return { label: "Ore residue", color: "#10d9b0", bg: "rgba(16,217,176,0.10)", border: "rgba(16,217,176,0.26)" };
+  }
+  if (days === null) return { label: "Da configurare", color: "#94a3b8", bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.24)" };
   if (days < 0) return { label: "Scaduta", color: "#f05252", bg: "rgba(240,82,82,0.12)", border: "rgba(240,82,82,0.34)" };
   if (days <= 7) return { label: "Critica", color: "#f6a233", bg: "rgba(246,162,51,0.12)", border: "rgba(246,162,51,0.34)" };
   if (days <= 30) return { label: "Prossima", color: "#5b8fff", bg: "var(--cobalt-dim)", border: "rgba(91,143,255,0.30)" };
@@ -126,9 +146,9 @@ export default function ScadenzePage() {
   }
 
   const stats = useMemo(() => {
-    const scadute = rows.filter(r => r.giorni_rimanenti < 0).length;
-    const sette = rows.filter(r => r.giorni_rimanenti >= 0 && r.giorni_rimanenti <= 7).length;
-    const trenta = rows.filter(r => r.giorni_rimanenti > 7 && r.giorni_rimanenti <= 30).length;
+    const scadute = rows.filter(r => (r.giorni_rimanenti !== null && r.giorni_rimanenti < 0) || r.condition_is_due).length;
+    const sette = rows.filter(r => r.giorni_rimanenti !== null && r.giorni_rimanenti >= 0 && r.giorni_rimanenti <= 7).length;
+    const trenta = rows.filter(r => r.giorni_rimanenti !== null && r.giorni_rimanenti > 7 && r.giorni_rimanenti <= 30).length;
     const legge = rows.filter(r => r.tipo.toUpperCase().includes("LEGGE")).length;
     return { totale: rows.length, scadute, sette, trenta, legge };
   }, [rows]);
@@ -137,15 +157,15 @@ export default function ScadenzePage() {
     const q = query.trim().toLowerCase();
     return rows
       .filter(row => {
-        if (filter === "scadute" && row.giorni_rimanenti >= 0) return false;
-        if (filter === "sette" && (row.giorni_rimanenti < 0 || row.giorni_rimanenti > 7)) return false;
-        if (filter === "trenta" && (row.giorni_rimanenti <= 7 || row.giorni_rimanenti > 30)) return false;
+        if (filter === "scadute" && !((row.giorni_rimanenti !== null && row.giorni_rimanenti < 0) || row.condition_is_due)) return false;
+        if (filter === "sette" && !(row.giorni_rimanenti !== null && row.giorni_rimanenti >= 0 && row.giorni_rimanenti <= 7)) return false;
+        if (filter === "trenta" && !(row.giorni_rimanenti !== null && row.giorni_rimanenti > 7 && row.giorni_rimanenti <= 30)) return false;
         if (filter === "legge" && !row.tipo.toUpperCase().includes("LEGGE")) return false;
         if (!q) return true;
         return [row.sito, row.impianto, row.asset, row.piano, row.task, row.tipo, row.priorita]
           .some(value => (value || "").toLowerCase().includes(q));
       })
-      .sort((a, b) => a.giorni_rimanenti - b.giorni_rimanenti || a.asset.localeCompare(b.asset));
+      .sort((a, b) => (a.giorni_rimanenti ?? 999999) - (b.giorni_rimanenti ?? 999999) || a.asset.localeCompare(b.asset));
   }, [rows, query, filter]);
 
   const filterItems: Array<{ id: FilterMode; label: string; count: number }> = [
@@ -291,10 +311,13 @@ export default function ScadenzePage() {
               ))}
 
               {!loading && filteredRows.map(row => {
-                const status = statusForDays(row.giorni_rimanenti);
+                const status = statusForDays(row.giorni_rimanenti, row);
                 const prio = priorityStyle(row.priorita || "Media");
+                const conditionText = row.trigger_kind === "condition"
+                  ? `Soglia ${row.condition_due_at_hours?.toLocaleString("it-IT", { maximumFractionDigits: 1 }) ?? "-"} h`
+                  : row.task || "Task manutenzione";
                 return (
-                  <tr key={row.id} title={row.task} style={{ background: row.giorni_rimanenti < 0 ? "rgba(240,82,82,0.035)" : "transparent" }}>
+                  <tr key={row.id} title={row.task} style={{ background: ((row.giorni_rimanenti !== null && row.giorni_rimanenti < 0) || row.condition_is_due) ? "rgba(240,82,82,0.035)" : "transparent" }}>
                     <td style={tdStyle}>{row.sito || "-"}</td>
                     <td style={tdStyle}>{row.impianto || "-"}</td>
                     <td style={{ ...tdStyle, fontWeight: 800, color: "var(--text-primary)" }}>{row.asset || "-"}</td>
@@ -316,7 +339,7 @@ export default function ScadenzePage() {
                     <td style={tdStyle}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                         <span>{row.prossima || formatDate(row.prossima_data)}</span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{row.task || "Task manutenzione"}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{conditionText}</span>
                       </div>
                     </td>
                     <td style={tdStyle}>
@@ -325,7 +348,7 @@ export default function ScadenzePage() {
                           {status.label}
                         </span>
                         <span style={{ fontWeight: 850, color: status.color, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
-                          {formatDays(row.giorni_rimanenti)}
+                          {formatDays(row.giorni_rimanenti, row)}
                         </span>
                         <span style={{ ...badgeStyle, color: prio.color, background: prio.bg, borderColor: prio.border }}>
                           {row.priorita || "Media"}
