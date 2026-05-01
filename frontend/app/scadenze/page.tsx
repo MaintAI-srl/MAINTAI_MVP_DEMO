@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, RefreshCw, Search } from "lucide-react";
 import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 
@@ -33,34 +34,78 @@ type ScadenziarioResponse = {
   generated_at: string;
 };
 
-const EMPTY_ROWS = 18;
+type FilterMode = "tutte" | "scadute" | "sette" | "trenta" | "legge";
 
-function daysStyle(days: number): CSSProperties {
-  if (days < 0) return { color: "#b91c1c", fontWeight: 800, background: "#fee2e2" };
-  if (days <= 7) return { color: "#92400e", fontWeight: 800, background: "#fef3c7" };
-  return { color: "#111827", fontWeight: 700 };
+function formatDate(iso: string | null) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function formatDays(days: number) {
-  if (days < 0) return `scaduta da ${Math.abs(days)} giorni`;
-  if (days === 0) return "scade oggi";
+  if (days < 0) return `Scaduta da ${Math.abs(days)}g`;
+  if (days === 0) return "Oggi";
   if (days === 1) return "1 giorno";
   return `${days} giorni`;
 }
 
-function formatDateTime(iso: string | null) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString("it-IT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+function statusForDays(days: number) {
+  if (days < 0) return { label: "Scaduta", color: "#f05252", bg: "rgba(240,82,82,0.12)", border: "rgba(240,82,82,0.34)" };
+  if (days <= 7) return { label: "Critica", color: "#f6a233", bg: "rgba(246,162,51,0.12)", border: "rgba(246,162,51,0.34)" };
+  if (days <= 30) return { label: "Prossima", color: "#5b8fff", bg: "rgba(91,143,255,0.12)", border: "rgba(91,143,255,0.30)" };
+  return { label: "In piano", color: "#10d9b0", bg: "rgba(16,217,176,0.10)", border: "rgba(16,217,176,0.26)" };
+}
+
+function priorityStyle(priority: string) {
+  const p = priority.toLowerCase();
+  if (p === "alta") return { color: "#f87171", bg: "rgba(248,113,113,0.12)", border: "rgba(248,113,113,0.30)" };
+  if (p === "bassa") return { color: "#22d3a0", bg: "rgba(34,211,160,0.10)", border: "rgba(34,211,160,0.24)" };
+  return { color: "#f6a233", bg: "rgba(246,162,51,0.10)", border: "rgba(246,162,51,0.24)" };
+}
+
+function KpiTile({ label, value, detail, color, icon }: {
+  label: string;
+  value: number | string;
+  detail: string;
+  color: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      background: "linear-gradient(145deg, rgba(13,21,38,0.98), rgba(10,17,31,0.98))",
+      border: "1px solid rgba(91,143,255,0.14)",
+      borderLeft: `3px solid ${color}`,
+      borderRadius: 8,
+      padding: "14px 16px",
+      minHeight: 92,
+      boxShadow: "0 0 0 1px rgba(91,143,255,0.04), 0 10px 28px rgba(0,0,0,0.28)",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "space-between",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.14em", fontWeight: 800, textTransform: "uppercase" }}>
+          {label}
+        </span>
+        <span style={{ color, display: "inline-flex" }}>{icon}</span>
+      </div>
+      <div>
+        <div style={{ fontSize: 30, lineHeight: 1, fontWeight: 850, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+          {value}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-secondary)" }}>{detail}</div>
+      </div>
+    </div>
+  );
 }
 
 export default function ScadenzePage() {
   const [rows, setRows] = useState<ScadenzaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterMode>("tutte");
 
   useEffect(() => {
     loadScadenze();
@@ -80,162 +125,266 @@ export default function ScadenzePage() {
     }
   }
 
-  const blankRows = useMemo(
-    () => Array.from({ length: Math.max(EMPTY_ROWS - rows.length, 6) }),
-    [rows.length],
-  );
+  const stats = useMemo(() => {
+    const scadute = rows.filter(r => r.giorni_rimanenti < 0).length;
+    const sette = rows.filter(r => r.giorni_rimanenti >= 0 && r.giorni_rimanenti <= 7).length;
+    const trenta = rows.filter(r => r.giorni_rimanenti > 7 && r.giorni_rimanenti <= 30).length;
+    const legge = rows.filter(r => r.tipo.toUpperCase().includes("LEGGE")).length;
+    return { totale: rows.length, scadute, sette, trenta, legge };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows
+      .filter(row => {
+        if (filter === "scadute" && row.giorni_rimanenti >= 0) return false;
+        if (filter === "sette" && (row.giorni_rimanenti < 0 || row.giorni_rimanenti > 7)) return false;
+        if (filter === "trenta" && (row.giorni_rimanenti <= 7 || row.giorni_rimanenti > 30)) return false;
+        if (filter === "legge" && !row.tipo.toUpperCase().includes("LEGGE")) return false;
+        if (!q) return true;
+        return [row.sito, row.impianto, row.asset, row.piano, row.task, row.tipo, row.priorita]
+          .some(value => (value || "").toLowerCase().includes(q));
+      })
+      .sort((a, b) => a.giorni_rimanenti - b.giorni_rimanenti || a.asset.localeCompare(b.asset));
+  }, [rows, query, filter]);
+
+  const filterItems: Array<{ id: FilterMode; label: string; count: number }> = [
+    { id: "tutte", label: "Tutte", count: stats.totale },
+    { id: "scadute", label: "Scadute", count: stats.scadute },
+    { id: "sette", label: "0-7 giorni", count: stats.sette },
+    { id: "trenta", label: "8-30 giorni", count: stats.trenta },
+    { id: "legge", label: "Legge/PM", count: stats.legge },
+  ];
 
   return (
-    <div style={{
-      minHeight: "100%",
-      padding: "28px 30px 42px",
-      color: "#000",
-      backgroundColor: "#f8fafc",
-      backgroundImage: "linear-gradient(#d9d9d9 1px, transparent 1px), linear-gradient(90deg, #d9d9d9 1px, transparent 1px)",
-      backgroundSize: "38px 28px, 152px 28px",
-      overflowX: "auto",
-    }}>
-      <div style={{ minWidth: 1500, display: "grid", gridTemplateColumns: "230px 1fr", columnGap: 18 }}>
-        <div />
-
-        <header style={{ padding: "6px 0 28px 4px" }}>
-          <h1 style={{ margin: 0, fontSize: 26, lineHeight: 1.2, fontWeight: 800, color: "#000" }}>
-            Calendario scadenze
+    <div style={{ minHeight: "100%", background: "#060a12", padding: "28px 32px 38px", color: "var(--text-primary)" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, marginBottom: 22 }}>
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#5b8fff", fontWeight: 800, marginBottom: 7 }}>
+            Manutenzione programmata
+          </div>
+          <h1 className="page-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.05 }}>
+            Scadenziario
           </h1>
-          <div style={{ marginTop: 32, fontSize: 20, color: "#000" }}>
-            (solo lista Asset con scadenza)
+          <p className="page-subtitle" style={{ margin: "7px 0 0", maxWidth: 760 }}>
+            Asset con scadenze ricavate dai piani di manutenzione, con ultimo intervento, prossima occorrenza e giorni residui.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+          <button
+            type="button"
+            onClick={loadScadenze}
+            disabled={loading}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 7,
+              border: "1px solid rgba(91,143,255,0.32)",
+              background: loading ? "rgba(91,143,255,0.08)" : "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(99,102,241,0.18))",
+              color: "#dbeafe",
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            <RefreshCw size={15} />
+            Aggiorna
+          </button>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+            {generatedAt ? `sync ${formatDate(generatedAt)}` : "sync non disponibile"}
+          </span>
+        </div>
+      </header>
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 18 }}>
+        <KpiTile label="Scadenze totali" value={stats.totale} detail="task attivi con prossima data" color="#5b8fff" icon={<CalendarClock size={18} />} />
+        <KpiTile label="Scadute" value={stats.scadute} detail="richiedono ripianificazione" color="#f05252" icon={<AlertTriangle size={18} />} />
+        <KpiTile label="Entro 7 giorni" value={stats.sette} detail="finestra critica operativa" color="#f6a233" icon={<Clock3 size={18} />} />
+        <KpiTile label="Legge / PM" value={stats.legge} detail="adempimenti e preventive" color="#10d9b0" icon={<CheckCircle2 size={18} />} />
+      </section>
+
+      <section style={{
+        background: "linear-gradient(145deg, rgba(13,21,38,0.98), rgba(8,14,26,0.98))",
+        border: "1px solid rgba(91,143,255,0.14)",
+        borderRadius: 8,
+        boxShadow: "0 0 0 1px rgba(91,143,255,0.04), 0 16px 38px rgba(0,0,0,0.32)",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          padding: "14px 16px",
+          borderBottom: "1px solid rgba(91,143,255,0.10)",
+          background: "rgba(255,255,255,0.018)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {filterItems.map(item => {
+              const active = filter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                  style={{
+                    height: 30,
+                    padding: "0 11px",
+                    borderRadius: 6,
+                    border: active ? "1px solid rgba(91,143,255,0.42)" : "1px solid rgba(91,143,255,0.12)",
+                    background: active ? "rgba(91,143,255,0.14)" : "rgba(255,255,255,0.025)",
+                    color: active ? "#dbeafe" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 750,
+                  }}
+                >
+                  {item.label} <span style={{ color: active ? "#8bb8ff" : "var(--text-muted)", marginLeft: 5 }}>{item.count}</span>
+                </button>
+              );
+            })}
           </div>
-        </header>
 
-        <aside style={{ paddingTop: 40, fontSize: 34, fontWeight: 800, color: "#000", whiteSpace: "nowrap" }}>
-          Scadenziario ----&gt;
-        </aside>
+          <label style={{ position: "relative", minWidth: 280 }}>
+            <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Cerca sito, asset, piano..."
+              style={{
+                width: "100%",
+                height: 34,
+                padding: "0 11px 0 34px",
+                borderRadius: 7,
+                border: "1px solid rgba(91,143,255,0.18)",
+                background: "rgba(6,10,18,0.74)",
+                color: "var(--text-primary)",
+                outline: "none",
+                fontSize: 12,
+              }}
+            />
+          </label>
+        </div>
 
-        <main>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, color: "#111827", fontSize: 12 }}>
-            <span>{loading ? "Caricamento scadenze reali..." : `${rows.length} asset/task con scadenza`}</span>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {generatedAt && <span>Aggiornato: {formatDateTime(generatedAt)}</span>}
-              <button
-                type="button"
-                onClick={loadScadenze}
-                disabled={loading}
-                style={{
-                  padding: "5px 12px",
-                  border: "1px solid #111",
-                  background: loading ? "#e5e7eb" : "#fff",
-                  color: "#000",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontWeight: 700,
-                  fontSize: 12,
-                }}
-              >
-                Aggiorna
-              </button>
-            </div>
-          </div>
-
-          <table style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            tableLayout: "fixed",
-            background: "rgba(255,255,255,0.58)",
-            border: "1px solid #000",
-          }}>
-            <colgroup>
-              <col style={{ width: 130 }} />
-              <col style={{ width: 165 }} />
-              <col style={{ width: 165 }} />
-              <col style={{ width: 135 }} />
-              <col style={{ width: 165 }} />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 160 }} />
-              <col style={{ width: 195 }} />
-              <col style={{ width: 375 }} />
-            </colgroup>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 1180, borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
-                {["SITO", "IMPIANTO", "ASSET", "Piano", "TIPO", "frequenza", "Ultima", "Prossima", "giorni rimanenti"].map((label) => (
-                  <th key={label} style={{
-                    border: "1px solid #000",
-                    padding: "3px 8px",
-                    height: 30,
-                    fontSize: 18,
-                    lineHeight: 1.1,
-                    textAlign: "center",
-                    verticalAlign: "middle",
-                    fontWeight: 800,
-                    background: "rgba(255,255,255,0.68)",
-                  }}>
-                    {label}
-                  </th>
+                {["Sito", "Impianto", "Asset", "Piano", "Tipo", "Freq.", "Ultima", "Prossima", "Giorni rimanenti"].map(label => (
+                  <th key={label} style={thStyle}>{label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} title={row.task}>
-                  <td style={cellStyle}>{row.sito || "-"}</td>
-                  <td style={cellStyle}>{row.impianto || "-"}</td>
-                  <td style={cellStyle}>{row.asset || "-"}</td>
-                  <td style={cellStyle}>{row.piano || "-"}</td>
-                  <td style={cellStyle}>{row.tipo || "PM"}</td>
-                  <td style={cellStyle}>{row.frequenza || (row.frequenza_giorni ? `${row.frequenza_giorni}G` : "-")}</td>
-                  <td style={cellStyle}>{row.ultima || "-"}</td>
-                  <td style={cellStyle}>{row.prossima || formatDateTime(row.prossima_data)}</td>
-                  <td style={{ ...cellStyle, ...daysStyle(row.giorni_rimanenti) }}>
-                    {formatDays(row.giorni_rimanenti)}
-                  </td>
-                </tr>
-              ))}
-
-              {!loading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={9} style={{
-                    border: "1px solid #000",
-                    height: 52,
-                    textAlign: "center",
-                    fontSize: 15,
-                    color: "#374151",
-                    background: "rgba(255,255,255,0.72)",
-                  }}>
-                    Nessuna scadenza trovata nei piani di manutenzione.
-                  </td>
-                </tr>
-              )}
-
-              {blankRows.map((_, index) => (
-                <tr key={`blank-${index}`} aria-hidden="true">
-                  {Array.from({ length: 9 }).map((__, cellIndex) => (
-                    <td key={cellIndex} style={blankCellStyle} />
+              {loading && Array.from({ length: 8 }).map((_, index) => (
+                <tr key={`loading-${index}`}>
+                  {Array.from({ length: 9 }).map((__, cell) => (
+                    <td key={cell} style={tdStyle}>
+                      <div style={{ height: 12, width: `${55 + ((index + cell) % 4) * 10}%`, borderRadius: 4, background: "rgba(91,143,255,0.08)" }} />
+                    </td>
                   ))}
                 </tr>
               ))}
+
+              {!loading && filteredRows.map(row => {
+                const status = statusForDays(row.giorni_rimanenti);
+                const prio = priorityStyle(row.priorita || "Media");
+                return (
+                  <tr key={row.id} title={row.task} style={{ background: row.giorni_rimanenti < 0 ? "rgba(240,82,82,0.035)" : "transparent" }}>
+                    <td style={tdStyle}>{row.sito || "-"}</td>
+                    <td style={tdStyle}>{row.impianto || "-"}</td>
+                    <td style={{ ...tdStyle, fontWeight: 800, color: "var(--text-primary)" }}>{row.asset || "-"}</td>
+                    <td style={tdStyle}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#8bb8ff" }}>{row.piano || "-"}</span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ ...badgeStyle, color: "#10d9b0", background: "rgba(16,217,176,0.10)", borderColor: "rgba(16,217,176,0.24)" }}>
+                        {row.tipo || "PM"}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>{row.frequenza || (row.frequenza_giorni ? `${row.frequenza_giorni}G` : "-")}</td>
+                    <td style={tdStyle}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span>{row.ultima || "-"}</span>
+                        {row.ultima_data && <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{formatDate(row.ultima_data)}</span>}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span>{row.prossima || formatDate(row.prossima_data)}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{row.task || "Task manutenzione"}</span>
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                        <span style={{ ...badgeStyle, color: status.color, background: status.bg, borderColor: status.border }}>
+                          {status.label}
+                        </span>
+                        <span style={{ fontWeight: 850, color: status.color, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
+                          {formatDays(row.giorni_rimanenti)}
+                        </span>
+                        <span style={{ ...badgeStyle, color: prio.color, background: prio.bg, borderColor: prio.border }}>
+                          {row.priorita || "Media"}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {!loading && filteredRows.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: "44px 18px", textAlign: "center", color: "var(--text-muted)", borderTop: "1px solid rgba(91,143,255,0.08)" }}>
+                    Nessuna scadenza corrisponde ai filtri selezionati.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-        </main>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-const cellStyle: CSSProperties = {
-  border: "1px solid #000",
-  height: 50,
-  padding: "4px 10px",
-  fontSize: 20,
-  lineHeight: 1.15,
-  textAlign: "center",
-  verticalAlign: "middle",
-  color: "#000",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+const thStyle: CSSProperties = {
+  height: 38,
+  padding: "0 14px",
+  textAlign: "left",
+  fontSize: 10,
+  color: "var(--text-muted)",
+  letterSpacing: "0.13em",
+  textTransform: "uppercase",
+  fontWeight: 850,
+  background: "rgba(6,10,18,0.72)",
+  borderBottom: "1px solid rgba(91,143,255,0.12)",
   whiteSpace: "nowrap",
 };
 
-const blankCellStyle: CSSProperties = {
-  border: "1px solid #000",
-  height: 28,
-  padding: 0,
-  background: "rgba(255,255,255,0.25)",
+const tdStyle: CSSProperties = {
+  minHeight: 50,
+  padding: "11px 14px",
+  borderBottom: "1px solid rgba(91,143,255,0.075)",
+  color: "var(--text-secondary)",
+  fontSize: 12,
+  verticalAlign: "middle",
+};
+
+const badgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 22,
+  padding: "2px 8px",
+  borderRadius: 5,
+  border: "1px solid",
+  fontSize: 10,
+  fontWeight: 850,
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
 };
