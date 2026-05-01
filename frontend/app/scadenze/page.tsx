@@ -291,10 +291,10 @@ export default function ScadenzePage() {
         </div>
 
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 1180, borderCollapse: "separate", borderSpacing: 0 }}>
+          <table style={{ width: "100%", minWidth: 1260, borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
-                {["Sito", "Impianto", "Asset", "Piano", "Tipo", "Freq.", "Ultima", "Prossima", "Giorni rimanenti"].map(label => (
+                {["Sito", "Impianto", "Asset", "Piano", "Tipo", "Freq.", "Ultima", "Prossima", "Ore asset", "Giorni rimanenti"].map(label => (
                   <th key={label} style={thStyle}>{label}</th>
                 ))}
               </tr>
@@ -302,7 +302,7 @@ export default function ScadenzePage() {
             <tbody>
               {loading && Array.from({ length: 8 }).map((_, index) => (
                 <tr key={`loading-${index}`}>
-                  {Array.from({ length: 9 }).map((__, cell) => (
+                  {Array.from({ length: 10 }).map((__, cell) => (
                     <td key={cell} style={tdStyle}>
                       <div style={{ height: 12, width: `${55 + ((index + cell) % 4) * 10}%`, borderRadius: 4, background: "rgba(91,143,255,0.08)" }} />
                     </td>
@@ -316,6 +316,12 @@ export default function ScadenzePage() {
                 const conditionText = row.trigger_kind === "condition"
                   ? `Soglia ${row.condition_due_at_hours?.toLocaleString("it-IT", { maximumFractionDigits: 1 }) ?? "-"} h`
                   : row.task || "Task manutenzione";
+                // Calcola celle ore asset
+                const hasHours = row.current_running_hours !== null && row.current_running_hours !== undefined;
+                const hasRemaining = row.condition_remaining_hours !== null && row.condition_remaining_hours !== undefined;
+                const remainingOk = hasRemaining && (row.condition_remaining_hours! > 0);
+                const remainingDue = hasRemaining && (row.condition_remaining_hours! <= 0);
+
                 return (
                   <tr key={row.id} title={row.task} style={{ background: ((row.giorni_rimanenti !== null && row.giorni_rimanenti < 0) || row.condition_is_due) ? "rgba(240,82,82,0.035)" : "transparent" }}>
                     <td style={tdStyle}>{row.sito || "-"}</td>
@@ -342,6 +348,29 @@ export default function ScadenzePage() {
                         <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{conditionText}</span>
                       </div>
                     </td>
+                    {/* Colonna Ore asset */}
+                    <td style={tdStyle}>
+                      {hasHours ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#10d9b0", fontWeight: 700 }}>
+                            {row.current_running_hours!.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h
+                          </span>
+                          {hasRemaining && (
+                            <span style={{
+                              fontSize: 10, fontFamily: "var(--font-mono)",
+                              color: remainingDue ? "#f05252" : remainingOk && row.condition_remaining_hours! <= 50 ? "#f6a233" : "var(--text-muted)",
+                              fontWeight: 600,
+                            }}>
+                              {remainingDue
+                                ? "▲ Soglia raggiunta"
+                                : `−${row.condition_remaining_hours!.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h al tagliando`}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--text-disabled)", fontSize: 11 }}>—</span>
+                      )}
+                    </td>
                     <td style={tdStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
                         <span style={{ ...badgeStyle, color: status.color, background: status.bg, borderColor: status.border }}>
@@ -361,7 +390,7 @@ export default function ScadenzePage() {
 
               {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: "44px 18px", textAlign: "center", color: "var(--text-muted)", borderTop: "1px solid rgba(91,143,255,0.08)" }}>
+                  <td colSpan={10} style={{ padding: "44px 18px", textAlign: "center", color: "var(--text-muted)", borderTop: "1px solid rgba(91,143,255,0.08)" }}>
                     Nessuna scadenza corrisponde ai filtri selezionati.
                   </td>
                 </tr>

@@ -113,7 +113,7 @@ export default function CondizioniPage() {
             Manutenzione su condizione
           </div>
           <h1 className="page-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.05 }}>
-            Ore di funzionamento
+            Dati Misure Asset
           </h1>
           <p className="page-subtitle" style={{ margin: "7px 0 0", maxWidth: 760 }}>
             Registra letture reali per singolo asset. I task configurati su condizione scattano solo sulle ore del proprio asset.

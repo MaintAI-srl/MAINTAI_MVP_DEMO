@@ -454,10 +454,11 @@ function DrawerTask({
 
   return (
     <div style={{
-      position: "fixed", insetBlock: 0, right: 0, width: "min(500px, 100vw)",
+      position: "fixed", top: 0, bottom: 0, right: 0, left: "auto",
+      width: "min(520px, 100vw)", maxWidth: "100vw",
       background: "var(--bg-elevated)", borderLeft: "1px solid var(--border)",
       zIndex: 80, boxShadow: "-8px 0 40px rgba(0,0,0,0.3)",
-      display: "flex", flexDirection: "column"
+      display: "flex", flexDirection: "column", overflowX: "hidden"
     }}>
       {/* Header */}
       <div style={{

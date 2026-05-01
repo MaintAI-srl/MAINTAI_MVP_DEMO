@@ -48,7 +48,7 @@ const NAV = [
       { href: "/tecnici",  label: "Tecnici",              icon: <Users size={14} strokeWidth={1.8} /> },
       { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
       { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} /> },
-      { href: "/condizioni", label: "Condizioni Asset",   icon: <Gauge size={14} strokeWidth={1.8} /> },
+      { href: "/condizioni", label: "Dati Misure Asset",   icon: <Gauge size={14} strokeWidth={1.8} /> },
     ],
   },
   {
@@ -76,7 +76,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/piani":              "Piani di Manutenzione",
   "/piani-manutenzione": "Piani di Manutenzione",
   "/scadenze":           "Scadenziario",
-  "/condizioni":          "Condizioni Asset",
+  "/condizioni":          "Dati Misure Asset",
   "/admin/tenants":      "Clienti",
   "/admin/bulk-import":  "Import Massivo",
   "/admin/logs":         "Log di Sistema",

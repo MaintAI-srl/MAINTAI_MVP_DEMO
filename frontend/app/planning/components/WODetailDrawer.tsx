@@ -80,13 +80,16 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
           top: 0,
           right: 0,
           bottom: 0,
-          width: 320,
+          left: "auto",
+          width: "min(380px, 100vw)",
+          maxWidth: "100vw",
           background: "var(--surface-1)",
           borderLeft: "1px solid var(--border-strong)",
           zIndex: 9999,
           display: "flex",
           flexDirection: "column",
           overflowY: "auto",
+          overflowX: "hidden",
           fontFamily: "'IBM Plex Mono', monospace",
         }}
       >
