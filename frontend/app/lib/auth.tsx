@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { apiGet, apiPost, clearTauriToken } from "./api";
+import { apiGet, apiPost, clearTauriToken, isTauri, getTauriToken } from "./api";
 
 type User = {
   username: string;
@@ -65,8 +65,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const meta = loadUserMeta();
-    // Anche se meta è nullo, proviamo a chiamare /auth/me 
-    // perché il cookie HttpOnly potrebbe essere ancora presente e valido.
+
+    // In Tauri non esistono cookie HttpOnly: se non c'è un JWT in localStorage
+    // non ha senso chiamare /auth/me — vai subito al login.
+    if (isTauri() && !getTauriToken()) {
+      clearUserMeta();
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    // Web: il cookie HttpOnly potrebbe essere ancora valido — verifica con /auth/me.
+    // Tauri con token presente: verifica che il token non sia scaduto.
     apiGet<{ username: string; ruolo: string; userid?: number; tenant_id?: number; tenant_nome?: string }>("/auth/me")
       .then(data => {
         const restored: User = {
@@ -80,8 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         saveUserMeta(restored);
       })
       .catch(() => {
-        // Cookie scaduto o assente — pulisce i metadati per sicurezza
+        // Token scaduto o non valido
         clearUserMeta();
+        clearTauriToken();
         setUser(null);
       })
       .finally(() => setLoading(false));
