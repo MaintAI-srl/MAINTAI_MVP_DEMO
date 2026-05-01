@@ -456,6 +456,13 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 
       {/* Footer sticky-style */}
       <div style={{ padding: "20px 28px", background: "var(--border-subtle)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <Button
+          variant="outline"
+          onClick={() => setShowEliminaDialog(true)}
+          style={{ borderColor: "rgba(248,113,113,0.4)", color: "#f87171", marginRight: "auto" }}
+        >
+          🗑 Elimina
+        </Button>
         <Button variant="outline" onClick={onClose} style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>Annulla</Button>
         <Button onClick={handleSave} disabled={saving}
           style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)", minWidth: 120, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}>
@@ -1140,7 +1147,7 @@ export default function TicketPage() {
 
       {/* Detail modal */}
       <Sheet open={!!detailTicket} onOpenChange={(o) => { if (!o) setDetailTicket(null); }}>
-        <SheetContent side="right" style={{ width: "min(95vw, 600px)", background: "var(--surface-1)", borderLeft: "1px solid rgba(255,255,255,0.08)", overflowY: "auto", padding: "24px" }}>
+        <SheetContent side="right" style={{ width: "min(100vw, 580px)", maxWidth: "100vw", overflowX: "hidden", background: "var(--surface-1)", borderLeft: "1px solid rgba(255,255,255,0.08)", overflowY: "auto", padding: "24px" }}>
           {detailTicket && (
             <>
               <SheetHeader style={{ marginBottom: 24, padding: 0, gap: 12 }}>

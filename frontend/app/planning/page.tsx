@@ -436,6 +436,7 @@ export default function PianificazionePage() {
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
   const [filterTipo, setFilterTipo] = useState("");
   const [selectedWO, setSelectedWO] = useState<{ wo: PlannedWO; ticket: TicketData; tecnico: TecnicoData } | null>(null);
+  const [effPanelOpen, setEffPanelOpen] = useState(true);
   const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
 
   // Piano AI state
@@ -850,51 +851,6 @@ export default function PianificazionePage() {
               )}
             </div>
 
-            {/* Efficienza breakdown compatto — se piano esiste */}
-            {effScore !== undefined && effBreakdown && (
-              <div style={{
-                borderTop: "1px solid rgba(59,130,246,0.1)",
-                padding: "12px 12px 16px", flexShrink: 0,
-                background: "rgba(59,130,246,0.05)",
-                margin: "0 8px 8px",
-                borderRadius: 8,
-                border: "1px solid rgba(59,130,246,0.12)",
-                marginTop: 8,
-              }}>
-                <BadgeEfficienza score={effScore} breakdown={effBreakdown} />
-              </div>
-            )}
-
-            {/* Pannello motivazioni — visibile automaticamente se score < 90 */}
-            {effScore !== undefined && planJson?.efficiency_motivations && planJson.efficiency_motivations.length > 0 && (
-              <div style={{
-                borderTop: "1px solid rgba(59,130,246,0.08)",
-                padding: "12px", flexShrink: 0,
-                background: "rgba(59,130,246,0.04)",
-                margin: "0 8px 8px",
-                borderRadius: 8,
-                border: "1px solid rgba(59,130,246,0.1)",
-              }}>
-                <PannelloMotivazioni motivations={planJson.efficiency_motivations} score={effScore} />
-              </div>
-            )}
-
-            {/* WO non pianificati con reason codes */}
-            {planJson?.deferred_workorders && planJson.deferred_workorders.length > 0 && (
-              <div style={{
-                borderTop: "1px solid rgba(59,130,246,0.08)",
-                padding: "12px", flexShrink: 0,
-                background: "rgba(59,130,246,0.04)",
-                margin: "0 8px 8px",
-                borderRadius: 8,
-                border: "1px solid rgba(59,130,246,0.1)",
-              }}>
-                <DeferredWOPanel
-                  deferredWOs={planJson.deferred_workorders}
-                  allTickets={[...scheduledTickets, ...unscheduledTickets]}
-                />
-              </div>
-            )}
           </div>
 
           {/* ── GANTT TIMELINE ── */}
@@ -976,6 +932,97 @@ export default function PianificazionePage() {
               </div>
             )}
           </div>
+
+          {/* ── PANNELLO EFFICIENZA destra collassabile ── */}
+          {(effScore !== undefined || (planJson?.deferred_workorders && planJson.deferred_workorders.length > 0)) && (
+            <div style={{
+              position: "relative",
+              display: "flex",
+              flexDirection: "row",
+              flexShrink: 0,
+            }}>
+              {/* Linguetta per aprire/chiudere */}
+              <button
+                onClick={() => setEffPanelOpen(p => !p)}
+                title={effPanelOpen ? "Chiudi pannello" : "Apri pannello efficienza"}
+                style={{
+                  position: "absolute",
+                  left: -18,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 18,
+                  height: 64,
+                  background: "rgba(59,130,246,0.15)",
+                  border: "1px solid rgba(59,130,246,0.25)",
+                  borderRight: "none",
+                  borderRadius: "8px 0 0 8px",
+                  color: "#60a5fa",
+                  fontSize: 10,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  writingMode: "vertical-rl",
+                  zIndex: 20,
+                  fontWeight: 700,
+                }}
+              >
+                {effPanelOpen ? "›" : "‹"}
+              </button>
+
+              {/* Pannello contenuto */}
+              {effPanelOpen && (
+                <div style={{
+                  width: 240,
+                  borderLeft: "1px solid rgba(59,130,246,0.15)",
+                  background: "var(--surface-1)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 0,
+                  overflowY: "auto",
+                }}>
+                  {/* Header */}
+                  <div style={{
+                    padding: "10px 12px",
+                    borderBottom: "1px solid rgba(59,130,246,0.1)",
+                    fontSize: 9,
+                    letterSpacing: "0.15em",
+                    color: "rgba(148,163,184,0.6)",
+                    fontWeight: 700,
+                    textTransform: "uppercase" as const,
+                    background: "rgba(59,130,246,0.05)",
+                    flexShrink: 0,
+                  }}>
+                    Riepilogo Piano
+                  </div>
+
+                  {/* BadgeEfficienza */}
+                  {effScore !== undefined && effBreakdown && (
+                    <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid rgba(59,130,246,0.08)" }}>
+                      <BadgeEfficienza score={effScore} breakdown={effBreakdown} />
+                    </div>
+                  )}
+
+                  {/* PannelloMotivazioni */}
+                  {effScore !== undefined && planJson?.efficiency_motivations && planJson.efficiency_motivations.length > 0 && (
+                    <div style={{ padding: "10px 12px", borderBottom: "1px solid rgba(59,130,246,0.08)" }}>
+                      <PannelloMotivazioni motivations={planJson.efficiency_motivations} score={effScore} />
+                    </div>
+                  )}
+
+                  {/* WO Differiti */}
+                  {planJson?.deferred_workorders && planJson.deferred_workorders.length > 0 && (
+                    <div style={{ padding: "10px 12px" }}>
+                      <DeferredWOPanel
+                        deferredWOs={planJson.deferred_workorders}
+                        allTickets={[...scheduledTickets, ...unscheduledTickets]}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── STORICO PIANI ── */}

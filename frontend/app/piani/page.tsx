@@ -392,23 +392,23 @@ function DrawerTask({
   onClose: () => void; 
   onUpdated: (t: Task) => void 
 }) {
+  const isNew = !task.id;
   const [form, setForm] = useState({
     nome: task.nome || "",
     descrizione: task.descrizione || "",
-    frequenza_giorni: task.frequenza_giorni || 30,
-    durata_ore: task.durata_ore || 1,
+    frequenza_giorni: isNew ? ('' as unknown as number) : (task.frequenza_giorni || 30),
+    durata_ore: isNew ? ('' as unknown as number) : (task.durata_ore || 1),
     priorita: task.priorita || "Media",
     task_stato: task.task_stato || "active",
     is_repeatable: task.is_repeatable ?? true,
     generation_mode: task.generation_mode || "manual",
-    generate_days_before_due: task.generate_days_before_due ?? 7,
+    generate_days_before_due: isNew ? ('' as unknown as number) : (task.generate_days_before_due ?? 7),
     trigger_mode: task.trigger_mode || "calendar",
     condition_metric: task.condition_metric || "running_hours",
     condition_threshold_hours: task.condition_threshold_hours || 0,
     condition_last_done_hours: task.condition_last_done_hours ?? undefined,
   });
   const [saving, setSaving] = useState(false);
-  const isNew = !task.id;
 
   async function handleSave() {
     setSaving(true);
@@ -503,15 +503,15 @@ function DrawerTask({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
             {fieldLabel("Frequenza (giorni)")}
-            {fieldInput({ 
-              type: "number", value: form.frequenza_giorni,
+            {fieldInput({
+              type: "number", value: form.frequenza_giorni, placeholder: "Es. 30",
               onChange: e => setForm(f => ({ ...f, frequenza_giorni: parseInt(e.target.value) || 1 }))
             })}
           </div>
           <div>
             {fieldLabel("Durata stimata (ore)")}
-            {fieldInput({ 
-              type: "number", step: "0.5", value: form.durata_ore,
+            {fieldInput({
+              type: "number", step: "0.5", value: form.durata_ore, placeholder: "Es. 2",
               onChange: e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))
             })}
           </div>

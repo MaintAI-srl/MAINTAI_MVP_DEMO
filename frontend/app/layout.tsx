@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
-import { DISPLAY_VERSION } from "./lib/version";
+import { VERSION } from "./lib/version";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
@@ -320,7 +320,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               {isSuperadmin ? "SUPERADMIN" : isTecnico ? "CAMPO" : "SISTEMA OK"}
             </span>
             <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-              v{DISPLAY_VERSION}
+              v{VERSION}
             </span>
           </div>
         </div>
