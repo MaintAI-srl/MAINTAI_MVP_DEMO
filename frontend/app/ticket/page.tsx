@@ -751,33 +751,6 @@ export default function TicketPage() {
   const tickets = result?.items ?? [];
   const archivioItems = archivio?.items ?? [];
 
-  // Colonne per la tabella archivio — stato come badge statico colorato
-  const archivioColumns: ColumnDef<Ticket>[] = ticketColumns.map(col => {
-    if ((col as any).accessorKey === "stato") {
-      return {
-        accessorKey: "stato",
-        header: "Stato",
-        enableSorting: false,
-        cell: ({ getValue }: any) => {
-          const s = getValue<string>();
-          const isEliminato = s === "Eliminato";
-          return (
-            <span style={{
-              fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700,
-              letterSpacing: "0.05em", textTransform: "uppercase" as const,
-              background: isEliminato ? "rgba(248,113,113,0.15)" : "rgba(52,211,153,0.12)",
-              color: isEliminato ? "#f87171" : "#34d399",
-              border: `1px solid ${isEliminato ? "rgba(248,113,113,0.35)" : "rgba(52,211,153,0.3)"}`,
-            }}>
-              {s}
-            </span>
-          );
-        },
-      } as ColumnDef<Ticket>;
-    }
-    return col;
-  });
-
   const ticketColumns: ColumnDef<Ticket>[] = [
     {
       id: "select",
@@ -945,6 +918,33 @@ export default function TicketPage() {
       },
     },
   ];
+
+  // Colonne per la tabella archivio — stato come badge statico colorato
+  const archivioColumns: ColumnDef<Ticket>[] = ticketColumns.map(col => {
+    if ((col as any).accessorKey === "stato") {
+      return {
+        accessorKey: "stato",
+        header: "Stato",
+        enableSorting: false,
+        cell: ({ getValue }: any) => {
+          const s = getValue() as string;
+          const isEliminato = s === "Eliminato";
+          return (
+            <span style={{
+              fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700,
+              letterSpacing: "0.05em", textTransform: "uppercase" as const,
+              background: isEliminato ? "rgba(248,113,113,0.15)" : "rgba(52,211,153,0.12)",
+              color: isEliminato ? "#f87171" : "#34d399",
+              border: `1px solid ${isEliminato ? "rgba(248,113,113,0.35)" : "rgba(52,211,153,0.3)"}`,
+            }}>
+              {s}
+            </span>
+          );
+        },
+      } as ColumnDef<Ticket>;
+    }
+    return col;
+  });
 
   return (
     <div style={{ background: "#060d1a", minHeight: "100%" }}>
