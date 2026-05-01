@@ -64,7 +64,7 @@ function getTipoStyle(t: string): React.CSSProperties {
     case "BD":  return { background: "rgba(239,68,68,0.12)",   color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" };
     case "PM":  return { background: "rgba(34,197,94,0.10)",   color: "#86efac", border: "1px solid rgba(34,197,94,0.22)" };
     case "CM":  return { background: "rgba(245,158,11,0.12)",  color: "#fcd34d", border: "1px solid rgba(245,158,11,0.25)" };
-    default:    return { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.10)" };
+    default:    return { background: "var(--border-subtle)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" };
   }
 }
 
@@ -99,7 +99,7 @@ function addHoursToDatetimeLocal(dtLocal: string, hours: number): string {
   return `${end.getFullYear()}-${_pad(end.getMonth() + 1)}-${_pad(end.getDate())}T${_pad(end.getHours())}:${_pad(end.getMinutes())}`;
 }
 
-const dtInput: React.CSSProperties = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
+const dtInput: React.CSSProperties = { background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
 const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", display: "block", marginBottom: 5 };
 
 // ── Modal: richiesta data pianificazione ─────────────────────────────────────
@@ -121,21 +121,21 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: "#a78bfa", marginBottom: 6 }}>Pianifica intervento</div>
         <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Seleziona data e ora di inizio — lo stato cambierà in <strong style={{ color: "#a78bfa" }}>Pianificato</strong>.</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
           {presets.map(p => (
             <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
-              style={{ fontSize: 10, padding: "5px 10px", background: "rgba(255,255,255,0.04)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
+              style={{ fontSize: 10, padding: "5px 10px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
               {p.label}
             </button>
           ))}
         </div>
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 14px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
+          style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 14px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
         <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
           <button disabled={!date} onClick={() => date && onConfirm(date)}
             style={{ padding: "8px 24px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 8, cursor: date ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13, opacity: date ? 1 : 0.5 }}>
             Conferma Pianificazione
@@ -152,21 +152,21 @@ function EliminaConfirmModal({ onConfirm, onCancel }: { onConfirm: (reason: stri
   const valid = reason.trim().length >= 5;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(248,113,113,0.4)", borderRadius: 16, padding: "28px", width: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(248,113,113,0.4)", borderRadius: 16, padding: "28px", width: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16 }}>🗑️</div>
         <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Elimina ticket</div>
         <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>Inserisci il motivo dell&apos;eliminazione. Il dato viene salvato nel log di sistema per tracciabilità.</div>
         <textarea value={reason} onChange={e => setReason(e.target.value)}
           placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..."
           rows={3} autoFocus
-          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+          style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
         {!valid && reason.length > 0 && (
           <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>Inserisci almeno 5 caratteri.</div>
         )}
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
           <button disabled={!valid} onClick={() => valid && onConfirm(reason.trim())}
-            style={{ padding: "8px 22px", background: valid ? "linear-gradient(135deg,#ef4444,#dc2626)" : "rgba(255,255,255,0.05)", color: valid ? "#fff" : "var(--text-disabled)", border: "none", borderRadius: 8, cursor: valid ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13 }}>
+            style={{ padding: "8px 22px", background: valid ? "linear-gradient(135deg,#ef4444,#dc2626)" : "var(--border-subtle)", color: valid ? "#fff" : "var(--text-disabled)", border: "none", borderRadius: 8, cursor: valid ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13 }}>
             Conferma Eliminazione
           </button>
         </div>
@@ -207,7 +207,7 @@ function ButtonPicker({
                 : "1px solid rgba(255,255,255,0.08)",
               background: active
                 ? `${opt.color}22`
-                : "rgba(255,255,255,0.02)",
+                : "var(--border-subtle)",
               color: active ? opt.color : "var(--text-muted)",
               transition: "all 0.15s",
               letterSpacing: "0.3px",
@@ -362,12 +362,12 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         </div>
 
         {/* Sezione Pianificazione */}
-        <div style={{ marginBottom: 32, padding: 20, background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ marginBottom: 32, padding: 20, background: "var(--border-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
              <label style={{ ...modalLabel, margin: 0 }}>Pianificazione Intervento</label>
              <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => quickPlan(0, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>OGGI 08:00</button>
-                <button onClick={() => quickPlan(1, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>DOMANI</button>
+                <button onClick={() => quickPlan(1, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>DOMANI</button>
              </div>
           </div>
 
@@ -381,7 +381,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0 }}>ore</span>
               {[1, 2, 4, 8].map(h => (
                 <button key={h} onClick={() => handleDurataChange(h)}
-                  style={{ fontSize: 11, padding: "3px 9px", background: durataOre === h ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)", color: durataOre === h ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${durataOre === h ? "rgba(167,139,250,0.35)" : "rgba(255,255,255,0.07)"}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                  style={{ fontSize: 11, padding: "3px 9px", background: durataOre === h ? "rgba(167,139,250,0.15)" : "var(--border-subtle)", color: durataOre === h ? "#a78bfa" : "var(--text-muted)", border: `1px solid ${durataOre === h ? "rgba(167,139,250,0.35)" : "rgba(255,255,255,0.07)"}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
                   {h}h
                 </button>
               ))}
@@ -436,7 +436,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         {ticket.descrizione && (
           <div style={{ marginBottom: 24 }}>
              <label style={modalLabel}>Descrizione / Note</label>
-             <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6, padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+             <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6, padding: "12px 16px", background: "var(--border-subtle)", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
                 {ticket.descrizione}
              </div>
              {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
@@ -448,15 +448,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         {/* Allegati */}
         <div style={{ marginBottom: 10 }}>
           <label style={{ ...modalLabel, marginBottom: 12 }}>Dati e Foto Intervento</label>
-          <div style={{ padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)" }}>
+          <div style={{ padding: "8px", background: "var(--border-subtle)", borderRadius: 12, border: "1px dashed var(--border-default)" }}>
             <UploadAllegati ticketId={ticket.id} />
           </div>
         </div>
       </div>
 
       {/* Footer sticky-style */}
-      <div style={{ padding: "20px 28px", background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-        <Button variant="outline" onClick={onClose} style={{ borderColor: "rgba(255,255,255,0.1)", color: "var(--text-muted)" }}>Annulla</Button>
+      <div style={{ padding: "20px 28px", background: "var(--border-subtle)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <Button variant="outline" onClick={onClose} style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>Annulla</Button>
         <Button onClick={handleSave} disabled={saving}
           style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)", minWidth: 120, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}>
           {saving ? "Salvataggio…" : "Salva Modifiche"}
@@ -480,7 +480,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
             </p>
           <textarea value={eliminaNote} onChange={e => setEliminaNote(e.target.value)}
             placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..." rows={3} autoFocus
-            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+            style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
           {eliminaNote.trim().length > 0 && eliminaNote.trim().length < 5 && (
             <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>Inserisci almeno 5 caratteri.</div>
           )}
@@ -489,7 +489,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
             <Button
               disabled={eliminaNote.trim().length < 5}
               onClick={() => { if (eliminaNote.trim().length >= 5) { setShowEliminaDialog(false); doSave(undefined, eliminaNote.trim()); } }}
-              style={{ background: eliminaNote.trim().length >= 5 ? "linear-gradient(135deg,#ef4444,#dc2626)" : "rgba(255,255,255,0.05)", color: eliminaNote.trim().length >= 5 ? "#fff" : "var(--text-disabled)", fontWeight: 700 }}>
+              style={{ background: eliminaNote.trim().length >= 5 ? "linear-gradient(135deg,#ef4444,#dc2626)" : "var(--border-subtle)", color: eliminaNote.trim().length >= 5 ? "#fff" : "var(--text-disabled)", fontWeight: 700 }}>
               Conferma Eliminazione
             </Button>
           </div>
@@ -924,7 +924,7 @@ export default function TicketPage() {
       </div>
 
 
-      <div style={{ background: "#0c1628", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "20px 24px", marginBottom: 24 }}>
+      <div style={{ background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "20px 24px", marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h2 style={{ marginTop: 0, marginBottom: 0, fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>Nuovo ticket</h2>
         </div>
@@ -1042,7 +1042,7 @@ export default function TicketPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, background: "#0c1628", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "6px 8px", width: "fit-content" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 8px", width: "fit-content" }}>
         {(["attivi", "archivio", "kanban"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, cursor: "pointer", fontWeight: 600, background: tab === t ? "rgba(99,102,241,0.25)" : "transparent", color: tab === t ? "#a5b4fc" : "rgba(148,163,184,0.6)", transition: "all 0.15s" }}>
             {t === "attivi" ? `Attivi (${result?.total ?? 0})` : t === "archivio" ? `Archivio (${archivio?.total ?? 0})` : "Kanban"}
@@ -1140,7 +1140,7 @@ export default function TicketPage() {
 
       {/* Detail modal */}
       <Sheet open={!!detailTicket} onOpenChange={(o) => { if (!o) setDetailTicket(null); }}>
-        <SheetContent side="right" style={{ width: "min(95vw, 600px)", background: "#0d1421", borderLeft: "1px solid rgba(255,255,255,0.08)", overflowY: "auto", padding: "24px" }}>
+        <SheetContent side="right" style={{ width: "min(95vw, 600px)", background: "var(--surface-1)", borderLeft: "1px solid rgba(255,255,255,0.08)", overflowY: "auto", padding: "24px" }}>
           {detailTicket && (
             <>
               <SheetHeader style={{ marginBottom: 24, padding: 0, gap: 12 }}>
@@ -1155,11 +1155,11 @@ export default function TicketPage() {
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{detailTicket.priorita}</span>
                   <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{detailTicket.asset_name ?? "Asset non specificato"}</span>
-                  <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
+                  <span style={{ color: "var(--border-default)" }}>|</span>
                   <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{detailTicket.tipo} · {detailTicket.durata_stimata_ore?.toFixed(1)}h</span>
                   {detailTicket.is_manual_plan && detailTicket.stato === "Pianificato" && (
                     <>
-                      <span style={{ color: "rgba(255,255,255,0.1)" }}>|</span>
+                      <span style={{ color: "var(--border-default)" }}>|</span>
                       <span style={{ fontSize: 10, padding: "2px 6px", background: "rgba(234,179,8,0.2)", border: "1px solid rgba(234,179,8,0.4)", borderRadius: 4, color: "#eab308", fontWeight: 700, textTransform: "uppercase" }}>PIANIFICATO MANUALMENTE</span>
                     </>
                   )}

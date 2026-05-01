@@ -76,7 +76,7 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
   };
 
   return (
-    <div style={{ padding: 16, background: "#0f172a", borderRadius: 16, border: "1px solid rgba(255,255,255,0.1)" }}>
+    <div style={{ padding: 16, background: "#0f172a", borderRadius: 16, border: "1px solid var(--border-default)" }}>
       <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 12, textAlign: "center", fontWeight: 600 }}>FIRMA TECNICO PER ACCETTAZIONE</div>
       
       <canvas

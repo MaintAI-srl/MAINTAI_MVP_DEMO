@@ -53,7 +53,7 @@ function formatDays(days: number) {
 function statusForDays(days: number) {
   if (days < 0) return { label: "Scaduta", color: "#f05252", bg: "rgba(240,82,82,0.12)", border: "rgba(240,82,82,0.34)" };
   if (days <= 7) return { label: "Critica", color: "#f6a233", bg: "rgba(246,162,51,0.12)", border: "rgba(246,162,51,0.34)" };
-  if (days <= 30) return { label: "Prossima", color: "#5b8fff", bg: "rgba(91,143,255,0.12)", border: "rgba(91,143,255,0.30)" };
+  if (days <= 30) return { label: "Prossima", color: "#5b8fff", bg: "var(--cobalt-dim)", border: "rgba(91,143,255,0.30)" };
   return { label: "In piano", color: "#10d9b0", bg: "rgba(16,217,176,0.10)", border: "rgba(16,217,176,0.26)" };
 }
 
@@ -157,7 +157,7 @@ export default function ScadenzePage() {
   ];
 
   return (
-    <div style={{ minHeight: "100%", background: "#060a12", padding: "28px 32px 38px", color: "var(--text-primary)" }}>
+    <div style={{ minHeight: "100%", background: "var(--surface-0)", padding: "28px 32px 38px", color: "var(--text-primary)" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, marginBottom: 22 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#5b8fff", fontWeight: 800, marginBottom: 7 }}>
@@ -220,7 +220,7 @@ export default function ScadenzePage() {
           alignItems: "center",
           gap: 16,
           padding: "14px 16px",
-          borderBottom: "1px solid rgba(91,143,255,0.10)",
+          borderBottom: "1px solid var(--border-subtle)",
           background: "rgba(255,255,255,0.018)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -235,7 +235,7 @@ export default function ScadenzePage() {
                     height: 30,
                     padding: "0 11px",
                     borderRadius: 6,
-                    border: active ? "1px solid rgba(91,143,255,0.42)" : "1px solid rgba(91,143,255,0.12)",
+                    border: active ? "1px solid rgba(91,143,255,0.42)" : "1px solid var(--cobalt-dim)",
                     background: active ? "rgba(91,143,255,0.14)" : "rgba(255,255,255,0.025)",
                     color: active ? "#dbeafe" : "var(--text-secondary)",
                     cursor: "pointer",
@@ -361,7 +361,7 @@ const thStyle: CSSProperties = {
   textTransform: "uppercase",
   fontWeight: 850,
   background: "rgba(6,10,18,0.72)",
-  borderBottom: "1px solid rgba(91,143,255,0.12)",
+  borderBottom: "1px solid var(--cobalt-dim)",
   whiteSpace: "nowrap",
 };
 

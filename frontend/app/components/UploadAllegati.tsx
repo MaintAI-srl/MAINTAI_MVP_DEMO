@@ -106,7 +106,7 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
               </a>
             ) : (
               <a href={`${API_BASE}${a.url}`} target="_blank" rel="noopener noreferrer" 
-                 style={{ display: "flex", height: 80, background: "rgba(255,255,255,0.05)", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--text-soft)", textDecoration: "none" }}>
+                 style={{ display: "flex", height: 80, background: "var(--border-subtle)", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--text-soft)", textDecoration: "none" }}>
                 📄
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 2, background: "rgba(0,0,0,0.5)", fontSize: 8, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {a.nome_file}

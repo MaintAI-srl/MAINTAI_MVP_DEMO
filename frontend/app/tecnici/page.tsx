@@ -69,7 +69,7 @@ function skillBadgeClass(stylesObj: Record<string, string>, skill: string) {
 }
 
 const colFilterInput: React.CSSProperties = {
-  marginTop: 3, width: "100%", background: "rgba(255,255,255,0.04)",
+  marginTop: 3, width: "100%", background: "var(--border-subtle)",
   border: "1px solid rgba(59,130,246,0.15)", borderRadius: 3,
   color: "var(--text-secondary)", padding: "2px 5px", fontSize: 10, outline: "none", fontFamily: "inherit",
 };
@@ -231,7 +231,7 @@ export default function TecniciPage() {
   }, [tecnici, search, sortCol, sortDir, colFilters]);
 
   const statCard: React.CSSProperties = {
-    background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)",
+    background: "var(--border-subtle)", border: "1px solid rgba(255,255,255,.07)",
     borderRadius: 12, padding: "14px 18px", flex: 1, minWidth: 120,
   };
 

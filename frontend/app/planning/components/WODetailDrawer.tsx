@@ -30,7 +30,7 @@ const RISK_LABELS: Record<string, string> = {
 
 const COMPLEXITY_COLORS: Record<string, { bg: string; text: string }> = {
   SIMPLE:   { bg: "#1e3a5f", text: "#93c5fd" },
-  STANDARD: { bg: "#1f2937", text: "#d1d5db" },
+  STANDARD: { bg: "var(--border-strong)", text: "#d1d5db" },
   COMPLEX:  { bg: "#4c1d9533", text: "#c4b5fd" },
 };
 
@@ -81,8 +81,8 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
           right: 0,
           bottom: 0,
           width: 320,
-          background: "#0a0f1e",
-          borderLeft: "1px solid #1f2937",
+          background: "var(--surface-1)",
+          borderLeft: "1px solid var(--border-strong)",
           zIndex: 9999,
           display: "flex",
           flexDirection: "column",
@@ -93,8 +93,8 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
         {/* Header */}
         <div
           style={{
-            background: "#111827",
-            borderBottom: "1px solid #1f2937",
+            background: "var(--surface-2)",
+            borderBottom: "1px solid var(--border-strong)",
             padding: "16px",
             display: "flex",
             alignItems: "flex-start",
@@ -193,7 +193,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
                   style={{
                     flex: 1,
                     height: 8,
-                    background: "#1f2937",
+                    background: "var(--border-strong)",
                     borderRadius: 4,
                     overflow: "hidden",
                   }}
@@ -313,8 +313,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </div>
       <div
         style={{
-          background: "#111827",
-          border: "1px solid #1f2937",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-strong)",
           borderRadius: 6,
           padding: "10px 12px",
         }}

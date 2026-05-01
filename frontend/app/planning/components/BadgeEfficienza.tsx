@@ -41,7 +41,7 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
         display: "flex",
         alignItems: "center",
         gap: 16,
-        background: "#111827",
+        background: "var(--surface-2)",
         border: `1px solid ${bg}`,
         borderRadius: 10,
         padding: "14px 20px",
@@ -52,7 +52,7 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
           width: 72,
           height: 72,
           borderRadius: "50%",
-          background: `conic-gradient(${bg} ${score * 3.6}deg, #1f2937 0deg)`,
+          background: `conic-gradient(${bg} ${score * 3.6}deg, var(--border-strong) 0deg)`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -62,7 +62,7 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
             width: 58,
             height: 58,
             borderRadius: "50%",
-            background: "#111827",
+            background: "var(--surface-2)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -87,8 +87,8 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
       {/* Breakdown componenti */}
       {breakdown && (
         <div style={{
-          background: "#111827",
-          border: "1px solid #1f2937",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-strong)",
           borderRadius: 8,
           padding: "12px 16px",
           display: "flex",
@@ -112,7 +112,7 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
                 </div>
                 <div style={{
                   height: 4,
-                  background: "#1f2937",
+                  background: "var(--border-strong)",
                   borderRadius: 2,
                   overflow: "hidden",
                 }}>

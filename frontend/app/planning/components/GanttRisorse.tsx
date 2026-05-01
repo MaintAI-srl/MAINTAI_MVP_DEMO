@@ -257,7 +257,7 @@ function DayRow({
           height: "100%",
           background: isOver
             ? "rgba(59,130,246,0.07)"
-            : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(255,255,255,0.05) ${HOUR_W - 1}px, rgba(255,255,255,0.05) ${HOUR_W}px)`,
+            : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, var(--border-subtle) ${HOUR_W - 1}px, var(--border-subtle) ${HOUR_W}px)`,
           transition: "background 0.12s",
         }}
       >

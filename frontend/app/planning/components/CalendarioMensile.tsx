@@ -84,12 +84,12 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
           marginBottom: 12,
         }}>
           <button onClick={prevMese} style={{
-            background: "#1f2937", border: "1px solid #374151", color: "#9ca3af",
+            background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af",
             borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 14,
           }}>‹</button>
           <span style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb" }}>{meseLabel}</span>
           <button onClick={nextMese} style={{
-            background: "#1f2937", border: "1px solid #374151", color: "#9ca3af",
+            background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af",
             borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 14,
           }}>›</button>
         </div>
@@ -122,7 +122,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
           }}>
             {week.map((dayStr, di) => {
               if (!dayStr) {
-                return <div key={di} style={{ opacity: 0.3, minHeight: 70, background: "#111827", borderRadius: 4 }} />;
+                return <div key={di} style={{ opacity: 0.3, minHeight: 70, background: "var(--surface-2)", borderRadius: 4 }} />;
               }
               const dayWOs = wosByDay[dayStr] ?? [];
               const isToday = dayStr === today;
@@ -137,12 +137,12 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
                     onDayClick(dayStr);
                   }}
                   style={{
-                    background: isToday ? "#0f1f3d" : "#111827",
+                    background: isToday ? "var(--surface-hover)" : "var(--surface-2)",
                     border: isToday
                       ? "2px solid #3b82f6"
                       : isSelected
                         ? "2px solid #6366f1"
-                        : "1px solid #1f2937",
+                        : "1px solid var(--border-strong)",
                     borderRadius: 4,
                     padding: "6px 6px 4px",
                     cursor: "pointer",
@@ -154,10 +154,10 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
                   }}
                   onMouseEnter={e => {
                     if (!isToday && !isSelected)
-                      (e.currentTarget as HTMLElement).style.background = "#1f2937";
+                      (e.currentTarget as HTMLElement).style.background = "var(--border-strong)";
                   }}
                   onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.background = isToday ? "#0f1f3d" : "#111827";
+                    (e.currentTarget as HTMLElement).style.background = isToday ? "var(--surface-hover)" : "var(--surface-2)";
                   }}
                 >
                   {/* Numero giorno */}
@@ -216,14 +216,14 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
         <div style={{
           width: 280,
           flexShrink: 0,
-          background: "#111827",
-          border: "1px solid #1f2937",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-strong)",
           borderRadius: 8,
           overflow: "hidden",
         }}>
           <div style={{
             background: "#1e293b",
-            borderBottom: "1px solid #1f2937",
+            borderBottom: "1px solid var(--border-strong)",
             padding: "10px 14px",
             display: "flex",
             justifyContent: "space-between",

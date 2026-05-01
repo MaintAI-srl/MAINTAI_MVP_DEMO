@@ -150,7 +150,7 @@ export default function WeatherWidget() {
   if (loading && !data) {
     return (
       <div style={{ display: "flex", gap: "8px", padding: "0 10px" }}>
-        {[1,2,3,4].map(i => <div key={i} style={{ width: 40, height: 24, background: "rgba(255,255,255,0.05)", borderRadius: 6, animation: "pulse 2s infinite" }} />)}
+        {[1,2,3,4].map(i => <div key={i} style={{ width: 40, height: 24, background: "var(--border-subtle)", borderRadius: 6, animation: "pulse 2s infinite" }} />)}
       </div>
     );
   }
@@ -191,9 +191,9 @@ export default function WeatherWidget() {
             gap: "8px", 
             alignItems: "center", 
             padding: "2px 10px", 
-            background: "rgba(255,255,255,0.06)", 
+            background: "var(--border-subtle)", 
             borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
+            border: "1px solid var(--border-default)",
             cursor: "pointer"
           }}>
             <div style={{ filter: `drop-shadow(${getWeatherUI(data?.current.code ?? 0).shadow})`, color: getWeatherUI(data?.current.code ?? 0).color, display: "flex" }}>
@@ -201,7 +201,7 @@ export default function WeatherWidget() {
             </div>
             <span style={{ fontSize: "14px", fontWeight: 800 }}>{Math.round(data?.current.temp ?? 0)}°</span>
             
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", borderLeft: "1px solid rgba(255,255,255,0.14)", paddingLeft: "8px", opacity: 0.7 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", borderLeft: "1px solid var(--border-default)", paddingLeft: "8px", opacity: 0.7 }}>
               <Navigation 
                 size={8} 
                 style={{ transform: `rotate(${data?.current.winddirection ?? 0}deg)`, color: "var(--blue-bright)" }} 

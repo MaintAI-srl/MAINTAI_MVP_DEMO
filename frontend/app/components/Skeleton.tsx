@@ -74,7 +74,7 @@ function SkeletonCard() {
   return (
     <div
       style={{
-        background: "var(--bg-card, #111827)",
+        background: "var(--bg-card, var(--surface-2))",
         border: "1px solid var(--border, rgba(148,163,184,0.15))",
         borderRadius: "var(--radius-lg, 12px)",
         padding: 20,
@@ -124,7 +124,7 @@ function SkeletonTable({ rows = 5, cols = 5 }: { rows?: number; cols?: number })
   return (
     <div
       style={{
-        background: "var(--bg-card, #111827)",
+        background: "var(--bg-card, var(--surface-2))",
         border: "1px solid var(--border, rgba(148,163,184,0.15))",
         borderRadius: "var(--radius-lg, 12px)",
         overflow: "hidden",
@@ -161,7 +161,7 @@ function SkeletonStats({ count = 4 }: { count?: number }) {
         <div
           key={i}
           style={{
-            background: "var(--bg-card, #111827)",
+            background: "var(--bg-card, var(--surface-2))",
             border: "1px solid var(--border, rgba(148,163,184,0.15))",
             borderRadius: "var(--radius-lg, 12px)",
             padding: 20,

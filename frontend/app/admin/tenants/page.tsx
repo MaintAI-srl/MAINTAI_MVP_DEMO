@@ -409,7 +409,7 @@ export default function TenantsPage() {
       {/* Modal reset password */}
       {resetPwd && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: "#111827", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "28px", width: 380, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
+          <div style={{ background: "var(--surface-2)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "28px", width: 380, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
             <div style={{ fontWeight: 800, fontSize: "16px", color: "#f87171", marginBottom: "6px" }}>Reset Password</div>
             <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "20px" }}>
               Nuova password per <strong style={{ color: "var(--text-primary)" }}>{resetPwd.username}</strong>

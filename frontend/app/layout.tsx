@@ -206,25 +206,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   )?.section ?? "OPERAZIONI";
 
   return (
-    <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`} data-theme="dark">
+    <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`}>
 
       {/* ══════════════════════════════════════════════════════════
           SIDEBAR — NUOVA IDENTITÀ VISIVA
           Ultra-dark glass panel, glow icons, neon accents
           ══════════════════════════════════════════════════════════ */}
-      <aside className={`app-sidebar${sidebarOpen ? " open" : ""}`} style={{
-        width: 220,
-        background: "linear-gradient(180deg, #07101f 0%, #050c18 100%)",
-        borderRight: "1px solid rgba(91,143,255,0.12)",
-        display: "flex",
-        flexDirection: "column",
-        position: "fixed",
-        top: 0, left: 0,
-        height: "100vh",
-        zIndex: 50,
-        overflowY: "auto",
-        overflowX: "hidden",
-      }}>
+      <aside className={`app-sidebar${sidebarOpen ? " open" : ""}`}>
         {/* Ambient top glow */}
         <div style={{ position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)", width: 200, height: 120, background: "radial-gradient(ellipse, rgba(91,143,255,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
         {/* Scan lines texture */}
@@ -234,40 +222,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
         {/* ── LOGO ──────────────────────────────────────── */}
-        <Link href="/dashboard" style={{ textDecoration: "none", position: "relative", zIndex: 1 }} onClick={() => setSidebarOpen(false)}>
-          <div style={{
-            padding: "18px 18px 16px",
-            display: "flex", alignItems: "center", gap: 11,
-            borderBottom: "1px solid rgba(91,143,255,0.10)",
-          }}>
-            {/* Logo con glow */}
-            <div style={{
-              width: 36, height: 36,
-              borderRadius: 10,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-              boxShadow: "0 0 18px rgba(91,143,255,0.50), 0 0 40px rgba(91,143,255,0.18)",
-              overflow: "hidden",
-              background: "rgba(91,143,255,0.08)",
-              border: "1px solid rgba(91,143,255,0.20)",
-            }}>
-              <img
-                src="/logo.png"
-                alt="MaintAI"
-                style={{ width: 28, height: 28, objectFit: "contain" }}
-              />
-            </div>
-            <div>
-              <div style={{
-                fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 900,
-                letterSpacing: "0.12em",
-                background: "linear-gradient(90deg, #90b8ff 0%, #c4b0ff 100%)",
-                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                lineHeight: 1,
-              }}>MAINTAI</div>
-              <div style={{ fontSize: 8.5, color: "rgba(91,143,255,0.45)", letterSpacing: "0.20em", textTransform: "uppercase", marginTop: 3, fontWeight: 600 }}>
-                Manutenzione Ind.
-              </div>
+        <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={() => setSidebarOpen(false)}>
+          {/* Logo con glow */}
+          <div className="sidebar-logo-icon" style={{ background: "var(--cobalt-dim)", border: "1px solid var(--cobalt-border)", boxShadow: "var(--glow-cobalt)" }}>
+            <img
+              src="/logo.png"
+              alt="MaintAI"
+              style={{ width: 28, height: 28, objectFit: "contain" }}
+            />
+          </div>
+          <div className="sidebar-logo-text">
+            <div className="sidebar-logo-name">MAINTAI</div>
+            <div className="sidebar-logo-sub">
+              Manutenzione Ind.
             </div>
           </div>
         </Link>
@@ -276,12 +243,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1, padding: "12px 10px", position: "relative", zIndex: 1 }}>
           {filteredNav.map((group) => (
             <div key={group.section} style={{ marginBottom: 6 }}>
-              <div style={{
-                fontSize: 8, fontWeight: 800, letterSpacing: "0.28em",
-                textTransform: "uppercase",
-                color: "rgba(91,143,255,0.35)",
-                padding: "10px 8px 4px",
-              }}>{group.section}</div>
+              <div className="sidebar-section-label">{group.section}</div>
               <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 {group.items.map((item) => {
                   const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -290,65 +252,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                       key={item.href}
                       href={item.href}
                       onClick={() => setSidebarOpen(false)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        padding: "9px 10px 9px 12px",
-                        borderRadius: 9,
-                        textDecoration: "none",
-                        fontSize: 13,
-                        fontWeight: active ? 700 : 500,
-                        letterSpacing: active ? "-0.01em" : "0",
-                        color: active ? "#90b8ff" : "rgba(148,163,184,0.75)",
-                        background: active
-                          ? "linear-gradient(90deg, rgba(91,143,255,0.18) 0%, rgba(91,143,255,0.06) 100%)"
-                          : "transparent",
-                        border: active
-                          ? "1px solid rgba(91,143,255,0.20)"
-                          : "1px solid transparent",
-                        boxShadow: active ? "inset 4px 0 0 #5b8fff, 0 2px 12px rgba(91,143,255,0.08)" : "none",
-                        transition: "all 160ms cubic-bezier(0.22,1,0.36,1)",
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                      onMouseEnter={e => {
-                        if (!active) {
-                          (e.currentTarget as HTMLAnchorElement).style.background = "rgba(91,143,255,0.07)";
-                          (e.currentTarget as HTMLAnchorElement).style.color = "rgba(200,220,255,0.95)";
-                          (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(91,143,255,0.12)";
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (!active) {
-                          (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-                          (e.currentTarget as HTMLAnchorElement).style.color = "rgba(148,163,184,0.75)";
-                          (e.currentTarget as HTMLAnchorElement).style.borderColor = "transparent";
-                        }
-                      }}
+                      className={active ? "nav-item active" : "nav-item"}
                     >
-                      {/* Icon container */}
-                      <span style={{
-                        width: 28, height: 28,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        borderRadius: 7,
-                        background: active ? "rgba(91,143,255,0.20)" : "rgba(255,255,255,0.04)",
-                        color: active ? "#7aa8ff" : "rgba(148,163,184,0.6)",
-                        flexShrink: 0,
-                        transition: "all 160ms",
-                        boxShadow: active ? "0 0 10px rgba(91,143,255,0.25)" : "none",
-                      }}>
+                      <span className="nav-icon">
                         {item.icon}
                       </span>
                       {item.label}
-                      {active && (
-                        <span style={{
-                          marginLeft: "auto",
-                          width: 6, height: 6,
-                          borderRadius: "50%",
-                          background: "#5b8fff",
-                          boxShadow: "0 0 8px #5b8fff",
-                          flexShrink: 0,
-                        }} />
-                      )}
                     </Link>
                   );
                 })}
@@ -358,11 +267,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* ── SIDEBAR FOOTER ────────────────────────────── */}
-        <div style={{
-          padding: "10px 12px 14px",
-          borderTop: "1px solid rgba(91,143,255,0.08)",
-          position: "relative", zIndex: 1,
-        }}>
+        <div className="sidebar-footer">
           {isSuperadmin && (
             <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: 8.5, color: "rgba(91,143,255,0.4)", display: "block", marginBottom: 4, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700 }}>
@@ -407,24 +312,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           )}
 
           {/* System status pill */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "8px 10px",
-            background: "rgba(16,217,176,0.06)",
-            border: "1px solid rgba(16,217,176,0.15)",
-            borderRadius: 8,
-          }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: "50%",
-              background: "#10d9b0",
-              boxShadow: "0 0 8px rgba(16,217,176,0.8), 0 0 16px rgba(16,217,176,0.4)",
-              flexShrink: 0,
-              animation: "statusPulse 2.5s infinite",
-            }} />
-            <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: "#10d9b0", textTransform: "uppercase" }}>
+          <div className="system-status">
+            <span className="status-pulse" />
+            <span className="status-text">
               {isSuperadmin ? "SUPERADMIN" : isTecnico ? "CAMPO" : "SISTEMA OK"}
             </span>
-            <span style={{ marginLeft: "auto", fontSize: 9, color: "rgba(91,143,255,0.4)", fontFamily: "var(--font-mono)" }}>
+            <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
               v{DISPLAY_VERSION}
             </span>
           </div>
@@ -434,41 +327,23 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {/* ══════════════════════════════════════════════════════════
           MAIN
           ══════════════════════════════════════════════════════════ */}
-      <div style={{
-        marginLeft: 220,
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        background: "#060a12",
-      }}>
+      <div className="app-main">
 
         {/* ── TOPBAR ──────────────────────────────────────── */}
-        <header style={{
-          height: 54,
-          background: "linear-gradient(90deg, rgba(7,11,20,0.97) 0%, rgba(6,10,18,0.99) 100%)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          borderBottom: "1px solid rgba(91,143,255,0.10)",
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 20px 0 24px",
-          position: "sticky", top: 0, zIndex: 40,
-          boxShadow: "0 1px 0 rgba(91,143,255,0.06), 0 8px 32px rgba(0,0,0,0.4)",
-        }}>
+        <header className="app-topbar">
           {/* Breadcrumb */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="topbar-breadcrumb">
             <button
               className="mobile-menu-btn"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label="Apri menu"
             >☰</button>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <span style={{ fontSize: 9.5, letterSpacing: "0.20em", textTransform: "uppercase", color: "rgba(91,143,255,0.45)", fontWeight: 700 }}>
+              <span className="topbar-section">
                 {sectionLabel}
               </span>
-              <span style={{ color: "rgba(91,143,255,0.25)", fontSize: 14 }}>›</span>
-              <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.02em", color: "#edf0f7", fontFamily: "var(--font-display)" }}>
+              <span className="topbar-sep">›</span>
+              <span className="topbar-page">
                 {pageLabel}
               </span>
             </div>
@@ -478,39 +353,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <GlobalQuickTicket />
 
-            <div style={{ width: 1, height: 22, background: "rgba(91,143,255,0.10)", margin: "0 4px" }} />
+            <div style={{ width: 1, height: 22, background: "var(--border-subtle)", margin: "0 4px" }} />
 
             <NotificationPanel />
             <WeatherWidget />
 
             {/* Clock */}
-            <div style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11.5,
-              color: "rgba(91,143,255,0.55)",
-              letterSpacing: "0.08em",
-              background: "rgba(91,143,255,0.06)",
-              border: "1px solid rgba(91,143,255,0.10)",
-              padding: "4px 10px",
-              borderRadius: 7,
-            }}>{time}</div>
+            <div className="topbar-time">{time}</div>
 
             {/* Theme */}
             <button
               onClick={toggleTheme}
-              style={{
-                width: 34, height: 34,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                borderRadius: 8,
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                color: "rgba(148,163,184,0.7)",
-                cursor: "pointer",
-                transition: "all 140ms",
-              }}
+              className="topbar-icon-btn"
               title={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(91,143,255,0.10)"; (e.currentTarget as HTMLButtonElement).style.color = "#90b8ff"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.7)"; }}
             >
               {theme === "dark" ? <Sun size={14} strokeWidth={1.8} /> : <Moon size={14} strokeWidth={1.8} />}
             </button>
@@ -518,20 +373,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             {/* User badge + logout */}
             <div style={{
               display: "flex", alignItems: "center", gap: 9,
-              borderLeft: "1px solid rgba(91,143,255,0.10)",
+              borderLeft: "1px solid var(--border-subtle)",
               paddingLeft: 12, marginLeft: 2,
             }}>
               <div style={{
                 display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
               }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#edf0f7", lineHeight: 1, letterSpacing: "-0.01em" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.01em" }}>
                   {user?.username}
                 </span>
                 <span style={{
                   fontSize: 8.5, fontWeight: 800, lineHeight: 1,
                   letterSpacing: "0.14em", textTransform: "uppercase",
-                  color: "#5b8fff",
-                  background: "rgba(91,143,255,0.12)",
+                  color: "var(--cobalt)",
+                  background: "var(--cobalt-dim)",
                   padding: "1.5px 6px", borderRadius: 4,
                 }}>
                   {user?.ruolo}
@@ -542,23 +397,21 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 title="Esci"
                 style={{
                   width: 32, height: 32,
-                  background: "rgba(240,82,82,0.04)",
-                  border: "1px solid rgba(240,82,82,0.15)",
-                  color: "rgba(240,82,82,0.7)",
+                  background: "var(--red-dim)",
+                  border: "1px solid var(--red-border)",
+                  color: "var(--red)",
                   borderRadius: 8,
                   cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   transition: "all 140ms",
                 }}
                 onMouseEnter={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(240,82,82,0.12)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(240,82,82,0.35)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "#f87171";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(240,82,82,0.15)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--red)";
                 }}
                 onMouseLeave={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(240,82,82,0.04)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(240,82,82,0.15)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(240,82,82,0.7)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--red-dim)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--red-border)";
                 }}
               >
                 <LogOut size={13} strokeWidth={2} />

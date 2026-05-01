@@ -13,7 +13,7 @@ type Impianto = {
 };
 
 const inputStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
+  background: "var(--border-subtle)",
   border: "1px solid rgba(148,163,184,0.15)",
   borderRadius: 8,
   color: "var(--text-primary)",
@@ -135,7 +135,7 @@ export default function ImpiantiPage() {
             { label: "Con coordinate", value: impianti.filter(i => i.latitude).length, color: "#34d399" },
             { label: "Senza descrizione", value: impianti.filter(i => !i.descrizione).length, color: "#fbbf24" },
           ].map(k => (
-            <div key={k.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
+            <div key={k.label} style={{ background: "var(--border-subtle)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
               <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{k.label}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
             </div>
@@ -200,7 +200,7 @@ export default function ImpiantiPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca per nome impianto..."
-            style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.15)", borderRadius: 8, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box" }}
+            style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.15)", borderRadius: 8, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box" }}
           />
           {(() => {
             const term = search.trim().toLowerCase();
@@ -210,7 +210,7 @@ export default function ImpiantiPage() {
             ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {filtered.map(imp => (
-                <div key={imp.id} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, transition: "background 0.15s" }}>
+                <div key={imp.id} style={{ background: "var(--border-subtle)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, transition: "background 0.15s" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 9, background: "linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.1))", border: "1px solid rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#818cf8", flexShrink: 0 }}>
                     {imp.id}
                   </div>

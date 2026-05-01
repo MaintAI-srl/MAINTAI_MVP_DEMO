@@ -49,8 +49,8 @@ export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOP
   return (
     <div
       style={{
-        background: "#111827",
-        border: "1px solid #1f2937",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border-strong)",
         borderRadius: 10,
         overflow: "hidden",
         fontFamily: "'IBM Plex Mono', monospace",
@@ -93,7 +93,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOP
             value={filterCode}
             onChange={(e) => setFilterCode(e.target.value)}
             style={{
-              background: "#0a0f1e",
+              background: "var(--surface-1)",
               border: "1px solid #374151",
               color: "#9ca3af",
               borderRadius: 4,
@@ -116,14 +116,14 @@ export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOP
       <div style={{ maxHeight: 280, overflowY: "auto" }}>
         {filtered.map((d) => {
           const ticket = ticketMap.get(d.wo_id);
-          const s = ticket ? tipoStyle(ticket.tipo) : { bg: "#1f2937", text: "#9ca3af", border: "#374151" };
+          const s = ticket ? tipoStyle(ticket.tipo) : { bg: "var(--border-strong)", text: "#9ca3af", border: "#374151" };
           const rcLabel = d.reason_code ? (REASON_CODE_LABELS[d.reason_code] ?? null) : null;
 
           return (
             <div
               key={d.wo_id}
               style={{
-                borderBottom: "1px solid #1f293744",
+                borderBottom: "1px solid var(--border-strong)44",
                 padding: "10px 14px",
                 display: "flex",
                 flexDirection: "column",

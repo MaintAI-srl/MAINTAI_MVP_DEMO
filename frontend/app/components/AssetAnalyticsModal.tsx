@@ -47,7 +47,7 @@ export default function AssetAnalyticsModal({ asset, onClose }: Props) {
             <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff" }}>Analytics Asset</h2>
             <div style={{ color: "#818cf8", fontSize: 13, fontWeight: 600, marginTop: 4 }}>{asset.nome} <span style={{ opacity: 0.5 }}>— {asset.codice}</span></div>
           </div>
-          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.05)", border: "none", color: "#94a3b8", width: 36, height: 36, borderRadius: "50%", cursor: "pointer", fontSize: 20 }}>×</button>
+          <button onClick={onClose} style={{ background: "var(--border-subtle)", border: "none", color: "#94a3b8", width: 36, height: 36, borderRadius: "50%", cursor: "pointer", fontSize: 20 }}>×</button>
         </div>
 
         {data && (
@@ -77,7 +77,7 @@ export default function AssetAnalyticsModal({ asset, onClose }: Props) {
                 <h3 style={{ fontSize: 14, color: "#fff", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ color: "#818cf8" }}>📈</span> Trend Guasti (Breakdowns)
                 </h3>
-                <div style={{ height: 160, display: "flex", alignItems: "flex-end", gap: 12, paddingBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ height: 160, display: "flex", alignItems: "flex-end", gap: 12, paddingBottom: 24, borderBottom: "1px solid var(--border-subtle)" }}>
                   {data.failure_trend.map((t, idx) => (
                     <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                       <div 
@@ -85,7 +85,7 @@ export default function AssetAnalyticsModal({ asset, onClose }: Props) {
                           width: "100%", 
                           height: `${(t.guasti / maxGuasti) * 100}%`, 
                           minHeight: t.guasti > 0 ? 4 : 0,
-                          background: t.guasti > 0 ? "linear-gradient(to top, #4f46e5, #818cf8)" : "rgba(255,255,255,0.05)", 
+                          background: t.guasti > 0 ? "linear-gradient(to top, #4f46e5, #818cf8)" : "var(--border-subtle)", 
                           borderRadius: "4px 4px 0 0",
                           transition: "height 0.6s ease"
                         }} 
@@ -111,7 +111,7 @@ export default function AssetAnalyticsModal({ asset, onClose }: Props) {
                         <span style={{ color: "#94a3b8" }}>{item.label}</span>
                         <span style={{ color: "#fff", fontWeight: 700 }}>{item.count}</span>
                       </div>
-                      <div style={{ height: 4, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ height: 4, background: "var(--border-subtle)", borderRadius: 2, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${(item.count / data.stats.total) * 100}%`, background: item.color }} />
                       </div>
                     </div>

@@ -101,8 +101,8 @@ const BOTTLENECK_IT: Record<string, string> = {
 function KpiCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
     <div style={{
-      background: "#111827",
-      border: "1px solid #1f2937",
+      background: "var(--surface-2)",
+      border: "1px solid var(--border-strong)",
       borderRadius: 8,
       padding: "12px 16px",
       minWidth: 120,
@@ -161,7 +161,7 @@ export default function RollingAnalysisPanel() {
           onClick={fetchAnalysis}
           disabled={loading}
           style={{
-            background: loading ? "#1f2937" : "linear-gradient(135deg,#1d4ed8,#7c3aed)",
+            background: loading ? "var(--border-strong)" : "linear-gradient(135deg,#1d4ed8,#7c3aed)",
             border: "none",
             color: loading ? "#6b7280" : "#fff",
             borderRadius: 8,
@@ -179,7 +179,7 @@ export default function RollingAnalysisPanel() {
       {!data && !loading && (
         <div style={{
           background: "#0f172a",
-          border: "1px dashed #1f2937",
+          border: "1px dashed var(--border-strong)",
           borderRadius: 10,
           padding: 40,
           textAlign: "center",
@@ -253,7 +253,7 @@ export default function RollingAnalysisPanel() {
                 key={key}
                 onClick={() => setFilterZone(key)}
                 style={{
-                  background: filterZone === key ? "#1d4ed8" : "#1f2937",
+                  background: filterZone === key ? "#1d4ed8" : "var(--border-strong)",
                   border: "1px solid #374151",
                   color: filterZone === key ? "#fff" : "#9ca3af",
                   borderRadius: 6,
@@ -275,7 +275,7 @@ export default function RollingAnalysisPanel() {
                   key={key}
                   onClick={() => setFilterStatus(key)}
                   style={{
-                    background: filterStatus === key ? (key === "NOT_READY" ? "#7f1d1d" : key === "READY" ? "#14532d" : "#1d4ed8") : "#1f2937",
+                    background: filterStatus === key ? (key === "NOT_READY" ? "#7f1d1d" : key === "READY" ? "#14532d" : "#1d4ed8") : "var(--border-strong)",
                     border: "1px solid #374151",
                     color: filterStatus === key ? "#fff" : "#9ca3af",
                     borderRadius: 6,
@@ -292,7 +292,7 @@ export default function RollingAnalysisPanel() {
           {/* ── Tabella ticket ─────────────────────────────────────────────── */}
           <div style={{
             background: "#0f172a",
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border-strong)",
             borderRadius: 10,
             overflow: "hidden",
           }}>
@@ -301,7 +301,7 @@ export default function RollingAnalysisPanel() {
               display: "grid",
               gridTemplateColumns: "48px 60px 60px 1fr 100px 80px 80px 80px 80px",
               background: "#1e293b",
-              borderBottom: "1px solid #1f2937",
+              borderBottom: "1px solid var(--border-strong)",
               padding: "8px 12px",
               fontSize: 10,
               fontWeight: 700,
@@ -338,9 +338,9 @@ export default function RollingAnalysisPanel() {
                       gridTemplateColumns: "48px 60px 60px 1fr 100px 80px 80px 80px 80px",
                       padding: "9px 12px",
                       fontSize: 12,
-                      borderBottom: "1px solid #111827",
+                      borderBottom: "1px solid var(--surface-2)",
                       cursor: "pointer",
-                      background: isOpen ? "#0c1628" : idx % 2 === 0 ? "#0f172a" : "#0a0f1e",
+                      background: isOpen ? "var(--surface-1)" : idx % 2 === 0 ? "#0f172a" : "var(--surface-1)",
                       transition: "background 80ms",
                       alignItems: "center",
                     }}
@@ -395,7 +395,7 @@ export default function RollingAnalysisPanel() {
                   {isOpen && (
                     <div style={{
                       background: "#080d19",
-                      borderBottom: "1px solid #111827",
+                      borderBottom: "1px solid var(--surface-2)",
                       padding: "12px 16px 16px",
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr 1fr",

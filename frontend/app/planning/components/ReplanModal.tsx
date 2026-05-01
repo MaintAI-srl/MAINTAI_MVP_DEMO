@@ -93,8 +93,8 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
     >
       <div
         style={{
-          background: "#111827",
-          border: "1px solid #1f2937",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-strong)",
           borderRadius: 16,
           padding: 28,
           width: 460,
@@ -176,7 +176,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
 
         {/* Nota informativa */}
         <div style={{
-          background: "#1f2937",
+          background: "var(--border-strong)",
           border: "1px solid #374151",
           borderRadius: 8,
           padding: "10px 14px",
@@ -195,7 +195,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
             onClick={onClose}
             style={{
               flex: 1,
-              background: "#1f2937",
+              background: "var(--border-strong)",
               border: "1px solid #374151",
               color: "#9ca3af",
               borderRadius: 8,
@@ -213,7 +213,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
             style={{
               flex: 2,
               background: loading
-                ? "#1f2937"
+                ? "var(--border-strong)"
                 : `linear-gradient(135deg, #1d4ed8, #7c3aed)`,
               border: "none",
               color: loading ? "#6b7280" : "#fff",

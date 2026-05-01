@@ -123,7 +123,7 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
           userSelect: "none",
           boxSizing: "border-box",
           zIndex: isDragging ? 0 : 2,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 var(--border-subtle)",
           transition: "filter 0.12s",
         }}
         onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
@@ -147,7 +147,7 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
         borderRadius: 5, padding: "3px 5px", marginBottom: 2,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.25 : 1,
         overflow: "hidden", userSelect: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 var(--border-subtle)",
         transition: "filter 0.12s",
       }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
@@ -174,7 +174,7 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
       ref={setNodeRef} {...listeners} {...attributes}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       style={{
-        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderLeft: `3px solid ${s.border}`,
+        background: "var(--border-subtle)", border: "1px solid var(--border-subtle)", borderLeft: `3px solid ${s.border}`,
         borderRadius: 6, padding: "8px 10px", marginBottom: 6,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.35 : 1, userSelect: "none",
         boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
@@ -185,8 +185,8 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
         (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(59,130,246,0.2)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)";
-        (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
+        (e.currentTarget as HTMLDivElement).style.background = "var(--border-subtle)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-subtle)";
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
@@ -207,7 +207,7 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
       borderRight: "1px solid rgba(59,130,246,0.1)",
-      background: "linear-gradient(90deg, #0c1628 0%, rgba(12,22,40,0.95) 100%)",
+      background: "linear-gradient(90deg, var(--surface-1) 0%, rgba(12,22,40,0.95) 100%)",
       position: "sticky", left: 0, zIndex: 3,
     }}>
       <div>
@@ -236,7 +236,7 @@ function DayRow({ tecnico, tickets, day, onTicketClick }: {
   const timelineW = (DAY_END_H - DAY_START_H) * HOUR_W;
 
   return (
-    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid var(--border-subtle)" }}>
       <TecnicoLabel tecnico={tecnico} />
       <div ref={setNodeRef} style={{
         position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
@@ -287,7 +287,7 @@ function MultiDayRow({ tecnico, tickets, days, view, onTicketClick }: {
 }) {
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   return (
-    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid var(--border-subtle)" }}>
       <TecnicoLabel tecnico={tecnico} />
       {days.map((day) => {
         const dateStr = format(day, "yyyy-MM-dd");
@@ -322,8 +322,8 @@ function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: 
     <div style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex" }} onClick={onClose}>
       <div style={{ flex: 1 }} />
       <div style={{
-        width: 360, height: "100%", background: "#111827",
-        borderLeft: "1px solid #1f2937", padding: 24, overflowY: "auto",
+        width: 360, height: "100%", background: "var(--surface-2)",
+        borderLeft: "1px solid var(--border-strong)", padding: 24, overflowY: "auto",
         display: "flex", flexDirection: "column", gap: 16,
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -338,7 +338,7 @@ function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: 
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {rows.map(([label, value]) => (
-            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "8px 0", borderBottom: "1px solid #1f2937" }}>
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "8px 0", borderBottom: "1px solid var(--border-strong)" }}>
               <span style={{ color: "#6b7280" }}>{label}</span>
               <span style={{ color: label === "Priorità" ? prioColor : "#f9fafb", fontWeight: 500 }}>{value}</span>
             </div>
@@ -658,7 +658,7 @@ export default function PianificazionePage() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0a0f1e", fontFamily: "'IBM Plex Mono', monospace", color: "#f9fafb" }}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--surface-1)", fontFamily: "'IBM Plex Mono', monospace", color: "#f9fafb" }}>
 
         {/* ── TOOLBAR ── */}
         <div style={{
@@ -810,7 +810,7 @@ export default function PianificazionePage() {
           {/* ── SIDEBAR sinistra ── */}
           <div style={{
             width: 256, minWidth: 256, borderRight: "1px solid rgba(59,130,246,0.1)",
-            background: "#0c1628", display: "flex", flexDirection: "column", overflow: "hidden",
+            background: "var(--surface-1)", display: "flex", flexDirection: "column", overflow: "hidden",
           }}>
             {/* Header sidebar */}
             <div style={{
@@ -909,7 +909,7 @@ export default function PianificazionePage() {
                 <div style={{
                   display: "flex", height: 40,
                   borderBottom: "1px solid rgba(59,130,246,0.12)",
-                  background: "linear-gradient(180deg, #0c1628 0%, #0a1422 100%)",
+                  background: "linear-gradient(180deg, var(--surface-1) 0%, #0a1422 100%)",
                   position: "sticky", top: 0, zIndex: 10,
                 }}>
                   <div style={{
@@ -917,7 +917,7 @@ export default function PianificazionePage() {
                     padding: "0 14px", borderRight: "1px solid rgba(59,130,246,0.1)",
                     fontSize: 10, color: "rgba(148,163,184,0.7)", letterSpacing: "0.08em", fontWeight: 700,
                     position: "sticky", left: 0,
-                    background: "linear-gradient(180deg, #0c1628 0%, #0a1422 100%)", zIndex: 11,
+                    background: "linear-gradient(180deg, var(--surface-1) 0%, #0a1422 100%)", zIndex: 11,
                   }}>
                     TECNICO
                   </div>

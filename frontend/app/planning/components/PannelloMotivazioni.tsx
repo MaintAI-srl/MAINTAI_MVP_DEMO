@@ -16,7 +16,7 @@ export default function PannelloMotivazioni({ motivations, score }: Props) {
 
   return (
     <div style={{
-      background: "#111827",
+      background: "var(--surface-2)",
       border: `1px solid ${headerColor}55`,
       borderRadius: 10,
       overflow: "hidden",

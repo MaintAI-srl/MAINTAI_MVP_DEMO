@@ -71,7 +71,7 @@ export default function LoginPage() {
         maxWidth: "400px",
         padding: "40px",
         background: "var(--bg-surface)",
-        border: "1px solid #1f2937",
+        border: "1px solid var(--border-strong)",
         borderRadius: "16px",
         boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
       }}>

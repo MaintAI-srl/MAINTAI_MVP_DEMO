@@ -144,7 +144,7 @@ export default function AdminLogsPage() {
                   whiteSpace: "pre-wrap", 
                   color: getLogLevelColor(log),
                   padding: "2px 0",
-                  borderBottom: "1px solid rgba(255,255,255,0.03)"
+                  borderBottom: "1px solid var(--border-subtle)"
                 }}
               >
                 <span style={{ opacity: 0.3, marginRight: "10px" }}>{(i+1).toString().padStart(4, '0')}</span>

@@ -111,7 +111,7 @@ export default function NotificationPanel() {
             overflow: "hidden",
           }}>
             {/* Header */}
-            <div style={{ padding: "14px 18px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <div style={{ padding: "14px 18px 0", borderBottom: "1px solid var(--border-subtle)" }}>
               <div style={{ fontWeight: 800, fontSize: 12, color: "#fff", marginBottom: 10, letterSpacing: "0.08em" }}>NOTIFICHE</div>
               {/* Tabs */}
               <div style={{ display: "flex", gap: 0 }}>
@@ -148,7 +148,7 @@ export default function NotificationPanel() {
                     </div>
                   ) : (
                     scadenze.map(s => (
-                      <div key={s.id} style={{ padding: "12px 18px", borderBottom: "1px solid rgba(255,255,255,0.03)", background: s.urgenza === "alta" ? "rgba(248,113,113,0.04)" : "transparent" }}>
+                      <div key={s.id} style={{ padding: "12px 18px", borderBottom: "1px solid var(--border-subtle)", background: s.urgenza === "alta" ? "rgba(248,113,113,0.04)" : "transparent" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                           <span style={{ fontSize: 10, fontWeight: 800, color: s.urgenza === "alta" ? "#f87171" : "#818cf8", textTransform: "uppercase", letterSpacing: ".07em" }}>
                             {s.asset_nome}
@@ -177,12 +177,12 @@ export default function NotificationPanel() {
                     </div>
                   ) : (
                     ticketsAssegnati.map(t => (
-                      <div key={t.id} style={{ padding: "12px 18px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <div key={t.id} style={{ padding: "12px 18px", borderBottom: "1px solid var(--border-subtle)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                           <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 3, color: PRIO_COLOR[t.priorita?.toLowerCase()] ?? "#94a3b8", background: `${PRIO_COLOR[t.priorita?.toLowerCase()] ?? "#94a3b8"}20` }}>
                             {t.priorita}
                           </span>
-                          <span style={{ fontSize: 9, color: "#64748b", background: "rgba(255,255,255,0.05)", padding: "2px 5px", borderRadius: 3 }}>{t.stato}</span>
+                          <span style={{ fontSize: 9, color: "#64748b", background: "var(--border-subtle)", padding: "2px 5px", borderRadius: 3 }}>{t.stato}</span>
                         </div>
                         <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.3, marginBottom: 2 }}>{t.titolo}</div>
                         {t.planned_start && (
@@ -198,7 +198,7 @@ export default function NotificationPanel() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "10px 18px", background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.04)", display: "flex", justifyContent: "space-between" }}>
+            <div style={{ padding: "10px 18px", background: "var(--border-subtle)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between" }}>
               <button
                 onClick={() => { setIsOpen(false); router.push("/scadenze"); }}
                 style={{ background: "transparent", border: "none", color: "#818cf8", fontSize: 11, fontWeight: 700, cursor: "pointer" }}

@@ -242,8 +242,8 @@ function ReassignModal({
       }}
     >
       <div onClick={e => e.stopPropagation()} style={{
-        background: "#111827",
-        border: "1px solid #1f2937",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border-strong)",
         borderRadius: 12,
         padding: 24,
         width: 320,
@@ -263,7 +263,7 @@ function ReassignModal({
           value={selected}
           onChange={e => setSelected(Number(e.target.value))}
           style={{
-            width: "100%", background: "#1f2937", border: "1px solid #374151",
+            width: "100%", background: "var(--border-strong)", border: "1px solid #374151",
             color: "#f9fafb", borderRadius: 6, padding: "8px 10px",
             fontSize: 13, marginBottom: 16,
           }}
@@ -277,7 +277,7 @@ function ReassignModal({
 
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{
-            flex: 1, background: "#1f2937", border: "1px solid #374151",
+            flex: 1, background: "var(--border-strong)", border: "1px solid #374151",
             color: "#9ca3af", borderRadius: 6, padding: "9px 0",
             cursor: "pointer", fontSize: 13,
           }}>Annulla</button>
@@ -330,7 +330,7 @@ export default function KanbanSettimanale({
             prev.setDate(prev.getDate() - 7);
             onWeekChange(prev);
           }}
-          style={{ background: "#1f2937", border: "1px solid #374151", color: "#9ca3af", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
+          style={{ background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
         >‹</button>
 
         <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", minWidth: 200, textAlign: "center" }}>
@@ -343,7 +343,7 @@ export default function KanbanSettimanale({
             next.setDate(next.getDate() + 7);
             onWeekChange(next);
           }}
-          style={{ background: "#1f2937", border: "1px solid #374151", color: "#9ca3af", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
+          style={{ background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
         >›</button>
 
         <button
@@ -358,7 +358,7 @@ export default function KanbanSettimanale({
       </div>
 
       {/* Calendario */}
-      <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid #1f2937" }}>
+      <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--border-strong)" }}>
         <div style={{
           display: "grid",
           gridTemplateColumns: `${HOUR_LABEL_W}px repeat(7, minmax(110px, 1fr))`,
@@ -371,7 +371,7 @@ export default function KanbanSettimanale({
           <div style={{
             gridRow: 1, gridColumn: 1,
             background: "#1e293b",
-            borderRight: "1px solid #1f2937",
+            borderRight: "1px solid var(--border-strong)",
             borderBottom: "1px solid #334155",
           }} />
 
@@ -385,7 +385,7 @@ export default function KanbanSettimanale({
                 gridRow: 1,
                 gridColumn: i + 2,
                 background: isWeekend ? "#162032" : "#1e293b",
-                borderRight: i < 6 ? "1px solid #1f2937" : "none",
+                borderRight: i < 6 ? "1px solid var(--border-strong)" : "none",
                 borderBottom: "1px solid #334155",
                 borderTop: isToday ? "3px solid #3b82f6" : "3px solid transparent",
                 display: "flex",

@@ -61,7 +61,7 @@ function completamentoBadge(pct: number | null | undefined, status: string) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 90 }}>
       <div style={{
-        flex: 1, height: 6, background: "#1f2937", borderRadius: 3, overflow: "hidden",
+        flex: 1, height: 6, background: "var(--border-strong)", borderRadius: 3, overflow: "hidden",
       }}>
         <div style={{
           width: `${Math.min(pct, 100)}%`,
@@ -122,7 +122,7 @@ function ModaleDeautorizza({
     }} onClick={onClose}>
       <div
         style={{
-          background: "#111827",
+          background: "var(--surface-2)",
           border: "1px solid #7f1d1d",
           borderRadius: 12,
           padding: 24,
@@ -149,7 +149,7 @@ function ModaleDeautorizza({
             placeholder="Es. Piano superato da nuove priorità operative..."
             style={{
               width: "100%",
-              background: "#1f2937",
+              background: "var(--border-strong)",
               border: "1px solid #374151",
               color: "#f9fafb",
               borderRadius: 6,
@@ -164,7 +164,7 @@ function ModaleDeautorizza({
 
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           <button onClick={onClose} style={{
-            flex: 1, background: "#1f2937",
+            flex: 1, background: "var(--border-strong)",
             border: "1px solid #374151", color: "#9ca3af",
             borderRadius: 6, padding: "9px 0",
             cursor: "pointer", fontSize: 13,
@@ -174,7 +174,7 @@ function ModaleDeautorizza({
             disabled={loading || !motivo.trim()}
             style={{
               flex: 1,
-              background: loading || !motivo.trim() ? "#1f2937" : "#7f1d1d",
+              background: loading || !motivo.trim() ? "var(--border-strong)" : "#7f1d1d",
               border: "1px solid #ef444455",
               color: loading || !motivo.trim() ? "#6b7280" : "#fca5a5",
               borderRadius: 6,
@@ -213,7 +213,7 @@ function RigaPiano({
           background: espanso ? "#1a2332" : "transparent",
           transition: "background 120ms",
         }}
-        onMouseEnter={e => { if (!espanso) (e.currentTarget as HTMLElement).style.background = "#111827"; }}
+        onMouseEnter={e => { if (!espanso) (e.currentTarget as HTMLElement).style.background = "var(--surface-2)"; }}
         onMouseLeave={e => { if (!espanso) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
         <td style={tdStyle}>
@@ -373,7 +373,7 @@ const tdStyle: React.CSSProperties = {
   padding: "10px 14px",
   fontSize: 12,
   color: "#d1d5db",
-  borderBottom: "1px solid #1f2937",
+  borderBottom: "1px solid var(--border-strong)",
   whiteSpace: "nowrap",
 };
 
@@ -383,7 +383,7 @@ const thStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "#6b7280",
   letterSpacing: "0.08em",
-  borderBottom: "2px solid #1f2937",
+  borderBottom: "2px solid var(--border-strong)",
   textAlign: "left",
   whiteSpace: "nowrap",
 };
@@ -407,14 +407,14 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
 
   return (
     <div style={{
-      background: "#111827",
-      border: "1px solid #1f2937",
+      background: "var(--surface-2)",
+      border: "1px solid var(--border-strong)",
       borderRadius: 8,
       overflow: "hidden",
     }}>
       <div style={{
         padding: "14px 20px",
-        borderBottom: "1px solid #1f2937",
+        borderBottom: "1px solid var(--border-strong)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",

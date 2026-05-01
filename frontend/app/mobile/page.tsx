@@ -207,11 +207,11 @@ function ActiveTicketCard({
               {tipo.label}
             </span>
             {ticket.durata_stimata_ore && (
-              <span style={{ fontSize: 11, color: "var(--text-muted)", padding: "3px 10px", borderRadius: 20, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", padding: "3px 10px", borderRadius: 20, background: "var(--border-subtle)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 ⏳ {ticket.durata_stimata_ore}h stimate
               </span>
             )}
-            <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)", padding: "3px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)", padding: "3px 10px", background: "var(--border-subtle)", borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)" }}>
               #{ticket.id}
             </span>
           </div>
@@ -232,8 +232,8 @@ function ActiveTicketCard({
             <button
               onClick={() => onStatusChange(ticket.id, "Pianificato")}
               style={{
-                height: 56, borderRadius: 14, background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.15)", color: "var(--text-secondary)",
+                height: 56, borderRadius: 14, background: "var(--border-subtle)",
+                border: "1px solid var(--border-default)", color: "var(--text-secondary)",
                 fontWeight: 800, fontSize: 14, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}
@@ -247,7 +247,7 @@ function ActiveTicketCard({
             onClick={() => setShowVoice(v => !v)}
             style={{
               height: 44, borderRadius: 12,
-              background: showVoice ? "rgba(91,143,255,0.12)" : "rgba(255,255,255,0.03)",
+              background: showVoice ? "var(--cobalt-dim)" : "var(--border-subtle)",
               border: showVoice ? "1px solid rgba(91,143,255,0.3)" : "1px solid rgba(255,255,255,0.08)",
               color: showVoice ? "#90b8ff" : "var(--text-muted)",
               fontWeight: 700, fontSize: 13, cursor: "pointer",
@@ -291,7 +291,7 @@ function UpcomingTicketCard({
 
   return (
     <div style={{
-      background: "var(--bg-card, #111827)",
+      background: "var(--bg-card, var(--surface-2))",
       border: "1px solid var(--border, rgba(255,255,255,0.08))",
       borderRadius: 16, overflow: "hidden",
     }}>
@@ -490,7 +490,7 @@ export default function MobileHomePage() {
           { label: "Aperti",       count: upcomingTickets.filter(t => t.stato === "Aperto").length, color: "#60a5fa" },
         ].map(s => (
           <div key={s.label} style={{
-            background: "var(--bg-elevated, #1f2937)",
+            background: "var(--bg-elevated, var(--border-strong))",
             border: `1px solid ${s.color}30`,
             borderTop: `3px solid ${s.color}`,
             borderRadius: 14, padding: "12px 10px", textAlign: "center",
@@ -528,7 +528,7 @@ export default function MobileHomePage() {
 
         {upcomingTickets.length === 0 ? (
           <div style={{
-            padding: 32, textAlign: "center", background: "var(--bg-card, #111827)",
+            padding: 32, textAlign: "center", background: "var(--bg-card, var(--surface-2))",
             borderRadius: 16, border: "1px dashed var(--border, rgba(255,255,255,0.08))",
             color: "var(--text-disabled)",
           }}>

@@ -74,7 +74,7 @@ function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOve
         }}>
           {ticket.priorita}
         </span>
-        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.06)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 600 }}>
+        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "var(--border-subtle)", color: "var(--text-muted)", border: "1px solid var(--border-default)", fontWeight: 600 }}>
           {ticket.fascia_oraria}
         </span>
         {ticket.durata_stimata_ore && (
@@ -170,24 +170,24 @@ function KanbanPianificaModal({ onConfirm, onCancel }: { onConfirm: (date: strin
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(6px)" }}>
-      <div style={{ background: "#111827", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 20, padding: "32px", width: 400, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 20, padding: "32px", width: 400, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
         <div style={{ fontWeight: 800, fontSize: 18, color: "#a78bfa", marginBottom: 8, textAlign: "center" }}>Pianifica intervento</div>
         <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 24, textAlign: "center" }}>Trascina i ticket per organizzarli nel tempo.</div>
         
         <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
           {presets.map(p => (
             <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
-              style={{ fontSize: 10, padding: "6px 12px", background: "rgba(255,255,255,0.05)", color: "var(--text-soft)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>
+              style={{ fontSize: 10, padding: "6px 12px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>
               {p.label}
             </button>
           ))}
         </div>
 
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
+          style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
         
         <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Annulla</button>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "var(--border-subtle)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Annulla</button>
           <button disabled={!date} onClick={() => date && onConfirm(date)}
             style={{ flex: 2, padding: "12px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 12, cursor: date ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: "0 4px 12px rgba(124,58,237,0.3)" }}>
             Conferma Pianificazione

@@ -110,7 +110,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
         <button
           onClick={() => onDateChange(prevDay(selectedDate))}
           style={{
-            background: "#1f2937",
+            background: "var(--border-strong)",
             border: "1px solid #374151",
             color: "#9ca3af",
             borderRadius: 6,
@@ -127,7 +127,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
         <button
           onClick={() => onDateChange(nextDay(selectedDate))}
           style={{
-            background: "#1f2937",
+            background: "var(--border-strong)",
             border: "1px solid #374151",
             color: "#9ca3af",
             borderRadius: 6,
@@ -157,7 +157,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
       </div>
 
       {/* Gantt container */}
-      <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid #1f2937" }}>
+      <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--border-strong)" }}>
         <div style={{
           position: "relative",
           background: "#0f172a",
@@ -230,9 +230,9 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
                     <div style={{
                       gridRow: rowNum,
                       gridColumn: 1,
-                      background: "#111827",
+                      background: "var(--surface-2)",
                       borderRight: "1px solid #334155",
-                      borderBottom: "1px solid #1f2937",
+                      borderBottom: "1px solid var(--border-strong)",
                       display: "flex",
                       alignItems: "center",
                       paddingLeft: 12,
@@ -276,8 +276,8 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
                         gridRow: rowNum,
                         gridColumn: si + 2,
                         borderRight: si % 2 === 1 ? "1px solid #1e293b" : "1px solid #161f2e",
-                        borderBottom: "1px solid #1f2937",
-                        background: si % 2 === 0 ? "#0f172a" : "#0d1526",
+                        borderBottom: "1px solid var(--border-strong)",
+                        background: si % 2 === 0 ? "#0f172a" : "var(--surface-2)",
                       }} />
                     ))}
 
@@ -307,7 +307,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
                             cursor: "pointer",
                             zIndex: 2,
                             border: `1px ${stile.borderStyle ?? "solid"} ${stile.border}`,
-                            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.1)`,
+                            boxShadow: `inset 0 1px 0 var(--border-default)`,
                             transition: "filter 150ms, transform 150ms",
                             display: "flex",
                             flexDirection: "column",

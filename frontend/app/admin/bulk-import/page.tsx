@@ -76,7 +76,7 @@ function StepBadge({ n, label, active, done }: { n: number; label: string; activ
       <div style={{
         width: 28, height: 28,
         borderRadius: "50%",
-        background: done ? "#065f46" : active ? "#1d4ed8" : "#1f2937",
+        background: done ? "#065f46" : active ? "#1d4ed8" : "var(--border-strong)",
         border: `2px solid ${done ? "#059669" : active ? "#3b82f6" : "#374151"}`,
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: 12, fontWeight: 700,
@@ -109,7 +109,7 @@ function PreviewTable({ rows, title }: { rows: Record<string, string>[]; title: 
                 <th key={c} style={{
                   background: "#1e293b", color: "#9ca3af",
                   padding: "5px 10px", textAlign: "left",
-                  border: "1px solid #1f2937", whiteSpace: "nowrap",
+                  border: "1px solid var(--border-strong)", whiteSpace: "nowrap",
                   fontWeight: 700, fontSize: 10, textTransform: "uppercase",
                 }}>{c}</th>
               ))}
@@ -117,11 +117,11 @@ function PreviewTable({ rows, title }: { rows: Record<string, string>[]; title: 
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} style={{ background: i % 2 === 0 ? "#0f172a" : "#0a0f1e" }}>
+              <tr key={i} style={{ background: i % 2 === 0 ? "#0f172a" : "var(--surface-1)" }}>
                 {cols.map(c => (
                   <td key={c} style={{
                     padding: "5px 10px",
-                    border: "1px solid #111827",
+                    border: "1px solid var(--surface-2)",
                     color: row[c] ? "#e2e8f0" : "#374151",
                     whiteSpace: "nowrap",
                     maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis",
@@ -248,7 +248,7 @@ export default function BulkImportPage() {
 
   return (
     <div style={{
-      background: "#0a0f1e",
+      background: "var(--surface-1)",
       minHeight: "100vh",
       padding: "32px 24px",
       color: "#f9fafb",
@@ -267,7 +267,7 @@ export default function BulkImportPage() {
       {/* ── Stepper ─────────────────────────────────────────────────────────── */}
       <div style={{
         display: "flex", gap: 24, marginBottom: 32,
-        background: "#111827", border: "1px solid #1f2937",
+        background: "var(--surface-2)", border: "1px solid var(--border-strong)",
         borderRadius: 10, padding: "16px 24px",
         alignItems: "center", flexWrap: "wrap",
       }}>
@@ -282,7 +282,7 @@ export default function BulkImportPage() {
       {step === 1 && (
         <div style={{ maxWidth: 640 }}>
           <div style={{
-            background: "#111827", border: "1px solid #1f2937",
+            background: "var(--surface-2)", border: "1px solid var(--border-strong)",
             borderRadius: 12, padding: 28,
           }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
@@ -350,7 +350,7 @@ export default function BulkImportPage() {
       {step === 2 && (
         <div style={{ maxWidth: 680 }}>
           <div style={{
-            background: "#111827", border: "1px solid #1f2937",
+            background: "var(--surface-2)", border: "1px solid var(--border-strong)",
             borderRadius: 12, padding: 28,
           }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 20 }}>
@@ -369,7 +369,7 @@ export default function BulkImportPage() {
                   value={tenantId ?? ""}
                   onChange={e => setTenantId(Number(e.target.value) || null)}
                   style={{
-                    width: "100%", background: "#1f2937", border: "1px solid #374151",
+                    width: "100%", background: "var(--border-strong)", border: "1px solid #374151",
                     color: "#f9fafb", borderRadius: 8, padding: "10px 12px",
                     fontSize: 13,
                   }}
@@ -433,7 +433,7 @@ export default function BulkImportPage() {
               <button
                 onClick={() => setStep(1)}
                 style={{
-                  background: "#1f2937", border: "1px solid #374151",
+                  background: "var(--border-strong)", border: "1px solid #374151",
                   color: "#9ca3af", borderRadius: 8, padding: "10px 18px",
                   fontSize: 13, cursor: "pointer",
                 }}
@@ -442,7 +442,7 @@ export default function BulkImportPage() {
                 onClick={runPreview}
                 disabled={!file || !tenantId || previewing}
                 style={{
-                  background: !file || !tenantId ? "#1f2937" : "linear-gradient(135deg,#1d4ed8,#7c3aed)",
+                  background: !file || !tenantId ? "var(--border-strong)" : "linear-gradient(135deg,#1d4ed8,#7c3aed)",
                   border: "1px solid #374151",
                   color: !file || !tenantId ? "#4b5563" : "#fff",
                   borderRadius: 8, padding: "10px 20px",
@@ -479,7 +479,7 @@ export default function BulkImportPage() {
       {step === 3 && preview && !result && (
         <div style={{ maxWidth: 900 }}>
           <div style={{
-            background: "#111827", border: "1px solid #1f2937",
+            background: "var(--surface-2)", border: "1px solid var(--border-strong)",
             borderRadius: 12, padding: 28,
           }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
@@ -539,7 +539,7 @@ export default function BulkImportPage() {
               <button
                 onClick={() => { setStep(2); setPreview(null); }}
                 style={{
-                  background: "#1f2937", border: "1px solid #374151",
+                  background: "var(--border-strong)", border: "1px solid #374151",
                   color: "#9ca3af", borderRadius: 8, padding: "10px 18px",
                   fontSize: 13, cursor: "pointer",
                 }}
@@ -548,7 +548,7 @@ export default function BulkImportPage() {
                 onClick={runImport}
                 disabled={importing}
                 style={{
-                  background: importing ? "#1f2937" : "linear-gradient(135deg,#065f46,#047857)",
+                  background: importing ? "var(--border-strong)" : "linear-gradient(135deg,#065f46,#047857)",
                   border: "1px solid #059669",
                   color: importing ? "#4b5563" : "#86efac",
                   borderRadius: 8, padding: "11px 24px",
@@ -600,7 +600,7 @@ export default function BulkImportPage() {
               onClick={() => { setStep(1); setFile(null); setPreview(null); setResult(null); setTenantId(null); }}
               style={{
                 marginTop: 24,
-                background: "#1f2937", border: "1px solid #374151",
+                background: "var(--border-strong)", border: "1px solid #374151",
                 color: "#9ca3af", borderRadius: 8, padding: "10px 20px",
                 fontSize: 13, cursor: "pointer",
               }}

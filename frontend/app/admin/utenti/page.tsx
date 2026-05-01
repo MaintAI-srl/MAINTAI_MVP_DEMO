@@ -144,12 +144,12 @@ export default function AdminUtentiPage() {
   }
 
   const card: React.CSSProperties = {
-    background: "#111827", border: "1px solid rgba(255,255,255,.07)",
+    background: "var(--surface-2)", border: "1px solid rgba(255,255,255,.07)",
     borderRadius: 12, padding: "24px",
   };
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", background: "rgba(255,255,255,.05)",
+    width: "100%", background: "var(--border-subtle)",
     border: "1px solid rgba(59,130,246,.2)", borderRadius: 6,
     color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none",
     fontFamily: "inherit",
@@ -216,7 +216,7 @@ export default function AdminUtentiPage() {
               </thead>
               <tbody>
                 {utenti.map(u => (
-                  <tr key={u.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)", opacity: u.is_active ? 1 : 0.5 }}>
+                  <tr key={u.id} style={{ borderBottom: "1px solid var(--border-subtle)", opacity: u.is_active ? 1 : 0.5 }}>
                     <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-primary)" }}>
                       {u.username}
                       {u.username === user?.username && (
@@ -282,7 +282,7 @@ export default function AdminUtentiPage() {
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
-          <div style={{ background: "#111827", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 420, position: "relative", zIndex: 9999 }}>
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 420, position: "relative", zIndex: 9999 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Nuovo Utente</h3>
               <button onClick={() => setShowModal(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
@@ -309,7 +309,7 @@ export default function AdminUtentiPage() {
                     placeholder="Min 8 car., maiusc., num., simbolo"
                   />
                   <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 4 }}>
-                    <button type="button" onClick={() => setShowPwd(p => !p)} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 3, color: "var(--text-muted)", cursor: "pointer" }}>
+                    <button type="button" onClick={() => setShowPwd(p => !p)} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(255,255,255,.07)", border: "1px solid var(--border-default)", borderRadius: 3, color: "var(--text-muted)", cursor: "pointer" }}>
                       {showPwd ? "Nascondi" : "Mostra"}
                     </button>
                     <button type="button" onClick={() => setNewPassword(generatePassword())} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(99,102,241,.15)", border: "1px solid rgba(99,102,241,.3)", borderRadius: 3, color: "#818cf8", cursor: "pointer" }}>
@@ -344,7 +344,7 @@ export default function AdminUtentiPage() {
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) { setResetFor(null); setResetPwd(""); } }}
         >
-          <div style={{ background: "#111827", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 400, position: "relative", zIndex: 9999 }}>
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 400, position: "relative", zIndex: 9999 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Reset Password</h3>
               <button onClick={() => { setResetFor(null); setResetPwd(""); }} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
@@ -366,7 +366,7 @@ export default function AdminUtentiPage() {
                     autoFocus
                   />
                   <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 4 }}>
-                    <button type="button" onClick={() => setShowResetPwd(p => !p)} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 3, color: "var(--text-muted)", cursor: "pointer" }}>
+                    <button type="button" onClick={() => setShowResetPwd(p => !p)} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(255,255,255,.07)", border: "1px solid var(--border-default)", borderRadius: 3, color: "var(--text-muted)", cursor: "pointer" }}>
                       {showResetPwd ? "Nascondi" : "Mostra"}
                     </button>
                     <button type="button" onClick={() => setResetPwd(generatePassword())} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(99,102,241,.15)", border: "1px solid rgba(99,102,241,.3)", borderRadius: 3, color: "#818cf8", cursor: "pointer" }}>

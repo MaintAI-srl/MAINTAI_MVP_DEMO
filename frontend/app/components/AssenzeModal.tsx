@@ -96,7 +96,7 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
         </div>
 
         {/* Add Form */}
-        <form onSubmit={handleAdd} style={{ display: "flex", gap: 12, marginBottom: 24, padding: 16, background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)", flexWrap: "wrap", alignItems: "flex-end" }}>
+        <form onSubmit={handleAdd} style={{ display: "flex", gap: 12, marginBottom: 24, padding: 16, background: "var(--border-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 120 }}>
             <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>Dal</label>
             <input required type="date" value={dataInizio} onChange={e => setDataInizio(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, background: "var(--card-bg)", color: "white", border: "1px solid var(--border-color)" }} />
@@ -129,7 +129,7 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
           {loading ? (
             <div style={{ textAlign: "center", padding: 20, color: "var(--text-soft)" }}>Caricamento in corso...</div>
           ) : assenze.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 30, background: "rgba(255,255,255,0.01)", borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)", color: "var(--text-soft)" }}>Nessuna assenza programmata.</div>
+            <div style={{ textAlign: "center", padding: 30, background: "rgba(255,255,255,0.01)", borderRadius: 12, border: "1px dashed var(--border-default)", color: "var(--text-soft)" }}>Nessuna assenza programmata.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto" }}>
               {assenze.sort((a,b) => new Date(a.data_inizio).getTime() - new Date(b.data_inizio).getTime()).map(ass => {
@@ -137,7 +137,7 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
                 const end = new Date(ass.data_fine).toLocaleDateString("it-IT");
                 const isPast = new Date(ass.data_fine).getTime() < Date.now();
                 return (
-                  <div key={ass.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, opacity: isPast ? 0.6 : 1 }}>
+                  <div key={ass.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "var(--border-subtle)", border: "1px solid var(--border-subtle)", borderRadius: 8, opacity: isPast ? 0.6 : 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 8, background: "rgba(59,130,246,0.1)", color: "var(--blue-bright)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", lineHeight: 1.1 }}>
                         <strong style={{ fontSize: 16 }}>{new Date(ass.data_inizio).getDate()}</strong>

@@ -85,7 +85,7 @@ function DowntimeTicker({ statoChangedAt, secondsFromBackend }: { statoChangedAt
 
 const PRIORITY_COLORS = ["#f05252", "#f6a233", "#22d3a0", "#7d94b5"];
 const STATO_ASSET_COLORS: Record<string, string> = { service: "#10d9b0", stopped: "#f6a233", "out of service": "#f05252" };
-const chartTooltipStyle = { background: "#0d1526", border: "1px solid rgba(91,143,255,0.2)", color: "#edf0f7", fontSize: 12, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" };
+const chartTooltipStyle = { background: "var(--surface-2)", border: "1px solid rgba(91,143,255,0.2)", color: "var(--text-primary)", fontSize: 12, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" };
 
 // ── Circular Ring Progress ───────────────────────────────────────────────────
 function RingProgress({ value, max, color, size = 100, label, sublabel }: { value: number; max: number; color: string; size?: number; label: string; sublabel: string }) {
@@ -97,7 +97,7 @@ function RingProgress({ value, max, color, size = 100, label, sublabel }: { valu
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
       <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+          <circle cx="50" cy="50" r={r} fill="none" stroke="var(--border-subtle)" strokeWidth="9" />
           <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="9"
             strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
             transform="rotate(-90 50 50)"
@@ -122,7 +122,7 @@ function KpiCard({ label, value, accent, sub, icon }: { label: string; value: nu
   return (
     <div style={{
       background: "var(--grad-card)",
-      border: `1px solid rgba(91,143,255,0.12)`,
+      border: `1px solid var(--cobalt-dim)`,
       borderLeft: `3px solid ${accent}`,
       borderRadius: "var(--radius-lg)",
       padding: "18px 20px 16px",
@@ -142,7 +142,7 @@ function KpiCard({ label, value, accent, sub, icon }: { label: string; value: nu
         const el = e.currentTarget as HTMLDivElement;
         el.style.transform = "translateY(0)";
         el.style.boxShadow = "var(--shadow-card)";
-        el.style.borderColor = `rgba(91,143,255,0.12)`;
+        el.style.borderColor = `var(--cobalt-dim)`;
       }}
     >
       {/* Ambient glow */}
@@ -273,14 +273,14 @@ export default function DashboardPage() {
         {/* Cobalt mesh grid */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(91,143,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(91,143,255,0.03) 1px, transparent 1px)", backgroundSize: "32px 32px", pointerEvents: "none" }} />
         {/* Ambient blobs */}
-        <div style={{ position: "absolute", top: -30, right: 100, width: 180, height: 180, background: "radial-gradient(circle, rgba(91,143,255,0.10) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: -30, right: 100, width: 180, height: 180, background: "radial-gradient(circle, var(--border-subtle) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, background: "radial-gradient(circle, rgba(155,120,255,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
         {/* Top gradient line */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--cobalt), var(--violet), var(--cyan))", opacity: 0.65 }} />
 
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "var(--cobalt)", background: "rgba(91,143,255,0.12)", border: "1px solid rgba(91,143,255,0.25)", padding: "3px 10px", borderRadius: "var(--radius-full)", flexShrink: 0 }}>
+            <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "var(--cobalt)", background: "var(--cobalt-dim)", border: "1px solid rgba(91,143,255,0.25)", padding: "3px 10px", borderRadius: "var(--radius-full)", flexShrink: 0 }}>
               Overview
             </span>
             <h1 style={{ margin: 0, fontSize: 19, fontWeight: 800, fontFamily: "var(--font-display)", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.03em" }}>
@@ -437,8 +437,8 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(91,143,255,0.04)" horizontal={false} />
-                <XAxis type="number" tick={{ fill: "#4e6380", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fill: "#8da0c4", fontSize: 11, fontWeight: 600 }} width={80} axisLine={false} tickLine={false} />
+                <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "var(--text-secondary)", fontSize: 11, fontWeight: 600 }} width={80} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${v} gg`, "MTBF"]} cursor={{ fill: "rgba(91,143,255,0.04)" }} />
                 <Bar dataKey="value" fill="url(#mtbfGrad)" radius={[0, 6, 6, 0]} maxBarSize={18} />
               </BarChart>
@@ -455,8 +455,8 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(91,143,255,0.04)" horizontal={false} />
-                <XAxis type="number" tick={{ fill: "#4e6380", fontSize: 11 }} domain={[0, 100]} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fill: "#8da0c4", fontSize: 11, fontWeight: 600 }} width={80} axisLine={false} tickLine={false} />
+                <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} domain={[0, 100]} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "var(--text-secondary)", fontSize: 11, fontWeight: 600 }} width={80} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${v}%`, "OEE"]} cursor={{ fill: "rgba(91,143,255,0.04)" }} />
                 <Bar dataKey="value" fill="url(#oeeGrad)" radius={[0, 6, 6, 0]} maxBarSize={18} />
               </BarChart>
@@ -475,7 +475,7 @@ export default function DashboardPage() {
         {/* Table header */}
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, background: "rgba(91,143,255,0.02)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ padding: 7, background: "rgba(91,143,255,0.10)", borderRadius: 8, border: "1px solid rgba(91,143,255,0.18)", color: "var(--cobalt)" }}>
+            <div style={{ padding: 7, background: "var(--border-subtle)", borderRadius: 8, border: "1px solid rgba(91,143,255,0.18)", color: "var(--cobalt)" }}>
               <IconActivity size={14} />
             </div>
             <div>

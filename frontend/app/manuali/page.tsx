@@ -64,7 +64,7 @@ function statoStyle(s: string): React.CSSProperties {
 const CATEGORIE = ["cabina_mt", "trasformatore", "carriponte", "fotovoltaico", "pompe", "compressori", "altro"];
 
 const inputSt: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.15)",
+  background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.15)",
   borderRadius: 8, color: "var(--text-primary)", padding: "9px 13px", fontSize: 13,
   width: "100%", outline: "none", fontFamily: "inherit",
 };
@@ -224,7 +224,7 @@ export default function ManualiPage() {
             { label: "Attivi", value: attivi, color: "#34d399" },
             { label: "Attività totali", value: totaleTasks, color: "#fbbf24" },
           ].map(k => (
-            <div key={k.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
+            <div key={k.label} style={{ background: "var(--border-subtle)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
               <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{k.label}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
             </div>
@@ -333,7 +333,7 @@ export default function ManualiPage() {
                   </thead>
                   <tbody>
                     {uploadResult.tasks.map((t, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                         <td style={{ padding: "9px 12px" }}>{t.attivita}</td>
                         <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{t.frequenza_giorni ?? "—"}</td>
                         <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{t.durata_ore?.toFixed(1) ?? "—"}</td>
@@ -355,7 +355,7 @@ export default function ManualiPage() {
             {/* search col filter */}
             <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
               {["nome"].map(col => (
-                <input key={col} value={colFilters[col] ?? ""} onChange={e => setColFilters(p => ({ ...p, [col]: e.target.value }))} placeholder="Cerca nome..." style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 7, color: "var(--text-primary)", padding: "6px 12px", fontSize: 12, outline: "none", width: 180 }} />
+                <input key={col} value={colFilters[col] ?? ""} onChange={e => setColFilters(p => ({ ...p, [col]: e.target.value }))} placeholder="Cerca nome..." style={{ background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 7, color: "var(--text-primary)", padding: "6px 12px", fontSize: 12, outline: "none", width: 180 }} />
               ))}
             </div>
           </div>
@@ -389,8 +389,8 @@ export default function ManualiPage() {
                 </thead>
                 <tbody>
                   {sortedManuali.map((m) => (
-                    <tr key={m.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", transition: "background 0.1s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                    <tr key={m.id} style={{ borderBottom: "1px solid var(--border-subtle)", transition: "background 0.1s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "var(--border-subtle)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     >
                       <td style={{ padding: "10px 12px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: 12 }}>#{m.id}</td>
@@ -449,7 +449,7 @@ export default function ManualiPage() {
                 </thead>
                 <tbody>
                   {selectedManuale.attivita.map((a, i) => (
-                    <tr key={a.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <tr key={a.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                       <td style={{ padding: "9px 12px", color: "var(--text-muted)", fontSize: 11 }}>{i + 1}</td>
                       <td style={{ padding: "9px 12px" }}>{a.descrizione}</td>
                       <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{a.frequenza_giorni ?? "—"}</td>
