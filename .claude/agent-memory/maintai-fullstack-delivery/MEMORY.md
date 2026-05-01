@@ -4,3 +4,5 @@
 - [feedback_sheet_trigger_asChild.md](feedback_sheet_trigger_asChild.md) — SheetTrigger from @base-ui does not support asChild; style it directly
 - [project_opportunistic_endpoint.md](project_opportunistic_endpoint.md) — Opportunistic service and endpoint are implemented and integrated
 - [project_response_schema_strict.md](project_response_schema_strict.md) — RESPONSE_SCHEMA strict=True requires all new optional fields in required[] as anyOf with null
+- [project_utente_tecnico_link.md](project_utente_tecnico_link.md) — Pattern FK Utente↔Tecnico: joinedload, validazione unicità, endpoint /utenti per responsabile
+- [project_tauri_autoupdate.md](project_tauri_autoupdate.md) — Keypair minisign generata, tauri-plugin-updater configurato, endpoint /desktop/update implementato

@@ -1,236 +1,241 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 
-interface CalendarEvent {
-  tipo: "scadenza" | "ticket";
+type ScadenzaRow = {
   id: number;
-  data: string;
-  descrizione: string;
-  asset_id?: number;
-  asset_nome?: string;
+  sito: string;
+  impianto: string;
+  asset: string;
+  asset_id: number | null;
+  piano: string;
+  piano_id: number | null;
+  task: string;
+  tipo: string;
+  frequenza: string;
+  frequenza_giorni: number | null;
+  ultima: string;
+  ultima_ticket_id: number | null;
+  ultima_data: string | null;
+  prossima: string;
+  prossima_ticket_id: number | null;
+  prossima_data: string;
+  giorni_rimanenti: number;
   priorita: string;
-  stato?: string;
-  urgenza: "alta" | "media";
-  is_manual_plan?: boolean;
+};
+
+type ScadenziarioResponse = {
+  items: ScadenzaRow[];
+  total: number;
+  generated_at: string;
+};
+
+const EMPTY_ROWS = 18;
+
+function daysStyle(days: number): CSSProperties {
+  if (days < 0) return { color: "#b91c1c", fontWeight: 800, background: "#fee2e2" };
+  if (days <= 7) return { color: "#92400e", fontWeight: 800, background: "#fef3c7" };
+  return { color: "#111827", fontWeight: 700 };
 }
 
-const DAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-const MONTHS = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
-];
+function formatDays(days: number) {
+  if (days < 0) return `scaduta da ${Math.abs(days)} giorni`;
+  if (days === 0) return "scade oggi";
+  if (days === 1) return "1 giorno";
+  return `${days} giorni`;
+}
+
+function formatDateTime(iso: string | null) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 export default function ScadenzePage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [eventi, setEventi] = useState<CalendarEvent[]>([]);
+  const [rows, setRows] = useState<ScadenzaRow[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const month = currentDate.getMonth();
-  const year = currentDate.getFullYear();
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    loadEventi();
-  }, [month, year]);
+    loadScadenze();
+  }, []);
 
-  async function loadEventi() {
+  async function loadScadenze() {
     setLoading(true);
     try {
-      // Chiediamo 3 mesi per sicurezza (precedente, attuale, prossimo)
-      const d = await apiGet<{ eventi: CalendarEvent[] }>("/scadenze/calendario?mesi=3");
-      setEventi(d.eventi);
-    } catch {
-      notify.error("Errore nel caricamento del calendario.");
+      const data = await apiGet<ScadenziarioResponse>("/scadenze/scadenziario");
+      setRows(data.items || []);
+      setGeneratedAt(data.generated_at || null);
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore nel caricamento dello scadenziario.");
+      setRows([]);
     } finally {
       setLoading(false);
     }
   }
 
-  const calendarDays = useMemo(() => {
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    // Convert current JS 0=Sun to 0=Mon
-    const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
-    
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const prevMonthDays = new Date(year, month, 0).getDate();
-    
-    const days = [];
-    
-    // Previous month padding
-    for (let i = startDay - 1; i >= 0; i--) {
-      days.push({
-        day: prevMonthDays - i,
-        month: month - 1,
-        year: year,
-        isCurrentMonth: false,
-        key: `prev-${prevMonthDays - i}`
-      });
-    }
-    
-    // Current month
-    for (let i = 1; i <= daysInMonth; i++) {
-        days.push({
-          day: i,
-          month: month,
-          year: year,
-          isCurrentMonth: true,
-          key: `curr-${i}`
-        });
-    }
-    
-    // Next month padding
-    const remaining = 42 - days.length; // 6 rows of 7
-    for (let i = 1; i <= remaining; i++) {
-      days.push({
-        day: i,
-        month: month + 1,
-        year: year,
-        isCurrentMonth: false,
-        key: `next-${i}`
-      });
-    }
-    
-    return days;
-  }, [month, year]);
-
-  const changeMonth = (offset: number) => {
-    const d = new Date(currentDate);
-    d.setMonth(d.getMonth() + offset);
-    setCurrentDate(d);
-  };
-
-  const getDayEvents = (d: number, m: number, y: number) => {
-    const dateStr = new Date(y, m, d).toISOString().split("T")[0];
-    return eventi.filter(e => e.data === dateStr);
-  };
-
-  const isToday = (d: number, m: number, y: number) => {
-    const today = new Date();
-    return d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
-  };
+  const blankRows = useMemo(
+    () => Array.from({ length: Math.max(EMPTY_ROWS - rows.length, 6) }),
+    [rows.length],
+  );
 
   return (
-    <div style={{ padding: "32px", height: "100%", display: "flex", flexDirection: "column", gap: "24px", color: "var(--text-primary)" }}>
-      
-      {/* Header con Navigazione */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, margin: 0, letterSpacing: "-0.5px" }}>
-            {MONTHS[month]} <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>{year}</span>
+    <div style={{
+      minHeight: "100%",
+      padding: "28px 30px 42px",
+      color: "#000",
+      backgroundColor: "#f8fafc",
+      backgroundImage: "linear-gradient(#d9d9d9 1px, transparent 1px), linear-gradient(90deg, #d9d9d9 1px, transparent 1px)",
+      backgroundSize: "38px 28px, 152px 28px",
+      overflowX: "auto",
+    }}>
+      <div style={{ minWidth: 1500, display: "grid", gridTemplateColumns: "230px 1fr", columnGap: 18 }}>
+        <div />
+
+        <header style={{ padding: "6px 0 28px 4px" }}>
+          <h1 style={{ margin: 0, fontSize: 26, lineHeight: 1.2, fontWeight: 800, color: "#000" }}>
+            Calendario scadenze
           </h1>
-          <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>Visualizzazione scadenze manutenzione preventiva</div>
-        </div>
-        
-        <div style={{ display: "flex", gap: "8px", background: "var(--bg-elevated)", padding: "6px", borderRadius: "12px", border: "1px solid var(--border)" }}>
-          <button onClick={() => changeMonth(-1)} style={{ padding: "8px 12px", background: "transparent", border: "none", cursor: "pointer", borderRadius: "8px", color: "var(--text-primary)" }}
-            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-            ❮
-          </button>
-          <button onClick={() => setCurrentDate(new Date())} style={{ padding: "8px 16px", background: "var(--bg-surface)", border: "1px solid var(--border)", cursor: "pointer", borderRadius: "8px", color: "var(--text-primary)", fontSize: "12px", fontWeight: 700 }}>
-            Oggi
-          </button>
-          <button onClick={() => changeMonth(1)} style={{ padding: "8px 12px", background: "transparent", border: "none", cursor: "pointer", borderRadius: "8px", color: "var(--text-primary)" }}
-            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-            ❯
-          </button>
-        </div>
+          <div style={{ marginTop: 32, fontSize: 20, color: "#000" }}>
+            (solo lista Asset con scadenza)
+          </div>
+        </header>
+
+        <aside style={{ paddingTop: 40, fontSize: 34, fontWeight: 800, color: "#000", whiteSpace: "nowrap" }}>
+          Scadenziario ----&gt;
+        </aside>
+
+        <main>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, color: "#111827", fontSize: 12 }}>
+            <span>{loading ? "Caricamento scadenze reali..." : `${rows.length} asset/task con scadenza`}</span>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              {generatedAt && <span>Aggiornato: {formatDateTime(generatedAt)}</span>}
+              <button
+                type="button"
+                onClick={loadScadenze}
+                disabled={loading}
+                style={{
+                  padding: "5px 12px",
+                  border: "1px solid #111",
+                  background: loading ? "#e5e7eb" : "#fff",
+                  color: "#000",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontWeight: 700,
+                  fontSize: 12,
+                }}
+              >
+                Aggiorna
+              </button>
+            </div>
+          </div>
+
+          <table style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            tableLayout: "fixed",
+            background: "rgba(255,255,255,0.58)",
+            border: "1px solid #000",
+          }}>
+            <colgroup>
+              <col style={{ width: 130 }} />
+              <col style={{ width: 165 }} />
+              <col style={{ width: 165 }} />
+              <col style={{ width: 135 }} />
+              <col style={{ width: 165 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 195 }} />
+              <col style={{ width: 375 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {["SITO", "IMPIANTO", "ASSET", "Piano", "TIPO", "frequenza", "Ultima", "Prossima", "giorni rimanenti"].map((label) => (
+                  <th key={label} style={{
+                    border: "1px solid #000",
+                    padding: "3px 8px",
+                    height: 30,
+                    fontSize: 18,
+                    lineHeight: 1.1,
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                    fontWeight: 800,
+                    background: "rgba(255,255,255,0.68)",
+                  }}>
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} title={row.task}>
+                  <td style={cellStyle}>{row.sito || "-"}</td>
+                  <td style={cellStyle}>{row.impianto || "-"}</td>
+                  <td style={cellStyle}>{row.asset || "-"}</td>
+                  <td style={cellStyle}>{row.piano || "-"}</td>
+                  <td style={cellStyle}>{row.tipo || "PM"}</td>
+                  <td style={cellStyle}>{row.frequenza || (row.frequenza_giorni ? `${row.frequenza_giorni}G` : "-")}</td>
+                  <td style={cellStyle}>{row.ultima || "-"}</td>
+                  <td style={cellStyle}>{row.prossima || formatDateTime(row.prossima_data)}</td>
+                  <td style={{ ...cellStyle, ...daysStyle(row.giorni_rimanenti) }}>
+                    {formatDays(row.giorni_rimanenti)}
+                  </td>
+                </tr>
+              ))}
+
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{
+                    border: "1px solid #000",
+                    height: 52,
+                    textAlign: "center",
+                    fontSize: 15,
+                    color: "#374151",
+                    background: "rgba(255,255,255,0.72)",
+                  }}>
+                    Nessuna scadenza trovata nei piani di manutenzione.
+                  </td>
+                </tr>
+              )}
+
+              {blankRows.map((_, index) => (
+                <tr key={`blank-${index}`} aria-hidden="true">
+                  {Array.from({ length: 9 }).map((__, cellIndex) => (
+                    <td key={cellIndex} style={blankCellStyle} />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </main>
       </div>
-
-      {/* Legenda */}
-      <div style={{ display: "flex", gap: "20px", fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 700 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--blue)" }} /> Prossima Scadenza PM
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--amber)" }} /> Intervento Pianificato
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)" }} /> Urgente / Alta Priorità
-        </div>
-      </div>
-
-      {/* Calendario Grid */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "16px", overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.2)" }}>
-        
-        {/* Giorni Settimana */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid var(--border-strong)", background: "rgba(255,255,255,0.02)" }}>
-          {DAYS.map(d => (
-            <div key={d} style={{ padding: "12px", textAlign: "center", fontSize: "12px", fontWeight: 800, color: "var(--text-muted)" }}>{d}</div>
-          ))}
-        </div>
-
-        {/* Celle */}
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gridTemplateRows: "repeat(6, 1fr)" }}>
-          {calendarDays.map(({ day, month: m, year: y, isCurrentMonth, key }) => {
-            const dayEvents = getDayEvents(day, m, y);
-            const tday = isToday(day, m, y);
-            
-            return (
-              <div key={key} style={{ 
-                borderRight: "1px solid var(--border)", 
-                borderBottom: "1px solid var(--border)", 
-                padding: "10px", 
-                background: tday ? "rgba(59,130,246,0.03)" : "transparent",
-                opacity: isCurrentMonth ? 1 : 0.4,
-                display: "flex",
-                flexDirection: "column",
-                gap: "4px",
-                overflow: "hidden"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <span style={{ 
-                    fontSize: "13px", 
-                    fontWeight: tday ? 1000 : 700, 
-                    color: tday ? "var(--blue)" : "inherit",
-                    background: tday ? "rgba(59,130,246,0.15)" : "transparent",
-                    width: 24, height: 24, borderRadius: "50%",
-                    display: "flex", alignItems: "center", justifyContent: "center"
-                  }}>{day}</span>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflowY: "auto" }} className="no-scrollbar">
-                  {dayEvents.map(ev => {
-                    const isUrgent = ev.urgenza === "alta" || ev.priorita.toLowerCase() === "alta";
-                    const color = isUrgent ? "var(--red)" : (ev.tipo === "scadenza" ? "var(--blue)" : "var(--amber)");
-                    
-                    return (
-                      <div key={`${ev.tipo}-${ev.id}`} style={{
-                        padding: "4px 8px",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        borderRadius: "4px",
-                        background: color + "15",
-                        color: color,
-                        borderLeft: `3px solid ${ev.is_manual_plan ? "#eab308" : color}`,
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                        overflow: "hidden",
-                        cursor: "pointer",
-                        transition: "transform 0.1s"
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.transform = "translateX(2px)"}
-                      onMouseLeave={e => e.currentTarget.style.transform = "translateX(0)"}
-                      title={`${ev.asset_nome ? `[${ev.asset_nome}] ` : ''}${ev.descrizione}${ev.is_manual_plan ? ' (Manuale)' : ''}`}
-                      >
-                        {ev.tipo === "scadenza" ? "⏰" : (ev.is_manual_plan ? "⚡" : "🔧")} {ev.descrizione}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <style jsx>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
     </div>
   );
 }
+
+const cellStyle: CSSProperties = {
+  border: "1px solid #000",
+  height: 50,
+  padding: "4px 10px",
+  fontSize: 20,
+  lineHeight: 1.15,
+  textAlign: "center",
+  verticalAlign: "middle",
+  color: "#000",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const blankCellStyle: CSSProperties = {
+  border: "1px solid #000",
+  height: 28,
+  padding: 0,
+  background: "rgba(255,255,255,0.25)",
+};
