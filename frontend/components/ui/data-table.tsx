@@ -30,6 +30,7 @@ interface DataTableProps<TData> {
   emptyMessage?: string;
   onRowClick?: (row: TData) => void;
   getRowProps?: (row: TData) => React.HTMLAttributes<HTMLTableRowElement>;
+  enableColumnFilters?: boolean;
 }
 
 export function DataTable<TData>({
@@ -46,6 +47,7 @@ export function DataTable<TData>({
   emptyMessage = "Nessun dato",
   onRowClick,
   getRowProps,
+  enableColumnFilters = false,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -111,6 +113,65 @@ export function DataTable<TData>({
                     </span>
                   </th>
                 ))}
+              </tr>
+            ))}
+
+            {/* Filter row */}
+            {enableColumnFilters && table.getHeaderGroups().map((headerGroup) => (
+              <tr key={`filter-${headerGroup.id}`} style={{ background: "rgba(255,255,255,0.02)" }}>
+                {headerGroup.headers.map((header) => {
+                  const meta = (header.column.columnDef.meta as any);
+                  const filterVariant = meta?.filterVariant as string | undefined;
+
+                  if (!filterVariant) {
+                    return <th key={header.id} style={{ padding: "4px 6px" }} />;
+                  }
+
+                  const filterValue = (header.column.getFilterValue() as string) ?? "";
+
+                  if (filterVariant === "select") {
+                    return (
+                      <th key={header.id} style={{ padding: "4px 6px" }} onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={filterValue}
+                          onChange={(e) => header.column.setFilterValue(e.target.value || undefined)}
+                          style={{
+                            width: "100%", fontSize: 11, padding: "3px 6px",
+                            background: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
+                            borderRadius: 4, color: filterValue ? "#a5b4fc" : "var(--text-muted)",
+                            cursor: "pointer", outline: "none",
+                          }}
+                        >
+                          <option value="">Tutti</option>
+                          {(meta.options as string[]).map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      </th>
+                    );
+                  }
+
+                  if (filterVariant === "text") {
+                    return (
+                      <th key={header.id} style={{ padding: "4px 6px" }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={filterValue}
+                          onChange={(e) => header.column.setFilterValue(e.target.value || undefined)}
+                          placeholder="Filtra…"
+                          style={{
+                            width: "100%", fontSize: 11, padding: "3px 6px",
+                            background: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
+                            borderRadius: 4, color: "var(--text-primary)",
+                            outline: "none", boxSizing: "border-box",
+                          }}
+                        />
+                      </th>
+                    );
+                  }
+
+                  return <th key={header.id} style={{ padding: "4px 6px" }} />;
+                })}
               </tr>
             ))}
           </thead>

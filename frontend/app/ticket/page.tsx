@@ -588,6 +588,8 @@ export default function TicketPage() {
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedFinish, setPlannedFinish] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [showNuovoTicket, setShowNuovoTicket] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     apiGet<Asset[]>("/assets")
@@ -751,6 +753,14 @@ export default function TicketPage() {
   const tickets = result?.items ?? [];
   const archivioItems = archivio?.items ?? [];
 
+  const filteredTickets = searchQuery.trim()
+    ? tickets.filter(t =>
+        t.titolo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.asset_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(t.id).includes(searchQuery)
+      )
+    : tickets;
+
   const ticketColumns: ColumnDef<Ticket>[] = [
     {
       id: "select",
@@ -775,15 +785,17 @@ export default function TicketPage() {
       enableSorting: false,
     },
     { accessorKey: "id", header: "ID" },
-    { accessorKey: "titolo", header: "Titolo" },
+    { accessorKey: "titolo", header: "Titolo", meta: { filterVariant: "text" } },
     {
       accessorKey: "asset_name",
       header: "Asset",
       cell: ({ getValue }) => getValue<string>() ?? "—",
+      meta: { filterVariant: "text" },
     },
     {
       accessorKey: "tipo",
       header: "Tipo",
+      meta: { filterVariant: "select", options: ["BD", "PM", "CM", "ISP"] },
       cell: ({ row }) => {
         const t = row.original;
         return (
@@ -798,6 +810,7 @@ export default function TicketPage() {
     {
       accessorKey: "priorita",
       header: "Priorità",
+      meta: { filterVariant: "select", options: ["Alta", "Media", "Bassa"] },
       cell: ({ getValue }) => {
         const p = getValue<string>();
         return <span style={{ ...getPrioritaStyle(p), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{p}</span>;
@@ -965,10 +978,41 @@ export default function TicketPage() {
       </div>
 
 
-      <div style={{ background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "20px 24px", marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ marginTop: 0, marginBottom: 0, fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>Nuovo ticket</h2>
-        </div>
+      {/* Tab "Nuovo Ticket" */}
+      <div style={{ marginBottom: 24 }}>
+        <button
+          type="button"
+          onClick={() => setShowNuovoTicket(v => !v)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "9px 20px", borderRadius: showNuovoTicket ? "8px 8px 0 0" : 8,
+            background: showNuovoTicket ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "linear-gradient(135deg, #1e1b4b, #312e81)",
+            border: showNuovoTicket ? "1px solid rgba(139,92,246,0.6)" : "1px solid rgba(99,102,241,0.35)",
+            borderBottom: showNuovoTicket ? "none" : undefined,
+            color: showNuovoTicket ? "#fff" : "#a5b4fc",
+            fontWeight: 700, fontSize: 13, cursor: "pointer",
+            boxShadow: showNuovoTicket ? "0 4px 16px rgba(99,102,241,0.35)" : "none",
+            transition: "all 0.2s",
+            position: "relative", zIndex: 1,
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>{showNuovoTicket ? "×" : "+"}</span>
+          Nuovo Ticket
+          {!showNuovoTicket && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>▼</span>}
+        </button>
+
+        <div
+          style={{
+            overflow: "hidden",
+            maxHeight: showNuovoTicket ? 1000 : 0,
+            opacity: showNuovoTicket ? 1 : 0,
+            transition: "max-height 0.3s ease, opacity 0.2s ease",
+            background: "var(--surface-1)",
+            border: showNuovoTicket ? "1px solid rgba(139,92,246,0.4)" : "none",
+            borderRadius: "0 8px 8px 8px",
+            padding: showNuovoTicket ? "20px 24px" : "0 24px",
+          }}
+        >
         <form onSubmit={handleSubmit} className="form-grid-3">
           <div className="span-3">
             <label className="label">Titolo</label>
@@ -1056,6 +1100,7 @@ export default function TicketPage() {
             <button className="btn-primary" type="submit">Salva ticket</button>
           </div>
         </form>
+        </div>
       </div>
 
       {/* Bulk action bar */}
@@ -1096,20 +1141,55 @@ export default function TicketPage() {
       )}
 
       {tab === "attivi" && result !== null && (
-        <DataTable
-          data={tickets}
-          columns={ticketColumns}
-          manualPagination
-          pageCount={result?.pages ?? 1}
-          pageIndex={page - 1}
-          onPageChange={(p) => setPage(p + 1)}
-          emptyMessage="Nessun ticket attivo"
-          onRowClick={(t) => setDetailTicket(t)}
-          getRowProps={(t) => ({
-            onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
-            style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
-          })}
-        />
+        <>
+          {/* Search bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
+              <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14, pointerEvents: "none" }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Cerca per titolo, asset o ID…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{
+                  width: "100%", padding: "7px 12px 7px 32px",
+                  background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+                  borderRadius: 7, color: "var(--text-primary)", fontSize: 13, outline: "none",
+                  boxSizing: "border-box",
+                  borderColor: searchQuery ? "rgba(99,102,241,0.5)" : undefined,
+                  transition: "border-color 0.15s",
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}
+                >×</button>
+              )}
+            </div>
+            {searchQuery && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {filteredTickets.length} risultat{filteredTickets.length === 1 ? "o" : "i"}
+              </span>
+            )}
+          </div>
+
+          <DataTable
+            data={filteredTickets}
+            columns={ticketColumns}
+            manualPagination
+            pageCount={result?.pages ?? 1}
+            pageIndex={page - 1}
+            onPageChange={(p) => setPage(p + 1)}
+            emptyMessage="Nessun ticket attivo"
+            onRowClick={(t) => setDetailTicket(t)}
+            enableColumnFilters
+            getRowProps={(t) => ({
+              onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
+              style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
+            })}
+          />
+        </>
       )}
 
       {tab === "archivio" && (
