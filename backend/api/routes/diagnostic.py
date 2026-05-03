@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
@@ -15,8 +15,10 @@ import json
 router = APIRouter()
 logger = get_logger(__name__)
 
+
 class DiagnosticReply(BaseModel):
     reply: str
+
 
 @router.post("/tickets/{ticket_id}/diagnostic/start")
 @limiter.limit("5/minute")
@@ -26,7 +28,6 @@ def start_session(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    # Filtro tenant_id: impedisce accesso cross-tenant
     ticket = db.query(Ticket).filter(
         Ticket.id == ticket_id,
         Ticket.tenant_id == tenant_id,
@@ -34,6 +35,7 @@ def start_session(
     if not ticket:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 
+    # ── Asset: tutti i campi tecnici disponibili ─────────────────────────────
     asset = None
     if ticket.asset_id:
         asset = db.query(Asset).filter(
@@ -41,24 +43,84 @@ def start_session(
             Asset.tenant_id == tenant_id,
         ).first()
 
-    ticket_dict = {"titolo": ticket.titolo, "descrizione": ticket.descrizione,
-                   "priorita": ticket.priorita, "stato": ticket.stato}
-    asset_dict = {"nome": asset.nome, "categoria": ""} if asset else None
+    ticket_dict = {
+        "id": ticket.id,
+        "titolo": ticket.titolo,
+        "tipo": ticket.tipo,
+        "descrizione": ticket.descrizione or "",
+        "priorita": ticket.priorita,
+        "stato": ticket.stato,
+        "created_at": ticket.created_at.strftime("%d/%m/%Y") if ticket.created_at else None,
+    }
 
-    # Historical context: closed tickets for same asset (filtrati per tenant)
+    asset_dict = None
+    if asset:
+        asset_dict = {
+            "nome": asset.nome,
+            "area": asset.area,
+            "descrizione": asset.descrizione,
+            "marca": asset.marca,
+            "modello": asset.modello,
+            "matricola": asset.matricola,
+            "anno_installazione": asset.anno_installazione,
+            "anno_produzione": asset.anno_produzione,
+            "criticita": asset.criticita,
+            "posizione_fisica": asset.posizione_fisica,
+            "note_tecniche": asset.note_tecniche,
+            "vincoli_operativi": asset.vincoli_operativi,
+            "vincoli_manutenzione": asset.vincoli_manutenzione,
+            "fornitore": asset.fornitore,
+        }
+
+    # ── Storico guasti: ticket chiusi sullo stesso asset con più dettagli ────
     historical_tickets = []
     if ticket.asset_id:
         closed = db.query(Ticket).filter(
             Ticket.asset_id == ticket.asset_id,
             Ticket.tenant_id == tenant_id,
-            Ticket.stato.in_(["Chiuso", "Eliminato"]),
+            Ticket.stato.in_(["Chiuso"]),
             Ticket.id != ticket_id,
-        ).order_by(Ticket.id.desc()).limit(10).all()
-        historical_tickets = [{"titolo": t.titolo, "stato": t.stato, "priorita": t.priorita} for t in closed]
+        ).order_by(Ticket.id.desc()).limit(15).all()
 
+        for t in closed:
+            entry = {
+                "id": t.id,
+                "titolo": t.titolo,
+                "tipo": t.tipo,
+                "priorita": t.priorita,
+                "descrizione": (t.descrizione or "")[:400],  # tronca per non sforare token
+                "data_chiusura": t.execution_finish.strftime("%d/%m/%Y") if t.execution_finish else None,
+                "data_apertura": t.created_at.strftime("%d/%m/%Y") if t.created_at else None,
+            }
+            # Root cause da sessione diagnostica precedente
+            prev_session = db.query(DiagnosticSession).filter(
+                DiagnosticSession.ticket_id == t.id,
+                DiagnosticSession.status == "concluded",
+            ).first()
+            if prev_session and prev_session.root_cause:
+                entry["root_cause_identificata"] = prev_session.root_cause[:300]
+            historical_tickets.append(entry)
+
+    # ── Attività di manutenzione pianificate per questo asset ─────────────────
+    maintenance_activities = []
+    if ticket.asset_id:
+        activities = db.query(AttivitaManutenzione).filter(
+            AttivitaManutenzione.asset_id == ticket.asset_id,
+        ).limit(10).all()
+        for a in activities:
+            maintenance_activities.append({
+                "nome": getattr(a, "nome", None) or getattr(a, "codice", None) or "N/D",
+                "frequenza_giorni": getattr(a, "frequenza_giorni", None),
+                "ultima_esecuzione": a.ultima_esecuzione.strftime("%d/%m/%Y") if getattr(a, "ultima_esecuzione", None) else None,
+                "prossima_scadenza": a.prossima_scadenza.strftime("%d/%m/%Y") if getattr(a, "prossima_scadenza", None) else None,
+            })
+
+    # ── Manuali tecnici: testo estratto (troncato per token) ─────────────────
+    manuali_context = []
+    if ticket.asset_id:
         att_ids = db.query(AttivitaManutenzione.manuale_id).filter(
             AttivitaManutenzione.asset_id == ticket.asset_id,
-            AttivitaManutenzione.manuale_id.isnot(None)
+            AttivitaManutenzione.manuale_id.isnot(None),
         ).distinct().all()
         manuale_ids = [r[0] for r in att_ids]
         if manuale_ids:
@@ -67,15 +129,27 @@ def start_session(
                 Manuale.tenant_id == tenant_id,
             ).all()
             for m in manuali:
+                entry = {"nome": m.filename or m.nome_originale or "Manuale"}
                 if m.json_estratto:
                     try:
-                        import json as _json
-                        data = _json.loads(m.json_estratto)
-                        # (solo metadati: non usiamo manuali_context nel return)
+                        data = json.loads(m.json_estratto)
+                        # Prendi solo i titoli/sommari delle attività estratte
+                        if isinstance(data, dict) and "attivita" in data:
+                            entry["attivita_estratte"] = [
+                                a.get("titolo") or a.get("nome") or ""
+                                for a in data["attivita"][:10]
+                            ]
                     except Exception:
                         pass
+                manuali_context.append(entry)
 
-    outcome = start_diagnostic_session(ticket_dict, asset_dict, historical_tickets=historical_tickets)
+    outcome = start_diagnostic_session(
+        ticket_dict,
+        asset_dict,
+        historical_tickets=historical_tickets,
+        maintenance_activities=maintenance_activities,
+        manuali_context=manuali_context,
+    )
 
     session = DiagnosticSession(
         ticket_id=ticket_id,
@@ -92,7 +166,7 @@ def start_session(
     return {
         "session_id": session.id,
         "ticket_id": ticket_id,
-        "step": outcome["result"]
+        "step": outcome["result"],
     }
 
 
@@ -104,7 +178,6 @@ def reply_to_session(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    # Filtro tenant_id: garantisce che session e ticket appartengano al tenant
     session = db.query(DiagnosticSession).filter(
         DiagnosticSession.id == session_id,
         DiagnosticSession.ticket_id == ticket_id,
@@ -126,7 +199,6 @@ def reply_to_session(
         root_cause = outcome["result"].get("root_cause") or outcome["result"].get("content") or "Causa radice identificata"
         session.root_cause = root_cause
 
-        # Auto-crea ticket correttivo figlio (stesso tenant del parent)
         parent = db.query(Ticket).filter(
             Ticket.id == ticket_id,
             Ticket.tenant_id == tenant_id,
@@ -145,7 +217,7 @@ def reply_to_session(
                     f"diagnostica #{session_id}.\n\nCausa radice: {root_cause}"
                 ),
                 parent_id=ticket_id,
-                tenant_id=tenant_id,   # ← isolamento tenant sul ticket figlio
+                tenant_id=tenant_id,
             )
             db.add(child)
             parent.diagnosi_eseguita = True
@@ -153,11 +225,10 @@ def reply_to_session(
             logger.info("Auto-creato ticket correttivo #%s da diagnostica %s (tenant %s)", child.id, session_id, tenant_id)
 
     db.commit()
-
     logger.info("Session %s — step type: %s", session_id, outcome["result"].get("type"))
 
     return {
         "session_id": session_id,
         "status": session.status,
-        "step": outcome["result"]
+        "step": outcome["result"],
     }
