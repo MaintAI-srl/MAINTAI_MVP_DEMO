@@ -495,8 +495,6 @@ function ActiveWorkView({
             ))}
           </div>
 
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
 
           {/* Pulsanti azione */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
