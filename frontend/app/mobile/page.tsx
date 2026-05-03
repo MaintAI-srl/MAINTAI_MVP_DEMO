@@ -498,26 +498,29 @@ function ActiveWorkView({
 
           {/* Pulsanti azione */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {/* INIZIA — visibile solo se non ancora avviato */}
+            {/* INIZIA — sempre visibile se non ancora avviato */}
             {!started && (
               <button
                 onClick={handleIniziaLavoro}
                 disabled={!allChecked || starting}
                 style={{
-                  height: 60, borderRadius: 14,
+                  height: 64, borderRadius: 14,
                   background: allChecked
                     ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
-                    : "rgba(59,130,246,0.08)",
-                  border: allChecked ? "none" : "2px solid rgba(59,130,246,0.20)",
-                  color: allChecked ? "#fff" : "rgba(59,130,246,0.35)",
-                  fontWeight: 900, fontSize: 15,
-                  cursor: allChecked && !starting ? "pointer" : "not-allowed",
-                  boxShadow: allChecked ? "0 4px 20px rgba(59,130,246,0.35)" : "none",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    : "#1e293b",
+                  border: allChecked ? "none" : "2px solid #3b82f6",
+                  color: "#fff",
+                  fontWeight: 900, fontSize: 16,
+                  cursor: allChecked && !starting ? "pointer" : "default",
+                  boxShadow: allChecked ? "0 4px 20px rgba(59,130,246,0.4)" : "none",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   transition: "all 0.2s",
+                  opacity: allChecked ? 1 : 0.7,
                 }}
               >
-                {starting ? "…" : allChecked ? <><span style={{ fontSize: 20 }}>▶</span> INIZIA</> : <>🔒 INIZIA</>}
+                {starting ? "…" : allChecked
+                  ? <><span style={{ fontSize: 22 }}>▶</span> INIZIA LAVORO</>
+                  : <><span style={{ fontSize: 20 }}>🔒</span> INIZIA LAVORO</>}
               </button>
             )}
 
