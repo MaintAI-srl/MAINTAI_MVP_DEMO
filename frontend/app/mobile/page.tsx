@@ -118,67 +118,71 @@ function getSafetyChecklist(assetName: string, tipo: string): { id: number; text
 // ── Orologio corrente grande ──────────────────────────────────────────────────
 function LiveClock() {
   const [time, setTime] = useState("");
+  const [dateStr, setDateStr] = useState("");
   useEffect(() => {
-    const tick = () => setTime(new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    const tick = () => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      setDateStr(now.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" }).toUpperCase());
+    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: "clamp(36px, 12vw, 56px)", fontWeight: 900, color: "#fff", fontFamily: "var(--font-mono)", letterSpacing: "0.05em", lineHeight: 1 }}>
+      <div style={{ fontSize: "clamp(28px, 8vw, 42px)", fontWeight: 900, color: "#fff", fontFamily: "var(--font-mono)", letterSpacing: "0.04em", lineHeight: 1 }}>
         {time}
       </div>
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4, letterSpacing: "0.12em" }}>
-        {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "2-digit", month: "long" }).toUpperCase()}
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 3, letterSpacing: "0.1em" }}>
+        {dateStr}
       </div>
     </div>
   );
 }
 
-// ── Contatore MTTR ────────────────────────────────────────────────────────────
-function MttrCounter({ start }: { start?: string }) {
+// ── Contatore MTTR (con supporto pausa) ───────────────────────────────────────
+function MttrCounter({ start, paused, pausedAt }: { start?: string; paused: boolean; pausedAt: number }) {
   const [sec, setSec] = useState(0);
   useEffect(() => {
     if (!start) return;
     const startMs = new Date(start).getTime();
-    const tick = () => setSec(Math.floor((Date.now() - startMs) / 1000));
+    if (paused) {
+      // Mostra tempo congelato al momento della pausa
+      setSec(Math.max(0, Math.floor((pausedAt - startMs) / 1000)));
+      return;
+    }
+    const tick = () => setSec(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [start]);
+  }, [start, paused, pausedAt]);
 
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
-
-  // Colore che cambia con il tempo (verde→giallo→rosso)
-  const color = sec < 3600 ? "#34d399" : sec < 7200 ? "#fbbf24" : "#f87171";
+  const color = paused ? "#94a3b8" : sec < 3600 ? "#34d399" : sec < 7200 ? "#fbbf24" : "#f87171";
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase" }}>
-        MTTR — Tempo Intervento
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: "rgba(255,255,255,0.35)", marginBottom: 4, textTransform: "uppercase" }}>
+        {paused ? "⏸ IN PAUSA" : "⏱ MTTR"}
       </div>
       <div style={{
-        fontSize: "clamp(28px, 10vw, 44px)", fontWeight: 900, fontFamily: "var(--font-mono)",
-        color, letterSpacing: "0.08em", lineHeight: 1,
-        textShadow: `0 0 20px ${color}60`,
-        transition: "color 1s",
+        fontSize: "clamp(26px, 8vw, 38px)", fontWeight: 900, fontFamily: "var(--font-mono)",
+        color, letterSpacing: "0.06em", lineHeight: 1,
+        textShadow: paused ? "none" : `0 0 16px ${color}50`,
+        transition: "color 0.5s",
+        opacity: paused ? 0.6 : 1,
       }}>
         {pad(h)}:{pad(m)}:{pad(s)}
       </div>
-      {sec > 0 && (
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>
-          {h > 0 ? `${h}h ${m}m in corso` : `${m}m ${s}s in corso`}
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Vista "Lavoro In Corso" — pagina dedicata ─────────────────────────────────
+// ── Vista "Lavoro In Corso" — layout split 50/50 ─────────────────────────────
 function ActiveWorkView({
   ticket,
   onClose,
@@ -191,10 +195,8 @@ function ActiveWorkView({
   const tipo = tipoLabel(ticket.tipo);
   const checklist = getSafetyChecklist(ticket.asset_name, ticket.tipo);
   const [checked, setChecked] = useState<Set<number>>(new Set());
-  const [showVoice, setShowVoice] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [transcript, setTranscript] = useState("");
-  const [savingVoice, setSavingVoice] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [pausedAt, setPausedAt] = useState(0);
   const allChecked = checked.size === checklist.length;
 
   function toggle(id: number) {
@@ -205,256 +207,225 @@ function ActiveWorkView({
     });
   }
 
-  async function handleSaveVoice() {
-    if (!transcript.trim()) return;
-    setSavingVoice(true);
-    try {
-      await apiPut(`/tickets/${ticket.id}`, { note_vocali: transcript.trim() });
-      notify.success("Nota vocale salvata ✓");
-      setTranscript("");
-    } catch {
-      notify.error("Errore salvataggio nota");
+  async function handleTermina() {
+    if (!allChecked) {
+      notify.warning("Completa la Safety Checklist prima di terminare.", "SAFETY");
+      return;
     }
-    setSavingVoice(false);
+    await onStatusChange(ticket.id, "Chiuso");
+  }
+
+  function handlePausa() {
+    if (!paused) {
+      setPausedAt(Date.now());
+      setPaused(true);
+    } else {
+      setPaused(false);
+    }
+    // Nota: la pausa è solo visuale sul MTTR, non aggiorna il DB
   }
 
   return (
     <div style={{
-      display: "flex", flexDirection: "column", gap: 0,
+      display: "flex", flexDirection: "column",
       minHeight: "100%",
-      background: "linear-gradient(180deg, #0a0f1e 0%, #060d1a 100%)",
+      background: "#060d1a",
     }}>
 
-      {/* ── Top bar ── */}
+      {/* ── Top bar compatta ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "12px 0 8px",
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 0 8px",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
-        marginBottom: 16,
+        marginBottom: 10, flexShrink: 0,
       }}>
         <button onClick={onClose} style={{
           background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: 10, width: 38, height: 38, fontSize: 18, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8",
-          flexShrink: 0,
+          borderRadius: 10, width: 36, height: 36, fontSize: 16, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexShrink: 0,
         }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            🟡 IN CORSO
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {ticket.titolo}
           </div>
+          <div style={{ fontSize: 10, color: "#94a3b8" }}>{ticket.asset_name}</div>
         </div>
         <div style={{
-          fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
-          color: tipo.color, background: `${tipo.color}18`, border: `1px solid ${tipo.color}44`,
-          flexShrink: 0,
+          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
+          color: tipo.color, background: `${tipo.color}18`, border: `1px solid ${tipo.color}44`, flexShrink: 0,
         }}>
           {tipo.icon} {tipo.label}
         </div>
       </div>
 
-      {/* ── Orologio + MTTR ── */}
+      {/* ── Layout split 50/50 ── */}
       <div style={{
-        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: 20, padding: "20px 16px", marginBottom: 16,
-        display: "flex", flexDirection: "column", gap: 16,
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+        flex: 1, minHeight: 0,
       }}>
-        <LiveClock />
-        <div style={{ height: 1, background: "rgba(255,255,255,0.06)" }} />
-        <MttrCounter start={ticket.execution_start} />
-      </div>
 
-      {/* ── Date pianificazione ── */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16,
-      }}>
-        {[
-          { label: "Inizio Pianificato", value: ticket.planned_start, color: "#a78bfa", icon: "▶" },
-          { label: "Fine Pianificata",   value: ticket.planned_finish, color: "#34d399", icon: "⏹" },
-        ].map(item => (
-          <div key={item.label} style={{
-            background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}30`,
-            borderTop: `3px solid ${item.color}`, borderRadius: 14, padding: "12px 10px",
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>
-              {item.icon} {item.label}
-            </div>
-            {item.value ? (
-              <>
-                <div style={{ fontSize: "clamp(16px, 5vw, 20px)", fontWeight: 900, color: item.color, fontFamily: "var(--font-mono)", lineHeight: 1 }}>
-                  {new Date(item.value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>
-                  {new Date(item.value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 20, color: "rgba(255,255,255,0.2)", fontWeight: 900 }}>—</div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* ── Asset info ── */}
-      <div style={{
-        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: 14, padding: "12px 14px", marginBottom: 16,
-        display: "flex", alignItems: "center", gap: 10,
-      }}>
-        <span style={{ fontSize: 22 }}>🏭</span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{ticket.asset_name}</div>
-          {ticket.durata_stimata_ore && (
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>
-              Durata stimata: {ticket.durata_stimata_ore}h
-            </div>
-          )}
-        </div>
-        <span style={{
-          marginLeft: "auto", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-          color: prioritaColor(ticket.priorita), background: `${prioritaColor(ticket.priorita)}15`,
-          border: `1px solid ${prioritaColor(ticket.priorita)}30`,
+        {/* ── SINISTRA: Safety Checklist ── */}
+        <div style={{
+          display: "flex", flexDirection: "column", gap: 8,
+          background: allChecked ? "rgba(52,211,153,0.04)" : "rgba(239,68,68,0.04)",
+          border: `2px solid ${allChecked ? "rgba(52,211,153,0.30)" : "rgba(239,68,68,0.40)"}`,
+          borderRadius: 16, padding: "12px 10px",
+          transition: "border-color 0.3s, background 0.3s",
+          overflowY: "auto",
         }}>
-          {ticket.priorita}
-        </span>
-      </div>
+          {/* Header checklist */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexShrink: 0 }}>
+            <span style={{ fontSize: 18 }}>🦺</span>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 900, color: allChecked ? "#34d399" : "#f87171", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Safety
+              </div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-mono)" }}>
+                {checked.size}/{checklist.length}
+              </div>
+            </div>
+          </div>
 
-      {/* ── Safety Checklist ── */}
-      <div style={{
-        background: "rgba(239,68,68,0.04)", border: `1px solid rgba(239,68,68,${allChecked ? "0.15" : "0.35"})`,
-        borderRadius: 16, padding: "14px", marginBottom: 16,
-        transition: "border-color 0.3s",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 16 }}>🦺</span>
-          <span style={{ fontSize: 11, fontWeight: 800, color: allChecked ? "#34d399" : "#f87171", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-            Safety Checklist
-          </span>
-          <span style={{ marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-mono)" }}>
-            {checked.size}/{checklist.length}
-          </span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Items — grandi, touch-friendly */}
           {checklist.map(item => (
             <button
               key={item.id}
               onClick={() => toggle(item.id)}
               style={{
-                display: "flex", alignItems: "center", gap: 12,
-                background: checked.has(item.id) ? "rgba(52,211,153,0.08)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${checked.has(item.id) ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.08)"}`,
-                borderRadius: 10, padding: "10px 12px",
+                display: "flex", alignItems: "center", gap: 10,
+                background: checked.has(item.id) ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
+                border: `2px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.12)"}`,
+                borderRadius: 12, padding: "12px 10px",
                 cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+                minHeight: 56, // touch target grande per guanti
+                width: "100%",
               }}
             >
+              {/* Checkbox grande */}
               <span style={{
-                width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                background: checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.08)",
-                border: `2px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.15)"}`,
+                width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                background: checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.06)",
+                border: `3px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.20)"}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 13, color: "#fff", fontWeight: 900,
+                fontSize: 18, color: "#fff", fontWeight: 900,
                 transition: "all 0.15s",
               }}>
                 {checked.has(item.id) ? "✓" : ""}
               </span>
               <span style={{
-                fontSize: 13, color: checked.has(item.id) ? "#86efac" : "#cbd5e1",
+                fontSize: 12, lineHeight: 1.35,
+                color: checked.has(item.id) ? "#86efac" : "#e2e8f0",
                 textDecoration: checked.has(item.id) ? "line-through" : "none",
-                fontWeight: checked.has(item.id) ? 500 : 600,
+                fontWeight: checked.has(item.id) ? 500 : 700,
                 transition: "all 0.15s",
               }}>
                 {item.text}
               </span>
             </button>
           ))}
+
+          {allChecked && (
+            <div style={{ fontSize: 11, color: "#34d399", fontWeight: 800, textAlign: "center", padding: "6px 0", flexShrink: 0 }}>
+              ✅ SICUREZZA VERIFICATA
+            </div>
+          )}
         </div>
-        {allChecked && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#34d399", fontWeight: 700, textAlign: "center" }}>
-            ✅ Tutte le verifiche completate — puoi procedere in sicurezza
-          </div>
-        )}
-      </div>
 
-      {/* ── Nota vocale ── */}
-      <div style={{ marginBottom: 16 }}>
-        <button
-          onClick={() => setShowVoice(v => !v)}
-          style={{
-            width: "100%", height: 44, borderRadius: 12,
-            background: showVoice ? "rgba(91,143,255,0.15)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${showVoice ? "rgba(91,143,255,0.35)" : "rgba(255,255,255,0.08)"}`,
-            color: showVoice ? "#90b8ff" : "#94a3b8",
-            fontWeight: 700, fontSize: 13, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}
-        >
-          🎙️ {showVoice ? "Chiudi nota vocale" : "Aggiungi nota vocale"}
-        </button>
-        {showVoice && (
+        {/* ── DESTRA: Orologio + MTTR + Date + Azioni ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+          {/* Orologio */}
           <div style={{
-            marginTop: 8, background: "rgba(91,143,255,0.05)", border: "1px solid rgba(91,143,255,0.15)",
-            borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10,
+            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 14, padding: "14px 10px", textAlign: "center",
           }}>
-            <VoiceRecorder onTranscript={(t) => setTranscript(prev => prev ? prev + " " + t : t)} disabled={savingVoice} />
-            {transcript && (
-              <>
-                <textarea
-                  ref={textareaRef}
-                  value={transcript}
-                  onChange={e => setTranscript(e.target.value)}
-                  rows={3}
-                  style={{
-                    width: "100%", resize: "vertical", background: "rgba(91,143,255,0.07)",
-                    border: "1px solid rgba(91,143,255,0.20)", borderRadius: 10,
-                    color: "var(--text-primary)", padding: "10px 12px", fontSize: 14, outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <button onClick={handleSaveVoice} disabled={savingVoice} style={{
-                  height: 44, borderRadius: 12, background: "rgba(91,143,255,0.85)",
-                  border: "none", color: "white", fontWeight: 800, fontSize: 13, cursor: "pointer",
-                }}>
-                  {savingVoice ? "Salvataggio…" : "💾 SALVA NEL TICKET"}
-                </button>
-              </>
-            )}
+            <LiveClock />
           </div>
-        )}
-      </div>
 
-      {/* ── Allegati ── */}
-      <div style={{ marginBottom: 16 }}>
-        <UploadAllegati ticketId={ticket.id} />
-      </div>
+          {/* MTTR */}
+          <div style={{
+            background: paused ? "rgba(148,163,184,0.05)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${paused ? "rgba(148,163,184,0.15)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: 14, padding: "14px 10px",
+            transition: "all 0.3s",
+          }}>
+            <MttrCounter start={ticket.execution_start} paused={paused} pausedAt={pausedAt} />
+          </div>
 
-      {/* ── Azioni ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingBottom: 8 }}>
-        <button
-          onClick={() => onStatusChange(ticket.id, "Chiuso")}
-          style={{
-            height: 64, borderRadius: 16,
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            border: "none", color: "white", fontWeight: 900, fontSize: 16,
-            cursor: "pointer", boxShadow: "0 6px 24px rgba(16,185,129,0.4)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 22 }}>✅</span> CHIUDI
-        </button>
-        <button
-          onClick={() => onStatusChange(ticket.id, "Pianificato")}
-          style={{
-            height: 64, borderRadius: 16,
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
-            color: "#94a3b8", fontWeight: 800, fontSize: 15, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 20 }}>⏸</span> PAUSA
-        </button>
+          {/* Date pianificate */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[
+              { label: "▶ Inizio", value: ticket.planned_start, color: "#a78bfa" },
+              { label: "⏹ Fine",   value: ticket.planned_finish, color: "#34d399" },
+            ].map(item => (
+              <div key={item.label} style={{
+                background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}25`,
+                borderLeft: `3px solid ${item.color}`, borderRadius: 10, padding: "8px 10px",
+              }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 3 }}>
+                  {item.label}
+                </div>
+                {item.value ? (
+                  <>
+                    <div style={{ fontSize: "clamp(14px, 4vw, 18px)", fontWeight: 900, color: item.color, fontFamily: "var(--font-mono)", lineHeight: 1 }}>
+                      {new Date(item.value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>
+                      {new Date(item.value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 16, color: "rgba(255,255,255,0.15)", fontWeight: 900 }}>—</div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Pulsanti azione */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {/* TERMINA */}
+            <button
+              onClick={handleTermina}
+              disabled={!allChecked}
+              title={!allChecked ? "Completa la Safety Checklist" : ""}
+              style={{
+                height: 60, borderRadius: 14,
+                background: allChecked
+                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                  : "rgba(16,185,129,0.08)",
+                border: allChecked ? "none" : "2px solid rgba(16,185,129,0.20)",
+                color: allChecked ? "#fff" : "rgba(16,185,129,0.35)",
+                fontWeight: 900, fontSize: 15,
+                cursor: allChecked ? "pointer" : "not-allowed",
+                boxShadow: allChecked ? "0 4px 20px rgba(16,185,129,0.35)" : "none",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                transition: "all 0.2s",
+              }}
+            >
+              {allChecked ? <><span style={{ fontSize: 20 }}>✅</span> TERMINA</> : <>🔒 TERMINA</>}
+            </button>
+
+            {/* PAUSA */}
+            <button
+              onClick={handlePausa}
+              style={{
+                height: 54, borderRadius: 14,
+                background: paused ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.05)",
+                border: `2px solid ${paused ? "rgba(251,191,36,0.40)" : "rgba(255,255,255,0.12)"}`,
+                color: paused ? "#fbbf24" : "#94a3b8",
+                fontWeight: 800, fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                transition: "all 0.2s",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{paused ? "▶" : "⏸"}</span>
+              {paused ? "RIPRENDI" : "PAUSA"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
