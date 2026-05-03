@@ -7,11 +7,12 @@ import { REASON_CODE_LABELS, tipoStyle } from "../types";
 interface DeferredWOPanelProps {
   deferredWOs: DeferredWO[];
   allTickets: TicketData[];
+  deferredCounts?: Record<number, number>; // wo_id → numero di volte rimandato nei piani storici (#12)
 }
 
 const PRIO_ORDER: Record<string, number> = { Alta: 0, Media: 1, Bassa: 2 };
 
-export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOPanelProps) {
+export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCounts }: DeferredWOPanelProps) {
   const [filterCode, setFilterCode] = useState<string>("");
 
   const ticketMap = useMemo(() => {
@@ -118,6 +119,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOP
           const ticket = ticketMap.get(d.wo_id);
           const s = ticket ? tipoStyle(ticket.tipo) : { bg: "var(--border-strong)", text: "#9ca3af", border: "#374151" };
           const rcLabel = d.reason_code ? (REASON_CODE_LABELS[d.reason_code] ?? null) : null;
+          const deferCount = deferredCounts?.[d.wo_id] ?? 0;
 
           return (
             <div
@@ -130,7 +132,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOP
                 gap: 5,
               }}
             >
-              {/* Riga superiore: tipo + id + titolo */}
+              {/* Riga superiore: tipo + id + titolo + badge rimandato (#12) */}
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {ticket && (
                   <span
@@ -153,6 +155,41 @@ export default function DeferredWOPanel({ deferredWOs, allTickets }: DeferredWOP
                 {ticket && (
                   <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {ticket.titolo}
+                  </span>
+                )}
+                {/* Badge rimandato N volte (#12) */}
+                {deferCount >= 3 && (
+                  <span
+                    style={{
+                      background: "#ef444422",
+                      color: "#fca5a5",
+                      border: "1px solid #ef4444",
+                      borderRadius: 10,
+                      padding: "1px 7px",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                    title={`Rimandato ${deferCount} volte in piani precedenti`}
+                  >
+                    {deferCount}x rimandato
+                  </span>
+                )}
+                {deferCount === 2 && (
+                  <span
+                    style={{
+                      background: "#78350f22",
+                      color: "#fcd34d",
+                      border: "1px solid #f59e0b",
+                      borderRadius: 10,
+                      padding: "1px 7px",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                    title="Rimandato 2 volte in piani precedenti"
+                  >
+                    2x rimandato
                   </span>
                 )}
               </div>

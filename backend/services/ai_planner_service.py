@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from backend.services.ai.openai_service import get_openai_client, get_openai_model
 from backend.services.weather_service import get_weather_forecast, WeatherData
-from backend.db.modelli import Ticket, Tecnico, Asset
+from backend.db.modelli import Ticket, Tecnico, Asset, GeneratedPlan
 from backend.services.ai.anonymization_service import anonymizer
 
 logger = logging.getLogger(__name__)
@@ -429,6 +429,74 @@ async def collect_planning_context(
             "orario_fine": tc.orario_fine or "17:00",
         })
 
+    # --- Storico piani recenti (#3) ---
+    piani_recenti_data = []
+    piani_recenti_str = ""
+    ticket_ids_deferred_counts: Dict[int, int] = {}
+    try:
+        piani_recenti = db.query(GeneratedPlan).filter(
+            GeneratedPlan.tenant_id == tenant_id,
+            GeneratedPlan.status == "confirmed",
+        ).order_by(GeneratedPlan.id.desc()).limit(2).all()
+
+        for piano in piani_recenti:
+            if not piano.plan_json:
+                continue
+            wos = piano.plan_json.get("planned_workorders", [])
+            n_wo = len([w for w in wos if not w.get("is_continuation", False)])
+            deferred = piano.plan_json.get("deferred_workorders", [])
+            pn = piano.plan_number or piano.id
+            piani_recenti_data.append({
+                "plan_number": pn,
+                "wo_count": n_wo,
+                "deferred_count": len(deferred),
+            })
+            # Conta ticket ricorrentemente rimandati
+            for d in deferred:
+                wid = d.get("wo_id")
+                if wid:
+                    ticket_ids_deferred_counts[wid] = ticket_ids_deferred_counts.get(wid, 0) + 1
+
+        if piani_recenti_data:
+            piani_recenti_str = "\n".join(
+                f"- Piano #{p['plan_number']}: {p['wo_count']} WO pianificati, {p['deferred_count']} rimandati"
+                for p in piani_recenti_data
+            )
+            # Ticket rimandati ricorrenti (in 2+ piani)
+            ricorrenti = [wid for wid, cnt in ticket_ids_deferred_counts.items() if cnt >= 2]
+            if ricorrenti:
+                piani_recenti_str += f"\nTicket ricorrentemente rimandati (id): {ricorrenti}"
+    except Exception as exc:
+        logger.warning("collect_planning_context: errore caricamento storico piani: %s", exc)
+
+    # --- Statistiche esecuzioni feedback (#9) ---
+    feedback_stats_str = ""
+    try:
+        from sqlalchemy import func as _func
+        cutoff_30d = datetime.now() - timedelta(days=30)
+        feedback_rows = db.query(
+            Ticket.tipo,
+            _func.count(Ticket.id).label("count"),
+            _func.avg(Ticket.durata_stimata_ore).label("durata_stimata_media"),
+        ).filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato == "Chiuso",
+            Ticket.execution_finish >= cutoff_30d,
+            Ticket.execution_start.isnot(None),
+            Ticket.execution_finish.isnot(None),
+        ).group_by(Ticket.tipo).all()
+
+        if feedback_rows:
+            lines = []
+            for row in feedback_rows:
+                if row.tipo and row.count:
+                    durata_str = f"{round(float(row.durata_stimata_media), 1)}h (stimata media)" if row.durata_stimata_media else "N/A"
+                    lines.append(f"- {row.tipo}: {row.count} completati, durata {durata_str}")
+            if lines:
+                feedback_stats_str = "\n".join(lines)
+    except Exception as exc:
+        logger.warning("collect_planning_context: errore query feedback stats: %s", exc)
+
     result = {
         "horizon_dates": [str(d) for d in horizon_dates],
         "tickets": tickets_data,
@@ -438,6 +506,9 @@ async def collect_planning_context(
         # Diagnostica meteo: utile per UI e debug
         "weather_locations_count": len(unique_locations),
         "weather_assets_no_coords": assets_senza_coordinate,
+        # Storico e feedback (#3, #9)
+        "piani_recenti_str": piani_recenti_str,
+        "feedback_stats_str": feedback_stats_str,
     }
 
     # Salva in cache se applicabile
@@ -494,6 +565,21 @@ async def generate_ai_plan(
     ]
     # ─────────────────────────────────────────────────────────────────────────
 
+    # Sezioni storico e feedback da includere nel prompt
+    storico_section = ""
+    if context.get("piani_recenti_str"):
+        storico_section = f"""
+STORICO PIANI RECENTI:
+{context['piani_recenti_str']}
+"""
+    feedback_section = ""
+    if context.get("feedback_stats_str"):
+        feedback_section = f"""
+STATISTICHE ESECUZIONI (ultimi 30gg):
+{context['feedback_stats_str']}
+Nota: considera queste durate reali per stimare meglio i tempi.
+"""
+
     user_message = f"""Genera un piano manutenzione ottimizzato per i prossimi {days} giorni.
 
 ORIZZONTE TEMPORALE: {context['horizon_dates'][0]} → {context['horizon_dates'][-1]}
@@ -510,7 +596,7 @@ WORK ORDERS GIA' PIANIFICATI (locked_tickets - consumano orario ma NON DEVONO AS
 NOTE METEO:
 - Dati meteo disponibili: {'SI' if context['weather_available'] else 'NO — pianifica comunque, aggiungi warning generali'}
 - I vincoli meteo per giorno sono già calcolati nel campo weather_by_day di ogni ticket
-- Se weather_by_day[data] != null, il vincolo è violato per quel giorno
+- Se weather_by_day[data] != null, il vincolo è violato per quel giorno{storico_section}{feedback_section}
 
 SCHEMA RISPOSTA RICHIESTO:
 {{
@@ -563,22 +649,40 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         raw = response.choices[0].message.content
         plan_result = json.loads(raw)
 
-        # Integra splitting e calcolo orari
+        # Integra splitting e calcolo orari (con buffer spostamento impianti #5)
         technician_hours = {tc["id"]: tc.get("ore_giornaliere", 8) for tc in context["tecnici"]}
+        # Mappa asset_id → impianto_id per il buffer spostamento
+        asset_impianto_map: Dict[int, Optional[int]] = {}
+        for t in context["tickets"]:
+            aid = t.get("asset_id")
+            # Non abbiamo impianto_id direttamente nel ticket context — usiamo None per ora
+            # (il bridge deterministico ha questa info, l'AI usa il buffer semplificato)
+            if aid:
+                asset_impianto_map[aid] = None
         plan_result["planned_workorders"] = calculate_split_assignments(
             plan_result.get("planned_workorders", []),
             technician_hours,
         )
 
-        # Calcola efficienza piano
+        # Calcola efficienza piano con parametri reali (#1, #13)
+        today_d = date.today()
+        end_d = today_d + timedelta(days=days - 1)
         efficiency_data = calculate_plan_efficiency(
             plan_result,
             context["tecnici"],
             total_backlog=len(context["tickets"]),
+            plan_start_date=today_d,
+            plan_end_date=end_d,
         )
         plan_result["efficiency_score"] = efficiency_data["efficiency_score"]
         plan_result["efficiency_breakdown"] = efficiency_data["efficiency_breakdown"]
         plan_result["efficiency_motivations"] = efficiency_data.get("efficiency_motivations", [])
+        # Aggiungi metadati ore (#13)
+        plan_result.setdefault("plan_metadata", {}).update({
+            "ore_disponibili_teoriche": efficiency_data.get("ore_disponibili_teoriche"),
+            "ore_disponibili_effettive": efficiency_data.get("ore_disponibili_effettive"),
+            "ore_assegnate": efficiency_data.get("ore_assegnate"),
+        })
 
         return plan_result
 
@@ -595,7 +699,9 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
 WORKDAY_START = 8.0    # 08:00
 WORKDAY_END   = 17.0   # 17:00
 WORKDAY_HOURS = WORKDAY_END - WORKDAY_START  # 9 ore lorde
-BUFFER_HOURS  = 0.5    # 30 min buffer tra interventi
+BUFFER_STESSO_IMPIANTO  = 0.25  # 15 min buffer stesso impianto (#5)
+BUFFER_IMPIANTO_DIVERSO = 1.0   # 1 ora buffer impianto diverso (#5)
+BUFFER_HOURS  = BUFFER_STESSO_IMPIANTO  # default legacy (compatibilità)
 
 
 def _next_workday(d: date) -> date:
@@ -615,12 +721,17 @@ def _hours_to_time(h: float) -> str:
     return f"{hh:02d}:{mm:02d}"
 
 
-def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> list:
+def calculate_split_assignments(
+    planned_wos: list,
+    technician_hours: dict,
+    asset_impianto_map: Optional[Dict[int, Optional[int]]] = None,
+) -> list:
     """
     Riceve la lista planned_workorders dall'AI (con wo_id, technician_id, planned_date, duration_hours)
     e calcola orari inizio/fine con splitting se un WO supera le ore disponibili.
 
     technician_hours: dict {tech_id: ore_giornaliere} — fallback ore se non disponibile
+    asset_impianto_map: dict {asset_id: impianto_id} — per buffer spostamento (#5)
 
     Ritorna lista arricchita con:
     - planned_start_time: "HH:MM"
@@ -631,6 +742,8 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
     """
     # Tracking ultima ora occupata per (tech_id, date_str)
     tech_day_end: Dict[tuple, float] = {}
+    # Tracking ultimo impianto per tecnico nel giorno per buffer spostamento (#5)
+    tech_last_impianto: Dict[tuple, Optional[int]] = {}
 
     result = []
     continuations = []
@@ -659,11 +772,23 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
         key = (tech_id, day)
         start_h = tech_day_end.get(key, WORKDAY_START)
         if start_h > WORKDAY_START:
-            start_h += BUFFER_HOURS
+            # Buffer spostamento adattivo (#5)
+            curr_asset_id = wo.get("asset_id")
+            curr_impianto = (asset_impianto_map or {}).get(curr_asset_id) if curr_asset_id else None
+            last_impianto = tech_last_impianto.get(key)
+            if last_impianto is not None and curr_impianto is not None and last_impianto != curr_impianto:
+                buffer = BUFFER_IMPIANTO_DIVERSO
+            else:
+                buffer = BUFFER_STESSO_IMPIANTO
+            start_h += buffer
 
         available = WORKDAY_END - start_h
 
         enriched = {**wo}
+
+        # Traccia impianto per prossimo buffer calcolo (#5)
+        curr_asset_id = wo.get("asset_id")
+        curr_impianto_id = (asset_impianto_map or {}).get(curr_asset_id) if curr_asset_id else None
 
         if duration <= available:
             end_h = start_h + duration
@@ -677,6 +802,7 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
             enriched["risk_level"]         = wo.get("risk_level", None)
             enriched["complexity"]         = wo.get("complexity", None)
             tech_day_end[key] = end_h
+            tech_last_impianto[key] = curr_impianto_id
             result.append(enriched)
         else:
             # Tronca al turno corrente
@@ -690,6 +816,7 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
             enriched["risk_level"]         = wo.get("risk_level", None)
             enriched["complexity"]         = wo.get("complexity", None)
             tech_day_end[key] = trunc_end
+            tech_last_impianto[key] = curr_impianto_id
 
             # WO di continuazione
             remaining = duration - available
@@ -733,10 +860,22 @@ def calculate_split_assignments(planned_wos: list, technician_hours: dict) -> li
 
 # ── Efficienza Piano ───────────────────────────────────────────────────────────
 
-def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_backlog: int) -> Dict[str, Any]:
+def calculate_plan_efficiency(
+    plan: Dict[str, Any],
+    technicians: list,
+    total_backlog: int,
+    plan_start_date: Optional[date] = None,
+    plan_end_date: Optional[date] = None,
+    absences: Optional[Dict[int, List[date]]] = None,
+) -> Dict[str, Any]:
     """
     Calcola efficiency score 0-100 con breakdown per 5 fattori e motivazioni testuali.
+
+    Parametri aggiuntivi opzionali (#1, #13):
+    - plan_start_date / plan_end_date: orizzonte per calcolo ore reali
+    - absences: dict {tecnico_id: [giorni_assenza]} per detrarre le assenze
     """
+    import math as _math_local
     planned = plan.get("planned_workorders", [])
     deferred = plan.get("deferred_workorders", [])
 
@@ -746,23 +885,52 @@ def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_bac
     # 1. Copertura backlog (30%)
     copertura = (n_planned / max(n_total, 1)) * 100
 
-    # 2. Utilizzo tecnici (25%)
+    # 2. Utilizzo tecnici (25%) — ore reali con assenze (#1)
     ore_assegnate = sum(
         float(w.get("duration_hours", 2))
         for w in planned
         if not w.get("is_continuation")
     )
-    ore_disponibili = sum(float(t.get("ore_giornaliere", 8)) * 5 for t in technicians) or 1
+
+    # Calcola ore disponibili teoriche e reali
+    if plan_start_date and plan_end_date:
+        range_dates = [
+            plan_start_date + timedelta(days=i)
+            for i in range((plan_end_date - plan_start_date).days + 1)
+        ]
+        ore_teoriche = 0.0
+        ore_effettive = 0.0
+        for tecnico in technicians:
+            tid = tecnico.get("id")
+            ore_gg = float(tecnico.get("ore_giornaliere", 8))
+            # Giorni lavorativi teorici (lunedì-venerdì nell'orizzonte)
+            giorni_teorici = [d for d in range_dates if d.weekday() < 5]
+            ore_teoriche += ore_gg * len(giorni_teorici)
+            # Giorni lavorativi reali (escludi assenze)
+            assenze_tecnico = (absences or {}).get(tid, [])
+            giorni_reali = [d for d in giorni_teorici if d not in assenze_tecnico]
+            ore_effettive += ore_gg * len(giorni_reali)
+    else:
+        # Fallback: assume 5 giorni lavorativi (comportamento legacy)
+        ore_teoriche = sum(float(t.get("ore_giornaliere", 8)) * 5 for t in technicians)
+        ore_effettive = ore_teoriche
+
+    ore_disponibili = ore_effettive or 1.0
     utilizzo = min((ore_assegnate / ore_disponibili) * 100, 100)
 
-    # 3. Bilanciamento 70/30 (20%)
+    # 3. Bilanciamento 70/30 — solo PM e CM, esclude BD, penalità logaritmica (#6)
     types = [w.get("wo_type", w.get("tipo", "PM")) for w in planned if not w.get("is_continuation")]
-    n_pm = sum(1 for t in types if "PM" in str(t).upper())
+    n_pm = sum(1 for t in types if "PM" in str(t).upper() and "BD" not in str(t).upper())
     n_cm = sum(1 for t in types if "CM" in str(t).upper() and "BD" not in str(t).upper())
-    n_non_bd = n_pm + n_cm or 1
-    ratio_pm = (n_pm / n_non_bd) * 100
-    scostamento = abs(ratio_pm - 70)  # target 70%
-    bilanciamento = max(0, 100 - scostamento * 2)
+    n_schedulabili = n_pm + n_cm
+    if n_schedulabili == 0:
+        bilanciamento = 100  # nessun ticket schedulabile → score neutro
+        ratio_pm = 70.0      # valore neutro per motivazioni
+    else:
+        ratio_pm = (n_pm / n_schedulabili) * 100
+        scostamento = abs(ratio_pm - 70)
+        # Penalità logaritmica: meno aggressiva per scostamenti piccoli
+        bilanciamento = max(0, 100 - _math_local.log1p(scostamento) * 20)
 
     # 4. Match skill (15%) — proxy: WO non rimandati per mancanza skill
     skill_ko = sum(
@@ -819,7 +987,7 @@ def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_bac
             "target": 70,
             "spiegazione": (
                 f"Capacità tecnici usata al {round(utilizzo)}%: "
-                f"{ore_libere} ore/settimana non assegnate."
+                f"{ore_libere}h non assegnate su {round(ore_disponibili, 1)}h disponibili."
             ),
             "suggerimento": (
                 "Carica più ticket in backlog o attiva interventi PM preventivi "
@@ -833,8 +1001,8 @@ def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_bac
             "valore": round(ratio_pm, 1),
             "target": 70,
             "spiegazione": (
-                f"Rapporto PM attuale: {round(ratio_pm)}% (target 70%). "
-                f"{n_cm} CM vs {n_pm} PM pianificati."
+                f"Rapporto PM su schedulabili (PM+CM): {round(ratio_pm)}% (target 70%). "
+                f"{n_cm} CM vs {n_pm} PM (BD esclusi dal KPI)."
             ),
             "suggerimento": (
                 "Aggiungi attività PM preventive al backlog per avvicinarsi "
@@ -881,4 +1049,8 @@ def calculate_plan_efficiency(plan: Dict[str, Any], technicians: list, total_bac
             "ottimizzazione_meteo": round(meteo_score, 1),
         },
         "efficiency_motivations": motivations,
+        # Metadati ore per UI (#13)
+        "ore_disponibili_teoriche": round(ore_teoriche, 1),
+        "ore_disponibili_effettive": round(ore_disponibili, 1),
+        "ore_assegnate": round(ore_assegnate, 1),
     }

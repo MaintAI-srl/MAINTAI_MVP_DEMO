@@ -85,6 +85,10 @@ export interface PlanMetadata {
   generated_by: string;
   generation_time_ms: number;
   confidence_avg: number | null;
+  // Metadati ore effettive vs teoriche (#13)
+  ore_disponibili_teoriche?: number | null;
+  ore_disponibili_effettive?: number | null;
+  ore_assegnate?: number | null;
 }
 
 export interface PlanJson {

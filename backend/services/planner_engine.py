@@ -69,6 +69,8 @@ class PlannerTicket:
     tecnici_richiesti: int = 1            # quanti tecnici in contemporanea (default 1)
     splittabile: bool = True              # se True: può essere spezzato su più giorni
     scadenza_sla: Optional[date] = None  # None = nessuna scadenza SLA
+    eta_giorni: int = 0                  # giorni dalla creazione (per aging score)
+    giorni_non_operativi: List[date] = field(default_factory=list)  # giorni di fermo asset
 
 
 @dataclass
@@ -98,6 +100,7 @@ class Unassigned:
     ticket_id: int
     reason_code: str
     detail: str = ""
+    earliest_possible_date: Optional[str] = None
 
 
 @dataclass
@@ -134,6 +137,64 @@ def _tipo_score(t: str) -> int:
 def _sla_key(t: PlannerTicket) -> date:
     """Per ordinamento: SLA più vicino = più urgente. None → messo in fondo."""
     return t.scadenza_sla or date(9999, 12, 31)
+
+
+def _ticket_priority_score(ticket: PlannerTicket, today: date) -> float:
+    """
+    Score di priorità composito per ordinamento ticket (#2).
+
+    Componenti:
+    - tipo_peso: BD=1000, CM=200, PM=100
+    - prio_peso: Alta=300, Media=100, Bassa=30
+    - sla_score: urgenza basata su giorni alla scadenza SLA
+    - aging_score: ticket vecchi guadagnano urgenza (max 100)
+    """
+    tipo_peso = {"BD": 1000, "CM": 200, "PM": 100, "ISP": 50}.get(ticket.tipo.upper() if ticket.tipo else "", 100)
+    prio_peso = {"Alta": 300, "Media": 100, "Bassa": 30}.get(ticket.priorita, 100)
+
+    sla_score = 0
+    if ticket.scadenza_sla:
+        giorni_alla_scadenza = (ticket.scadenza_sla - today).days
+        if giorni_alla_scadenza <= 0:
+            sla_score = 500
+        elif giorni_alla_scadenza <= 3:
+            sla_score = 300
+        elif giorni_alla_scadenza <= 7:
+            sla_score = 150
+
+    aging_score = min(ticket.eta_giorni * 2, 100)
+
+    return float(tipo_peso + prio_peso + sla_score + aging_score)
+
+
+def _find_earliest_date(
+    ticket: PlannerTicket,
+    technicians: List[PlannerTecnico],
+    from_date: date,
+    days_lookahead: int = 14,
+) -> Optional[str]:
+    """
+    Trova la prima data in cui un tecnico ha disponibilità per questo ticket (#7).
+    Semplificato: non verifica il carico esistente, solo assenze e skill match.
+    """
+    for delta in range(days_lookahead):
+        candidate = from_date + timedelta(days=delta)
+        if candidate.weekday() >= 5:  # skip weekend
+            continue
+        # Salta giorni non operativi dell'asset
+        if candidate in ticket.giorni_non_operativi:
+            continue
+        for tech in technicians:
+            if tech.stato.lower() not in ("in_servizio", "in servizio"):
+                continue
+            if candidate in tech.giorni_assenza:
+                continue
+            # Verifica skill match
+            needed = _competenza_richiesta(ticket)
+            if not _skill_covers(needed, tech.competenze):
+                continue
+            return candidate.isoformat()
+    return None
 
 
 def _competenza_richiesta(ticket: PlannerTicket) -> str:
@@ -339,13 +400,9 @@ class PlannerEngine:
                     f"[LOCKED] Ticket #{a.ticket_id} → Tecnico #{a.tecnico_id} il {giorno} ({durata:.1f}h)"
                 )
 
-        # ── FASE 1: Ordina ticket per urgenza ────────────────────────────────
+        # ── FASE 1: Ordina ticket per score composito (#2) ───────────────────
         to_schedule = [t for t in self.tickets if t.id not in locked_ticket_ids]
-        to_schedule.sort(key=lambda t: (
-            -_priorita_score(t.priorita),
-            _sla_key(t),
-            -_tipo_score(t.tipo),
-        ))
+        to_schedule.sort(key=lambda t: -_ticket_priority_score(t, self.today))
 
         # ── FASE 2: Scheduling greedy ─────────────────────────────────────────
         for ticket in to_schedule:
@@ -409,10 +466,18 @@ class PlannerEngine:
 
         if not candidati:
             reason = self._pick_reason(failure_reasons)
+            # Calcola earliest_possible_date oltre l'orizzonte corrente (#7)
+            earliest = _find_earliest_date(
+                ticket=ticket,
+                technicians=self.tecnici_attivi,
+                from_date=self.today,
+                days_lookahead=21,
+            )
             result.unassigned.append(Unassigned(
                 ticket_id=ticket.id,
                 reason_code=reason,
                 detail=f"Nessun tecnico/giorno valido trovato (motivi: {failure_reasons})",
+                earliest_possible_date=earliest,
             ))
             result.explanation_log.append(
                 f"[SKIP] Ticket #{ticket.id} ({ticket.tipo}/{ticket.priorita}) → {reason}"
@@ -509,6 +574,9 @@ class PlannerEngine:
             for giorno in self.horizon:
                 if giorno < giorno_start:
                     continue
+                # Salta giorni non operativi dell'asset (#8)
+                if giorno in ticket.giorni_non_operativi:
+                    continue
                 ore_libere = self._ore_libere(tecnico, giorno)
                 if ore_libere >= durata_totale:
                     a = self._make_assignment(ticket, tecnico, giorno, durata_totale, is_cont=False)
@@ -539,6 +607,10 @@ class PlannerEngine:
                 continue
             if ore_rimanenti <= 0:
                 break
+
+            # Salta giorni non operativi dell'asset (#8)
+            if giorno in ticket.giorni_non_operativi:
+                continue
 
             # Calcola ore libere del tecnico primario
             ore_libere_primario = self._ore_libere(tecnico, giorno)

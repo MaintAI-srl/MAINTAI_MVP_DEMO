@@ -14,8 +14,9 @@ from __future__ import annotations
 import re
 import logging
 from datetime import date as date_type, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.db.modelli import Asset, Tecnico, Ticket, TecnicoAssenza
@@ -113,30 +114,40 @@ def _split_competenze(raw: Optional[str]) -> List[str]:
     return [p.strip().upper() for p in parts if p.strip()]
 
 
-# Workaround documentato (planning_directive.md):
-# Le competenze dei tecnici in MaintAI sono job-skill (Meccanico, Elettricista…),
-# non categorie di manutenzione (PM/CM/BD). Finché il modello non espone
-# `competenza_richiesta` sul ticket, aggiungiamo i tipi manutenzione standard
-# come competenze implicite — SOLO per i tecnici che non ne hanno già di esplicite.
-# Se il tecnico ha competenze reali nel DB, quelle prevalgono e vengono usate
-# per il matching; i tipi impliciti vengono aggiunti comunque per permettere
-# la pianificazione in assenza di un campo `competenza_richiesta` strutturato.
+# Competenze di tipo "manutenzione" (non job-skill specifici)
 _TIPO_IMPLICITI = ["PM", "CM", "BD"]
+# Job-skill specifici che indicano un tecnico con competenze strutturate
+_JOB_SKILLS = {"MECCANICO", "ELETTRICISTA", "IDRAULICO", "SALDATORE", "STRUMENTISTA", "AUTOMAZIONE", "TERMOIDRAULICO", "ELETTROMECCANICO"}
+
+
+def _has_job_skills(competenze: List[str]) -> bool:
+    """Ritorna True se il tecnico ha almeno una job-skill specifica (es. Meccanico)."""
+    return any(c.upper() in _JOB_SKILLS for c in competenze)
 
 
 def _build_planner_tecnici(
     tecnici: List[Tecnico],
     assenze_map: Dict[int, List[date_type]],
 ) -> List[PlannerTecnico]:
+    """
+    Costruisce la lista PlannerTecnico con logica skill matching adattiva (#4):
+
+    - Se il tecnico NON ha job-skill specifiche (lista vuota o solo PM/CM/BD generici):
+      aggiunge PM/CM/BD come competenze implicite → comportamento legacy invariato.
+    - Se il tecnico HA job-skill (Meccanico, Elettricista, ecc.):
+      NON aggiunge PM/CM/BD automaticamente → il campo competenza_richiesta sul
+      ticket diventa un vincolo hard (strict matching).
+    """
     result = []
     for t in tecnici:
         if t.stato.lower() not in ("in servizio", "in_servizio"):
             continue
         comp = _split_competenze(t.competenze)
-        # Aggiunge tipi manutenzione impliciti (workaround — vedi commento sopra)
-        for tipo in _TIPO_IMPLICITI:
-            if tipo not in comp:
-                comp.append(tipo)
+        if not _has_job_skills(comp):
+            # Nessuna job-skill: aggiungi tipi manutenzione impliciti (legacy)
+            for tipo in _TIPO_IMPLICITI:
+                if tipo not in comp:
+                    comp.append(tipo)
         result.append(PlannerTecnico(
             id=t.id,
             nome=f"{t.nome} {t.cognome or ''}".strip(),
@@ -189,6 +200,22 @@ def _build_planner_tickets(
             except Exception as exc:
                 logger.warning("AdaptiveEstimator: errore per ticket #%d: %s", t.id, exc)
 
+        # Calcola eta_giorni (aging) per lo score priorità composito (#2)
+        eta_giorni = 0
+        if t.created_at:
+            created = t.created_at.date() if isinstance(t.created_at, datetime) else t.created_at
+            eta_giorni = max(0, (date_type.today() - created).days)
+
+        # Giorni non operativi: l'asset in stato "Fermo" blocca la continuazione (#8)
+        giorni_non_operativi: List[date_type] = []
+        if asset and getattr(asset, "stato", None) == "Fermo":
+            # Asset in fermo: tutti i giorni dell'orizzonte sono non operativi
+            horizon_end = date_type.today() + timedelta(days=30)
+            d = date_type.today()
+            while d <= horizon_end:
+                giorni_non_operativi.append(d)
+                d += timedelta(days=1)
+
         result.append(PlannerTicket(
             id=t.id,
             impianto_id=impianto_id,
@@ -198,6 +225,8 @@ def _build_planner_tickets(
             competenza_richiesta=t.competenza_richiesta or None,
             splittabile=True,
             area=area,
+            eta_giorni=eta_giorni,
+            giorni_non_operativi=giorni_non_operativi,
         ))
     return result
 
@@ -481,7 +510,7 @@ async def generate_deterministic_plan(
             "reason":        reason_it,
             "reason_code":   u.reason_code,
             "reason_detail": u.detail or "",
-            "earliest_possible_date": None,
+            "earliest_possible_date": u.earliest_possible_date,
         })
 
     plan_json: Dict[str, Any] = {
@@ -490,6 +519,46 @@ async def generate_deterministic_plan(
         "fermo_assets":        [],
         "global_warnings":     [],
     }
+
+    # ── Calcola feedback scores per tecnico (confidence retroalimentato #11) ──
+    tech_feedback_scores: Dict[int, float] = {}
+    try:
+        cutoff = datetime.now() - timedelta(days=60)
+        feedback_rows = db.query(
+            Ticket.tecnico_id,
+            func.count(Ticket.id).label("total"),
+        ).filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato == "Chiuso",
+            Ticket.tecnico_id.isnot(None),
+            Ticket.execution_finish >= cutoff,
+        ).group_by(Ticket.tecnico_id).all()
+
+        if feedback_rows:
+            for row in feedback_rows:
+                tid = row.tecnico_id
+                total = row.total or 1
+                # Score semplificato: proporzione ticket chiusi (max 1.0)
+                # In futuro: usare execution_outcome per distinguere "completed" vs altri
+                tech_feedback_scores[tid] = min(1.0, total / max(total, 1))
+    except Exception as exc:
+        logger.warning("PlannerEngine bridge: errore query feedback scores: %s", exc)
+
+    # Applica feedback score al confidence_score dei WO pianificati (#11)
+    if tech_feedback_scores:
+        for wo in plan_json.get("planned_workorders", []):
+            tech_id = wo.get("technician_id")
+            fb_score = tech_feedback_scores.get(tech_id)
+            if fb_score is not None and wo.get("confidence_score") is not None:
+                adjusted = wo["confidence_score"] * (0.5 + 0.5 * fb_score)
+                wo["confidence_score"] = round(max(0.4, min(1.0, adjusted)), 3)
+                # Aggiorna risk_level di conseguenza
+                if wo["confidence_score"] >= 0.85:
+                    wo["risk_level"] = "LOW"
+                elif wo["confidence_score"] >= 0.65:
+                    wo["risk_level"] = "MEDIUM"
+                else:
+                    wo["risk_level"] = "HIGH"
 
     # ── Calcola punteggio efficienza ──────────────────────────────────────────
     tecnici_data = [
@@ -501,10 +570,19 @@ async def generate_deterministic_plan(
             plan_json,
             tecnici_data,
             total_backlog=len(tickets),
+            plan_start_date=today,
+            plan_end_date=horizon_end,
+            absences=assenze_map,
         )
         plan_json["efficiency_score"]       = efficiency_data["efficiency_score"]
         plan_json["efficiency_breakdown"]   = efficiency_data["efficiency_breakdown"]
         plan_json["efficiency_motivations"] = efficiency_data.get("efficiency_motivations", [])
+        plan_json["plan_metadata"] = plan_json.get("plan_metadata", {})
+        plan_json["plan_metadata"].update({
+            "ore_disponibili_teoriche": efficiency_data.get("ore_disponibili_teoriche"),
+            "ore_disponibili_effettive": efficiency_data.get("ore_disponibili_effettive"),
+            "ore_assegnate": efficiency_data.get("ore_assegnate"),
+        })
     except Exception as exc:
         logger.warning("PlannerEngine bridge: errore calcolo efficienza: %s", exc)
         plan_json["efficiency_score"]       = 0

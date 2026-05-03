@@ -18,6 +18,7 @@ from backend.core.security import get_current_tenant_id, get_current_user_payloa
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant, PlannerFeedback
+from datetime import date as date_type
 from backend.services.ai_planner_service import generate_ai_plan, calculate_plan_efficiency
 from backend.services.planner_engine_bridge import generate_deterministic_plan
 from backend.services.rolling_planner_engine import (
@@ -178,6 +179,73 @@ def _batch_completion_pct(plans: List[GeneratedPlan], db: Session) -> Dict[int, 
     return result
 
 
+def _validate_and_fix_plan(
+    plan_json: dict,
+    technicians: list,
+    start_date: date_type,
+    end_date: date_type,
+) -> dict:
+    """
+    Rimuove WO invalidi dal piano generato dall'AI (#10).
+    Controlla: tecnico/data mancanti, date fuori orizzonte, overflow ore giornaliere.
+    Sposta i WO invalidati in deferred con reason_code VALIDATION_ERROR.
+    """
+    planned = plan_json.get("planned_workorders", [])
+    valid = []
+    invalid_wo_ids = []
+
+    # Traccia slot per tecnico per giorno: (tech_id, date_str) → ore usate
+    tech_slots: dict = {}
+
+    for wo in planned:
+        tech_id = wo.get("technician_id")
+        wo_date_str = wo.get("planned_date")
+        duration = float(wo.get("duration_hours", 0))
+
+        if not tech_id or not wo_date_str:
+            invalid_wo_ids.append(wo.get("wo_id"))
+            continue
+
+        try:
+            wo_date = date_type.fromisoformat(wo_date_str)
+        except (ValueError, TypeError):
+            invalid_wo_ids.append(wo.get("wo_id"))
+            continue
+
+        if wo_date < start_date or wo_date > end_date:
+            invalid_wo_ids.append(wo.get("wo_id"))
+            continue
+
+        key = (tech_id, wo_date_str)
+        ore_usate = tech_slots.get(key, 0.0)
+        tech = next((t for t in technicians if t.get("id") == tech_id), None)
+        ore_max = float(tech.get("ore_giornaliere", 8)) if tech else 8.0
+
+        if ore_usate + duration > ore_max + 0.5:  # tolleranza 30min
+            invalid_wo_ids.append(wo.get("wo_id"))
+            continue
+
+        tech_slots[key] = ore_usate + duration
+        valid.append(wo)
+
+    if invalid_wo_ids:
+        deferred = plan_json.get("deferred_workorders", [])
+        for wo_id in invalid_wo_ids:
+            if wo_id is not None:
+                deferred.append({
+                    "wo_id": wo_id,
+                    "reason": "WO rimosso dalla validazione: slot non valido o fuori orizzonte",
+                    "reason_code": "VALIDATION_ERROR",
+                })
+        plan_json["deferred_workorders"] = deferred
+        plan_json["global_warnings"] = plan_json.get("global_warnings", []) + [
+            f"{len(invalid_wo_ids)} WO rimossi dalla validazione post-generazione AI"
+        ]
+
+    plan_json["planned_workorders"] = valid
+    return plan_json
+
+
 def _plan_to_dict(plan: GeneratedPlan, completion_pct: Optional[float] = None) -> dict:
     """Serializza un GeneratedPlan includendo tutti i campi storico."""
     pn = plan.plan_number
@@ -251,6 +319,17 @@ async def generate_plan(
                 msg = plan_json["error"]
                 db_error("PLANNING", f"Errore motore AI: {msg}", tenant_id=tenant_id)
                 raise HTTPException(status_code=500, detail=f"Errore motore AI: {msg}")
+
+            # Validazione post-generazione AI (#10)
+            tecnici_for_validation = db.query(Tecnico).filter(
+                Tecnico.tenant_id == tenant_id,
+                Tecnico.stato.in_(["in servizio", "in_servizio"]),
+            ).all()
+            tecnici_data_v = [{"id": t.id, "ore_giornaliere": t.ore_giornaliere or 8} for t in tecnici_for_validation]
+            from datetime import date as _date_type
+            start_d = _date_type.today()
+            end_d = start_d + timedelta(days=data.days - 1)
+            plan_json = _validate_and_fix_plan(plan_json, tecnici_data_v, start_d, end_d)
     except HTTPException:
         raise
     except Exception as exc:

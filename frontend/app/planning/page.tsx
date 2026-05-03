@@ -446,6 +446,8 @@ export default function PianificazionePage() {
   const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [replanModal, setReplanModal] = useState(false);
+  // Selettore orizzonte pianificazione (#14)
+  const [horizonDays, setHorizonDays] = useState(7);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -466,6 +468,20 @@ export default function PianificazionePage() {
     tecnici.forEach((t) => map.set(t.id, t));
     return map;
   }, [tecnici]);
+
+  // ── Contatori deferred dai piani storici (#12) ─────────────────────────────
+  const deferredCounts = useMemo((): Record<number, number> => {
+    const counts: Record<number, number> = {};
+    storico.forEach((plan) => {
+      if (plan.status !== "confirmed") return;
+      (plan.plan_json?.deferred_workorders ?? []).forEach((d) => {
+        if (d.wo_id != null) {
+          counts[d.wo_id] = (counts[d.wo_id] ?? 0) + 1;
+        }
+      });
+    });
+    return counts;
+  }, [storico]);
 
   // ── Statistiche backlog ─────────────────────────────────────────────────────
   const tipoCounts = useMemo(() => {
@@ -524,7 +540,7 @@ export default function PianificazionePage() {
   async function generateAIPlan() {
     setGenerando(true);
     try {
-      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", { days: 7, mode: engineMode });
+      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", { days: horizonDays, mode: engineMode });
       const { previous_efficiency_score: prevScore, ...cleanRes } = res;
       const newScore = res.plan_json?.efficiency_score;
       if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
@@ -746,6 +762,26 @@ export default function PianificazionePage() {
                 transition: "all 0.12s",
               }}>
                 {m === "deterministic" ? "⚙ Engine" : "🤖 GPT"}
+              </button>
+            ))}
+          </div>
+
+          {/* Selettore orizzonte pianificazione (#14) */}
+          <div style={{ display: "flex", gap: 3 }}>
+            {[7, 14, 30].map((d) => (
+              <button
+                key={d}
+                onClick={() => setHorizonDays(d)}
+                style={{
+                  padding: "5px 10px", fontSize: 11, fontWeight: 700,
+                  borderRadius: 6, border: "1px solid var(--border-default, #374151)",
+                  background: horizonDays === d ? "rgba(99,102,241,0.25)" : "transparent",
+                  color: horizonDays === d ? "#a5b4fc" : "rgba(148,163,184,0.7)",
+                  cursor: "pointer", fontFamily: "inherit",
+                  transition: "all 0.12s",
+                }}
+              >
+                {d}gg
               </button>
             ))}
           </div>
@@ -1010,12 +1046,43 @@ export default function PianificazionePage() {
                     </div>
                   )}
 
+                  {/* Ore effettive vs teoriche (#13) */}
+                  {planJson?.plan_metadata && (
+                    planJson.plan_metadata.ore_disponibili_effettive != null ||
+                    planJson.plan_metadata.ore_assegnate != null
+                  ) && (
+                    <div style={{
+                      padding: "8px 12px",
+                      borderBottom: "1px solid rgba(59,130,246,0.08)",
+                      fontSize: 10,
+                      color: "#6b7280",
+                      fontFamily: "'IBM Plex Mono', monospace",
+                    }}>
+                      <div style={{ marginBottom: 2, color: "rgba(148,163,184,0.6)", letterSpacing: "0.08em", fontWeight: 700 }}>
+                        ORE PIANO
+                      </div>
+                      {planJson.plan_metadata.ore_assegnate != null && (
+                        <div>Assegnate: <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{planJson.plan_metadata.ore_assegnate}h</span></div>
+                      )}
+                      {planJson.plan_metadata.ore_disponibili_effettive != null && (
+                        <div>
+                          Disponibili: <span style={{ color: "#86efac", fontWeight: 600 }}>{planJson.plan_metadata.ore_disponibili_effettive}h</span>
+                          {planJson.plan_metadata.ore_disponibili_teoriche != null &&
+                           planJson.plan_metadata.ore_disponibili_teoriche !== planJson.plan_metadata.ore_disponibili_effettive && (
+                            <span style={{ color: "#4b5563", marginLeft: 4 }}>/ {planJson.plan_metadata.ore_disponibili_teoriche}h teor.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* WO Differiti */}
                   {planJson?.deferred_workorders && planJson.deferred_workorders.length > 0 && (
                     <div style={{ padding: "10px 12px" }}>
                       <DeferredWOPanel
                         deferredWOs={planJson.deferred_workorders}
                         allTickets={[...scheduledTickets, ...unscheduledTickets]}
+                        deferredCounts={deferredCounts}
                       />
                     </div>
                   )}
