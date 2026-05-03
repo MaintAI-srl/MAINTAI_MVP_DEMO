@@ -173,6 +173,7 @@ def _find_earliest_date(
     from_date: date,
     days_lookahead: int = 14,
     hierarchy: Dict[str, List[str]] | None = None,
+    include_weekends: bool = False,
 ) -> Optional[str]:
     """
     Trova la prima data in cui un tecnico ha disponibilità per questo ticket (#7).
@@ -180,7 +181,7 @@ def _find_earliest_date(
     """
     for delta in range(days_lookahead):
         candidate = from_date + timedelta(days=delta)
-        if candidate.weekday() >= 5:  # skip weekend
+        if not include_weekends and candidate.weekday() >= 5:
             continue
         # Salta giorni non operativi dell'asset
         if candidate in ticket.giorni_non_operativi:
@@ -325,6 +326,7 @@ class PlannerEngine:
         horizon_days: int = 7,
         skill_hierarchy: Dict[str, List[str]] | None = None,
         slot_minutes: int | None = None,
+        include_weekends: bool = False,
     ):
         self.slot_minutes = slot_minutes
         self.skill_hierarchy = skill_hierarchy
@@ -333,9 +335,11 @@ class PlannerEngine:
         self.existing_assignments = existing_assignments
         self.today = today
         self.horizon_days = horizon_days
+        self.include_weekends = include_weekends
 
         # Orizzonte di pianificazione
-        self.horizon: List[date] = [today + timedelta(days=i) for i in range(horizon_days)]
+        raw_horizon = [today + timedelta(days=i) for i in range(horizon_days)]
+        self.horizon: List[date] = raw_horizon if include_weekends else [d for d in raw_horizon if d.weekday() < 5]
 
         # Tecnici attivi
         self.tecnici_attivi = [t for t in tecnici if t.stato.lower() in ("in_servizio", "in servizio")]
@@ -478,6 +482,7 @@ class PlannerEngine:
                 from_date=self.today,
                 days_lookahead=21,
                 hierarchy=self.skill_hierarchy,
+                include_weekends=self.include_weekends,
             )
             result.unassigned.append(Unassigned(
                 ticket_id=ticket.id,

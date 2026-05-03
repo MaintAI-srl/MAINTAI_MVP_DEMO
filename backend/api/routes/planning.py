@@ -47,6 +47,8 @@ class GeneratePlanRequest(BaseModel):
     days: int = 7
     asset_ids: Optional[List[int]] = None
     mode: str = "auto"   # "deterministic" | "ai" | "auto"
+    include_weekends: bool = False
+    allow_overtime: bool = False
 
 
 class DeauthorizeRequest(BaseModel):
@@ -193,6 +195,7 @@ def _validate_and_fix_plan(
     technicians: list,
     start_date: date_type,
     end_date: date_type,
+    include_weekends: bool = False,
 ) -> dict:
     """
     Rimuove WO invalidi dal piano generato dall'AI (#10).
@@ -222,6 +225,9 @@ def _validate_and_fix_plan(
             continue
 
         if wo_date < start_date or wo_date > end_date:
+            invalid_wo_ids.append(wo.get("wo_id"))
+            continue
+        if not include_weekends and wo_date.weekday() >= 5:
             invalid_wo_ids.append(wo.get("wo_id"))
             continue
 
@@ -314,6 +320,8 @@ async def generate_plan(
                 asset_ids=data.asset_ids,
                 tenant_id=tenant_id,
                 start_date=planning_start_date,
+                include_weekends=data.include_weekends,
+                workday_end_hour=21 if data.allow_overtime else 17,
             )
             if "error" in plan_json:
                 msg = plan_json["error"]
@@ -326,6 +334,8 @@ async def generate_plan(
                 asset_ids=data.asset_ids,
                 tenant_id=tenant_id,
                 start_date=planning_start_date,
+                include_weekends=data.include_weekends,
+                workday_end_hour=21 if data.allow_overtime else 17,
             )
             if "error" in plan_json:
                 msg = plan_json["error"]
@@ -337,10 +347,11 @@ async def generate_plan(
                 Tecnico.tenant_id == tenant_id,
                 Tecnico.stato.in_(["in servizio", "in_servizio"]),
             ).all()
-            tecnici_data_v = [{"id": t.id, "ore_giornaliere": t.ore_giornaliere or 8} for t in tecnici_for_validation]
+            effective_hours = 13 if data.allow_overtime else 8
+            tecnici_data_v = [{"id": t.id, "ore_giornaliere": max(t.ore_giornaliere or 8, effective_hours)} for t in tecnici_for_validation]
             start_d = planning_start_date
             end_d = start_d + timedelta(days=data.days - 1)
-            plan_json = _validate_and_fix_plan(plan_json, tecnici_data_v, start_d, end_d)
+            plan_json = _validate_and_fix_plan(plan_json, tecnici_data_v, start_d, end_d, include_weekends=data.include_weekends)
     except HTTPException:
         raise
     except Exception as exc:
@@ -363,6 +374,8 @@ async def generate_plan(
         "confidence_avg": confidence_avg,
         "planning_start_date": planning_start_date.isoformat(),
         "planning_end_date": (planning_start_date + timedelta(days=data.days - 1)).isoformat(),
+        "include_weekends": data.include_weekends,
+        "workday_end_hour": 21 if data.allow_overtime else 17,
     })
 
     # Recupera score del piano confermato precedente per confronto nel frontend

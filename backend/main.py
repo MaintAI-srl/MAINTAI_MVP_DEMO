@@ -515,11 +515,11 @@ async def lifespan(app: FastAPI):
         print("✅ logging configured")
         init_backend()
         print("✅ backend initialized")
-        _run_alembic_upgrade()  # applica migrazioni pendenti
+        _run_alembic_upgrade()  
         print("✅ migrations checked")
-        init_db()               # crea tabelle mancanti + seed
+        init_db()               
         print("✅ main db initialized")
-        _ensure_columns()       # secondo passaggio: crea colonne/tabelle dipendenti (es. piani_assets_association) ora che create_all ha completato
+        _ensure_columns()       
         print("✅ ensure_columns (post-init) done")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")

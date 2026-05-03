@@ -267,6 +267,8 @@ async def collect_planning_context(
     asset_ids: Optional[List[int]] = None,
     tenant_id: Optional[int] = None,
     start_date: Optional[date] = None,
+    include_weekends: bool = False,
+    workday_end_hour: int = 17,
 ) -> Dict[str, Any]:
     """
     Raccoglie tutto il contesto necessario per la pianificazione AI:
@@ -287,7 +289,8 @@ async def collect_planning_context(
                 logger.info("collect_planning_context: cache HIT (tenant=%d, days=%d)", tenant_id, days)
                 return result
 
-    horizon_dates = [today + timedelta(days=i) for i in range(days)]
+    raw_horizon_dates = [today + timedelta(days=i) for i in range(days)]
+    horizon_dates = raw_horizon_dates if include_weekends else [d for d in raw_horizon_dates if d.weekday() < 5]
 
     # --- Ticket ---
     ticket_query = db.query(Ticket).filter(
@@ -469,9 +472,9 @@ async def collect_planning_context(
             "id": tc.id,
             "nome": f"{tc.nome} {tc.cognome or ''}".strip(),
             "competenze": tc.competenze,
-            "ore_giornaliere": tc.ore_giornaliere or 8,
+            "ore_giornaliere": max(tc.ore_giornaliere or 8, workday_end_hour - 8) if workday_end_hour > 17 else (tc.ore_giornaliere or 8),
             "orario_inizio": tc.orario_inizio or "08:00",
-            "orario_fine": tc.orario_fine or "17:00",
+            "orario_fine": f"{workday_end_hour:02d}:00" if workday_end_hour > 17 else (tc.orario_fine or "17:00"),
             "giorni_assenza": [d.isoformat() for d in assenze_map.get(tc.id, [])],
         })
 
@@ -572,6 +575,8 @@ async def generate_ai_plan(
     asset_ids: Optional[List[int]] = None,
     tenant_id: Optional[int] = None,
     start_date: Optional[date] = None,
+    include_weekends: bool = False,
+    workday_end_hour: int = 17,
 ) -> Dict[str, Any]:
     """
     Genera un piano manutenzione AI completo.
@@ -583,6 +588,8 @@ async def generate_ai_plan(
         asset_ids=asset_ids,
         tenant_id=tenant_id,
         start_date=start_date,
+        include_weekends=include_weekends,
+        workday_end_hour=workday_end_hour,
     )
 
     if not context["tickets"]:
@@ -707,7 +714,7 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         plan_result = json.loads(raw)
 
         # Integra splitting e calcolo orari (con buffer spostamento impianti #5)
-        technician_hours = {tc["id"]: tc.get("ore_giornaliere", 8) for tc in context["tecnici"]}
+        technician_hours = {tc["id"]: max(tc.get("ore_giornaliere", 8), workday_end_hour - 8) if workday_end_hour > 17 else tc.get("ore_giornaliere", 8) for tc in context["tecnici"]}
         # Mappa asset_id → impianto_id per il buffer spostamento
         asset_impianto_map: Dict[int, Optional[int]] = {}
         for t in context["tickets"]:
@@ -719,6 +726,8 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         plan_result["planned_workorders"] = calculate_split_assignments(
             plan_result.get("planned_workorders", []),
             technician_hours,
+            include_weekends=include_weekends,
+            workday_end=workday_end_hour,
         )
 
         # Calcola efficienza piano con parametri reali (#1, #13)
@@ -731,6 +740,7 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
             plan_start_date=today_d,
             plan_end_date=end_d,
             absences=context.get("assenze_map"),
+            include_weekends=include_weekends,
         )
         plan_result["efficiency_score"] = efficiency_data["efficiency_score"]
         plan_result["efficiency_breakdown"] = efficiency_data["efficiency_breakdown"]
@@ -762,10 +772,10 @@ BUFFER_IMPIANTO_DIVERSO = 1.0   # 1 ora buffer impianto diverso (#5)
 BUFFER_HOURS  = BUFFER_STESSO_IMPIANTO  # default legacy (compatibilità)
 
 
-def _next_workday(d: date) -> date:
-    """Ritorna il prossimo giorno lavorativo (salta sab/dom)."""
+def _next_workday(d: date, include_weekends: bool = False) -> date:
+    """Ritorna il prossimo giorno schedulabile."""
     next_d = d + timedelta(days=1)
-    while next_d.weekday() >= 5:
+    while not include_weekends and next_d.weekday() >= 5:
         next_d += timedelta(days=1)
     return next_d
 
@@ -783,6 +793,8 @@ def calculate_split_assignments(
     planned_wos: list,
     technician_hours: dict,
     asset_impianto_map: Optional[Dict[int, Optional[int]]] = None,
+    include_weekends: bool = False,
+    workday_end: int = 17,
 ) -> list:
     """
     Riceve la lista planned_workorders dall'AI (con wo_id, technician_id, planned_date, duration_hours)
@@ -840,7 +852,8 @@ def calculate_split_assignments(
                 buffer = BUFFER_STESSO_IMPIANTO
             start_h += buffer
 
-        available = WORKDAY_END - start_h
+        effective_workday_end = float(workday_end)
+        available = effective_workday_end - start_h
 
         enriched = {**wo}
 
@@ -864,7 +877,7 @@ def calculate_split_assignments(
             result.append(enriched)
         else:
             # Tronca al turno corrente
-            trunc_end = WORKDAY_END
+            trunc_end = effective_workday_end
             enriched["planned_start_time"] = _hours_to_time(start_h)
             enriched["planned_end_time"]   = _hours_to_time(trunc_end)
             enriched["is_continuation"]    = wo.get("is_continuation", False)
@@ -879,7 +892,7 @@ def calculate_split_assignments(
             # WO di continuazione
             remaining = duration - available
             try:
-                next_day = _next_workday(date.fromisoformat(day))
+                next_day = _next_workday(date.fromisoformat(day), include_weekends=include_weekends)
             except ValueError:
                 next_day = date.today() + timedelta(days=1)
 
@@ -906,7 +919,7 @@ def calculate_split_assignments(
         start_h = tech_day_end.get(key, WORKDAY_START)
         if start_h > WORKDAY_START:
             start_h += BUFFER_HOURS
-        end_h = min(start_h + duration, WORKDAY_END)
+        end_h = min(start_h + duration, float(workday_end))
         cont["planned_start_time"] = _hours_to_time(start_h)
         cont["planned_end_time"]   = _hours_to_time(end_h)
         cont["continuation_wos"]   = []
@@ -925,6 +938,7 @@ def calculate_plan_efficiency(
     plan_start_date: Optional[date] = None,
     plan_end_date: Optional[date] = None,
     absences: Optional[Dict[int, List[date]]] = None,
+    include_weekends: bool = False,
 ) -> Dict[str, Any]:
     """
     Calcola efficiency score 0-100 con breakdown per 5 fattori e motivazioni testuali.
@@ -962,7 +976,7 @@ def calculate_plan_efficiency(
             tid = tecnico.get("id")
             ore_gg = float(tecnico.get("ore_giornaliere", 8))
             # Giorni lavorativi teorici (lunedì-venerdì nell'orizzonte)
-            giorni_teorici = [d for d in range_dates if d.weekday() < 5]
+            giorni_teorici = range_dates if include_weekends else [d for d in range_dates if d.weekday() < 5]
             ore_teoriche += ore_gg * len(giorni_teorici)
             # Giorni lavorativi reali (escludi assenze)
             assenze_tecnico = (absences or {}).get(tid, [])

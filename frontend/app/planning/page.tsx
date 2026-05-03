@@ -48,6 +48,7 @@ interface TecnicoAPI {
   orario_inizio: string;
   orario_fine: string;
   stato: string;
+  assenza_corrente?: TecnicoData["assenza_corrente"];
 }
 
 // ─── Costanti Gantt ───────────────────────────────────────────────────────────
@@ -211,6 +212,7 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
 // ─── TecnicoLabel ─────────────────────────────────────────────────────────────
 
 function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
+  const assenza = tecnico.assenza_corrente;
   return (
     <div style={{
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
@@ -226,6 +228,26 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
         <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)", marginTop: 1 }}>
           {tecnico.skill ?? tecnico.competenze ?? ""}
         </div>
+        {assenza && (
+          <div
+            title={assenza.note || assenza.tipo_assenza}
+            style={{
+              display: "inline-flex",
+              marginTop: 6,
+              padding: "2px 7px",
+              borderRadius: 999,
+              border: "1px solid rgba(248,113,113,0.45)",
+              background: "rgba(127,29,29,0.28)",
+              color: "#fca5a5",
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
+            Assente · {assenza.tipo_assenza}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -457,6 +479,8 @@ export default function PianificazionePage() {
   const [replanModal, setReplanModal] = useState(false);
   // Selettore orizzonte pianificazione (#14)
   const [horizonDays, setHorizonDays] = useState(7);
+  const [includeWeekends, setIncludeWeekends] = useState(false);
+  const [allowOvertime, setAllowOvertime] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -495,11 +519,12 @@ export default function PianificazionePage() {
   // ── Statistiche backlog ─────────────────────────────────────────────────────
   const tipoCounts = useMemo(() => {
     const counts = { BD: 0, PM: 0, CM: 0 };
-    unscheduledTickets.forEach((t) => {
+    const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
+    unscheduledTickets.filter((t) => !plannedDraftIds.has(t.id)).forEach((t) => {
       if (t.tipo in counts) counts[t.tipo as keyof typeof counts]++;
     });
     return counts;
-  }, [unscheduledTickets]);
+  }, [planJson?.planned_workorders, unscheduledTickets]);
 
   const ganttTickets = useMemo(() => {
     const draftWos = planJson?.planned_workorders ?? [];
@@ -581,7 +606,12 @@ export default function PianificazionePage() {
   async function generateAIPlan() {
     setGenerando(true);
     try {
-      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", { days: horizonDays, mode: engineMode });
+      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
+        days: horizonDays,
+        mode: engineMode,
+        include_weekends: includeWeekends,
+        allow_overtime: allowOvertime,
+      });
       const { previous_efficiency_score: prevScore, ...cleanRes } = res;
       const newScore = res.plan_json?.efficiency_score;
       if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
@@ -708,7 +738,9 @@ export default function PianificazionePage() {
   const days = getDays(currentDate, view);
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * HOUR_W : days.length * cellW);
-  const filteredUnscheduled = filterTipo ? unscheduledTickets.filter((t) => t.tipo === filterTipo) : unscheduledTickets;
+  const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
+  const visibleUnscheduledTickets = unscheduledTickets.filter((t) => !plannedDraftIds.has(t.id));
+  const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
 
   const dateLabel =
     view === "day"
@@ -829,6 +861,38 @@ export default function PianificazionePage() {
             ))}
           </div>
 
+          <button
+            onClick={() => setIncludeWeekends((v) => !v)}
+            title="Include o esclude sabato e domenica dalla generazione piano"
+            style={{
+              padding: "5px 10px", fontSize: 10, fontWeight: 800,
+              borderRadius: 6,
+              border: includeWeekends ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(55,65,81,0.8)",
+              background: includeWeekends ? "rgba(6,95,70,0.45)" : "transparent",
+              color: includeWeekends ? "#86efac" : "rgba(148,163,184,0.75)",
+              cursor: "pointer", fontFamily: "inherit",
+              letterSpacing: "0.06em",
+            }}
+          >
+            {includeWeekends ? "SAB-DOM ON" : "LUN-VEN"}
+          </button>
+
+          <button
+            onClick={() => setAllowOvertime((v) => !v)}
+            title="Programma nel turno standard 08-17 o consenti estensione fino alle 21"
+            style={{
+              padding: "5px 10px", fontSize: 10, fontWeight: 800,
+              borderRadius: 6,
+              border: allowOvertime ? "1px solid rgba(245,158,11,0.5)" : "1px solid rgba(55,65,81,0.8)",
+              background: allowOvertime ? "rgba(120,53,15,0.45)" : "transparent",
+              color: allowOvertime ? "#fcd34d" : "rgba(148,163,184,0.75)",
+              cursor: "pointer", fontFamily: "inherit",
+              letterSpacing: "0.06em",
+            }}
+          >
+            {allowOvertime ? "08-21" : "08-17"}
+          </button>
+
           {/* Genera Piano AI */}
           <button onClick={generateAIPlan} disabled={generando} style={{
             background: generando ? "rgba(31,41,55,0.8)" : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
@@ -902,7 +966,7 @@ export default function PianificazionePage() {
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
                 {(["", "BD", "PM", "CM"] as const).map((tipo) => {
                   const color = tipo === "BD" ? "#ef4444" : tipo === "PM" ? "#22c55e" : tipo === "CM" ? "#f59e0b" : "#6b7280";
-                  const cnt = tipo ? tipoCounts[tipo] : unscheduledTickets.length;
+                  const cnt = tipo ? tipoCounts[tipo] : visibleUnscheduledTickets.length;
                   return (
                     <button key={tipo || "all"} onClick={() => setFilterTipo(tipo)} style={{
                       fontSize: 9, padding: "2px 7px",

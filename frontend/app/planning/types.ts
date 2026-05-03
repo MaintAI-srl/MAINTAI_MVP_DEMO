@@ -28,6 +28,12 @@ export interface TecnicoData {
   orario_inizio: string;
   orario_fine: string;
   stato: string;
+  assenza_corrente?: {
+    tipo_assenza: string;
+    note?: string | null;
+    data_inizio?: string | null;
+    data_fine?: string | null;
+  } | null;
 }
 
 export interface PlannedWO {
@@ -93,6 +99,8 @@ export interface PlanMetadata {
   ore_assegnate?: number | null;
   planning_start_date?: string;
   planning_end_date?: string;
+  include_weekends?: boolean;
+  workday_end_hour?: number;
 }
 
 export interface PlanJson {

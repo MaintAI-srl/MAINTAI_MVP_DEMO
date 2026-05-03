@@ -28,6 +28,7 @@ MAX_FIRMA_BYTES = 5 * 1024 * 1024  # 5 MB
 class BulkStatusUpdate(PydanticModel):
     ids: list[int]
     stato: str
+    asset_stato: Optional[str] = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
     is_manual_plan: Optional[bool] = None
@@ -183,6 +184,8 @@ def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), te
 
     for ticket in tickets:
         ticket.stato = data.stato
+        if data.asset_stato and ticket.asset:
+            ticket.asset.stato = data.asset_stato
 
         if data.stato == "Pianificato":
             ticket.planned_start = data.planned_start

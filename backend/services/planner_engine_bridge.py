@@ -34,6 +34,8 @@ from backend.services.planner_engine import (
     REASON_TIME_WINDOW_CONFLICT,
 )
 from backend.services.ai_planner_service import calculate_plan_efficiency
+from backend.services.ai_planner_service import _check_weather_constraint
+from backend.services.weather_service import WeatherData, get_weather_forecast
 from backend.core.logger_db import db_info
 
 logger = logging.getLogger(__name__)
@@ -128,6 +130,7 @@ def _has_job_skills(competenze: List[str]) -> bool:
 def _build_planner_tecnici(
     tecnici: List[Tecnico],
     assenze_map: Dict[int, List[date_type]],
+    workday_end_hour: int = 17,
 ) -> List[PlannerTecnico]:
     """
     Costruisce la lista PlannerTecnico con logica skill matching adattiva (#4):
@@ -148,14 +151,21 @@ def _build_planner_tecnici(
             for tipo in _TIPO_IMPLICITI:
                 if tipo not in comp:
                     comp.append(tipo)
+        orario_inizio = t.orario_inizio or "08:00"
+        orario_fine = f"{workday_end_hour:02d}:00" if workday_end_hour > 17 else (t.orario_fine or "17:00")
+        try:
+            start_h = int(orario_inizio.split(":", 1)[0])
+        except (ValueError, IndexError):
+            start_h = 8
+        ore_giornaliere = max(t.ore_giornaliere or 8, workday_end_hour - start_h) if workday_end_hour > 17 else (t.ore_giornaliere or 8)
         result.append(PlannerTecnico(
             id=t.id,
             nome=f"{t.nome} {t.cognome or ''}".strip(),
             stato="in_servizio",
             competenze=comp,
-            ore_giornaliere=t.ore_giornaliere or 8,
-            orario_inizio=t.orario_inizio or "08:00",
-            orario_fine=t.orario_fine or "17:00",
+            ore_giornaliere=ore_giornaliere,
+            orario_inizio=orario_inizio,
+            orario_fine=orario_fine,
             limitazioni=_split_competenze(t.limitazioni_orarie or ""),
             giorni_assenza=assenze_map.get(t.id, []),
         ))
@@ -168,6 +178,7 @@ def _build_planner_tickets(
     db: Optional[Session] = None,
     tenant_id: Optional[int] = None,
     planning_start: Optional[date_type] = None,
+    weather_blocked_days: Optional[Dict[int, List[date_type]]] = None,
 ) -> List[PlannerTicket]:
     today_ref = planning_start or date_type.today()
     result = []
@@ -217,6 +228,8 @@ def _build_planner_tickets(
             while d <= horizon_end:
                 giorni_non_operativi.append(d)
                 d += timedelta(days=1)
+        if t.asset_id and weather_blocked_days:
+            giorni_non_operativi.extend(weather_blocked_days.get(t.asset_id, []))
 
         result.append(PlannerTicket(
             id=t.id,
@@ -296,6 +309,8 @@ async def generate_deterministic_plan(
     asset_ids: Optional[List[int]] = None,
     tenant_id: Optional[int] = None,
     start_date: Optional[date_type] = None,
+    include_weekends: bool = False,
+    workday_end_hour: int = 17,
 ) -> Dict[str, Any]:
     """
     Genera un piano manutenzione usando il PlannerEngine deterministico.
@@ -388,15 +403,37 @@ async def generate_deterministic_plan(
     asset_ids_set = list({t.asset_id for t in tickets if t.asset_id})
     assets = db.query(Asset).filter(Asset.id.in_(asset_ids_set)).all() if asset_ids_set else []
     asset_map: Dict[int, Asset] = {a.id: a for a in assets}
+    weather_blocked_days: Dict[int, List[date_type]] = {}
+    weather_global_warnings: List[str] = []
+    for asset in assets:
+        constraint = getattr(asset, "weather_constraint", None)
+        if not constraint or constraint == "NONE":
+            continue
+        lat = getattr(asset, "latitude", None)
+        lon = getattr(asset, "longitude", None)
+        if lat is None or lon is None:
+            weather_global_warnings.append(
+                f"Meteo non valutabile per asset {asset.nome or asset.id}: coordinate mancanti."
+            )
+            continue
+        d = today
+        while d <= horizon_end:
+            if include_weekends or d.weekday() < 5:
+                weather = await get_weather_forecast(lat, lon, d)
+                warning = _check_weather_constraint(constraint, weather)
+                if warning and weather is not None:
+                    weather_blocked_days.setdefault(asset.id, []).append(d)
+            d += timedelta(days=1)
 
     # ── Conversione ORM → strutture PlannerEngine ─────────────────────────────
-    planner_tecnici = _build_planner_tecnici(tecnici, assenze_map)
+    planner_tecnici = _build_planner_tecnici(tecnici, assenze_map, workday_end_hour=workday_end_hour)
     planner_tickets = _build_planner_tickets(
         tickets,
         asset_map,
         db=db,
         tenant_id=tenant_id,
         planning_start=today,
+        weather_blocked_days=weather_blocked_days,
     )
     existing_assignments = _build_existing_assignments(locked_tickets)
 
@@ -428,6 +465,7 @@ async def generate_deterministic_plan(
             existing_assignments=existing_assignments,
             today=today,
             horizon_days=days,
+            include_weekends=include_weekends,
             slot_minutes=30,  # tracking a granularità 30min — evita sovrapposizioni sub-orarie
         )
         engine_result = engine.run()
@@ -526,7 +564,7 @@ async def generate_deterministic_plan(
         "planned_workorders":  planned_workorders,
         "deferred_workorders": deferred_workorders,
         "fermo_assets":        [],
-        "global_warnings":     [],
+        "global_warnings":     weather_global_warnings,
     }
 
     # ── Calcola feedback scores per tecnico (confidence retroalimentato #11) ──
@@ -571,7 +609,7 @@ async def generate_deterministic_plan(
 
     # ── Calcola punteggio efficienza ──────────────────────────────────────────
     tecnici_data = [
-        {"id": t.id, "ore_giornaliere": t.ore_giornaliere or 8}
+        {"id": t.id, "ore_giornaliere": max(t.ore_giornaliere or 8, workday_end_hour - 8) if workday_end_hour > 17 else (t.ore_giornaliere or 8)}
         for t in tecnici
     ]
     try:
@@ -582,6 +620,7 @@ async def generate_deterministic_plan(
             plan_start_date=today,
             plan_end_date=horizon_end,
             absences=assenze_map,
+            include_weekends=include_weekends,
         )
         plan_json["efficiency_score"]       = efficiency_data["efficiency_score"]
         plan_json["efficiency_breakdown"]   = efficiency_data["efficiency_breakdown"]

@@ -18,6 +18,7 @@ export default function GlobalQuickTicket() {
   const [assetId, setAssetId] = useState<string>("");
   const [priorita, setPriorita] = useState("Media");
   const [tipo, setTipo] = useState("BD");
+  const [assetStato, setAssetStato] = useState("out of service");
 
   useEffect(() => {
     if (open && assets.length === 0) {
@@ -38,6 +39,7 @@ export default function GlobalQuickTicket() {
         asset_id: assetId ? Number(assetId) : undefined,
         priorita,
         tipo,
+        asset_stato: assetStato || null,
         stato: "Aperto",
         durata_stimata_ore: 1, // default
         fascia_oraria: "diurna" 
@@ -49,6 +51,7 @@ export default function GlobalQuickTicket() {
       setAssetId("");
       setPriorita("Media");
       setTipo("BD");
+      setAssetStato("out of service");
     } catch (err: any) {
       notify.error(err.message || "Errore nella creazione");
     } finally {
@@ -149,7 +152,10 @@ export default function GlobalQuickTicket() {
                     <button 
                       key={t}
                       type="button"
-                      onClick={() => setTipo(t)}
+                      onClick={() => {
+                        setTipo(t);
+                        setAssetStato(t === "BD" ? "out of service" : "stopped");
+                      }}
                       style={{ 
                         flex: 1,
                         padding: "6px 0",
@@ -187,6 +193,37 @@ export default function GlobalQuickTicket() {
                   <option value="Media">Media</option>
                   <option value="Bassa">Bassa</option>
                 </select>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Stato asset</label>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {[
+                  { value: "", label: "Mantieni", color: "#94a3b8" },
+                  { value: "service", label: "Service", color: "#34d399" },
+                  { value: "stopped", label: "Fermo", color: "#fbbf24" },
+                  { value: "out of service", label: "OOS", color: "#f87171" },
+                ].map((s) => (
+                  <button
+                    key={s.value || "keep"}
+                    type="button"
+                    onClick={() => setAssetStato(s.value)}
+                    style={{
+                      flex: "1 1 76px",
+                      padding: "6px 8px",
+                      borderRadius: 5,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      border: assetStato === s.value ? `1px solid ${s.color}` : "1px solid #334155",
+                      background: assetStato === s.value ? `${s.color}22` : "#1e293b",
+                      color: assetStato === s.value ? s.color : "#94a3b8",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
               </div>
             </div>
 

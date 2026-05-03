@@ -38,6 +38,12 @@ type PagedResult = { items: Ticket[]; total: number; page: number; pages: number
 const STATI = ["Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"];
 const STATI_ATTIVI = ["Aperto", "Pianificato", "In corso"];
 const STATI_ARCHIVIO = ["Chiuso", "Eliminato"];
+const ASSET_STATE_OPTIONS = [
+  { value: "", label: "Mantieni", color: "#94a3b8" },
+  { value: "service", label: "Service", color: "#34d399" },
+  { value: "stopped", label: "Fermo", color: "#fbbf24" },
+  { value: "out of service", label: "OOS", color: "#f87171" },
+];
 
 function statoStyle(s: string): React.CSSProperties {
   switch (s?.toLowerCase()) {
@@ -231,7 +237,7 @@ type DetailModalProps = {
 
 function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [stato, setStato] = useState(ticket.stato);
-  const [assetStato] = useState(ticket.asset_stato ?? "");
+  const [assetStato, setAssetStato] = useState(ticket.asset_stato ?? "");
   const [plannedStart, setPlannedStart] = useState(toDatetimeLocal(ticket.planned_start));
   const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
   const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
@@ -262,9 +268,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       setPlannedFinish("");
     }
     // Se passa a In Corso, imposta inizio se vuoto
-    if (s === "In corso" && !executionStart) setExecutionStart(nowDatetimeLocal());
+    if (s === "In corso") {
+      if (!executionStart) setExecutionStart(nowDatetimeLocal());
+      setAssetStato("stopped");
+    }
     // Se passa a Chiuso, imposta fine se vuoto
-    if (s === "Chiuso" && !executionFinish) setExecutionFinish(nowDatetimeLocal());
+    if (s === "Chiuso") {
+      if (!executionFinish) setExecutionFinish(nowDatetimeLocal());
+      setAssetStato("service");
+    }
   }
 
   // Automazione: Cambio Data Pianificazione
@@ -403,6 +415,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           {stato === "Pianificato" && !plannedStart && (
             <div style={{ fontSize: 11, color: "#f87171", marginTop: 8 }}>La data di inizio è obbligatoria per lo stato Pianificato.</div>
           )}
+        </div>
+
+        <div style={{ marginBottom: 32 }}>
+          <label style={{ ...modalLabel, fontSize: 11, marginBottom: 10 }}>Stato asset</label>
+          <ButtonPicker
+            options={ASSET_STATE_OPTIONS}
+            value={assetStato}
+            onChange={setAssetStato}
+          />
         </div>
 
         {/* Sezione Esecuzione Dinamica */}
@@ -636,8 +657,9 @@ export default function TicketPage() {
     if (!assetId || assetId === 0) { notify.error("Seleziona un asset valido."); return; }
     if (durataOre <= 0) { notify.error("La durata deve essere maggiore di zero."); return; }
     try {
+      const autoAssetStato = assetStato || (tipo === "BD" ? "out of service" : stato === "In corso" ? "stopped" : "");
       await apiPost("/tickets", {
-        titolo, asset_id: Number(assetId), priorita, stato, tipo, asset_stato: assetStato || null,
+        titolo, asset_id: Number(assetId), priorita, stato, tipo, asset_stato: autoAssetStato || null,
         durata_stimata_ore: Number(durataOre), fascia_oraria: fascia,
         planned_start: plannedStart || null,
         planned_finish: plannedFinish || null,
@@ -685,6 +707,8 @@ export default function TicketPage() {
     try {
       const body: Record<string, string | null | boolean> = { stato: nuovoStato };
       if (nuovoStato === "Aperto") { body.planned_start = null; body.planned_finish = null; body.is_manual_plan = false; }
+      if (nuovoStato === "In corso") body.asset_stato = "stopped";
+      if (nuovoStato === "Chiuso") body.asset_stato = "service";
       await apiPut(`/tickets/${ticketId}`, body);
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { notify.error("Errore aggiornamento stato."); }
@@ -722,7 +746,11 @@ export default function TicketPage() {
       return;
     }
     try {
-      await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: nuovoStato });
+      await apiPatch("/tickets/bulk-status", {
+        ids: Array.from(selectedIds),
+        stato: nuovoStato,
+        asset_stato: nuovoStato === "In corso" ? "stopped" : nuovoStato === "Chiuso" ? "service" : undefined,
+      });
       setSelectedIds(new Set());
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
     } catch { notify.error("Errore aggiornamento bulk."); }
@@ -1034,7 +1062,10 @@ export default function TicketPage() {
                 { value: "ISP", label: "ISP", color: "#3b82f6" },
               ]}
               value={tipo}
-              onChange={setTipo}
+              onChange={(v) => {
+                setTipo(v);
+                if (!assetStato) setAssetStato(v === "BD" ? "out of service" : "service");
+              }}
             />
           </div>
           <div>
@@ -1051,12 +1082,11 @@ export default function TicketPage() {
           </div>
           <div>
             <label className="label">Nuovo stato asset</label>
-            <select className="select" value={assetStato} onChange={e => setAssetStato(e.target.value)}>
-              <option value="">(Non modificare)</option>
-              <option value="service">Service</option>
-              <option value="stopped">Stopped</option>
-              <option value="out of service">Out of Service</option>
-            </select>
+            <ButtonPicker
+              options={ASSET_STATE_OPTIONS}
+              value={assetStato}
+              onChange={setAssetStato}
+            />
           </div>
           <div>
             <label className="label">Stato Ticket</label>

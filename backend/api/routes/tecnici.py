@@ -1,5 +1,5 @@
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from calendar import monthrange
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,7 +28,30 @@ def _working_days_in_range(start: date, end: date) -> int:
 
 @router.get("/tecnici")
 def get_tecnici(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    return tecnico_repository.get_all(db, tenant_id)
+    tecnici = tecnico_repository.get_all(db, tenant_id)
+    today = date.today()
+    day_start = datetime.combine(today, time.min)
+    day_end = datetime.combine(today, time.max)
+    ids = [t["id"] for t in tecnici]
+    if not ids:
+        return tecnici
+    assenze = db.query(TecnicoAssenza).filter(
+        TecnicoAssenza.tecnico_id.in_(ids),
+        TecnicoAssenza.data_inizio <= day_end,
+        TecnicoAssenza.data_fine >= day_start,
+    )
+    if tenant_id is not None:
+        assenze = assenze.filter(TecnicoAssenza.tenant_id == tenant_id)
+    assenze_by_tecnico = {a.tecnico_id: a for a in assenze.all()}
+    for tecnico in tecnici:
+        assenza = assenze_by_tecnico.get(tecnico["id"])
+        tecnico["assenza_corrente"] = None if not assenza else {
+            "tipo_assenza": assenza.tipo_assenza,
+            "note": assenza.note,
+            "data_inizio": assenza.data_inizio.isoformat() if assenza.data_inizio else None,
+            "data_fine": assenza.data_fine.isoformat() if assenza.data_fine else None,
+        }
+    return tecnici
 
 
 @router.get("/tecnici/disponibili")

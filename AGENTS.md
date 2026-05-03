@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guida per Codex su questo repository. Aggiornato alla versione **3.1.3** (2026-04-27).
+Guida per Codex su questo repository. Aggiornato alla versione **3.1.7** (2026-05-01).
 
 ---
 
