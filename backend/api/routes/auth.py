@@ -19,7 +19,7 @@ STRONG_PWD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
 
     user = (
