@@ -503,3 +503,62 @@ class PlannerFeedback(Base):
     asset_id = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, default=_utcnow)
+
+
+class FailureMode(Base):
+    """Knowledge base FMECA — dati standard per tipo asset industriale."""
+    __tablename__ = "failure_modes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_type = Column(String, nullable=False, index=True)
+    component = Column(String, nullable=False)
+    failure_mode = Column(String, nullable=False)
+    failure_cause = Column(String, nullable=True)
+    failure_effect = Column(String, nullable=True)
+    detection_method = Column(String, nullable=True)
+    recommended_action = Column(String, nullable=True)
+    mtbf_hours = Column(Float, nullable=True)
+    severity = Column(Integer, nullable=False, default=5)
+    occurrence = Column(Integer, nullable=False, default=5)
+    detectability = Column(Integer, nullable=False, default=5)
+    rpn = Column(Integer, nullable=False, default=125)
+    peso_appreso = Column(Float, default=1.0)
+    source = Column(String, default="seed")
+    is_global = Column(Boolean, default=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+
+class FailureAnalysis(Base):
+    """Risultato analisi FIE per un ticket — top 3 failure modes suggeriti."""
+    __tablename__ = "failure_analysis"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=False)
+    failure_mode_id = Column(Integer, ForeignKey("failure_modes.id"), nullable=False)
+    probability_score = Column(Float, nullable=False)
+    rpn_weighted = Column(Float, nullable=False)
+    ai_explanation = Column(Text, nullable=True)
+    selected = Column(Boolean, default=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    failure_mode = relationship("FailureMode")
+
+
+class DiagnosticLearning(Base):
+    """Storico conferme tecnico — alimenta il learning loop."""
+    __tablename__ = "diagnostic_learning"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=False)
+    symptoms = Column(Text, nullable=False)
+    diagnosed_failure_mode_id = Column(Integer, ForeignKey("failure_modes.id"), nullable=True)
+    real_cause = Column(Text, nullable=False)
+    action_taken = Column(Text, nullable=False)
+    resolution_time_minutes = Column(Integer, nullable=True)
+    success = Column(Boolean, default=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    failure_mode = relationship("FailureMode")

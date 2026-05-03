@@ -5,8 +5,10 @@ from backend.core.database import engine, Base
 from backend.db.modelli import (  # noqa: F401
     Tenant, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
-    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan, RevokedToken
+    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan, RevokedToken,
+    FailureMode, FailureAnalysis, DiagnosticLearning,
 )
+from backend.core.failure_seed import seed_failure_modes
 
 
 def _apply_migrations():
@@ -69,6 +71,11 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _apply_migrations()
     _seed_tenant_and_migrate_data()
+
+    # Seed knowledge base FMECA per Failure Intelligence Engine
+    from backend.core.database import SessionLocal
+    with SessionLocal() as db:
+        seed_failure_modes(db)
 
     # Seed default users
     import os

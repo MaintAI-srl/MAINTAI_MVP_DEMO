@@ -34,6 +34,7 @@ const SLOW_ENDPOINTS: RegExp[] = [
   /\/problem-analysis/,
   /\/diagnostic/,
   /\/piani-manutenzione.*import/,
+  /\/failure\/tickets\/\d+\/analyze/,
 ];
 
 function timeoutForPath(path: string): number {

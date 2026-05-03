@@ -41,6 +41,7 @@ try:
     from backend.api.routes.utenti import router as utenti_router
     from backend.api.routes.desktop_update import router as desktop_update_router
     from backend.api.routes.conditions import router as conditions_router
+    from backend.api.routes.failure_engine import router as failure_engine_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -193,6 +194,13 @@ def _ensure_columns() -> None:
         # attivita_manutenzione — collegamento strutturale al piano (v2.5.1)
         ("attivita_manutenzione", "piano_id",                "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}piano_id INTEGER"),
         ("attivita_manutenzione", "is_repeatable",           "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}is_repeatable BOOLEAN DEFAULT TRUE"),
+        # failure_modes — FIE knowledge base (v3.2.0)
+        ("failure_modes", "mtbf_hours",   "ALTER TABLE failure_modes ADD COLUMN {ifne}mtbf_hours FLOAT"),
+        ("failure_modes", "peso_appreso", "ALTER TABLE failure_modes ADD COLUMN {ifne}peso_appreso FLOAT DEFAULT 1.0"),
+        ("failure_modes", "source",       "ALTER TABLE failure_modes ADD COLUMN {ifne}source VARCHAR DEFAULT 'seed'"),
+        ("failure_modes", "is_global",    "ALTER TABLE failure_modes ADD COLUMN {ifne}is_global BOOLEAN DEFAULT TRUE"),
+        # failure_analysis — spiegazione AI (v3.2.0)
+        ("failure_analysis", "ai_explanation", "ALTER TABLE failure_analysis ADD COLUMN {ifne}ai_explanation TEXT"),
     ]
 
     # system_logs — tabella intera
@@ -373,12 +381,119 @@ def _ensure_columns() -> None:
             )
         """
 
+        # failure_modes — knowledge base FMECA (FIE v3.2.0)
+        fm_pg = """
+            CREATE TABLE IF NOT EXISTS failure_modes (
+                id SERIAL PRIMARY KEY,
+                asset_type VARCHAR NOT NULL,
+                component VARCHAR NOT NULL,
+                failure_mode VARCHAR NOT NULL,
+                failure_cause VARCHAR,
+                failure_effect VARCHAR,
+                detection_method VARCHAR,
+                recommended_action VARCHAR,
+                mtbf_hours FLOAT,
+                severity INTEGER NOT NULL DEFAULT 5,
+                occurrence INTEGER NOT NULL DEFAULT 5,
+                detectability INTEGER NOT NULL DEFAULT 5,
+                rpn INTEGER NOT NULL DEFAULT 125,
+                peso_appreso FLOAT DEFAULT 1.0,
+                source VARCHAR DEFAULT 'seed',
+                is_global BOOLEAN DEFAULT TRUE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """
+        fm_sqlite = """
+            CREATE TABLE IF NOT EXISTS failure_modes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_type VARCHAR NOT NULL,
+                component VARCHAR NOT NULL,
+                failure_mode VARCHAR NOT NULL,
+                failure_cause VARCHAR,
+                failure_effect VARCHAR,
+                detection_method VARCHAR,
+                recommended_action VARCHAR,
+                mtbf_hours FLOAT,
+                severity INTEGER NOT NULL DEFAULT 5,
+                occurrence INTEGER NOT NULL DEFAULT 5,
+                detectability INTEGER NOT NULL DEFAULT 5,
+                rpn INTEGER NOT NULL DEFAULT 125,
+                peso_appreso FLOAT DEFAULT 1.0,
+                source VARCHAR DEFAULT 'seed',
+                is_global BOOLEAN DEFAULT TRUE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+
+        # failure_analysis — risultati FIE per ticket (FIE v3.2.0)
+        fa_pg = """
+            CREATE TABLE IF NOT EXISTS failure_analysis (
+                id SERIAL PRIMARY KEY,
+                ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+                failure_mode_id INTEGER NOT NULL REFERENCES failure_modes(id),
+                probability_score FLOAT NOT NULL,
+                rpn_weighted FLOAT NOT NULL,
+                ai_explanation TEXT,
+                selected BOOLEAN DEFAULT FALSE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """
+        fa_sqlite = """
+            CREATE TABLE IF NOT EXISTS failure_analysis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+                failure_mode_id INTEGER NOT NULL REFERENCES failure_modes(id),
+                probability_score FLOAT NOT NULL,
+                rpn_weighted FLOAT NOT NULL,
+                ai_explanation TEXT,
+                selected BOOLEAN DEFAULT FALSE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+
+        # diagnostic_learning — storico conferme tecnico (FIE v3.2.0)
+        dl_pg = """
+            CREATE TABLE IF NOT EXISTS diagnostic_learning (
+                id SERIAL PRIMARY KEY,
+                ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+                symptoms TEXT NOT NULL,
+                diagnosed_failure_mode_id INTEGER REFERENCES failure_modes(id),
+                real_cause TEXT NOT NULL,
+                action_taken TEXT NOT NULL,
+                resolution_time_minutes INTEGER,
+                success BOOLEAN DEFAULT TRUE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """
+        dl_sqlite = """
+            CREATE TABLE IF NOT EXISTS diagnostic_learning (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+                symptoms TEXT NOT NULL,
+                diagnosed_failure_mode_id INTEGER REFERENCES failure_modes(id),
+                real_cause TEXT NOT NULL,
+                action_taken TEXT NOT NULL,
+                resolution_time_minutes INTEGER,
+                success BOOLEAN DEFAULT TRUE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+
         # 1. Crea le tabelle complete se non esistono
         _exec_ddl(sl_pg if pg else sl_sqlite, "system_logs CREATE")
         _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
         _exec_ddl(paa_pg if pg else paa_sqlite, "piani_assets_association CREATE")
         _exec_ddl(pf_pg if pg else pf_sqlite, "planner_feedback CREATE")
         _exec_ddl(acr_pg if pg else acr_sqlite, "asset_condition_readings CREATE")
+        _exec_ddl(fm_pg if pg else fm_sqlite, "failure_modes CREATE")
+        _exec_ddl(fa_pg if pg else fa_sqlite, "failure_analysis CREATE")
+        _exec_ddl(dl_pg if pg else dl_sqlite, "diagnostic_learning CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:
@@ -513,6 +628,7 @@ app.include_router(piano_manutenzione_router)
 app.include_router(utenti_router)
 app.include_router(desktop_update_router)
 app.include_router(conditions_router)
+app.include_router(failure_engine_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.

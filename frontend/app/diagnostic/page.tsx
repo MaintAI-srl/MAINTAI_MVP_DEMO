@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { apiPost, apiGet } from "@/app/lib/api";
+import { notify } from "@/lib/toast";
 
 type StepType = "question" | "check" | "conclusion";
 
@@ -30,6 +31,349 @@ interface TicketOption {
   tipo: string;
   stato: string;
   priorita: string;
+}
+
+// ── Tipi FIE ──────────────────────────────────────────────────────────────────
+interface FailureModeResult {
+  rank: number;
+  failure_mode_id: number;
+  component: string;
+  failure_mode: string;
+  failure_cause: string | null;
+  failure_effect: string | null;
+  detection_method: string | null;
+  recommended_action: string | null;
+  severity: number;
+  occurrence: number;
+  detectability: number;
+  rpn: number;
+  rpn_class: "LOW" | "MEDIUM" | "HIGH";
+  probability_score: number;
+  mtbf_hours: number | null;
+  ai_explanation: string;
+}
+
+interface FIEAnalysisResult {
+  failure_modes_ranked: FailureModeResult[];
+  most_probable_cause: string;
+  recommended_actions: string[];
+  priority: string;
+  confidence_score: number;
+  explanation: string;
+  asset_type_used: string;
+}
+
+const ASSET_TYPES = [
+  { value: "motore_elettrico", label: "Motore Elettrico" },
+  { value: "pompa_centrifuga", label: "Pompa Centrifuga" },
+  { value: "compressore", label: "Compressore" },
+  { value: "quadro_elettrico", label: "Quadro Elettrico" },
+  { value: "valvola_industriale", label: "Valvola Industriale" },
+  { value: "nastro_trasportatore", label: "Nastro Trasportatore" },
+  { value: "generico", label: "Generico / Altro" },
+];
+
+// ── Badge RPN ─────────────────────────────────────────────────────────────────
+function RpnBadge({ cls, rpn }: { cls: string; rpn: number }) {
+  const color = cls === "HIGH" ? "#ef4444" : cls === "MEDIUM" ? "#f59e0b" : "#22c55e";
+  const bg = cls === "HIGH" ? "#ef444418" : cls === "MEDIUM" ? "#f59e0b18" : "#22c55e18";
+  return (
+    <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 3, fontWeight: 700, color, background: bg, border: `1px solid ${color}44`, fontFamily: "monospace" }}>
+      RPN {rpn} · {cls}
+    </span>
+  );
+}
+
+// ── FIE Panel ─────────────────────────────────────────────────────────────────
+function FIEPanel({ ticketId }: { ticketId: string }) {
+  const [open, setOpen] = useState(false);
+  const [symptoms, setSymptoms] = useState("");
+  const [assetType, setAssetType] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState<FIEAnalysisResult | null>(null);
+
+  // Conferma
+  const [selectedFmId, setSelectedFmId] = useState<number | "other">("other");
+  const [realCause, setRealCause] = useState("");
+  const [actionTaken, setActionTaken] = useState("");
+  const [resolutionTime, setResolutionTime] = useState("");
+  const [successFlag, setSuccessFlag] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
+
+  async function handleAnalyze() {
+    if (!symptoms.trim()) {
+      notify.warning("Inserisci i sintomi prima di avviare l'analisi.");
+      return;
+    }
+    setAnalyzing(true);
+    setResult(null);
+    setSavedOk(false);
+    try {
+      const data = await apiPost<FIEAnalysisResult>(`/failure/tickets/${ticketId}/analyze`, {
+        symptoms: symptoms.trim(),
+        asset_type: assetType,
+        description: "",
+      });
+      setResult(data);
+      if (data.failure_modes_ranked.length > 0) {
+        setSelectedFmId(data.failure_modes_ranked[0].failure_mode_id);
+      }
+    } catch {
+      notify.error("Errore durante l'analisi FIE. Riprova.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleSaveLearn() {
+    if (!realCause.trim() || !actionTaken.trim()) {
+      notify.warning("Compila causa reale e azione intrapresa prima di salvare.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost(`/failure/tickets/${ticketId}/confirm`, {
+        failure_mode_id: selectedFmId === "other" ? 0 : selectedFmId,
+        symptoms: symptoms.trim(),
+        real_cause: realCause.trim(),
+        action_taken: actionTaken.trim(),
+        resolution_time_minutes: parseInt(resolutionTime || "0", 10),
+        success: successFlag,
+      });
+      setSavedOk(true);
+      setTimeout(() => setSavedOk(false), 3000);
+      setRealCause("");
+      setActionTaken("");
+      setResolutionTime("");
+    } catch {
+      notify.error("Errore nel salvataggio del learning. Riprova.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const panelStyle: React.CSSProperties = {
+    width: "100%",
+    maxWidth: 680,
+    margin: "0 auto",
+    border: "1px solid #374151",
+    background: "#0a0f1e",
+    fontFamily: "'IBM Plex Mono', 'Courier New', monospace",
+  };
+
+  const headerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 16px",
+    borderBottom: open ? "1px solid #374151" : "none",
+    cursor: "pointer",
+    background: "#111827",
+    userSelect: "none",
+  };
+
+  return (
+    <div style={panelStyle}>
+      {/* Header collassabile */}
+      <div style={headerStyle} onClick={() => setOpen(o => !o)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, letterSpacing: "0.15em", color: "#6366f1", fontWeight: 700 }}>FIE</span>
+          <span style={{ fontSize: 11, letterSpacing: "0.12em", color: "#9ca3af" }}>FAILURE INTELLIGENCE ENGINE</span>
+        </div>
+        <span style={{ fontSize: 12, color: "#6b7280" }}>{open ? "▲" : "▼"}</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Form analisi */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <label style={{ fontSize: 10, letterSpacing: "0.12em", color: "#6b7280" }}>SINTOMI OSSERVATI *</label>
+            <textarea
+              value={symptoms}
+              onChange={e => setSymptoms(e.target.value)}
+              placeholder="Descrivi i sintomi: rumore, vibrazione, temperatura, perdite, errori..."
+              rows={3}
+              style={{ background: "#111827", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", resize: "vertical", outline: "none" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 10, letterSpacing: "0.12em", color: "#6b7280", display: "block", marginBottom: 6 }}>TIPO ASSET</label>
+              <select
+                value={assetType}
+                onChange={e => setAssetType(e.target.value)}
+                style={{ width: "100%", background: "#111827", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", outline: "none" }}
+              >
+                <option value="">— Auto-detect dall&apos;asset —</option>
+                {ASSET_TYPES.map(at => (
+                  <option key={at.value} value={at.value}>{at.label}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing || !symptoms.trim()}
+              style={{ padding: "8px 20px", background: "transparent", border: "1px solid #6366f1", color: analyzing ? "#6b7280" : "#6366f1", fontSize: 11, letterSpacing: "0.12em", cursor: analyzing || !symptoms.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: analyzing || !symptoms.trim() ? 0.5 : 1, whiteSpace: "nowrap" }}
+            >
+              {analyzing ? "ANALISI..." : "ANALIZZA"}
+            </button>
+          </div>
+
+          {/* Spinner */}
+          {analyzing && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6b7280", fontSize: 11 }}>
+              <div style={{ width: 14, height: 14, border: "2px solid #374151", borderTop: "2px solid #6366f1", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+              <span>Analisi AI in corso sulla knowledge base FMECA...</span>
+            </div>
+          )}
+
+          {/* Risultati */}
+          {result && !analyzing && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Sintesi */}
+              <div style={{ background: "#111827", border: "1px solid #1f2937", padding: "10px 14px" }}>
+                <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280", marginBottom: 6 }}>ANALISI AI — {result.asset_type_used.toUpperCase()}</div>
+                <div style={{ fontSize: 12, color: "#e5e7eb", lineHeight: 1.5, marginBottom: 6 }}>{result.most_probable_cause || result.explanation || "Nessuna causa identificata."}</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, color: "#6b7280" }}>Confidenza:</span>
+                  <span style={{ fontSize: 10, color: result.confidence_score >= 0.7 ? "#22c55e" : result.confidence_score >= 0.4 ? "#f59e0b" : "#ef4444" }}>
+                    {Math.round(result.confidence_score * 100)}%
+                  </span>
+                  <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 8 }}>Priorità:</span>
+                  <span style={{ fontSize: 10, color: result.priority === "HIGH" ? "#ef4444" : result.priority === "MEDIUM" ? "#f59e0b" : "#22c55e" }}>{result.priority}</span>
+                </div>
+              </div>
+
+              {result.failure_modes_ranked.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#6b7280", textAlign: "center", padding: "12px 0" }}>
+                  Nessun failure mode trovato per questo tipo asset. Aggiungi dati FMECA nella knowledge base.
+                </div>
+              ) : (
+                <>
+                  {/* Top 3 failure modes */}
+                  <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>TOP 3 FAILURE MODES IDENTIFICATI</div>
+                  {result.failure_modes_ranked.map((fm, i) => (
+                    <div key={fm.failure_mode_id} style={{ border: "1px solid #1f2937", background: "#111827", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>#{i + 1}</span>
+                          <span style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 600 }}>{fm.failure_mode}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <RpnBadge cls={fm.rpn_class} rpn={fm.rpn} />
+                          <span style={{ fontSize: 10, color: "#22c55e" }}>{Math.round(fm.probability_score)}%</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                        <span style={{ color: "#6b7280" }}>Componente: </span>{fm.component}
+                        {fm.mtbf_hours != null && fm.mtbf_hours > 0 && (
+                          <span style={{ marginLeft: 12, color: "#6b7280" }}>MTBF: {fm.mtbf_hours.toLocaleString("it-IT")}h</span>
+                        )}
+                      </div>
+                      {fm.failure_cause && (
+                        <div style={{ fontSize: 11, color: "#9ca3af", borderLeft: "2px solid #374151", paddingLeft: 8 }}>
+                          <span style={{ color: "#6b7280" }}>Causa: </span>{fm.failure_cause}
+                        </div>
+                      )}
+                      {fm.ai_explanation && (
+                        <div style={{ fontSize: 11, color: "#6366f1", fontStyle: "italic" }}>{fm.ai_explanation}</div>
+                      )}
+                      {fm.recommended_action && (
+                        <div style={{ fontSize: 11, color: "#22c55e" }}>
+                          <span style={{ color: "#6b7280" }}>Azione: </span>{fm.recommended_action}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Sezione conferma / learning */}
+                  <div style={{ borderTop: "1px solid #1f2937", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>CONFERMA E APPRENDIMENTO</div>
+
+                    <div>
+                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>CAUSA CONFERMATA</label>
+                      <select
+                        value={selectedFmId === "other" ? "other" : String(selectedFmId)}
+                        onChange={e => setSelectedFmId(e.target.value === "other" ? "other" : parseInt(e.target.value, 10))}
+                        style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                      >
+                        {result.failure_modes_ranked.map(fm => (
+                          <option key={fm.failure_mode_id} value={fm.failure_mode_id}>
+                            #{fm.rank} — {fm.failure_mode} ({fm.component})
+                          </option>
+                        ))}
+                        <option value="other">Altro (non in lista)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>CAUSA REALE *</label>
+                      <textarea
+                        value={realCause}
+                        onChange={e => setRealCause(e.target.value)}
+                        placeholder="Descrivi la causa effettiva riscontrata..."
+                        rows={2}
+                        style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>AZIONE INTRAPRESA *</label>
+                      <textarea
+                        value={actionTaken}
+                        onChange={e => setActionTaken(e.target.value)}
+                        placeholder="Descrivi l'intervento eseguito..."
+                        rows={2}
+                        style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>TEMPO RISOLUZIONE (min)</label>
+                        <input
+                          type="number"
+                          value={resolutionTime}
+                          onChange={e => setResolutionTime(e.target.value)}
+                          placeholder="0"
+                          min={0}
+                          style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 2 }}>
+                        <label style={{ fontSize: 10, color: "#6b7280" }}>RISOLTO:</label>
+                        <button
+                          onClick={() => setSuccessFlag(s => !s)}
+                          style={{ padding: "6px 14px", background: "transparent", border: `1px solid ${successFlag ? "#22c55e" : "#ef4444"}`, color: successFlag ? "#22c55e" : "#ef4444", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em" }}
+                        >
+                          {successFlag ? "SI" : "NO"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <button
+                        onClick={handleSaveLearn}
+                        disabled={saving || !realCause.trim() || !actionTaken.trim()}
+                        style={{ padding: "8px 20px", background: "transparent", border: "1px solid #22c55e", color: saving ? "#6b7280" : "#22c55e", fontSize: 11, letterSpacing: "0.12em", cursor: saving || !realCause.trim() || !actionTaken.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: saving || !realCause.trim() || !actionTaken.trim() ? 0.5 : 1 }}
+                      >
+                        {saving ? "SALVATAGGIO..." : "SALVA E APPRENDI"}
+                      </button>
+                      {savedOk && (
+                        <span style={{ fontSize: 11, color: "#22c55e" }}>Learning aggiornato</span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Tipo badge ────────────────────────────────────────────────────────────────
@@ -275,7 +619,7 @@ function DiagnosticContent() {
       </header>
       <main style={styles.main}>
         {status === "idle" && (
-          <div style={styles.startScreen}>
+          <div style={{ ...styles.startScreen, gap: 20 }}>
             <div style={styles.startIcon}>⬡</div>
             {selectedTicket && (
               <div style={{ background: "var(--bg-surface)", border: "1px solid #374151", padding: "12px 20px", textAlign: "center", maxWidth: 480 }}>
@@ -284,6 +628,10 @@ function DiagnosticContent() {
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedTicket.asset_name} · <TipoBadge tipo={selectedTicket.tipo} /></div>
               </div>
             )}
+
+            {/* FIE — Failure Intelligence Engine */}
+            {ticketId && <FIEPanel ticketId={ticketId} />}
+
             <p style={styles.startTitle}>ANALISI GUIDATA PRONTA</p>
             <p style={styles.startSub}>Il sistema porrà domande mirate per identificare la root cause del guasto. Rispondi in modo conciso e preciso.</p>
             <button style={styles.startBtn} onClick={startSession} disabled={!ticketId}>AVVIA SESSIONE</button>
