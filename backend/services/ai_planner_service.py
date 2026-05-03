@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time as _time
 from datetime import date, datetime, timedelta, time
 from typing import Any, Dict, List, Optional, Tuple
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from backend.services.ai.openai_service import get_openai_client, get_openai_model
 from backend.services.weather_service import get_weather_forecast, WeatherData
-from backend.db.modelli import Ticket, Tecnico, Asset, GeneratedPlan
+from backend.db.modelli import Ticket, Tecnico, Asset, GeneratedPlan, TecnicoAssenza
 from backend.services.ai.anonymization_service import anonymizer
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Riduce latenza e consumo token per AI planning su tenant con dati statici.
 # TTL di 5 minuti: sufficiente a coprire retry rapidi senza esporre dati stale.
 # Chiave: (tenant_id, days) → (timestamp, result)
-_CTX_CACHE: Dict[Tuple[int, int], Tuple[float, Dict[str, Any]]] = {}
+_CTX_CACHE: Dict[Tuple[int, int, str], Tuple[float, Dict[str, Any]]] = {}
 _CTX_TTL_SECONDS = 300  # 5 minuti
 
 MARCO_SYSTEM_PROMPT = """Sei MARCO, motore di Maintenance Planning & Scheduling per un'azienda di service/manutenzione industriale con 20+ anni di esperienza in impianti energetici, portuali e manifatturieri. Pianifichi con la precisione di un esperto certificato RCM e TPM.
@@ -198,8 +199,8 @@ def _is_breakdown(ticket: Ticket) -> bool:
     )
 
 
-def _tecnico_has_skill(tecnico: Tecnico, ticket: Ticket) -> bool:
-    """Verifica se il tecnico ha le competenze richieste per il ticket."""
+def _tecnico_has_skill_legacy_unused(tecnico: Tecnico, ticket: Ticket) -> bool:
+    """Implementazione legacy permissiva, mantenuta solo per riferimento storico."""
     if not tecnico.competenze:
         return False
     competenze = (tecnico.competenze or "").lower()
@@ -214,6 +215,26 @@ def _tecnico_has_skill(tecnico: Tecnico, ticket: Ticket) -> bool:
     if "generico" in competenze or "tuttofare" in competenze or "generale" in competenze:
         return True
     return len(common) > 0 or len(comp_keywords) > 0  # fallback permissivo per ora
+
+
+def _split_competenze(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    return [p.strip().upper() for p in re.split(r"[,;\s]+", raw.strip()) if p.strip()]
+
+
+def _tecnico_has_skill(tecnico: Tecnico, ticket: Ticket) -> bool:
+    """Skill hard matching: competenza_richiesta esplicita, altrimenti tipo ticket."""
+    skills = _split_competenze(tecnico.competenze)
+    if not skills:
+        return False
+
+    normalized = {s.upper() for s in skills}
+    if normalized & {"GENERICO", "TUTTOFARE", "GENERALE"}:
+        return True
+
+    required = (ticket.competenza_richiesta or ticket.tipo or "").strip().upper()
+    return bool(required and required in normalized)
 
 
 def _check_weather_constraint(
@@ -241,7 +262,11 @@ def _check_weather_constraint(
 
 
 async def collect_planning_context(
-    db: Session, days: int = 7, asset_ids: Optional[List[int]] = None, tenant_id: Optional[int] = None
+    db: Session,
+    days: int = 7,
+    asset_ids: Optional[List[int]] = None,
+    tenant_id: Optional[int] = None,
+    start_date: Optional[date] = None,
 ) -> Dict[str, Any]:
     """
     Raccoglie tutto il contesto necessario per la pianificazione AI:
@@ -252,7 +277,8 @@ async def collect_planning_context(
     (contesto filtrato per asset specifici, non globalizzabile).
     """
     # Cache bypass se asset_ids è specificato (query personalizzata non globalizzabile)
-    cache_key: Tuple[int, int] | None = (tenant_id, days) if tenant_id and not asset_ids else None
+    today = start_date or date.today()
+    cache_key: Tuple[int, int, str] | None = (tenant_id, days, today.isoformat()) if tenant_id and not asset_ids else None
     if cache_key is not None:
         cached = _CTX_CACHE.get(cache_key)
         if cached is not None:
@@ -261,7 +287,6 @@ async def collect_planning_context(
                 logger.info("collect_planning_context: cache HIT (tenant=%d, days=%d)", tenant_id, days)
                 return result
 
-    today = date.today()
     horizon_dates = [today + timedelta(days=i) for i in range(days)]
 
     # --- Ticket ---
@@ -292,6 +317,25 @@ async def collect_planning_context(
     if tenant_id:
         tecnico_query = tecnico_query.filter(Tecnico.tenant_id == tenant_id)
     tecnici = tecnico_query.all()
+
+    tecnico_ids = [tc.id for tc in tecnici]
+    assenze_map: Dict[int, List[date]] = {}
+    if tecnico_ids:
+        assenze_query = db.query(TecnicoAssenza).filter(
+            TecnicoAssenza.tecnico_id.in_(tecnico_ids),
+            TecnicoAssenza.data_fine >= today,
+            TecnicoAssenza.data_inizio <= horizon_dates[-1],
+        )
+        if tenant_id:
+            assenze_query = assenze_query.filter(TecnicoAssenza.tenant_id == tenant_id)
+        for assenza in assenze_query.all():
+            inizio = assenza.data_inizio.date() if isinstance(assenza.data_inizio, datetime) else assenza.data_inizio
+            fine = assenza.data_fine.date() if isinstance(assenza.data_fine, datetime) else assenza.data_fine
+            giorno = max(inizio, today)
+            fine_eff = min(fine, horizon_dates[-1])
+            while giorno <= fine_eff:
+                assenze_map.setdefault(assenza.tecnico_id, []).append(giorno)
+                giorno += timedelta(days=1)
 
     # --- Asset dai ticket ---
     # joinedload(Asset.impianto) garantisce che la relazione sia caricata nella stessa query
@@ -395,6 +439,7 @@ async def collect_planning_context(
             "priorita": t.priorita,
             "stato": t.stato,
             "durata_stimata_ore": t.durata_stimata_ore,
+            "competenza_richiesta": t.competenza_richiesta,
             "fascia_oraria": t.fascia_oraria,
             "descrizione": t.descrizione,
             "asset_id": t.asset_id,
@@ -427,6 +472,7 @@ async def collect_planning_context(
             "ore_giornaliere": tc.ore_giornaliere or 8,
             "orario_inizio": tc.orario_inizio or "08:00",
             "orario_fine": tc.orario_fine or "17:00",
+            "giorni_assenza": [d.isoformat() for d in assenze_map.get(tc.id, [])],
         })
 
     # --- Storico piani recenti (#3) ---
@@ -506,6 +552,7 @@ async def collect_planning_context(
         # Diagnostica meteo: utile per UI e debug
         "weather_locations_count": len(unique_locations),
         "weather_assets_no_coords": assets_senza_coordinate,
+        "assenze_map": assenze_map,
         # Storico e feedback (#3, #9)
         "piani_recenti_str": piani_recenti_str,
         "feedback_stats_str": feedback_stats_str,
@@ -520,13 +567,23 @@ async def collect_planning_context(
 
 
 async def generate_ai_plan(
-    db: Session, days: int = 7, asset_ids: Optional[List[int]] = None, tenant_id: Optional[int] = None
+    db: Session,
+    days: int = 7,
+    asset_ids: Optional[List[int]] = None,
+    tenant_id: Optional[int] = None,
+    start_date: Optional[date] = None,
 ) -> Dict[str, Any]:
     """
     Genera un piano manutenzione AI completo.
     Ritorna il dizionario JSON del piano oppure {"error": ..., "raw_response": ...} in caso di fallimento.
     """
-    context = await collect_planning_context(db, days=days, asset_ids=asset_ids, tenant_id=tenant_id)
+    context = await collect_planning_context(
+        db,
+        days=days,
+        asset_ids=asset_ids,
+        tenant_id=tenant_id,
+        start_date=start_date,
+    )
 
     if not context["tickets"]:
         return {
@@ -665,7 +722,7 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         )
 
         # Calcola efficienza piano con parametri reali (#1, #13)
-        today_d = date.today()
+        today_d = start_date or date.today()
         end_d = today_d + timedelta(days=days - 1)
         efficiency_data = calculate_plan_efficiency(
             plan_result,
@@ -673,6 +730,7 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
             total_backlog=len(context["tickets"]),
             plan_start_date=today_d,
             plan_end_date=end_d,
+            absences=context.get("assenze_map"),
         )
         plan_result["efficiency_score"] = efficiency_data["efficiency_score"]
         plan_result["efficiency_breakdown"] = efficiency_data["efficiency_breakdown"]

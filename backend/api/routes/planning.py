@@ -6,6 +6,7 @@ from __future__ import annotations
 import time as _time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Literal, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, field_validator
@@ -30,6 +31,14 @@ from backend.services.opportunistic_service import find_opportunistic_suggestion
 
 router = APIRouter(prefix="/planning", tags=["planning"])
 logger = get_logger(__name__)
+
+def _planning_today() -> date_type:
+    """Data operativa del piano al momento della richiesta."""
+    try:
+        tz = ZoneInfo("Europe/Rome")
+    except Exception:
+        tz = datetime.now().astimezone().tzinfo
+    return datetime.now(tz).date()
 
 
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
@@ -283,6 +292,7 @@ async def generate_plan(
     """Genera un piano AI e lo salva come draft."""
     import os
     has_openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
+    planning_start_date = _planning_today()
 
     # Risolvi mode "auto": deterministico se no OpenAI key, AI altrimenti
     effective_mode = data.mode
@@ -303,6 +313,7 @@ async def generate_plan(
                 days=data.days,
                 asset_ids=data.asset_ids,
                 tenant_id=tenant_id,
+                start_date=planning_start_date,
             )
             if "error" in plan_json:
                 msg = plan_json["error"]
@@ -314,6 +325,7 @@ async def generate_plan(
                 days=data.days,
                 asset_ids=data.asset_ids,
                 tenant_id=tenant_id,
+                start_date=planning_start_date,
             )
             if "error" in plan_json:
                 msg = plan_json["error"]
@@ -326,8 +338,7 @@ async def generate_plan(
                 Tecnico.stato.in_(["in servizio", "in_servizio"]),
             ).all()
             tecnici_data_v = [{"id": t.id, "ore_giornaliere": t.ore_giornaliere or 8} for t in tecnici_for_validation]
-            from datetime import date as _date_type
-            start_d = _date_type.today()
+            start_d = planning_start_date
             end_d = start_d + timedelta(days=data.days - 1)
             plan_json = _validate_and_fix_plan(plan_json, tecnici_data_v, start_d, end_d)
     except HTTPException:
@@ -345,12 +356,14 @@ async def generate_plan(
         if not w.get("is_continuation") and w.get("confidence_score") is not None
     ]
     confidence_avg = round(sum(conf_scores) / len(conf_scores), 3) if conf_scores else None
-    plan_json["plan_metadata"] = {
+    plan_json.setdefault("plan_metadata", {}).update({
         "engine_version": "3.0",
         "generated_by": effective_mode,
         "generation_time_ms": gen_ms,
         "confidence_avg": confidence_avg,
-    }
+        "planning_start_date": planning_start_date.isoformat(),
+        "planning_end_date": (planning_start_date + timedelta(days=data.days - 1)).isoformat(),
+    })
 
     # Recupera score del piano confermato precedente per confronto nel frontend
     previous_confirmed = db.query(GeneratedPlan).filter(

@@ -167,7 +167,9 @@ def _build_planner_tickets(
     asset_map: Dict[int, Asset],
     db: Optional[Session] = None,
     tenant_id: Optional[int] = None,
+    planning_start: Optional[date_type] = None,
 ) -> List[PlannerTicket]:
+    today_ref = planning_start or date_type.today()
     result = []
     for t in tickets:
         asset = asset_map.get(t.asset_id) if t.asset_id else None
@@ -204,14 +206,14 @@ def _build_planner_tickets(
         eta_giorni = 0
         if t.created_at:
             created = t.created_at.date() if isinstance(t.created_at, datetime) else t.created_at
-            eta_giorni = max(0, (date_type.today() - created).days)
+            eta_giorni = max(0, (today_ref - created).days)
 
         # Giorni non operativi: l'asset in stato "Fermo" blocca la continuazione (#8)
         giorni_non_operativi: List[date_type] = []
         if asset and getattr(asset, "stato", None) == "Fermo":
             # Asset in fermo: tutti i giorni dell'orizzonte sono non operativi
-            horizon_end = date_type.today() + timedelta(days=30)
-            d = date_type.today()
+            horizon_end = today_ref + timedelta(days=30)
+            d = today_ref
             while d <= horizon_end:
                 giorni_non_operativi.append(d)
                 d += timedelta(days=1)
@@ -293,12 +295,13 @@ async def generate_deterministic_plan(
     days: int = 7,
     asset_ids: Optional[List[int]] = None,
     tenant_id: Optional[int] = None,
+    start_date: Optional[date_type] = None,
 ) -> Dict[str, Any]:
     """
     Genera un piano manutenzione usando il PlannerEngine deterministico.
     Ritorna lo stesso formato plan_json prodotto dal motore AI (compatibilità totale).
     """
-    today = date_type.today()
+    today = start_date or date_type.today()
     horizon_end = today + timedelta(days=days - 1)
 
     # ── Carica ticket locked (già pianificati: non devono essere ripianificati) ─
@@ -388,7 +391,13 @@ async def generate_deterministic_plan(
 
     # ── Conversione ORM → strutture PlannerEngine ─────────────────────────────
     planner_tecnici = _build_planner_tecnici(tecnici, assenze_map)
-    planner_tickets = _build_planner_tickets(tickets, asset_map, db=db, tenant_id=tenant_id)
+    planner_tickets = _build_planner_tickets(
+        tickets,
+        asset_map,
+        db=db,
+        tenant_id=tenant_id,
+        planning_start=today,
+    )
     existing_assignments = _build_existing_assignments(locked_tickets)
 
     if not planner_tecnici:

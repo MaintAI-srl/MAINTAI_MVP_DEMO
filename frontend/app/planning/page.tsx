@@ -93,6 +93,11 @@ function formatLocalDateTimeSeconds(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 }
 
+function planDateTime(dateStr: string, timeStr?: string | null): string {
+  const time = (timeStr || "08:00").split(":").slice(0, 2).join(":");
+  return `${dateStr}T${time}:00`;
+}
+
 // ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
 
 function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: ViewMode; onClick: () => void }) {
@@ -130,7 +135,9 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
         onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)"; }}
       >
         <div style={{ fontSize: 9, color: s.text, opacity: 0.7, letterSpacing: "0.08em" }}>{ticket.tipo} · {dur}h</div>
-        <div style={{ fontSize: 11, color: s.text, fontWeight: 700, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
+        <div style={{ fontSize: 11, color: s.text, fontWeight: 700, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
+        </div>
         {ticket.asset_name && (
           <div style={{ fontSize: 9, color: s.text, opacity: 0.6, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.asset_name}</div>
         )}
@@ -153,7 +160,9 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)"; }}
     >
-      <div style={{ fontSize: 10, color: s.text, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
+      <div style={{ fontSize: 10, color: s.text, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
+      </div>
       <div style={{ fontSize: 9, color: s.text, opacity: 0.7 }}>{ticket.tipo} · {dur}h</div>
     </div>
   );
@@ -247,7 +256,7 @@ function DayRow({ tecnico, tickets, day, onTicketClick }: {
           const p = parseStart(t)!;
           const left = (p.hour - DAY_START_H) * HOUR_W + (p.minute / 60) * HOUR_W;
           return (
-            <div key={t.id} style={{ position: "absolute", left, top: 6, zIndex: 2 }}>
+            <div key={t.gantt_key ?? t.id} style={{ position: "absolute", left, top: 6, zIndex: 2 }}>
               <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} />
             </div>
           );
@@ -275,7 +284,7 @@ function DayCell({ tecnico_id, date, tickets, onTicketClick, cellW }: {
       transition: "background 0.12s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
     }}>
-      {tickets.map((t) => <TicketBlock key={t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} />)}
+      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} />)}
     </div>
   );
 }
@@ -492,6 +501,38 @@ export default function PianificazionePage() {
     return counts;
   }, [unscheduledTickets]);
 
+  const ganttTickets = useMemo(() => {
+    const draftWos = planJson?.planned_workorders ?? [];
+    if (!draftWos.length) return scheduledTickets;
+
+    const draftIds = new Set(draftWos.map((wo) => wo.wo_id));
+    const lockedOrPersisted = scheduledTickets.filter((t) => !draftIds.has(t.id));
+    const draftTickets: TicketData[] = draftWos.map((wo) => {
+      const base = ticketMap.get(wo.wo_id);
+      const start = planDateTime(wo.planned_date, wo.planned_start_time);
+      const finish = planDateTime(wo.planned_date, wo.planned_end_time);
+      return {
+        id: wo.wo_id,
+        titolo: base?.titolo ?? `Ticket #${wo.wo_id}`,
+        asset_id: base?.asset_id ?? 0,
+        asset_name: base?.asset_name ?? null,
+        tipo: base?.tipo ?? "CM",
+        priorita: base?.priorita ?? "Media",
+        stato: piano?.status === "draft" ? "Bozza piano" : (base?.stato ?? "Pianificato"),
+        durata_stimata_ore: wo.duration_hours ?? base?.durata_stimata_ore ?? 1,
+        fascia_oraria: base?.fascia_oraria ?? "",
+        descrizione: base?.descrizione ?? null,
+        tecnico_id: wo.technician_id,
+        planned_start: start,
+        planned_finish: finish,
+        gantt_key: `${piano?.id ?? "draft"}-${wo.wo_id}-${wo.planned_date}-${wo.planned_start_time}-${wo.is_continuation ? "cont" : "main"}`,
+        is_plan_draft: piano?.status === "draft",
+      };
+    });
+
+    return [...lockedOrPersisted, ...draftTickets];
+  }, [piano?.id, piano?.status, planJson?.planned_workorders, scheduledTickets, ticketMap]);
+
   // ── Caricamento dati ────────────────────────────────────────────────────────
   const loadStorico = useCallback(async () => {
     try {
@@ -549,6 +590,8 @@ export default function PianificazionePage() {
         notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
       }
       setPiano(cleanRes);
+      const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
+      setCurrentDate(planStart ? parseISO(planStart) : new Date());
       await loadData(); // aggiorna il Gantt con i ticket ora pianificati
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore generazione piano AI");
@@ -746,7 +789,7 @@ export default function PianificazionePage() {
             </span>
           )}
 
-          <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {scheduledTickets.length} pianificati</span>
+          <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {ganttTickets.length} in Gantt</span>
 
           {/* Engine toggle */}
           <div style={{ display: "flex", gap: 3, fontSize: 11 }}>
@@ -947,7 +990,7 @@ export default function PianificazionePage() {
                   <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 13 }}>Nessun tecnico attivo trovato</div>
                 ) : (
                   tecnici.map((tecnico) => {
-                    const tickets = scheduledTickets.filter((t) => t.tecnico_id === tecnico.id);
+                    const tickets = ganttTickets.filter((t) => t.tecnico_id === tecnico.id);
                     const handleTicketClick = (t: TicketData) => {
                       // Se esiste un WO nel piano per questo ticket, apre il drawer explainability
                       const wo = planJson?.planned_workorders?.find((w) => w.wo_id === t.id) ?? null;
@@ -1081,7 +1124,7 @@ export default function PianificazionePage() {
                     <div style={{ padding: "10px 12px" }}>
                       <DeferredWOPanel
                         deferredWOs={planJson.deferred_workorders}
-                        allTickets={[...scheduledTickets, ...unscheduledTickets]}
+                        allTickets={[...ganttTickets, ...unscheduledTickets]}
                         deferredCounts={deferredCounts}
                       />
                     </div>

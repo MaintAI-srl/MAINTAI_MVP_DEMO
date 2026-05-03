@@ -14,6 +14,8 @@ export interface TicketData {
   tecnico_id: number | null;
   planned_start: string | null;
   planned_finish: string | null;
+  gantt_key?: string;
+  is_plan_draft?: boolean;
 }
 
 export interface TecnicoData {
@@ -89,6 +91,8 @@ export interface PlanMetadata {
   ore_disponibili_teoriche?: number | null;
   ore_disponibili_effettive?: number | null;
   ore_assegnate?: number | null;
+  planning_start_date?: string;
+  planning_end_date?: string;
 }
 
 export interface PlanJson {

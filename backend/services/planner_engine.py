@@ -172,6 +172,7 @@ def _find_earliest_date(
     technicians: List[PlannerTecnico],
     from_date: date,
     days_lookahead: int = 14,
+    hierarchy: Dict[str, List[str]] | None = None,
 ) -> Optional[str]:
     """
     Trova la prima data in cui un tecnico ha disponibilità per questo ticket (#7).
@@ -191,7 +192,11 @@ def _find_earliest_date(
                 continue
             # Verifica skill match
             needed = _competenza_richiesta(ticket)
-            if not _skill_covers(needed, tech.competenze):
+            if not _skill_covers(needed, tech.competenze, hierarchy):
+                continue
+            if tech.ore_giornaliere <= 0:
+                continue
+            if not ticket.splittabile and tech.ore_giornaliere < ticket.durata_stimata_ore:
                 continue
             return candidate.isoformat()
     return None
@@ -472,6 +477,7 @@ class PlannerEngine:
                 technicians=self.tecnici_attivi,
                 from_date=self.today,
                 days_lookahead=21,
+                hierarchy=self.skill_hierarchy,
             )
             result.unassigned.append(Unassigned(
                 ticket_id=ticket.id,

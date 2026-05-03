@@ -537,3 +537,31 @@ def test_TC15_slot_30min_split():
     frag_domani = next(f for f in frags if f.start.date() == TODAY + timedelta(days=1))
     dur_dom = (frag_domani.end - frag_domani.start).total_seconds() / 3600
     assert abs(dur_dom - 1.0) < 0.01, f"Frammento domani deve essere 1h, trovato {dur_dom}h"
+
+
+def test_TC16_earliest_possible_date_respects_absence_and_capacity():
+    """
+    earliest_possible_date deve indicare il primo giorno realistico: skill corretta,
+    tecnico non assente e capacita giornaliera sufficiente per ticket non splittabile.
+    """
+    tecnico_assente = make_tecnico(
+        id=1,
+        competenze=["PM"],
+        ore_giornaliere=8,
+        giorni_assenza=[TODAY],
+    )
+    ticket = make_ticket(id=117, tipo="PM", durata=8.0, splittabile=False)
+
+    result = run([tecnico_assente], [ticket], horizon=1)
+
+    assert len(result.assignments) == 0
+    assert len(result.unassigned) == 1
+    assert result.unassigned[0].earliest_possible_date == (TODAY + timedelta(days=1)).isoformat()
+
+    tecnico_sottocapacita = make_tecnico(id=2, competenze=["PM"], ore_giornaliere=4)
+    ticket_lungo = make_ticket(id=118, tipo="PM", durata=8.0, splittabile=False)
+
+    result_no_capacity = run([tecnico_sottocapacita], [ticket_lungo], horizon=1)
+
+    assert len(result_no_capacity.unassigned) == 1
+    assert result_no_capacity.unassigned[0].earliest_possible_date is None
