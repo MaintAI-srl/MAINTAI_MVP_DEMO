@@ -201,6 +201,54 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return <main style={{ height: "100vh", width: "100vw" }}>{children}</main>;
   }
 
+  // Layout dedicato per la pagina mobile tecnici — full-screen, no sidebar
+  if (pathname === "/mobile") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "var(--background)" }}>
+        {/* Topbar compatta mobile */}
+        <header style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 16px",
+          background: "var(--surface-1, #0b1120)",
+          borderBottom: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <img src="/logo.png" alt="MaintAI" style={{ width: 26, height: 26, objectFit: "contain" }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>MaintAI</div>
+              <div style={{ fontSize: 10, color: "var(--cobalt, #5b8fff)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Campo</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{user?.username}</span>
+            <button
+              onClick={toggleTheme}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "var(--text-muted)", fontSize: 16, lineHeight: 1 }}
+              title={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
+            >
+              {theme === "dark" ? "☀️" : "🌙"}
+            </button>
+            <button
+              onClick={logout}
+              style={{
+                background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)",
+                color: "#f87171", borderRadius: 8, padding: "6px 12px",
+                fontSize: 11, fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              Esci
+            </button>
+          </div>
+        </header>
+        {/* Contenuto scrollabile */}
+        <main style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}>
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   const pageLabel = Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI";
 
   const sectionLabel = filteredNav.find((group) =>

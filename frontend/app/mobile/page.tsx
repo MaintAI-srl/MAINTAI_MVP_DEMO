@@ -433,7 +433,7 @@ export default function MobileHomePage() {
   const totalTickets    = activeTickets.length + upcomingTickets.length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 8 }}>
 
       {/* ── Header ───────────────────────────────────────────── */}
       <div style={{
@@ -441,7 +441,7 @@ export default function MobileHomePage() {
         padding: "4px 0",
       }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.03em" }}>
+          <h1 style={{ fontSize: "clamp(20px, 6vw, 26px)", fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.03em" }}>
             Ciao, <span style={{ color: "#90b8ff" }}>{user?.username}</span> 👷
           </h1>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
@@ -495,8 +495,8 @@ export default function MobileHomePage() {
             borderTop: `3px solid ${s.color}`,
             borderRadius: 14, padding: "12px 10px", textAlign: "center",
           }}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.count}</div>
-            <div style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>{s.label}</div>
+            <div style={{ fontSize: "clamp(22px, 7vw, 30px)", fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.count}</div>
+            <div style={{ fontSize: "clamp(9px, 2.5vw, 11px)", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -549,16 +549,15 @@ export default function MobileHomePage() {
         )}
       </section>
 
-      {/* ── Offline indicator ────────────────────────────────── */}
-      <OfflineIndicator />
-
       {/* ── Firma modale ─────────────────────────────────────── */}
       {signingTicketId && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 5000,
-          background: "rgba(0,0,0,0.90)", display: "flex", alignItems: "center", padding: 20,
+          background: "rgba(0,0,0,0.92)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "16px",
         }}>
-          <div style={{ width: "100%" }}>
+          <div style={{ width: "100%", maxWidth: 440 }}>
             <SignaturePad
               onCancel={() => setSigningTicketId(null)}
               onSave={async (base64) => {
