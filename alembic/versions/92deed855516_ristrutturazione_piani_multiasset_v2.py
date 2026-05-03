@@ -29,8 +29,9 @@ def upgrade() -> None:
     # sa.ForeignKeyConstraint(['piano_id'], ['piani_manutenzione.id'], ),
     # sa.PrimaryKeyConstraint('piano_id', 'asset_id')
     # )
-    with op.batch_alter_table('asset', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_asset_tenant_area'))
+    # L'indice ix_asset_tenant_area potrebbe non esistere se una migrazione precedente è fallita
+    # with op.batch_alter_table('asset', schema=None) as batch_op:
+    #     batch_op.drop_index(batch_op.f('ix_asset_tenant_area'))
 
     with op.batch_alter_table('attivita_manutenzione', schema=None) as batch_op:
         batch_op.alter_column('last_generated_at',
