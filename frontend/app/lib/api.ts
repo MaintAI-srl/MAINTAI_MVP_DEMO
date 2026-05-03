@@ -41,6 +41,10 @@ function timeoutForPath(path: string): number {
   return SLOW_ENDPOINTS.some(re => re.test(path)) ? 120_000 : DEFAULT_TIMEOUT_MS;
 }
 
+function shouldDispatchUnauthorized(path: string): boolean {
+  return path !== "/auth/me" && path !== "/auth/logout";
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -87,7 +91,7 @@ async function request<T>(
     clearTimeout(id);
 
     if (!res.ok) {
-      if (res.status === 401) {
+      if (res.status === 401 && shouldDispatchUnauthorized(path)) {
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("maintai:unauthorized"));
         }

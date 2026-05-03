@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { apiGet, apiPost, clearTauriToken, isTauri, getTauriToken } from "./api";
 
 type User = {
@@ -62,6 +62,7 @@ function loadUserMeta(): User | null {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const loggingOutRef = useRef(false);
 
   useEffect(() => {
     const meta = loadUserMeta();
@@ -105,6 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
     try {
       await apiPost("/auth/logout");
     } catch {
@@ -113,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearUserMeta();
     clearTauriToken();
     setUser(null);
+    loggingOutRef.current = false;
   }, []);
 
   useEffect(() => {
