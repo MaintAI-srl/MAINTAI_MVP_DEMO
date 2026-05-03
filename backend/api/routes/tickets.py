@@ -253,6 +253,9 @@ def patch_ticket(
 
     if data.stato == "Chiuso":
         _aggiorna_scadenza_piano(db, ticket_orm)
+        username = payload.get("sub") or payload.get("username") or "sistema"
+        ticket_orm.closed_by = username
+        db.commit()
 
     return result
 
@@ -289,6 +292,9 @@ def update_ticket(
 
     if data.stato == "Chiuso":
         _aggiorna_scadenza_piano(db, ticket_orm)
+        username = payload.get("sub") or payload.get("username") or "sistema"
+        ticket_orm.closed_by = username
+        db.commit()
 
     return result
 

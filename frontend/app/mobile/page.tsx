@@ -5,7 +5,6 @@ import { apiGet, apiPut } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import UploadAllegati from "../components/UploadAllegati";
-import SignaturePad from "../components/SignaturePad";
 import Skeleton from "../components/Skeleton";
 import VoiceRecorder from "../components/VoiceRecorder";
 
@@ -144,11 +143,9 @@ function VoiceNotePanel({ ticketId, onSaved }: { ticketId: number; onSaved: () =
 function ActiveTicketCard({
   ticket,
   onStatusChange,
-  onSign,
 }: {
   ticket: Ticket;
   onStatusChange: (id: number, stato: string) => Promise<void>;
-  onSign: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [showVoice, setShowVoice] = useState(false);
@@ -219,7 +216,7 @@ function ActiveTicketCard({
           {/* Azioni principali — ONE CLICK */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <button
-              onClick={() => onSign(ticket.id)}
+              onClick={() => onStatusChange(ticket.id, "Chiuso")}
               style={{
                 height: 56, borderRadius: 14, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                 border: "none", color: "white", fontWeight: 900, fontSize: 15,
@@ -351,7 +348,6 @@ export default function MobileHomePage() {
   const [tecnicoId, setTecnicoId] = useState<number | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [signingTicketId, setSigningTicketId] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -513,7 +509,6 @@ export default function MobileHomePage() {
               key={t.id}
               ticket={t}
               onStatusChange={updateStatus}
-              onSign={id => setSigningTicketId(id)}
             />
           ))}
         </section>
@@ -549,32 +544,6 @@ export default function MobileHomePage() {
         )}
       </section>
 
-      {/* ── Firma modale ─────────────────────────────────────── */}
-      {signingTicketId && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 5000,
-          background: "rgba(0,0,0,0.92)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "16px",
-        }}>
-          <div style={{ width: "100%", maxWidth: 440 }}>
-            <SignaturePad
-              onCancel={() => setSigningTicketId(null)}
-              onSave={async (base64) => {
-                try {
-                  const { apiPost } = await import("../lib/api");
-                  await apiPost(`/tickets/${signingTicketId}/firma`, { image: base64 });
-                  await updateStatus(signingTicketId, "Chiuso");
-                  setSigningTicketId(null);
-                  await loadTickets();
-                } catch {
-                  notify.error("Errore nel salvataggio della firma.", "MOBILE");
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

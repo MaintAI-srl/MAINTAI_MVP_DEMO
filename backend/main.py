@@ -165,6 +165,8 @@ def _ensure_columns() -> None:
         # attivita_manutenzione — codice univoco per piani creati manualmente
         ("attivita_manutenzione", "codice",            "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}codice VARCHAR"),
         ("attivita_manutenzione", "nome",              "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}nome VARCHAR"),
+        # ticket — audit chiusura
+        ("ticket", "closed_by",                        "ALTER TABLE ticket ADD COLUMN {ifne}closed_by VARCHAR"),
         # ticket — note eliminazione
         ("ticket", "eliminazione_note",                "ALTER TABLE ticket ADD COLUMN {ifne}eliminazione_note TEXT"),
         # ticket — manual plan
