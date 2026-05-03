@@ -132,6 +132,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState("dark");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Keep-alive: pinga il backend ogni 8 minuti per evitare cold start su Render free tier
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const ping = () => fetch(`${process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com"}/health`, { method: "GET", credentials: "include" }).catch(() => {});
+    ping();
+    const id = setInterval(ping, 8 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       let refreshing = false;
