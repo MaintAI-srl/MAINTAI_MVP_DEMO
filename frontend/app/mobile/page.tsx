@@ -197,6 +197,12 @@ function ActiveWorkView({
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [paused, setPaused] = useState(false);
   const [pausedAt, setPausedAt] = useState(0);
+  const [started, setStarted] = useState(ticket.stato === "In corso");
+  const [starting, setStarting] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [savingVoice, setSavingVoice] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const allChecked = checked.size === checklist.length;
 
   function toggle(id: number) {
@@ -205,6 +211,17 @@ function ActiveWorkView({
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }
+
+  async function handleIniziaLavoro() {
+    if (!allChecked) {
+      notify.warning("Completa la Safety Checklist prima di avviare.", "SAFETY");
+      return;
+    }
+    setStarting(true);
+    await onStatusChange(ticket.id, "In corso");
+    setStarted(true);
+    setStarting(false);
   }
 
   async function handleTermina() {
@@ -216,13 +233,24 @@ function ActiveWorkView({
   }
 
   function handlePausa() {
-    if (!paused) {
-      setPausedAt(Date.now());
-      setPaused(true);
-    } else {
-      setPaused(false);
-    }
-    // Nota: la pausa è solo visuale sul MTTR, non aggiorna il DB
+    if (!paused) { setPausedAt(Date.now()); setPaused(true); }
+    else setPaused(false);
+  }
+
+  async function handleSaveVoice() {
+    if (!transcript.trim()) return;
+    setSavingVoice(true);
+    try {
+      await apiPut(`/tickets/${ticket.id}`, { note_vocali: transcript.trim() });
+      notify.success("Nota vocale salvata ✓");
+      setTranscript("");
+      setShowVoice(false);
+    } catch { notify.error("Errore salvataggio nota"); }
+    setSavingVoice(false);
+  }
+
+  function handlePhotoClick() {
+    photoInputRef.current?.click();
   }
 
   return (
@@ -264,71 +292,157 @@ function ActiveWorkView({
         flex: 1, minHeight: 0,
       }}>
 
-        {/* ── SINISTRA: Safety Checklist ── */}
-        <div style={{
-          display: "flex", flexDirection: "column", gap: 8,
-          background: allChecked ? "rgba(52,211,153,0.04)" : "rgba(239,68,68,0.04)",
-          border: `2px solid ${allChecked ? "rgba(52,211,153,0.30)" : "rgba(239,68,68,0.40)"}`,
-          borderRadius: 16, padding: "12px 10px",
-          transition: "border-color 0.3s, background 0.3s",
-          overflowY: "auto",
-        }}>
-          {/* Header checklist */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexShrink: 0 }}>
-            <span style={{ fontSize: 18 }}>🦺</span>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 900, color: allChecked ? "#34d399" : "#f87171", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                Safety
-              </div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-mono)" }}>
-                {checked.size}/{checklist.length}
-              </div>
+        {/* ── SINISTRA: Titolo + pulsantoni + Safety Checklist ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, overflowY: "auto" }}>
+
+          {/* Titolo e asset — grandi */}
+          <div style={{
+            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 14, padding: "12px",
+          }}>
+            <div style={{ fontSize: "clamp(15px, 4vw, 19px)", fontWeight: 900, color: "#f1f5f9", lineHeight: 1.25, marginBottom: 4 }}>
+              {ticket.titolo}
             </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#90b8ff" }}>{ticket.asset_name}</div>
+            {ticket.descrizione && (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 6, lineHeight: 1.45 }}>
+                {ticket.descrizione}
+              </div>
+            )}
           </div>
 
-          {/* Items — grandi, touch-friendly */}
-          {checklist.map(item => (
+          {/* Pulsantoni FOTO e VOCE — quadrati grandi */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {/* Input foto nascosto */}
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                notify.info("Foto allegata ✓");
+                e.target.value = "";
+              }}
+            />
             <button
-              key={item.id}
-              onClick={() => toggle(item.id)}
+              onClick={handlePhotoClick}
               style={{
-                display: "flex", alignItems: "center", gap: 10,
-                background: checked.has(item.id) ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
-                border: `2px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.12)"}`,
-                borderRadius: 12, padding: "12px 10px",
-                cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-                minHeight: 56, // touch target grande per guanti
-                width: "100%",
+                aspectRatio: "1", borderRadius: 16,
+                background: "rgba(59,130,246,0.08)", border: "2px solid rgba(59,130,246,0.30)",
+                color: "#60a5fa", cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                minHeight: 80,
               }}
             >
-              {/* Checkbox grande */}
-              <span style={{
-                width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                background: checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.06)",
-                border: `3px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.20)"}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 18, color: "#fff", fontWeight: 900,
-                transition: "all 0.15s",
-              }}>
-                {checked.has(item.id) ? "✓" : ""}
-              </span>
-              <span style={{
-                fontSize: 12, lineHeight: 1.35,
-                color: checked.has(item.id) ? "#86efac" : "#e2e8f0",
-                textDecoration: checked.has(item.id) ? "line-through" : "none",
-                fontWeight: checked.has(item.id) ? 500 : 700,
-                transition: "all 0.15s",
-              }}>
-                {item.text}
-              </span>
+              <span style={{ fontSize: 32 }}>📷</span>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.05em" }}>FOTO</span>
             </button>
-          ))}
+            <button
+              onClick={() => setShowVoice(v => !v)}
+              style={{
+                aspectRatio: "1", borderRadius: 16,
+                background: showVoice ? "rgba(139,92,246,0.15)" : "rgba(139,92,246,0.08)",
+                border: `2px solid ${showVoice ? "rgba(139,92,246,0.50)" : "rgba(139,92,246,0.30)"}`,
+                color: "#a78bfa", cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                minHeight: 80,
+              }}
+            >
+              <span style={{ fontSize: 32 }}>🎙️</span>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.05em" }}>VOCE</span>
+            </button>
+          </div>
 
-          {allChecked && (
-            <div style={{ fontSize: 11, color: "#34d399", fontWeight: 800, textAlign: "center", padding: "6px 0", flexShrink: 0 }}>
-              ✅ SICUREZZA VERIFICATA
+          {/* Pannello nota vocale (espandibile) */}
+          {showVoice && (
+            <div style={{
+              background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.20)",
+              borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8,
+            }}>
+              <VoiceRecorder onTranscript={(t) => setTranscript(prev => prev ? prev + " " + t : t)} disabled={savingVoice} />
+              {transcript && (
+                <>
+                  <textarea
+                    value={transcript}
+                    onChange={e => setTranscript(e.target.value)}
+                    rows={2}
+                    style={{
+                      width: "100%", resize: "none", background: "rgba(139,92,246,0.07)",
+                      border: "1px solid rgba(139,92,246,0.25)", borderRadius: 8,
+                      color: "#e2e8f0", padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box",
+                    }}
+                  />
+                  <button onClick={handleSaveVoice} disabled={savingVoice} style={{
+                    height: 40, borderRadius: 10, background: "rgba(139,92,246,0.80)",
+                    border: "none", color: "white", fontWeight: 800, fontSize: 12, cursor: "pointer",
+                  }}>
+                    {savingVoice ? "Salvataggio…" : "💾 SALVA NOTA"}
+                  </button>
+                </>
+              )}
             </div>
           )}
+
+          {/* Safety Checklist */}
+          <div style={{
+            background: allChecked ? "rgba(52,211,153,0.04)" : "rgba(239,68,68,0.04)",
+            border: `2px solid ${allChecked ? "rgba(52,211,153,0.30)" : "rgba(239,68,68,0.40)"}`,
+            borderRadius: 14, padding: "10px 8px",
+            transition: "border-color 0.3s, background 0.3s",
+            flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>🦺</span>
+              <span style={{ fontSize: 10, fontWeight: 900, color: allChecked ? "#34d399" : "#f87171", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Safety
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-mono)" }}>
+                {checked.size}/{checklist.length}
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {checklist.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => toggle(item.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    background: checked.has(item.id) ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
+                    border: `2px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.12)"}`,
+                    borderRadius: 12, padding: "11px 10px",
+                    cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+                    minHeight: 54, width: "100%",
+                  }}
+                >
+                  <span style={{
+                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                    background: checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.06)",
+                    border: `3px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.20)"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 18, color: "#fff", fontWeight: 900, transition: "all 0.15s",
+                  }}>
+                    {checked.has(item.id) ? "✓" : ""}
+                  </span>
+                  <span style={{
+                    fontSize: 12, lineHeight: 1.3,
+                    color: checked.has(item.id) ? "#86efac" : "#e2e8f0",
+                    textDecoration: checked.has(item.id) ? "line-through" : "none",
+                    fontWeight: checked.has(item.id) ? 500 : 700, transition: "all 0.15s",
+                  }}>
+                    {item.text}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {allChecked && (
+              <div style={{ fontSize: 11, color: "#34d399", fontWeight: 800, textAlign: "center", paddingTop: 8 }}>
+                ✅ SICUREZZA VERIFICATA
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── DESTRA: Orologio + MTTR + Date + Azioni ── */}
@@ -386,44 +500,70 @@ function ActiveWorkView({
 
           {/* Pulsanti azione */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {/* TERMINA */}
-            <button
-              onClick={handleTermina}
-              disabled={!allChecked}
-              title={!allChecked ? "Completa la Safety Checklist" : ""}
-              style={{
-                height: 60, borderRadius: 14,
-                background: allChecked
-                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                  : "rgba(16,185,129,0.08)",
-                border: allChecked ? "none" : "2px solid rgba(16,185,129,0.20)",
-                color: allChecked ? "#fff" : "rgba(16,185,129,0.35)",
-                fontWeight: 900, fontSize: 15,
-                cursor: allChecked ? "pointer" : "not-allowed",
-                boxShadow: allChecked ? "0 4px 20px rgba(16,185,129,0.35)" : "none",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                transition: "all 0.2s",
-              }}
-            >
-              {allChecked ? <><span style={{ fontSize: 20 }}>✅</span> TERMINA</> : <>🔒 TERMINA</>}
-            </button>
+            {/* INIZIA — visibile solo se non ancora avviato */}
+            {!started && (
+              <button
+                onClick={handleIniziaLavoro}
+                disabled={!allChecked || starting}
+                style={{
+                  height: 60, borderRadius: 14,
+                  background: allChecked
+                    ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
+                    : "rgba(59,130,246,0.08)",
+                  border: allChecked ? "none" : "2px solid rgba(59,130,246,0.20)",
+                  color: allChecked ? "#fff" : "rgba(59,130,246,0.35)",
+                  fontWeight: 900, fontSize: 15,
+                  cursor: allChecked && !starting ? "pointer" : "not-allowed",
+                  boxShadow: allChecked ? "0 4px 20px rgba(59,130,246,0.35)" : "none",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "all 0.2s",
+                }}
+              >
+                {starting ? "…" : allChecked ? <><span style={{ fontSize: 20 }}>▶</span> INIZIA</> : <>🔒 INIZIA</>}
+              </button>
+            )}
 
-            {/* PAUSA */}
-            <button
-              onClick={handlePausa}
-              style={{
-                height: 54, borderRadius: 14,
-                background: paused ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.05)",
-                border: `2px solid ${paused ? "rgba(251,191,36,0.40)" : "rgba(255,255,255,0.12)"}`,
-                color: paused ? "#fbbf24" : "#94a3b8",
-                fontWeight: 800, fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                transition: "all 0.2s",
-              }}
-            >
-              <span style={{ fontSize: 18 }}>{paused ? "▶" : "⏸"}</span>
-              {paused ? "RIPRENDI" : "PAUSA"}
-            </button>
+            {/* TERMINA — visibile solo se già avviato */}
+            {started && (
+              <button
+                onClick={handleTermina}
+                disabled={!allChecked}
+                style={{
+                  height: 60, borderRadius: 14,
+                  background: allChecked
+                    ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                    : "rgba(16,185,129,0.08)",
+                  border: allChecked ? "none" : "2px solid rgba(16,185,129,0.20)",
+                  color: allChecked ? "#fff" : "rgba(16,185,129,0.35)",
+                  fontWeight: 900, fontSize: 15,
+                  cursor: allChecked ? "pointer" : "not-allowed",
+                  boxShadow: allChecked ? "0 4px 20px rgba(16,185,129,0.35)" : "none",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "all 0.2s",
+                }}
+              >
+                {allChecked ? <><span style={{ fontSize: 20 }}>✅</span> TERMINA</> : <>🔒 TERMINA</>}
+              </button>
+            )}
+
+            {/* PAUSA — solo se avviato */}
+            {started && (
+              <button
+                onClick={handlePausa}
+                style={{
+                  height: 54, borderRadius: 14,
+                  background: paused ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.05)",
+                  border: `2px solid ${paused ? "rgba(251,191,36,0.40)" : "rgba(255,255,255,0.12)"}`,
+                  color: paused ? "#fbbf24" : "#94a3b8",
+                  fontWeight: 800, fontSize: 14, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "all 0.2s",
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{paused ? "▶" : "⏸"}</span>
+                {paused ? "RIPRENDI" : "PAUSA"}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -431,45 +571,38 @@ function ActiveWorkView({
   );
 }
 
-// ── Ticket card prossimo ──────────────────────────────────────────────────────
-function UpcomingTicketCard({ ticket, onStart }: { ticket: Ticket; onStart: (id: number) => Promise<void> }) {
-  const [starting, setStarting] = useState(false);
+// ── Ticket card prossimo (senza pulsante INIZIA — ora è nella vista dedicata) ─
+function UpcomingTicketCard({ ticket, onOpen }: { ticket: Ticket; onOpen: (t: Ticket) => void }) {
   const tipo = tipoLabel(ticket.tipo);
   return (
-    <div style={{ background: "var(--bg-card, var(--surface-2))", border: "1px solid var(--border, rgba(255,255,255,0.08))", borderRadius: 16, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 20, flexShrink: 0 }}>{tipo.icon}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.titolo}</div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
-            <span style={{ fontSize: 11, color: "#90b8ff", fontWeight: 600 }}>{ticket.asset_name}</span>
-            {ticket.planned_start && (
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                · {new Date(ticket.planned_start).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
-                {" "}{new Date(ticket.planned_start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            )}
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 999, color: prioritaColor(ticket.priorita), background: `${prioritaColor(ticket.priorita)}15` }}>
-              {ticket.priorita}
-            </span>
-          </div>
+    <button
+      onClick={() => onOpen(ticket)}
+      style={{
+        display: "flex", alignItems: "center", gap: 12, width: "100%",
+        background: "var(--bg-card, var(--surface-2))", border: "1px solid var(--border, rgba(255,255,255,0.08))",
+        borderRadius: 16, padding: "16px", cursor: "pointer", textAlign: "left",
+      }}
+    >
+      <span style={{ fontSize: 22, flexShrink: 0 }}>{tipo.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {ticket.titolo}
         </div>
-        <button
-          onClick={async () => { setStarting(true); await onStart(ticket.id); setStarting(false); }}
-          disabled={starting}
-          style={{
-            minWidth: 88, height: 48, borderRadius: 12, flexShrink: 0,
-            background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
-            border: "none", color: "white", fontWeight: 800, fontSize: 13,
-            cursor: starting ? "wait" : "pointer",
-            boxShadow: "0 4px 16px rgba(59,130,246,0.30)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          {starting ? "…" : <><span>▶</span> INIZIA</>}
-        </button>
+        <div style={{ fontSize: 13, color: "#90b8ff", fontWeight: 600, marginTop: 3 }}>{ticket.asset_name}</div>
+        {ticket.planned_start && (
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+            {new Date(ticket.planned_start).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
+            {" "}{new Date(ticket.planned_start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+        )}
       </div>
-    </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, color: prioritaColor(ticket.priorita), background: `${prioritaColor(ticket.priorita)}15` }}>
+          {ticket.priorita}
+        </span>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>→</span>
+      </div>
+    </button>
   );
 }
 
@@ -657,11 +790,7 @@ export default function MobileHomePage() {
           <UpcomingTicketCard
             key={t.id}
             ticket={t}
-            onStart={async (id) => {
-              await updateStatus(id, "In corso");
-              const updated = { ...t, stato: "In corso", execution_start: new Date().toISOString() };
-              setActiveView(updated);
-            }}
+            onOpen={(ticket) => setActiveView(ticket)}
           />
         ))}
       </section>
