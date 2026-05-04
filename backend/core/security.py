@@ -74,8 +74,8 @@ except Exception as _fernet_exc:
 
 COOKIE_NAME = "maintai_jwt"
 COOKIE_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60  # secondi
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").strip().lower() != "false"
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "none")  # "none" per cross-origin prod
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 
 # ── Token extraction (cookie-first, Authorization header fallback) ────────────

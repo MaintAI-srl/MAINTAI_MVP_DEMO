@@ -12,6 +12,7 @@ from backend.core.security import (
     COOKIE_NAME, COOKIE_MAX_AGE, COOKIE_SECURE, COOKIE_SAMESITE,
 )
 from backend.core.rate_limiter import limiter
+from backend.core.logger_db import db_info, db_warn, db_error
 
 # Regex: Min 8, 1 uppercase, 1 lowercase, 1 number, 1 special
 STRONG_PWD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-])[A-Za-z\d@$!%*?&#^_-]{8,}$")
@@ -29,6 +30,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         .first()
     )
     if not user or not verify_password(form_data.password, user.password_hash):
+        db_warn("AUTH", f"Tentativo di login fallito per utente: {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username o password errati",
@@ -67,6 +69,8 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         samesite=COOKIE_SAMESITE,
         path="/",
     )
+
+    db_info("AUTH", f"Login effettuato con successo: {user.username}", {"ruolo": user.ruolo, "tenant_id": user.tenant_id})
 
     return {
         "message": "Autenticazione completata. Credenziali emesse nel cookie.",

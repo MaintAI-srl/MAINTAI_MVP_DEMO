@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
+import GuideBot from "./components/GuideBot";
 import { VERSION } from "./lib/version";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 
@@ -530,6 +531,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <AppLayoutContent>{children}</AppLayoutContent>
+          <GuideBot />
         </AuthProvider>
         <Toaster
           position="bottom-right"

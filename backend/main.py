@@ -42,10 +42,12 @@ try:
     from backend.api.routes.desktop_update import router as desktop_update_router
     from backend.api.routes.conditions import router as conditions_router
     from backend.api.routes.failure_engine import router as failure_engine_router
+    from backend.api.routes.guide import router as guide_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
     from backend.core.logging_config import setup_logging
+    from backend.core.logger_db import db_warn
     from backend.services.email_poller import check_all_mailboxes
     from backend.services.retention_service import run_retention_job
     from backend.services.auto_ticket_service import run_auto_ticket_job
@@ -581,6 +583,7 @@ async def csrf_origin_check(request: Request, call_next):
         # 1. Verifica Origin (header primario per browser moderni)
         if origin:
             if origin not in _origins:
+                db_warn("CSRF", f"Origin mismatch: {origin}", {"path": request.url.path, "method": request.method})
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Richiesta bloccata: Origin mismatch (Possibile CSRF)."}
@@ -591,12 +594,14 @@ async def csrf_origin_check(request: Request, call_next):
             from urllib.parse import urlparse
             ref_origin = f"{urlparse(referer).scheme}://{urlparse(referer).netloc}"
             if ref_origin not in _origins:
+                db_warn("CSRF", f"Referer mismatch: {ref_origin}", {"path": request.url.path, "method": request.method, "referer": referer})
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Richiesta bloccata: Referer mismatch (Possibile CSRF)."}
                 )
         # 3. Fail-Closed: Se mancano entrambi, blocca (previene bypass tramite omissione header)
         else:
+            db_warn("CSRF", "Origin/Referer mancanti", {"path": request.url.path, "method": request.method})
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Richiesta bloccata: Origin/Referer mancanti (Obbligatori per azioni mutanti)."}
@@ -630,6 +635,7 @@ app.include_router(utenti_router)
 app.include_router(desktop_update_router)
 app.include_router(conditions_router)
 app.include_router(failure_engine_router)
+app.include_router(guide_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
