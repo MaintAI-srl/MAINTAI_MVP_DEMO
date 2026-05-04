@@ -209,6 +209,7 @@ function KpiCard({ label, value, accent, sub, icon }: { label: string; value: nu
       padding: "18px 20px 16px",
       display: "flex", flexDirection: "column", gap: 10,
       position: "relative", overflow: "hidden",
+      height: "100%",
       boxShadow: "var(--shadow-card)",
       transition: "transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease",
       cursor: "default",
@@ -333,7 +334,7 @@ function SortableDashboardTile({
   };
 
   return (
-    <div ref={setNodeRef} className={widget.type === "chart" ? "dashboard-widget-tile dashboard-widget-tile-chart" : "dashboard-widget-tile"} style={style}>
+    <div ref={setNodeRef} className={widget.type === "chart" ? "dashboard-widget-tile dashboard-widget-tile-chart" : "dashboard-widget-tile dashboard-widget-tile-kpi"} style={style}>
       {children({ attributes, listeners })}
     </div>
   );
@@ -349,6 +350,9 @@ function ChartCard({ title, subtitle, accent = "#5b8fff", children }: { title: s
       overflow: "hidden",
       boxShadow: "var(--shadow-card)",
       transition: "border-color 200ms, box-shadow 200ms",
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
     }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${accent}30`; }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-default)"; }}
@@ -359,7 +363,7 @@ function ChartCard({ title, subtitle, accent = "#5b8fff", children }: { title: s
         <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.01em", marginTop: 2 }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{subtitle}</div>}
       </div>
-      <div style={{ padding: "16px 12px 12px" }}>
+      <div style={{ padding: "16px 12px 12px", flex: 1, minHeight: 0 }}>
         {children}
       </div>
     </div>
@@ -830,14 +834,14 @@ export default function DashboardPage() {
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDashboardDragEnd}>
             <SortableContext items={dashboardWidgets.map((item) => item.id)} strategy={rectSortingStrategy}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+              <div className="dashboard-widget-grid">
                 {dashboardWidgets.map((widget) => {
                   if (widget.type === "kpi") {
                     const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
                     return (
                       <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
                         {({ attributes, listeners }) => (
-                          <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", height: "100%" }}>
                             {isCustomizing && (
                               <WidgetControls attributes={attributes} listeners={listeners}>
                                 <MiniSelect
@@ -858,7 +862,7 @@ export default function DashboardPage() {
                   return (
                     <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
                       {({ attributes, listeners }) => (
-                        <div style={{ position: "relative", gridColumn: "span 2" }}>
+                        <div style={{ position: "relative", height: "100%" }}>
                           {isCustomizing && (
                             <WidgetControls attributes={attributes} listeners={listeners}>
                               <MiniSelect
