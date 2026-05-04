@@ -1,11 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import StatusToggle from "../components/StatusToggle";
 import Skeleton, { SkeletonStats } from "../components/Skeleton";
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area,
@@ -23,6 +40,17 @@ type DashboardData = {
   ticket_chiusi: number;
   areas: string[];
 };
+const EMPTY_DASHBOARD: DashboardData = {
+  assets: 0,
+  asset_stati: {},
+  tecnici: 0,
+  tecnici_disponibili: 0,
+  ticket_aperti: 0,
+  ticket_pianificati: 0,
+  ticket_in_corso: 0,
+  ticket_chiusi: 0,
+  areas: [],
+};
 type DashboardCharts = {
   ticket_by_priority: ChartItem[];
   ticket_by_status: ChartItem[];
@@ -39,6 +67,37 @@ type KpiAssetItem = {
   downtime_seconds?: number | null;
 };
 type KpiAsset = { assets: KpiAssetItem[]; aggregati: { avg_mtbf_giorni: number; avg_oee_pct: number } };
+type KpiOptionId =
+  | "asset_totali"
+  | "asset_servizio"
+  | "asset_fermi"
+  | "asset_guasti"
+  | "tecnici_attivi"
+  | "ticket_aperti"
+  | "ticket_in_corso"
+  | "ticket_chiusi"
+  | "ticket_pianificati"
+  | "mtbf_medio"
+  | "oee_medio";
+type DashboardWidget = { id: string; kpi: KpiOptionId };
+type KpiOption = {
+  id: KpiOptionId;
+  label: string;
+  value: number | string;
+  accent: string;
+  sub?: string;
+  icon: React.ReactNode;
+};
+
+const DASHBOARD_WIDGETS_STORAGE_KEY = "maintai.dashboard.widgets.v1";
+const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
+  { id: "widget-asset", kpi: "asset_totali" },
+  { id: "widget-tech", kpi: "tecnici_attivi" },
+  { id: "widget-open", kpi: "ticket_aperti" },
+  { id: "widget-planned", kpi: "ticket_pianificati" },
+  { id: "widget-mtbf", kpi: "mtbf_medio" },
+  { id: "widget-oee", kpi: "oee_medio" },
+];
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 function IconBox({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
@@ -158,6 +217,91 @@ function KpiCard({ label, value, accent, sub, icon }: { label: string; value: nu
   );
 }
 
+function ConfigurableKpiTile({
+  widget,
+  option,
+  options,
+  editing,
+  onChange,
+}: {
+  widget: DashboardWidget;
+  option: KpiOption;
+  options: KpiOption[];
+  editing: boolean;
+  onChange: (id: string, kpi: KpiOptionId) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.72 : 1,
+    zIndex: isDragging ? 5 : 1,
+    animation: editing && !isDragging ? "dashboardTileWiggle 1.8s ease-in-out infinite" : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div style={{ position: "relative" }}>
+        {editing && (
+          <div style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            zIndex: 4,
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+          }}>
+            <button
+              type="button"
+              aria-label="Sposta riquadro"
+              title="Sposta riquadro"
+              {...attributes}
+              {...listeners}
+              style={{
+                width: 31,
+                height: 31,
+                borderRadius: 9,
+                border: "1px solid var(--border-default)",
+                background: "var(--surface-2)",
+                color: "var(--text-secondary)",
+                cursor: "grab",
+                fontWeight: 900,
+                lineHeight: 1,
+              }}
+            >
+              ::
+            </button>
+            <select
+              aria-label="Tipo KPI"
+              value={widget.kpi}
+              onChange={(e) => onChange(widget.id, e.target.value as KpiOptionId)}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{
+                height: 31,
+                maxWidth: 152,
+                borderRadius: 9,
+                border: "1px solid var(--border-default)",
+                background: "var(--surface-2)",
+                color: "var(--text-primary)",
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "0 8px",
+                outline: "none",
+              }}
+            >
+              {options.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
+      </div>
+    </div>
+  );
+}
+
 // ── Chart Card — Redesigned
 function ChartCard({ title, subtitle, accent = "#5b8fff", children }: { title: string; subtitle?: string; accent?: string; children: React.ReactNode }) {
   return (
@@ -214,7 +358,7 @@ function StatoDot({ stato }: { stato: string }) {
 export default function DashboardPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData>(EMPTY_DASHBOARD);
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
   const [trend, setTrend] = useState<TrendData | null>(null);
   const [kpiAsset, setKpiAsset] = useState<(KpiAsset & { total: number; page: number; pages: number }) | null>(null);
@@ -224,6 +368,12 @@ export default function DashboardPage() {
   const [selectedArea, setSelectedArea] = useState("");
   const [selectedStato, setSelectedStato] = useState("");
   const [areas, setAreas] = useState<string[]>([]);
+  const [dashboardWidgets, setDashboardWidgets] = useState<DashboardWidget[]>(DEFAULT_DASHBOARD_WIDGETS);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   async function loadKPIs() {
     try {
@@ -254,7 +404,139 @@ export default function DashboardPage() {
 
   useEffect(() => { loadKPIs(); }, [page, search, selectedArea, selectedStato]);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DASHBOARD_WIDGETS_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.every((item) => item?.id && item?.kpi)) {
+        setDashboardWidgets(parsed);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DASHBOARD_WIDGETS_STORAGE_KEY, JSON.stringify(dashboardWidgets));
+    } catch {}
+  }, [dashboardWidgets]);
+
   const trendChartData = trend ? trend.labels.map((l, i) => ({ name: l, value: trend.values[i] })) : [];
+  const kpiOptions = useMemo<KpiOption[]>(() => {
+    const assetService = dashboard?.asset_stati?.service ?? 0;
+    const assetStopped = dashboard?.asset_stati?.stopped ?? 0;
+    const assetOut = dashboard?.asset_stati?.["out of service"] ?? 0;
+    return [
+      {
+        id: "asset_totali",
+        label: "Asset totali",
+        value: dashboard?.assets ?? "—",
+        accent: "#5b8fff",
+        icon: <IconBox size={15} />,
+        sub: `${assetService} servizio · ${assetStopped} fermi · ${assetOut} guasti`,
+      },
+      {
+        id: "asset_servizio",
+        label: "Asset in servizio",
+        value: assetService,
+        accent: "#10d9b0",
+        icon: <IconBox size={15} />,
+        sub: "Asset disponibili alla produzione",
+      },
+      {
+        id: "asset_fermi",
+        label: "Asset fermi",
+        value: assetStopped,
+        accent: "#f6a233",
+        icon: <IconActivity size={15} />,
+        sub: "Fermi programmati o temporanei",
+      },
+      {
+        id: "asset_guasti",
+        label: "Asset guasti",
+        value: assetOut,
+        accent: "#f05252",
+        icon: <IconActivity size={15} />,
+        sub: "Criticità operative aperte",
+      },
+      {
+        id: "tecnici_attivi",
+        label: "Tecnici attivi",
+        value: dashboard ? `${dashboard.tecnici_disponibili}/${dashboard.tecnici}` : "—",
+        accent: "#10d9b0",
+        icon: <IconUsers size={15} />,
+        sub: "Disponibili oggi",
+      },
+      {
+        id: "ticket_aperti",
+        label: "Ticket aperti",
+        value: dashboard?.ticket_aperti ?? "—",
+        accent: "#f6a233",
+        icon: <IconTicket size={15} />,
+        sub: "Backlog da prendere in carico",
+      },
+      {
+        id: "ticket_in_corso",
+        label: "Ticket in corso",
+        value: dashboard?.ticket_in_corso ?? "—",
+        accent: "#9b78ff",
+        icon: <IconTicket size={15} />,
+        sub: "Lavorazioni attualmente aperte",
+      },
+      {
+        id: "ticket_chiusi",
+        label: "Ticket chiusi",
+        value: dashboard?.ticket_chiusi ?? "—",
+        accent: "#10d9b0",
+        icon: <IconTicket size={15} />,
+        sub: "Interventi completati",
+      },
+      {
+        id: "ticket_pianificati",
+        label: "Ticket pianificati",
+        value: dashboard?.ticket_pianificati ?? "—",
+        accent: "#9b78ff",
+        icon: <IconCalendar size={15} />,
+        sub: "Schedulati dal planner",
+      },
+      {
+        id: "mtbf_medio",
+        label: "MTBF medio",
+        value: kpiAsset ? `${kpiAsset.aggregati.avg_mtbf_giorni}gg` : "—",
+        accent: "#9b78ff",
+        icon: <IconActivity size={15} />,
+        sub: "Mean Time Between Failures",
+      },
+      {
+        id: "oee_medio",
+        label: "OEE medio",
+        value: kpiAsset ? `${kpiAsset.aggregati.avg_oee_pct}%` : "—",
+        accent: "#10d9b0",
+        icon: <IconActivity size={15} />,
+        sub: "Overall Equipment Effectiveness · 30gg",
+      },
+    ];
+  }, [dashboard, kpiAsset]);
+  const kpiOptionsById = useMemo(() => new Map(kpiOptions.map((item) => [item.id, item])), [kpiOptions]);
+
+  const handleDashboardDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setDashboardWidgets((items) => {
+      const oldIndex = items.findIndex((item) => item.id === active.id);
+      const newIndex = items.findIndex((item) => item.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return items;
+      return arrayMove(items, oldIndex, newIndex);
+    });
+  };
+
+  const changeWidgetKpi = (id: string, kpi: KpiOptionId) => {
+    setDashboardWidgets((items) => items.map((item) => item.id === id ? { ...item, kpi } : item));
+  };
+
+  const resetDashboardWidgets = () => {
+    setDashboardWidgets(DEFAULT_DASHBOARD_WIDGETS);
+  };
 
   return (
     <div className="anim-fade-in-up" style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 48 }}>
@@ -337,17 +619,51 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── KPI Cards */}
       {loading ? (
-        <SkeletonStats count={4} />
+        <SkeletonStats count={6} />
       ) : dashboard ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>Dashboard personalizzata</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>Trascina i riquadri e scegli il KPI da mostrare in ogni posizione.</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {isCustomizing && (
+                <button type="button" className="btn btn-secondary" style={{ padding: "7px 12px", fontSize: 12 }} onClick={resetDashboardWidgets}>
+                  Ripristina
+                </button>
+              )}
+              <button type="button" className={isCustomizing ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "7px 14px", fontSize: 12 }} onClick={() => setIsCustomizing((value) => !value)}>
+                {isCustomizing ? "Fine" : "Personalizza"}
+              </button>
+            </div>
+          </div>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDashboardDragEnd}>
+            <SortableContext items={dashboardWidgets.map((item) => item.id)} strategy={rectSortingStrategy}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
+                {dashboardWidgets.map((widget) => {
+                  const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
+                  return (
+                    <ConfigurableKpiTile key={widget.id} widget={widget} option={option} options={kpiOptions} editing={isCustomizing} onChange={changeWidgetKpi} />
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      ) : null}
+
+      {/* ── KPI Cards */}
+      {false && dashboard && (
+        <div style={{ display: "none", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
           <KpiCard label="Asset totali"     value={dashboard.assets}                            accent="#5b8fff" icon={<IconBox size={15} />}      sub={`${dashboard.asset_stati?.service ?? 0} servizio · ${dashboard.asset_stati?.stopped ?? 0} fermi · ${dashboard.asset_stati?.["out of service"] ?? 0} guasti`} />
           <KpiCard label="Tecnici attivi"   value={`${dashboard.tecnici_disponibili}/${dashboard.tecnici}`} accent="#10d9b0" icon={<IconUsers size={15} />}    sub="Disponibili oggi" />
           <KpiCard label="Ticket aperti"    value={dashboard.ticket_aperti}                     accent="#f6a233" icon={<IconTicket size={15} />}   sub={`${dashboard.ticket_in_corso} in lavorazione · ${dashboard.ticket_chiusi} chiusi`} />
           <KpiCard label="Ticket pianificati" value={dashboard.ticket_pianificati}              accent="#9b78ff" icon={<IconCalendar size={15} />} sub="Schedulati dal planner" />
         </div>
-      ) : null}
+      )}
 
       {/* ── MTBF + OEE Ring Cards */}
       {kpiAsset && (
