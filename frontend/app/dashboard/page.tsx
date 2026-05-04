@@ -25,7 +25,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line,
 } from "recharts";
 
 type ChartItem = { name: string; value: number };
@@ -79,7 +79,20 @@ type KpiOptionId =
   | "ticket_pianificati"
   | "mtbf_medio"
   | "oee_medio";
-type DashboardWidget = { id: string; kpi: KpiOptionId };
+type ChartDataId =
+  | "ticket_by_priority"
+  | "ticket_by_status"
+  | "ticket_by_fascia"
+  | "ticket_by_tipo"
+  | "asset_by_stato"
+  | "mtbf_by_asset"
+  | "oee_by_asset"
+  | "downtime_by_asset"
+  | "guasti_by_asset";
+type ChartDisplayType = "pie" | "bar" | "area" | "line";
+type DashboardWidget =
+  | { id: string; type: "kpi"; kpi: KpiOptionId }
+  | { id: string; type: "chart"; chartData: ChartDataId; chartType: ChartDisplayType };
 type KpiOption = {
   id: KpiOptionId;
   label: string;
@@ -88,15 +101,24 @@ type KpiOption = {
   sub?: string;
   icon: React.ReactNode;
 };
+type ChartOption = {
+  id: ChartDataId;
+  title: string;
+  subtitle: string;
+  data: ChartItem[];
+  accent: string;
+};
 
-const DASHBOARD_WIDGETS_STORAGE_KEY = "maintai.dashboard.widgets.v1";
+const DASHBOARD_WIDGETS_STORAGE_KEY = "maintai.dashboard.widgets.v2";
 const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
-  { id: "widget-asset", kpi: "asset_totali" },
-  { id: "widget-tech", kpi: "tecnici_attivi" },
-  { id: "widget-open", kpi: "ticket_aperti" },
-  { id: "widget-planned", kpi: "ticket_pianificati" },
-  { id: "widget-mtbf", kpi: "mtbf_medio" },
-  { id: "widget-oee", kpi: "oee_medio" },
+  { id: "widget-asset", type: "kpi", kpi: "asset_totali" },
+  { id: "widget-tech", type: "kpi", kpi: "tecnici_attivi" },
+  { id: "widget-open", type: "kpi", kpi: "ticket_aperti" },
+  { id: "widget-priority-chart", type: "chart", chartData: "ticket_by_priority", chartType: "pie" },
+  { id: "widget-planned", type: "kpi", kpi: "ticket_pianificati" },
+  { id: "widget-asset-chart", type: "chart", chartData: "asset_by_stato", chartType: "bar" },
+  { id: "widget-mtbf", type: "kpi", kpi: "mtbf_medio" },
+  { id: "widget-oee-chart", type: "chart", chartData: "oee_by_asset", chartType: "area" },
 ];
 
 // ── Icons ───────────────────────────────────────────────────────────────────
@@ -217,18 +239,89 @@ function KpiCard({ label, value, accent, sub, icon }: { label: string; value: nu
   );
 }
 
-function ConfigurableKpiTile({
-  widget,
-  option,
+function WidgetControls({
+  attributes,
+  listeners,
+  children,
+}: {
+  attributes: any;
+  listeners?: any;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ position: "absolute", top: 10, right: 10, zIndex: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <button
+        type="button"
+        aria-label="Sposta riquadro"
+        title="Sposta riquadro"
+        {...attributes}
+        {...listeners}
+        style={{
+          width: 31,
+          height: 31,
+          borderRadius: 9,
+          border: "1px solid var(--border-default)",
+          background: "var(--surface-2)",
+          color: "var(--text-secondary)",
+          cursor: "grab",
+          fontWeight: 900,
+          lineHeight: 1,
+        }}
+      >
+        ::
+      </button>
+      {children}
+    </div>
+  );
+}
+
+function MiniSelect({
+  label,
+  value,
   options,
-  editing,
   onChange,
+  width = 150,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  width?: number;
+}) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onPointerDown={(e) => e.stopPropagation()}
+      style={{
+        height: 31,
+        maxWidth: width,
+        borderRadius: 9,
+        border: "1px solid var(--border-default)",
+        background: "var(--surface-2)",
+        color: "var(--text-primary)",
+        fontSize: 11,
+        fontWeight: 700,
+        padding: "0 8px",
+        outline: "none",
+      }}
+    >
+      {options.map((item) => (
+        <option key={item.value} value={item.value}>{item.label}</option>
+      ))}
+    </select>
+  );
+}
+
+function SortableDashboardTile({
+  widget,
+  editing,
+  children,
 }: {
   widget: DashboardWidget;
-  option: KpiOption;
-  options: KpiOption[];
   editing: boolean;
-  onChange: (id: string, kpi: KpiOptionId) => void;
+  children: (drag: { attributes: any; listeners?: any }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const style: CSSProperties = {
@@ -240,64 +333,8 @@ function ConfigurableKpiTile({
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <div style={{ position: "relative" }}>
-        {editing && (
-          <div style={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            zIndex: 4,
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-          }}>
-            <button
-              type="button"
-              aria-label="Sposta riquadro"
-              title="Sposta riquadro"
-              {...attributes}
-              {...listeners}
-              style={{
-                width: 31,
-                height: 31,
-                borderRadius: 9,
-                border: "1px solid var(--border-default)",
-                background: "var(--surface-2)",
-                color: "var(--text-secondary)",
-                cursor: "grab",
-                fontWeight: 900,
-                lineHeight: 1,
-              }}
-            >
-              ::
-            </button>
-            <select
-              aria-label="Tipo KPI"
-              value={widget.kpi}
-              onChange={(e) => onChange(widget.id, e.target.value as KpiOptionId)}
-              onPointerDown={(e) => e.stopPropagation()}
-              style={{
-                height: 31,
-                maxWidth: 152,
-                borderRadius: 9,
-                border: "1px solid var(--border-default)",
-                background: "var(--surface-2)",
-                color: "var(--text-primary)",
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "0 8px",
-                outline: "none",
-              }}
-            >
-              {options.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
-      </div>
+    <div ref={setNodeRef} className={widget.type === "chart" ? "dashboard-widget-tile dashboard-widget-tile-chart" : "dashboard-widget-tile"} style={style}>
+      {children({ attributes, listeners })}
     </div>
   );
 }
@@ -326,6 +363,74 @@ function ChartCard({ title, subtitle, accent = "#5b8fff", children }: { title: s
         {children}
       </div>
     </div>
+  );
+}
+
+function DashboardChartContent({ data, chartType, accent }: { data: ChartItem[]; chartType: ChartDisplayType; accent: string }) {
+  if (!data.length) {
+    return <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 48, fontSize: 13 }}>Nessun dato disponibile.</div>;
+  }
+
+  if (chartType === "pie") {
+    return (
+      <ResponsiveContainer width="100%" height={240}>
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={62} outerRadius={90} paddingAngle={3} strokeWidth={0}>
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={PRIORITY_COLORS[i % PRIORITY_COLORS.length]} stroke={PRIORITY_COLORS[i % PRIORITY_COLORS.length]} strokeWidth={1} />
+            ))}
+          </Pie>
+          <Tooltip contentStyle={chartTooltipStyle} />
+          <Legend iconType="circle" iconSize={7} formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>{v}</span>} />
+        </PieChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  if (chartType === "area") {
+    return (
+      <ResponsiveContainer width="100%" height={240}>
+        <AreaChart data={data} margin={{ left: 0, right: 10, top: 12, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`dashboardArea-${accent.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={accent} stopOpacity={0.32} />
+              <stop offset="95%" stopColor={accent} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(91,143,255,0.05)" vertical={false} />
+          <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} width={34} />
+          <Tooltip contentStyle={chartTooltipStyle} />
+          <Area type="monotone" dataKey="value" stroke={accent} strokeWidth={2} fill={`url(#dashboardArea-${accent.replace("#", "")})`} dot={{ r: 3 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  if (chartType === "line") {
+    return (
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={data} margin={{ left: 0, right: 10, top: 12, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(91,143,255,0.05)" vertical={false} />
+          <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} width={34} />
+          <Tooltip contentStyle={chartTooltipStyle} />
+          <Line type="monotone" dataKey="value" stroke={accent} strokeWidth={2.4} dot={{ r: 3, fill: accent }} activeDot={{ r: 5 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <BarChart data={data} margin={{ left: 0, right: 10, top: 12, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(91,143,255,0.05)" vertical={false} />
+        <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} width={34} />
+        <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "rgba(91,143,255,0.04)" }} />
+        <Bar dataKey="value" fill={accent} radius={[7, 7, 0, 0]} maxBarSize={42} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -409,7 +514,7 @@ export default function DashboardPage() {
       const saved = window.localStorage.getItem(DASHBOARD_WIDGETS_STORAGE_KEY);
       if (!saved) return;
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.every((item) => item?.id && item?.kpi)) {
+      if (Array.isArray(parsed) && parsed.every((item) => item?.id && (item?.type === "kpi" ? item?.kpi : item?.chartData && item?.chartType))) {
         setDashboardWidgets(parsed);
       }
     } catch {}
@@ -518,6 +623,81 @@ export default function DashboardPage() {
     ];
   }, [dashboard, kpiAsset]);
   const kpiOptionsById = useMemo(() => new Map(kpiOptions.map((item) => [item.id, item])), [kpiOptions]);
+  const chartOptions = useMemo<ChartOption[]>(() => {
+    const assetRows = kpiAsset?.assets ?? [];
+    return [
+      {
+        id: "ticket_by_priority",
+        title: "Ticket per priorità",
+        subtitle: "Distribuzione per livello di urgenza",
+        data: charts?.ticket_by_priority ?? [],
+        accent: "#f05252",
+      },
+      {
+        id: "ticket_by_status",
+        title: "Ticket per stato",
+        subtitle: "Avanzamento operativo dei ticket",
+        data: charts?.ticket_by_status ?? [],
+        accent: "#5b8fff",
+      },
+      {
+        id: "ticket_by_fascia",
+        title: "Ticket per fascia",
+        subtitle: "Carico di lavoro per finestra temporale",
+        data: charts?.ticket_by_fascia ?? [],
+        accent: "#f6a233",
+      },
+      {
+        id: "ticket_by_tipo",
+        title: "Ticket per tipo",
+        subtitle: "Breakdown, preventive e correttive",
+        data: charts?.ticket_by_tipo ?? [],
+        accent: "#9b78ff",
+      },
+      {
+        id: "asset_by_stato",
+        title: "Asset per stato",
+        subtitle: "Snapshot del parco macchine",
+        data: charts?.asset_by_stato ?? [],
+        accent: "#10d9b0",
+      },
+      {
+        id: "mtbf_by_asset",
+        title: "MTBF per asset",
+        subtitle: "Mean Time Between Failures",
+        data: assetRows.map((a) => ({ name: a.asset_codice || a.asset_nome, value: a.mtbf_giorni })),
+        accent: "#9b78ff",
+      },
+      {
+        id: "oee_by_asset",
+        title: "OEE per asset",
+        subtitle: "Overall Equipment Effectiveness · 30gg",
+        data: assetRows.map((a) => ({ name: a.asset_codice || a.asset_nome, value: a.oee_pct })),
+        accent: "#10d9b0",
+      },
+      {
+        id: "downtime_by_asset",
+        title: "Downtime per asset",
+        subtitle: "Ore di fermo negli ultimi 30 giorni",
+        data: assetRows.map((a) => ({ name: a.asset_codice || a.asset_nome, value: a.downtime_ore_30gg })),
+        accent: "#f6a233",
+      },
+      {
+        id: "guasti_by_asset",
+        title: "Guasti per asset",
+        subtitle: "Numero guasti registrati",
+        data: assetRows.map((a) => ({ name: a.asset_codice || a.asset_nome, value: a.n_guasti })),
+        accent: "#f05252",
+      },
+    ];
+  }, [charts, kpiAsset]);
+  const chartOptionsById = useMemo(() => new Map(chartOptions.map((item) => [item.id, item])), [chartOptions]);
+  const chartTypeOptions: { value: ChartDisplayType; label: string }[] = [
+    { value: "pie", label: "Torta" },
+    { value: "bar", label: "Barre" },
+    { value: "area", label: "Area" },
+    { value: "line", label: "Linea" },
+  ];
 
   const handleDashboardDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -531,7 +711,15 @@ export default function DashboardPage() {
   };
 
   const changeWidgetKpi = (id: string, kpi: KpiOptionId) => {
-    setDashboardWidgets((items) => items.map((item) => item.id === id ? { ...item, kpi } : item));
+    setDashboardWidgets((items) => items.map((item) => item.id === id && item.type === "kpi" ? { ...item, kpi } : item));
+  };
+
+  const changeWidgetChartData = (id: string, chartData: ChartDataId) => {
+    setDashboardWidgets((items) => items.map((item) => item.id === id && item.type === "chart" ? { ...item, chartData } : item));
+  };
+
+  const changeWidgetChartType = (id: string, chartType: ChartDisplayType) => {
+    setDashboardWidgets((items) => items.map((item) => item.id === id && item.type === "chart" ? { ...item, chartType } : item));
   };
 
   const resetDashboardWidgets = () => {
@@ -574,11 +762,11 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: "var(--radius-full)", background: "rgba(16,217,176,0.08)", border: "1px solid rgba(16,217,176,0.20)", fontSize: 11, color: "var(--cyan)", fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cyan)", display: "inline-block", animation: "statusPulse 2.5s infinite", boxShadow: "0 0 6px rgba(16,217,176,0.5)" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderRadius: "var(--radius-full)", background: "rgba(16,217,176,0.10)", border: "1px solid rgba(16,217,176,0.26)", fontSize: 15, color: "var(--cyan)", fontWeight: 800, letterSpacing: "0.01em" }}>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--cyan)", display: "inline-block", animation: "statusPulse 2.5s infinite", boxShadow: "0 0 9px rgba(16,217,176,0.65)" }} />
               {lastUpdate ? `Live · ${lastUpdate.toLocaleTimeString("it-IT")}` : "Connessione..."}
             </div>
-            {trendChartData.length > 0 && (
+            {false && trendChartData.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 9, color: "var(--text-muted)", letterSpacing: "0.10em", textTransform: "uppercase" }}>30gg</span>
                 <ResponsiveContainer width={90} height={30}>
@@ -642,11 +830,59 @@ export default function DashboardPage() {
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDashboardDragEnd}>
             <SortableContext items={dashboardWidgets.map((item) => item.id)} strategy={rectSortingStrategy}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
                 {dashboardWidgets.map((widget) => {
-                  const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
+                  if (widget.type === "kpi") {
+                    const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
+                    return (
+                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
+                        {({ attributes, listeners }) => (
+                          <div style={{ position: "relative" }}>
+                            {isCustomizing && (
+                              <WidgetControls attributes={attributes} listeners={listeners}>
+                                <MiniSelect
+                                  label="Tipo KPI"
+                                  value={widget.kpi}
+                                  options={kpiOptions.map((item) => ({ value: item.id, label: item.label }))}
+                                  onChange={(value) => changeWidgetKpi(widget.id, value as KpiOptionId)}
+                                />
+                              </WidgetControls>
+                            )}
+                            <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
+                          </div>
+                        )}
+                      </SortableDashboardTile>
+                    );
+                  }
+                  const chart = chartOptionsById.get(widget.chartData) ?? chartOptions[0];
                   return (
-                    <ConfigurableKpiTile key={widget.id} widget={widget} option={option} options={kpiOptions} editing={isCustomizing} onChange={changeWidgetKpi} />
+                    <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
+                      {({ attributes, listeners }) => (
+                        <div style={{ position: "relative", gridColumn: "span 2" }}>
+                          {isCustomizing && (
+                            <WidgetControls attributes={attributes} listeners={listeners}>
+                              <MiniSelect
+                                label="Dati grafico"
+                                value={widget.chartData}
+                                options={chartOptions.map((item) => ({ value: item.id, label: item.title }))}
+                                onChange={(value) => changeWidgetChartData(widget.id, value as ChartDataId)}
+                                width={170}
+                              />
+                              <MiniSelect
+                                label="Tipologia grafico"
+                                value={widget.chartType}
+                                options={chartTypeOptions}
+                                onChange={(value) => changeWidgetChartType(widget.id, value as ChartDisplayType)}
+                                width={104}
+                              />
+                            </WidgetControls>
+                          )}
+                          <ChartCard title={chart.title} subtitle={chart.subtitle} accent={chart.accent}>
+                            <DashboardChartContent data={chart.data} chartType={widget.chartType} accent={chart.accent} />
+                          </ChartCard>
+                        </div>
+                      )}
+                    </SortableDashboardTile>
                   );
                 })}
               </div>
@@ -667,7 +903,7 @@ export default function DashboardPage() {
 
       {/* ── MTBF + OEE Ring Cards */}
       {kpiAsset && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "none", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div style={{
             background: "var(--grad-card)",
             border: "1px solid rgba(155,120,255,0.18)",
@@ -697,7 +933,7 @@ export default function DashboardPage() {
 
       {/* ── Charts Row 1 */}
       {charts && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "none", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <ChartCard title="Ticket per Priorità" subtitle="Distribuzione per livello di urgenza" accent="#f05252">
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -742,7 +978,7 @@ export default function DashboardPage() {
 
       {/* ── Charts Row 2 */}
       {kpiAsset && kpiAsset.assets.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "none", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <ChartCard title="MTBF per Asset" subtitle="Mean Time Between Failures — pagina corrente" accent="#9b78ff">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart layout="vertical" data={kpiAsset.assets.map(a => ({ name: a.asset_codice || a.asset_nome, value: a.mtbf_giorni }))} margin={{ left: 0 }}>

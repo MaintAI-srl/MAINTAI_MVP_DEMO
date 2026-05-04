@@ -533,6 +533,16 @@ body {
   50% { rotate: 0.35deg; }
 }
 
+.dashboard-widget-tile-chart {
+  grid-column: span 2;
+}
+
+@media (max-width: 760px) {
+  .dashboard-widget-tile-chart {
+    grid-column: span 1;
+  }
+}
+
 /* ── Animation utilities ────────────────────────────────────── */
 .anim-fade-in        { animation: fadeIn       160ms ease-out both; }
 .anim-fade-in-up     { animation: fadeInUp     220ms cubic-bezier(0.22,1,0.36,1) both; }
