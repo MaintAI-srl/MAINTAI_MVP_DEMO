@@ -88,6 +88,7 @@ _DEFAULT_ORIGINS = [
     "https://maintai.vercel.app",
     "https://maintai-frontend.vercel.app",
     "https://maintaiv3.vercel.app",
+    "https://maintai-mvp-demo.vercel.app",
     # Tauri Desktop — WebView2 (Windows) usa http://tauri.localhost
     # WebView (macOS/Linux) usa tauri://localhost
     "http://tauri.localhost",
