@@ -60,7 +60,7 @@ type DashboardCharts = {
 };
 type TrendData = { labels: string[]; values: number[]; total: number };
 type KpiAssetItem = {
-  asset_id: number; asset_nome: string; asset_codice: string; asset_area: string;
+  asset_id: number; asset_sito?: string; asset_nome: string; asset_codice: string; asset_area: string;
   stato: string; mtbf_giorni: number; oee_pct: number;
   n_guasti: number; downtime_ore_30gg: number;
   stato_changed_at?: string | null;
@@ -92,7 +92,15 @@ type ChartDataId =
 type ChartDisplayType = "pie" | "bar" | "area" | "line";
 type DashboardWidget =
   | { id: string; type: "kpi"; kpi: KpiOptionId }
-  | { id: string; type: "chart"; chartData: ChartDataId; chartType: ChartDisplayType };
+  | { id: string; type: "chart"; chartData: ChartDataId; chartType: ChartDisplayType }
+  | { id: string; type: "asset_table" };
+type AssetColumnFilters = {
+  sito: string;
+  codice: string;
+  asset: string;
+  area: string;
+  stato: string;
+};
 type KpiOption = {
   id: KpiOptionId;
   label: string;
@@ -119,6 +127,7 @@ const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: "widget-asset-chart", type: "chart", chartData: "asset_by_stato", chartType: "bar" },
   { id: "widget-mtbf", type: "kpi", kpi: "mtbf_medio" },
   { id: "widget-oee-chart", type: "chart", chartData: "oee_by_asset", chartType: "area" },
+  { id: "widget-asset-detail", type: "asset_table" },
 ];
 
 // ── Icons ───────────────────────────────────────────────────────────────────
@@ -318,10 +327,12 @@ function MiniSelect({
 function SortableDashboardTile({
   widget,
   editing,
+  expanded = false,
   children,
 }: {
   widget: DashboardWidget;
   editing: boolean;
+  expanded?: boolean;
   children: (drag: { attributes: any; listeners?: any }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
@@ -331,10 +342,21 @@ function SortableDashboardTile({
     opacity: isDragging ? 0.72 : 1,
     zIndex: isDragging ? 5 : 1,
     animation: editing && !isDragging ? "dashboardTileWiggle 1.8s ease-in-out infinite" : undefined,
+    gridRow: widget.type === "asset_table" && expanded ? "span 6" : undefined,
   };
 
   return (
-    <div ref={setNodeRef} className={widget.type === "chart" ? "dashboard-widget-tile dashboard-widget-tile-chart" : "dashboard-widget-tile dashboard-widget-tile-kpi"} style={style}>
+    <div
+      ref={setNodeRef}
+      className={
+        widget.type === "chart"
+          ? "dashboard-widget-tile dashboard-widget-tile-chart"
+          : widget.type === "asset_table"
+            ? "dashboard-widget-tile dashboard-widget-tile-asset"
+            : "dashboard-widget-tile dashboard-widget-tile-kpi"
+      }
+      style={style}
+    >
       {children({ attributes, listeners })}
     </div>
   );
@@ -463,6 +485,141 @@ function StatoDot({ stato }: { stato: string }) {
   );
 }
 
+function AssetDetailWidget({
+  assets,
+  total,
+  page,
+  pages,
+  open,
+  filters,
+  onToggle,
+  onFilterChange,
+  onPageChange,
+}: {
+  assets: KpiAssetItem[];
+  total: number;
+  page: number;
+  pages: number;
+  open: boolean;
+  filters: AssetColumnFilters;
+  onToggle: () => void;
+  onFilterChange: (key: keyof AssetColumnFilters, value: string) => void;
+  onPageChange: (page: number) => void;
+}) {
+  const filteredAssets = assets.filter((a) => {
+    const values = {
+      sito: a.asset_sito || "",
+      codice: a.asset_codice || "",
+      asset: a.asset_nome || "",
+      area: a.asset_area || "",
+      stato: a.stato || "",
+    };
+    return (Object.keys(filters) as (keyof AssetColumnFilters)[]).every((key) => {
+      const needle = filters[key].trim().toLowerCase();
+      return !needle || values[key].toLowerCase().includes(needle);
+    });
+  });
+  const columns: { key: keyof AssetColumnFilters; label: string; width?: number }[] = [
+    { key: "sito", label: "Sito", width: 140 },
+    { key: "codice", label: "Codice", width: 110 },
+    { key: "asset", label: "Asset", width: 180 },
+    { key: "area", label: "Area", width: 130 },
+    { key: "stato", label: "Stato", width: 120 },
+  ];
+
+  return (
+    <div style={{ height: "100%", background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          minHeight: 68,
+          padding: "14px 18px",
+          border: 0,
+          borderBottom: open ? "1px solid var(--border-subtle)" : "none",
+          background: "rgba(91,143,255,0.025)",
+          color: "var(--text-primary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <div style={{ padding: 7, background: "var(--border-subtle)", borderRadius: 8, border: "1px solid rgba(91,143,255,0.18)", color: "var(--cobalt)" }}>
+            <IconActivity size={14} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--text-primary)" }}>Dettaglio KPI per Asset</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{filteredAssets.length} visibili · {total} totali · MTBF · OEE · Downtime</div>
+          </div>
+        </div>
+        <span style={{ color: "var(--cobalt-bright)", fontSize: 12, fontWeight: 800 }}>{open ? "Comprimi" : "Apri"}</span>
+      </button>
+
+      {open && (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "rgba(91,143,255,0.03)" }}>
+                  {columns.map((col) => (
+                    <th key={col.key} style={{ padding: "9px 10px", textAlign: "left", borderBottom: "1px solid var(--border-subtle)", minWidth: col.width }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--text-muted)" }}>{col.label}</span>
+                        <input
+                          value={filters[col.key]}
+                          onChange={(e) => onFilterChange(col.key, e.target.value)}
+                          placeholder="Filtra"
+                          style={{ height: 24, borderRadius: 7, border: "1px solid var(--border-default)", background: "var(--surface-2)", color: "var(--text-primary)", fontSize: 11, padding: "0 7px", outline: "none" }}
+                        />
+                      </div>
+                    </th>
+                  ))}
+                  {["MTBF", "OEE", "Guasti", "Downtime", "In corso"].map((h) => (
+                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontSize: 9, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAssets.map((a) => (
+                  <tr key={a.asset_id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                    <td style={{ padding: "10px", color: "var(--text-secondary)", fontWeight: 700 }}>{a.asset_sito || "-"}</td>
+                    <td style={{ padding: "10px", fontFamily: "var(--font-mono)", color: "var(--cobalt-bright)", fontWeight: 700 }}>{a.asset_codice || "-"}</td>
+                    <td style={{ padding: "10px", fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap" }}>{a.asset_nome}</td>
+                    <td style={{ padding: "10px", color: "var(--text-muted)" }}>{a.asset_area || "-"}</td>
+                    <td style={{ padding: "10px" }}><StatoDot stato={a.stato} /></td>
+                    <td style={{ padding: "10px", color: "var(--violet)", fontWeight: 900 }}>{a.mtbf_giorni}gg</td>
+                    <td style={{ padding: "10px", minWidth: 120 }}><OeeBar value={a.oee_pct} /></td>
+                    <td style={{ padding: "10px", color: a.n_guasti > 5 ? "var(--red)" : "var(--text-muted)", fontWeight: 800 }}>{a.n_guasti}</td>
+                    <td style={{ padding: "10px", color: "var(--text-muted)" }}>{a.downtime_ore_30gg}h</td>
+                    <td style={{ padding: "10px" }}>{a.stato === "out of service" && a.stato_changed_at ? <DowntimeTicker statoChangedAt={a.stato_changed_at} secondsFromBackend={a.downtime_seconds} /> : <span style={{ color: "var(--text-disabled)" }}>-</span>}</td>
+                  </tr>
+                ))}
+                {!filteredAssets.length && (
+                  <tr><td colSpan={10} style={{ padding: 28, textAlign: "center", color: "var(--text-muted)" }}>Nessun asset trovato.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {pages > 1 && (
+            <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Pagina {page} / {pages}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: 12 }} disabled={page === 1} onClick={() => onPageChange(page - 1)}>Prec.</button>
+                <button className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: 12 }} disabled={page === pages} onClick={() => onPageChange(page + 1)}>Succ.</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -479,6 +636,8 @@ export default function DashboardPage() {
   const [areas, setAreas] = useState<string[]>([]);
   const [dashboardWidgets, setDashboardWidgets] = useState<DashboardWidget[]>(DEFAULT_DASHBOARD_WIDGETS);
   const [isCustomizing, setIsCustomizing] = useState(false);
+  const [assetDetailOpen, setAssetDetailOpen] = useState(false);
+  const [assetColumnFilters, setAssetColumnFilters] = useState<AssetColumnFilters>({ sito: "", codice: "", asset: "", area: "", stato: "" });
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -518,7 +677,7 @@ export default function DashboardPage() {
       const saved = window.localStorage.getItem(DASHBOARD_WIDGETS_STORAGE_KEY);
       if (!saved) return;
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.every((item) => item?.id && (item?.type === "kpi" ? item?.kpi : item?.chartData && item?.chartType))) {
+      if (Array.isArray(parsed) && parsed.every((item) => item?.id && (item?.type === "asset_table" || (item?.type === "kpi" ? item?.kpi : item?.chartData && item?.chartType)))) {
         setDashboardWidgets(parsed);
       }
     } catch {}
@@ -839,7 +998,7 @@ export default function DashboardPage() {
                   if (widget.type === "kpi") {
                     const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
                     return (
-                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
+                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing} expanded={assetDetailOpen}>
                         {({ attributes, listeners }) => (
       <div style={{ position: "relative", height: "100%" }}>
                             {isCustomizing && (
@@ -853,6 +1012,34 @@ export default function DashboardPage() {
                               </WidgetControls>
                             )}
                             <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
+                          </div>
+                        )}
+                      </SortableDashboardTile>
+                    );
+                  }
+                  if (widget.type === "asset_table") {
+                    return (
+                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
+                        {({ attributes, listeners }) => (
+                          <div style={{ position: "relative", height: "100%" }}>
+                            {isCustomizing && (
+                              <WidgetControls attributes={attributes} listeners={listeners}>
+                                <span style={{ height: 31, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-secondary)", fontSize: 11, fontWeight: 800 }}>
+                                  Dettaglio asset
+                                </span>
+                              </WidgetControls>
+                            )}
+                            <AssetDetailWidget
+                              assets={kpiAsset?.assets ?? []}
+                              total={kpiAsset?.total ?? 0}
+                              page={page}
+                              pages={kpiAsset?.pages ?? 0}
+                              open={assetDetailOpen}
+                              filters={assetColumnFilters}
+                              onToggle={() => setAssetDetailOpen((value) => !value)}
+                              onFilterChange={(key, value) => setAssetColumnFilters((current) => ({ ...current, [key]: value }))}
+                              onPageChange={setPage}
+                            />
                           </div>
                         )}
                       </SortableDashboardTile>
@@ -1023,6 +1210,7 @@ export default function DashboardPage() {
 
       {/* ── Asset KPI Table */}
       <div style={{
+        display: "none",
         background: "var(--grad-card)",
         border: "1px solid var(--border-default)",
         borderRadius: "var(--radius-lg)", overflow: "hidden",

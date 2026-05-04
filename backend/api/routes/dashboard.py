@@ -2,10 +2,10 @@ from datetime import date, timedelta, datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, case, distinct
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
-from backend.db.modelli import Asset, Tecnico, Ticket, AttivitaManutenzione
+from backend.db.modelli import Asset, Impianto, Tecnico, Ticket, AttivitaManutenzione
 
 router = APIRouter()
 
@@ -81,7 +81,13 @@ def dashboard_kpi_asset(
         q = q.filter(Asset.stato == stato)
 
     total = q.count()
-    assets = q.order_by(Asset.nome).offset((page - 1) * limit).limit(limit).all()
+    assets = (
+        q.options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+        .order_by(Asset.nome)
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
 
     if not assets:
         return {"assets": [], "total": total, "page": page, "pages": 0,
@@ -175,6 +181,7 @@ def dashboard_kpi_asset(
 
         kpi_list.append({
             "asset_id":        a.id,
+            "asset_sito":      a.impianto.sito.nome if a.impianto and a.impianto.sito else "",
             "asset_nome":      a.nome,
             "asset_codice":    a.codice or "",
             "asset_area":      a.area or "",

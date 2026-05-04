@@ -555,6 +555,11 @@ body {
   grid-row: span 4;
 }
 
+.dashboard-widget-tile-asset {
+  grid-column: 1 / -1;
+  grid-row: span 1;
+}
+
 @media (max-width: 760px) {
   .dashboard-widget-grid {
     grid-template-columns: 1fr;
@@ -564,6 +569,10 @@ body {
   .dashboard-widget-tile-chart {
     grid-column: span 1;
     grid-row: span 4;
+  }
+
+  .dashboard-widget-tile-asset {
+    grid-column: span 1;
   }
 }
 
