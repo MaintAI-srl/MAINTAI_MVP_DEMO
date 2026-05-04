@@ -130,7 +130,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, logout, user } = useAuth();
   const [time, setTime] = useState("");
   const [theme, setTheme] = useState("dark");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Keep-alive: pinga il backend ogni 8 minuti per evitare cold start su Render free tier
   useEffect(() => {
@@ -167,6 +167,16 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       return visibleForTecnico.includes(item.href);
     })
   })).filter(section => section.items.length > 0);
+
+  const toggleSidebar = () => {
+    setSidebarOpen((open) => !open);
+  };
+
+  const closeSidebarOnMobile = () => {
+    if (typeof window !== "undefined" && window.innerWidth <= 1024) {
+      setSidebarOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (isTecnico && (pathname === "/dashboard" || pathname === "/")) {
@@ -276,7 +286,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
         {/* ── LOGO ──────────────────────────────────────── */}
-        <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={() => setSidebarOpen(false)}>
+        <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={closeSidebarOnMobile}>
           {/* Logo con glow */}
           <div className="sidebar-logo-icon" style={{ background: "var(--cobalt-dim)", border: "1px solid var(--cobalt-border)", boxShadow: "var(--glow-cobalt)" }}>
             <img
@@ -305,7 +315,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => setSidebarOpen(false)}
+                      onClick={closeSidebarOnMobile}
                       className={active ? "nav-item active" : "nav-item"}
                     >
                       <span className="nav-icon">
@@ -378,6 +388,16 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      <button
+        type="button"
+        className="sidebar-menu-tab"
+        onClick={toggleSidebar}
+        aria-label={sidebarOpen ? "Nascondi menu laterale" : "Mostra menu laterale"}
+        aria-expanded={sidebarOpen}
+      >
+        <span>MENU</span>
+      </button>
+
       {/* ══════════════════════════════════════════════════════════
           MAIN
           ══════════════════════════════════════════════════════════ */}
@@ -389,8 +409,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="topbar-breadcrumb">
             <button
               className="mobile-menu-btn"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label="Apri menu"
+              onClick={toggleSidebar}
+              aria-label={sidebarOpen ? "Nascondi menu" : "Apri menu"}
             >☰</button>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <span className="topbar-section">

@@ -572,6 +572,13 @@ body {
   background-image:
     linear-gradient(180deg, #08101e 0%, #05090f 100%),
     radial-gradient(ellipse at 20% 0%, rgba(91,143,255,0.06) 0%, transparent 60%);
+  transform: translateX(calc(-1 * var(--sidebar-width)));
+  transition: transform 260ms cubic-bezier(0.22,1,0.36,1), box-shadow 260ms;
+  will-change: transform;
+}
+
+.sidebar-open .app-sidebar {
+  transform: translateX(0);
 }
 
 .app-sidebar::before {
@@ -583,7 +590,7 @@ body {
 }
 
 .app-main {
-  margin-left: var(--sidebar-width);
+  margin-left: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -591,6 +598,52 @@ body {
   background: var(--surface-0);
   /* Subtle noise texture */
   background-image: radial-gradient(ellipse at 60% 0%, rgba(91,143,255,0.03) 0%, transparent 50%);
+  transition: margin-left 260ms cubic-bezier(0.22,1,0.36,1), width 260ms cubic-bezier(0.22,1,0.36,1);
+}
+
+.sidebar-open .app-main {
+  margin-left: var(--sidebar-width);
+}
+
+.sidebar-menu-tab {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  z-index: 65;
+  width: 34px;
+  min-height: 96px;
+  transform: translateY(-50%);
+  border: 1px solid var(--border-accent);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  background: var(--grad-sidebar);
+  color: var(--cobalt-bright);
+  box-shadow: var(--shadow-card), 0 0 22px var(--cobalt-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  transition: left 260ms cubic-bezier(0.22,1,0.36,1), border-color 160ms, box-shadow 160ms, color 160ms;
+}
+
+.sidebar-menu-tab span {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.18em;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sidebar-menu-tab:hover {
+  border-color: var(--cobalt-border);
+  color: var(--cyan-bright);
+  box-shadow: var(--shadow-card-hover), 0 0 26px var(--cobalt-glow);
+}
+
+.sidebar-open .sidebar-menu-tab {
+  left: var(--sidebar-width);
 }
 
 /* ─── TOPBAR — Redesigned ─────────────────────────────────────── */
@@ -1586,6 +1639,14 @@ input:focus, select:focus, textarea:focus {
     width: 100%;
   }
 
+  .sidebar-open .app-main {
+    margin-left: 0;
+  }
+
+  .sidebar-open .sidebar-menu-tab {
+    left: min(var(--sidebar-width), calc(100vw - 34px));
+  }
+
   .app-topbar { padding: 0 14px; }
   .app-content { padding: 18px 14px; }
 
@@ -1630,10 +1691,20 @@ input:focus, select:focus, textarea:focus {
 .app-topbar::after {
   content: '';
   position: absolute;
-  bottom: 0; left: var(--sidebar-width); right: 0;
+  bottom: 0; left: 0; right: 0;
   height: 1px;
   background: linear-gradient(90deg, rgb(91 143 255 / 0.25), transparent 80%);
   pointer-events: none;
+}
+
+.sidebar-open .app-topbar::after {
+  left: var(--sidebar-width);
+}
+
+@media (max-width: 1024px) {
+  .sidebar-open .app-topbar::after {
+    left: 0;
+  }
 }
 
 /* ─── HERO WELCOME CARD ─────────────────────────────────────── */
