@@ -1,5 +1,5 @@
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
+  process.env.NEXT_PUBLIC_API_BASE ?? (process.env.NODE_ENV === "production" ? "/api" : "https://maintai-v3.onrender.com");
 
 /** True quando l'app gira dentro Tauri (desktop). */
 export function isTauri(): boolean {
