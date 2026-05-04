@@ -52,15 +52,17 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   headers.set("origin", BACKEND_ALLOWED_ORIGIN);
   headers.set("referer", `${BACKEND_ALLOWED_ORIGIN}/`);
 
-  const init: RequestInit & { duplex?: "half" } = {
+  const init: RequestInit = {
     method: request.method,
     headers,
     redirect: "manual",
   };
 
   if (!["GET", "HEAD"].includes(request.method)) {
-    init.body = request.body;
-    init.duplex = "half";
+    const body = await request.arrayBuffer();
+    if (body.byteLength > 0) {
+      init.body = body;
+    }
   }
 
   const backendResponse = await fetch(backendUrl, init);
