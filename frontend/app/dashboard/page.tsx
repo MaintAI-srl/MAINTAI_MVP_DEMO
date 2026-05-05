@@ -636,7 +636,7 @@ export default function DashboardPage() {
   const [areas, setAreas] = useState<string[]>([]);
   const [dashboardWidgets, setDashboardWidgets] = useState<DashboardWidget[]>(DEFAULT_DASHBOARD_WIDGETS);
   const [isCustomizing, setIsCustomizing] = useState(false);
-  const [assetDetailOpen, setAssetDetailOpen] = useState(false);
+  const [assetDetailOpen, setAssetDetailOpen] = useState(true);
   const [assetColumnFilters, setAssetColumnFilters] = useState<AssetColumnFilters>({ sito: "", codice: "", asset: "", area: "", stato: "" });
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
