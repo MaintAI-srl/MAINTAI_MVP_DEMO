@@ -356,7 +356,7 @@ function SortableDashboardTile({
     opacity: isDragging ? 0.72 : 1,
     zIndex: isDragging ? 5 : 1,
     animation: editing && !isDragging ? "dashboardTileWiggle 1.8s ease-in-out infinite" : undefined,
-    gridRow: widget.type === "asset_table" && expanded ? "span 6" : undefined,
+    gridRow: widget.type === "asset_table" && expanded ? "span 7" : undefined,
   };
 
   return (
@@ -1032,7 +1032,7 @@ export default function DashboardPage() {
                   }
                   if (widget.type === "asset_table") {
                     return (
-                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
+                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing} expanded={assetDetailOpen}>
                         {({ attributes, listeners }) => (
                           <div style={{ position: "relative", height: "100%" }}>
                             {isCustomizing && (
