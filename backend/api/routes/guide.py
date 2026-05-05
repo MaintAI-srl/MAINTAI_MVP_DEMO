@@ -106,7 +106,7 @@ Il tuo compito non e fare conversazione generica: devi aiutare l'utente a usare 
 Conosci MaintAI:
 - Dashboard: KPI live, grafici, widget drag and drop, dettaglio KPI asset, MTBF, OEE, downtime, guasti.
 - Ticket: stati Aperto, Pianificato, In corso, Chiuso, Eliminato; tipi BD, PM, CM; kanban e tabella.
-- Planning Felix: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
+- Planning MARCO: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
 - Conferma piano: aggiorna ticket esistenti con stato Pianificato, tecnico, planned_start e planned_finish.
 - Asset: gerarchia Siti > Impianti > Asset, dati tecnici, vincoli e stato operativo.
 - Tecnici: disponibilita, assenze, competenze e orari.
@@ -117,10 +117,11 @@ Conosci MaintAI:
 Regole:
 - Se ricevi contesto pagina, parti da quello e spiega cosa si puo fare in quella pagina.
 - Dai percorsi concreti nella sidebar quando utile.
-- Rispondi con passi brevi e azionabili.
+- Rispondi come una guida/tutorial: riconosci l'obiettivo e dai una procedura numerata passo passo.
 - Se l'utente chiede "cosa posso fare qui", proponi le azioni principali della pagina corrente.
 - Se c'e un problema tecnico, separa diagnosi probabile, controlli e soluzione.
 - Non inventare dati del database: spiega come verificarli nell'interfaccia.
+- Chiudi chiedendo se l'utente vuole essere guidato nel prossimo click.
 """
 
 
@@ -143,20 +144,53 @@ def _fallback_answer(req: GuideRequest) -> str:
     actions = ctx.actions or (playbook.get("steps", []) if playbook else [])
     focus = playbook.get("focus") if playbook else ctx.summary
 
-    if "cosa" in last.lower() or "come" in last.lower() or "pagina" in last.lower():
-        intro = f"In {title} puoi lavorare su {focus or 'le funzioni principali di MaintAI'}."
-        steps = actions[:4] or [
-            "Controlla i dati mostrati nella pagina.",
-            "Usa filtri, pulsanti e pannelli disponibili per restringere il lavoro.",
-            "Se vuoi, chiedimi un obiettivo specifico e ti guido passo per passo.",
+    low = last.lower()
+    if "ticket" in low:
+        steps = [
+            "Apri Operazioni > Ticket dalla sidebar.",
+            "Premi Nuovo ticket e scegli tipo BD, PM o CM.",
+            "Compila asset, priorita, durata stimata e descrizione del problema.",
+            "Salva il ticket e controlla che compaia nel backlog.",
+            "Usa Kanban o tabella per seguire lo stato.",
         ]
-        return intro + "\n\nAzioni consigliate:\n" + "\n".join(f"- {step}" for step in steps)
+    elif "vincol" in low:
+        steps = [
+            "Apri Risorse > Asset e seleziona l'asset interessato.",
+            "Entra nella scheda tecnica.",
+            "Cerca vincoli operativi, manutentivi, meteo, orari o note tecniche.",
+            "Aggiorna i vincoli se sono incompleti.",
+            "Rigenera il piano se i vincoli impattano la pianificazione.",
+        ]
+    elif "dashboard" in low or "graf" in low or "kpi" in low:
+        steps = [
+            "Apri Dashboard.",
+            "Premi Personalizza.",
+            "Trascina KPI, grafici e Dettaglio KPI per Asset.",
+            "Scegli dati e tipologia dei grafici.",
+            "Apri Dettaglio KPI per Asset e filtra le colonne.",
+        ]
+    else:
+        steps = actions[:5] or [
+            "Controlla i dati mostrati nella pagina.",
+            "Usa filtri, pulsanti e pannelli disponibili.",
+            "Apri il dettaglio del record se devi modificare o verificare dati.",
+            "Salva o conferma l'operazione.",
+            "Verifica che il risultato sia visibile nella pagina.",
+        ]
 
-    return (
-        f"Sono Felix. In {title} posso guidarti in modo operativo.\n\n"
-        "Dimmi cosa vuoi ottenere, ad esempio: creare un ticket, leggere un KPI, filtrare asset, "
-        "generare un piano Felix o capire un errore. Posso risponderti con i passaggi esatti."
-    )
+    return "\n".join([
+        f"Contesto: {title}.",
+        f"Obiettivo rilevato: usare {focus or 'questa funzione di MaintAI'}.",
+        "",
+        "Procedura passo passo:",
+        *[f"{idx + 1}. {step}" for idx, step in enumerate(steps)],
+        "",
+        "Controllo finale:",
+        "- Verifica che il dato sia salvato o visibile nella pagina.",
+        "- Se non cambia nulla, aggiorna la pagina e ripeti il passaggio chiave.",
+        "",
+        "Vuoi che ti guidi nel prossimo click preciso?",
+    ])
 
 
 @router.post("/chat")
