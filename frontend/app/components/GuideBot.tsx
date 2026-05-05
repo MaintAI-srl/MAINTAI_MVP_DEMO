@@ -112,6 +112,25 @@ function guideForPath(pathname: string): PageGuide {
   };
 }
 
+function localGuideAnswer(pageGuide: PageGuide, question: string): string {
+  const q = question.toLowerCase();
+  const intro = `In ${pageGuide.title} puoi lavorare su ${pageGuide.area.toLowerCase()}. ${pageGuide.summary}`;
+
+  if (q.includes("ticket")) {
+    return `${intro}\n\nPer i ticket:\n- Apri la sezione Ticket dalla sidebar se devi creare o modificare una richiesta.\n- Se sei in una scheda Asset, cerca i ticket collegati o creane uno partendo dal problema dell'asset.\n- Usa stato, priorità e tipo intervento per rendere il ticket pianificabile da MARCO.`;
+  }
+
+  if (q.includes("vincol")) {
+    return `${intro}\n\nPer i vincoli:\n- Controlla nella scheda Asset i vincoli operativi, manutentivi, meteo e orari.\n- I vincoli servono a evitare pianificazioni non compatibili con condizioni operative o ambientali.\n- Se un vincolo manca, aggiorna l'anagrafica asset prima di generare il piano MARCO.`;
+  }
+
+  if (q.includes("graf") || q.includes("dashboard") || q.includes("kpi")) {
+    return `${intro}\n\nNella dashboard:\n- Premi Personalizza per spostare KPI, grafici e dettaglio asset.\n- Per ogni grafico puoi scegliere dati e tipologia: torta, barre, area o linea.\n- Apri Dettaglio KPI per Asset per filtrare sito, codice, asset, area e stato.`;
+  }
+
+  return `${intro}\n\nAzioni consigliate:\n${pageGuide.actions.map((action) => `- ${action}`).join("\n")}\n\nDimmi l'obiettivo preciso e ti guido passo per passo.`;
+}
+
 export default function GuideBot() {
   const { isAuthenticated, user } = useAuth();
   const pathname = usePathname();
@@ -156,7 +175,7 @@ export default function GuideBot() {
     } catch {
       setMessages((prev) => [...prev, {
         role: "assistant",
-        content: `Sono online ma non riesco a raggiungere il motore guida. Intanto posso dirti che in ${pageGuide.title} puoi: ${pageGuide.actions.join(", ")}.`,
+        content: localGuideAnswer(pageGuide, userMsg),
       }]);
     } finally {
       setLoading(false);
@@ -166,17 +185,17 @@ export default function GuideBot() {
   return (
     <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className={`mb-4 w-[360px] md:w-[460px] bg-[#07111F]/95 backdrop-blur-xl border border-cyan-400/20 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${isMinimized ? "h-16" : "h-[640px]"}`}>
+        <div className={`mb-4 w-[390px] md:w-[500px] bg-[#07111F]/95 backdrop-blur-xl border border-cyan-400/20 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${isMinimized ? "h-16" : "h-[660px]"}`}>
           <div className="p-4 bg-gradient-to-r from-cyan-500/15 via-blue-500/12 to-emerald-400/10 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-cyan-400/15 border border-cyan-300/30 flex items-center justify-center shadow-[0_0_22px_rgba(31,232,255,0.35)]">
                 <BrainCircuit size={21} className="text-cyan-200" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-black text-white tracking-[0.18em]">FELIX</h3>
+                <h3 className="text-base font-black text-white tracking-[0.18em]">FELIX</h3>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-[0.16em]">Guida contestuale</span>
+                  <span className="text-xs text-emerald-300 font-bold uppercase tracking-[0.16em]">Guida contestuale</span>
                 </div>
               </div>
             </div>
@@ -192,44 +211,44 @@ export default function GuideBot() {
 
           {!isMinimized && (
             <>
-              <div className="px-4 py-3 border-b border-white/10 bg-white/[0.025]">
-                <div className="flex items-center gap-2 text-cyan-200 text-xs font-bold uppercase tracking-[0.14em]">
-                  <Compass size={14} />
+              <div className="px-5 py-4 border-b border-white/10 bg-white/[0.025]">
+                <div className="flex items-center gap-2 text-cyan-200 text-sm font-black uppercase tracking-[0.14em]">
+                  <Compass size={16} />
                   {pageGuide.title}
                 </div>
-                <p className="mt-2 text-xs leading-5 text-slate-300">{pageGuide.summary}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-200">{pageGuide.summary}</p>
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   {pageGuide.suggestions.slice(0, 3).map((suggestion) => (
                     <button
                       key={suggestion}
                       onClick={() => sendMessage(suggestion)}
-                      className="group flex items-center justify-between gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:border-cyan-300/35 hover:bg-cyan-300/10 transition-colors"
+                      className="group flex items-center justify-between gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/6 px-3.5 py-2.5 text-left text-sm font-bold text-slate-100 hover:border-cyan-300/45 hover:bg-cyan-300/12 transition-colors"
                     >
                       {suggestion}
-                      <ChevronRight size={14} className="text-cyan-300 group-hover:translate-x-0.5 transition-transform" />
+                      <ChevronRight size={16} className="text-cyan-300 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    {m.role === "assistant" && <Bot size={18} className="mt-2 shrink-0 text-cyan-300" />}
-                    <div className={`max-w-[84%] whitespace-pre-wrap rounded-2xl p-3 text-sm leading-6 ${
+                    {m.role === "assistant" && <Bot size={20} className="mt-2 shrink-0 text-cyan-300" />}
+                    <div className={`max-w-[84%] whitespace-pre-wrap rounded-2xl p-3.5 text-base leading-7 ${
                       m.role === "user"
                         ? "bg-blue-600 text-white rounded-tr-md shadow-lg shadow-blue-900/20"
                         : "bg-white/6 border border-white/10 text-slate-100 rounded-tl-md"
                     }`}>
                       {m.content}
                     </div>
-                    {m.role === "user" && <User size={18} className="mt-2 shrink-0 text-blue-200" />}
+                    {m.role === "user" && <User size={20} className="mt-2 shrink-0 text-blue-200" />}
                   </div>
                 ))}
                 {loading && (
                   <div className="flex justify-start gap-2">
-                    <Bot size={18} className="mt-2 text-cyan-300" />
-                    <div className="bg-white/6 border border-white/10 px-4 py-3 rounded-2xl rounded-tl-md text-slate-300 flex items-center gap-2 text-sm">
+                    <Bot size={20} className="mt-2 text-cyan-300" />
+                    <div className="bg-white/6 border border-white/10 px-4 py-3 rounded-2xl rounded-tl-md text-slate-300 flex items-center gap-2 text-base">
                       <Loader2 size={15} className="animate-spin text-cyan-300" />
                       Felix sta ragionando sulla pagina...
                     </div>
@@ -245,7 +264,7 @@ export default function GuideBot() {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                     placeholder={`Chiedi cosa fare in ${pageGuide.title}...`}
-                    className="w-full bg-white/6 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-300/50 focus:ring-1 focus:ring-cyan-300/30 transition-all"
+                    className="w-full bg-white/6 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-300/50 focus:ring-1 focus:ring-cyan-300/30 transition-all"
                   />
                   <button
                     onClick={() => sendMessage()}
