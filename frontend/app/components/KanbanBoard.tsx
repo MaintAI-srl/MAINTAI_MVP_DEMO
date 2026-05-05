@@ -170,14 +170,26 @@ function KanbanPianificaModal({
     return d.toISOString().slice(0, 16);
   };
   const [date, setDate] = useState(getISO(0, 8));
+  const [selectedPreset, setSelectedPreset] = useState<string>("Oggi 08:00");
   const [tecnicoId, setTecnicoId] = useState<number | null>(null);
 
   const presets = [
     { label: "Oggi 08:00", d: 0, h: 8 },
     { label: "Oggi 14:00", d: 0, h: 14 },
     { label: "Domani 08:00", d: 1, h: 8 },
-    { label: "Lunedì prox", d: (8 - new Date().getDay()) % 7 || 7, h: 8 },
   ];
+
+  function selectPreset(p: { label: string; d: number; h: number }) {
+    setDate(getISO(p.d, p.h));
+    setSelectedPreset(p.label);
+  }
+
+  function handleDateChange(val: string) {
+    setDate(val);
+    setSelectedPreset(""); // nessun preset attivo se si modifica manualmente
+  }
+
+  const canConfirm = !!date && !!tecnicoId;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>
@@ -192,36 +204,56 @@ function KanbanPianificaModal({
 
         {/* Presets rapidi */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Accesso rapido</div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
-          {presets.map(p => (
-            <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
-              style={{ fontSize: 10, padding: "6px 12px", background: "rgba(167,139,250,0.08)", color: "#c4b5fd", border: "1px solid rgba(167,139,250,0.2)", borderRadius: 8, cursor: "pointer", fontWeight: 700, transition: "all 0.15s" }}>
-              {p.label}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          {presets.map(p => {
+            const active = selectedPreset === p.label;
+            return (
+              <button key={p.label} onClick={() => selectPreset(p)} style={{
+                fontSize: 10, padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontWeight: 700, transition: "all 0.15s",
+                background: active ? "rgba(167,139,250,0.25)" : "rgba(167,139,250,0.06)",
+                color: active ? "#e9d5ff" : "#a78bfa",
+                border: active ? "1.5px solid #a78bfa" : "1px solid rgba(167,139,250,0.2)",
+                boxShadow: active ? "0 0 12px rgba(167,139,250,0.3)" : "none",
+              }}>
+                {active ? "✓ " : ""}{p.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Data */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
-        <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
+        <input type="datetime-local" value={date} onChange={e => handleDateChange(e.target.value)}
           style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box", marginBottom: 24 }} />
 
-        {/* Tecnico */}
+        {/* Tecnico — OBBLIGATORIO */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
-          Assegna tecnico <span style={{ color: "rgba(148,163,184,0.5)", fontWeight: 500, textTransform: "none" }}>(opzionale)</span>
+          Assegna tecnico <span style={{ color: "#f87171", fontWeight: 800 }}>*</span>
         </div>
         <select
           value={tecnicoId ?? ""}
           onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)", padding: "12px 16px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box", marginBottom: 32 }}
+          style={{
+            width: "100%", background: "rgba(255,255,255,0.04)", borderRadius: 10,
+            border: tecnicoId ? "1.5px solid rgba(167,139,250,0.5)" : "1.5px solid rgba(248,113,113,0.4)",
+            color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
+            padding: "12px 16px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box", marginBottom: 8,
+            boxShadow: tecnicoId ? "0 0 10px rgba(167,139,250,0.15)" : "none",
+          }}
         >
-          <option value="">— Nessun tecnico assegnato —</option>
+          <option value="">— Seleziona tecnico —</option>
           {tecnici.map(t => (
             <option key={t.id} value={t.id}>
               {t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}
             </option>
           ))}
         </select>
+        {!tecnicoId && (
+          <div style={{ fontSize: 11, color: "#f87171", marginBottom: 24, display: "flex", alignItems: "center", gap: 5 }}>
+            <span>⚠</span> Il tecnico è obbligatorio per pianificare
+          </div>
+        )}
+        {tecnicoId && <div style={{ marginBottom: 24 }} />}
 
         {/* Azioni */}
         <div style={{ display: "flex", gap: 12 }}>
@@ -229,8 +261,8 @@ function KanbanPianificaModal({
             style={{ flex: 1, padding: "13px", background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
             Annulla
           </button>
-          <button disabled={!date} onClick={() => date && onConfirm(date, tecnicoId)}
-            style={{ flex: 2, padding: "13px", background: date ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(167,139,250,0.2)", color: date ? "#fff" : "#a78bfa", border: "none", borderRadius: 12, cursor: date ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: date ? "0 4px 20px rgba(124,58,237,0.4)" : "none", transition: "all 0.2s" }}>
+          <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(date, tecnicoId)}
+            style={{ flex: 2, padding: "13px", background: canConfirm ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(167,139,250,0.1)", color: canConfirm ? "#fff" : "rgba(167,139,250,0.4)", border: "none", borderRadius: 12, cursor: canConfirm ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: canConfirm ? "0 4px 20px rgba(124,58,237,0.4)" : "none", transition: "all 0.2s" }}>
             ✓ Conferma pianificazione
           </button>
         </div>
