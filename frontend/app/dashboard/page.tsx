@@ -117,7 +117,7 @@ type ChartOption = {
   accent: string;
 };
 
-const DASHBOARD_WIDGETS_STORAGE_KEY = "maintai.dashboard.widgets.v2";
+const DASHBOARD_WIDGETS_STORAGE_KEY = "maintai.dashboard.widgets.v3";
 const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: "widget-asset", type: "kpi", kpi: "asset_totali" },
   { id: "widget-tech", type: "kpi", kpi: "tecnici_attivi" },
@@ -129,6 +129,20 @@ const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: "widget-oee-chart", type: "chart", chartData: "oee_by_asset", chartType: "area" },
   { id: "widget-asset-detail", type: "asset_table" },
 ];
+
+function normalizeDashboardWidgets(saved: unknown): DashboardWidget[] {
+  if (!Array.isArray(saved)) return DEFAULT_DASHBOARD_WIDGETS;
+  const valid = saved.filter((item): item is DashboardWidget =>
+    !!item?.id && (
+      item.type === "asset_table" ||
+      (item.type === "kpi" && !!item.kpi) ||
+      (item.type === "chart" && !!item.chartData && !!item.chartType)
+    )
+  );
+  const ids = new Set(valid.map((item) => item.id));
+  const missingDefaults = DEFAULT_DASHBOARD_WIDGETS.filter((item) => !ids.has(item.id));
+  return [...valid, ...missingDefaults];
+}
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 function IconBox({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
@@ -532,6 +546,7 @@ function AssetDetailWidget({
       <button
         type="button"
         onClick={onToggle}
+        onPointerDown={(e) => e.stopPropagation()}
         style={{
           width: "100%",
           minHeight: 68,
@@ -557,7 +572,7 @@ function AssetDetailWidget({
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{filteredAssets.length} visibili · {total} totali · MTBF · OEE · Downtime</div>
           </div>
         </div>
-        <span style={{ color: "var(--cobalt-bright)", fontSize: 12, fontWeight: 800 }}>{open ? "Comprimi" : "Apri"}</span>
+        <span style={{ color: "var(--cobalt-bright)", fontSize: 12, fontWeight: 800 }}>{open ? "Comprimi" : "Apri dettaglio"}</span>
       </button>
 
       {open && (
@@ -677,9 +692,7 @@ export default function DashboardPage() {
       const saved = window.localStorage.getItem(DASHBOARD_WIDGETS_STORAGE_KEY);
       if (!saved) return;
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.every((item) => item?.id && (item?.type === "asset_table" || (item?.type === "kpi" ? item?.kpi : item?.chartData && item?.chartType)))) {
-        setDashboardWidgets(parsed);
-      }
+      setDashboardWidgets(normalizeDashboardWidgets(parsed));
     } catch {}
   }, []);
 

@@ -504,7 +504,7 @@ async def generate_deterministic_plan(
         )
         motivation = (
             log_entry.replace("[OK] ", "").replace("[OK-SPLIT] ", "SPLIT: ").replace("[OK-NOSP] ", "")
-            if log_entry else "Pianificato dal motore deterministico MARCO-Engine"
+            if log_entry else "Pianificato dal motore deterministico Felix-Engine"
         )
 
         # Calcola confidence score per questo WO

@@ -13,7 +13,7 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/).
 
 ### v2.0-v2.8 (Sintesi)
 - **Multi-tenancy reale** — Isolamento dati via `tenant_id` e routing JWT dinamico.
-- **Piano AI MARCO** — Nuovo motore di pianificazione ibrido (Deterministico + GPT).
+- **Piano AI Felix** — Nuovo motore di pianificazione ibrido (Deterministico + GPT).
 - **Desktop App** — Integrazione Tauri 2 per distribuzione MSI/Setup Windows.
 - **UI Tailwind v4** — Migrazione a Tailwind v4 per prestazioni incrementate.
 - **Ridisegno Ergonomica** — Status Toggle 1-click su tutte le tabelle.

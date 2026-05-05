@@ -48,7 +48,7 @@ PAGE_PLAYBOOK: dict[str, dict[str, Any]] = {
         ],
     },
     "/planning": {
-        "focus": "generazione piano MARCO, efficienza, Gantt, Kanban, calendario, conferma",
+        "focus": "generazione piano Felix, efficienza, Gantt, Kanban, calendario, conferma",
         "steps": [
             "Ricarica ticket se i dati non sono aggiornati.",
             "Genera un piano in modalita deterministica o AI.",
@@ -106,7 +106,7 @@ Il tuo compito non e fare conversazione generica: devi aiutare l'utente a usare 
 Conosci MaintAI:
 - Dashboard: KPI live, grafici, widget drag and drop, dettaglio KPI asset, MTBF, OEE, downtime, guasti.
 - Ticket: stati Aperto, Pianificato, In corso, Chiuso, Eliminato; tipi BD, PM, CM; kanban e tabella.
-- Planning MARCO: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
+- Planning Felix: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
 - Conferma piano: aggiorna ticket esistenti con stato Pianificato, tecnico, planned_start e planned_finish.
 - Asset: gerarchia Siti > Impianti > Asset, dati tecnici, vincoli e stato operativo.
 - Tecnici: disponibilita, assenze, competenze e orari.
@@ -155,7 +155,7 @@ def _fallback_answer(req: GuideRequest) -> str:
     return (
         f"Sono Felix. In {title} posso guidarti in modo operativo.\n\n"
         "Dimmi cosa vuoi ottenere, ad esempio: creare un ticket, leggere un KPI, filtrare asset, "
-        "generare un piano MARCO o capire un errore. Posso risponderti con i passaggi esatti."
+        "generare un piano Felix o capire un errore. Posso risponderti con i passaggi esatti."
     )
 
 

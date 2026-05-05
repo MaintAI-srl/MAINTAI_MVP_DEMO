@@ -1,5 +1,5 @@
 """
-AI Planner Service — MARCO, il Planner Senior di Manutenzione Industriale.
+AI Planner Service — Felix, il Planner Senior di Manutenzione Industriale.
 Genera piani manutenzione ottimizzati usando OpenAI + previsioni meteo Open-Meteo.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 _CTX_CACHE: Dict[Tuple[int, int, str], Tuple[float, Dict[str, Any]]] = {}
 _CTX_TTL_SECONDS = 300  # 5 minuti
 
-MARCO_SYSTEM_PROMPT = """Sei MARCO, motore di Maintenance Planning & Scheduling per un'azienda di service/manutenzione industriale con 20+ anni di esperienza in impianti energetici, portuali e manifatturieri. Pianifichi con la precisione di un esperto certificato RCM e TPM.
+FELIX_SYSTEM_PROMPT = """Sei Felix, motore di Maintenance Planning & Scheduling per un'azienda di service/manutenzione industriale con 20+ anni di esperienza in impianti energetici, portuali e manifatturieri. Pianifichi con la precisione di un esperto certificato RCM e TPM.
 
 OBIETTIVO
 Genera un piano settimanale e una proposta di assegnazione giornaliera massimizzando produttività, saturazione utile delle ore disponibili, rispetto di priorità, vincoli operativi e qualità del lavoro. Distingui sempre tra PLANNING e SCHEDULING.
@@ -699,7 +699,7 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         response = ai_client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": MARCO_SYSTEM_PROMPT},
+                {"role": "system", "content": FELIX_SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
             response_format={

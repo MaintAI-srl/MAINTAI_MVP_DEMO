@@ -1,4 +1,4 @@
-# LLM Planning Prompt — MARCO System Prompt (annotato)
+# LLM Planning Prompt — Felix System Prompt (annotato)
 
 Estratto e annotato da `backend/services/ai_planner_service.py`.
 Aggiornato alla versione 2.8.2.
@@ -8,23 +8,23 @@ Aggiornato alla versione 2.8.2.
 ## Struttura del prompt
 
 Il prompt è composto da:
-1. **MARCO_SYSTEM_PROMPT** — prompt di sistema statico (incluso in ogni chiamata)
+1. **FELIX_SYSTEM_PROMPT** — prompt di sistema statico (incluso in ogni chiamata)
 2. **Contesto dinamico** — dati tenant-specifici iniettati come user message
 3. **RESPONSE_SCHEMA** — JSON schema OpenAI strict per il formato di risposta
 
 ---
 
-## MARCO_SYSTEM_PROMPT — sezioni annotate
+## FELIX_SYSTEM_PROMPT — sezioni annotate
 
 ### Identità e expertise
 
 ```
-Sei MARCO, motore di Maintenance Planning & Scheduling per un'azienda di service/manutenzione
+Sei Felix, motore di Maintenance Planning & Scheduling per un'azienda di service/manutenzione
 industriale con 20+ anni di esperienza in impianti energetici, portuali e manifatturieri.
 Pianifichi con la precisione di un esperto certificato RCM e TPM.
 ```
 
-**Nota:** Il nome "MARCO" è il brand del planner AI. RCM = Reliability-Centered Maintenance, TPM = Total Productive Maintenance.
+**Nota:** Il nome "Felix" è il brand del planner AI. RCM = Reliability-Centered Maintenance, TPM = Total Productive Maintenance.
 
 ### PRINCIPI GUIDA — PLANNING (Regole 1-6)
 
@@ -98,7 +98,7 @@ Il contesto viene costruito da `collect_planning_context()` e include:
 
 ## Differenze motore AI vs motore deterministico
 
-| Caratteristica | Deterministico | AI (MARCO) |
+| Caratteristica | Deterministico | AI (Felix) |
 |---|---|---|
 | Velocità | Istantaneo | 30-120s |
 | Reason codes | Strutturati (`NO_SKILL`, ecc.) | Stringa libera in `reason` |

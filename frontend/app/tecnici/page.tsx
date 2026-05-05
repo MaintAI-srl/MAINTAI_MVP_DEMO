@@ -308,7 +308,7 @@ export default function TecniciPage() {
           <form onSubmit={handleSubmit} className={styles.form}>
             <div className={styles.field}>
               <label className={styles.label}>Nome *</label>
-              <input className={styles.input} value={nome} onChange={e => setNome(e.target.value)} placeholder="Es. Marco" />
+              <input className={styles.input} value={nome} onChange={e => setNome(e.target.value)} placeholder="Es. Felix" />
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Cognome</label>

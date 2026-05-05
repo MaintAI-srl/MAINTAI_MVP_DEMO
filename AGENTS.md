@@ -15,7 +15,7 @@ MaintAI è un sistema di gestione manutenzione industriale AI-powered per impian
 **Funzionalità produzione attuale:**
 1. Gestione Siti → Impianti → Asset con dati tecnici completi
 2. Ticket con 5 stati (Aperto / Pianificato / In corso / Chiuso / Eliminato), paginazione server-side, export Excel
-3. **Piano AI MARCO** — motore deterministico (`PlannerEngine`) + motore GPT opzionale, viste Gantt/Kanban/Calendario, storico piani con deautorizzazione
+3. **Piano AI Felix** — motore deterministico (`PlannerEngine`) + motore GPT opzionale, viste Gantt/Kanban/Calendario, storico piani con deautorizzazione
 4. Sessione diagnostica AI guidata (RCA interattiva via OpenAI)
 5. Caricamento manuali PDF → estrazione automatica piano manutenzione + pagina `/piani`
 6. Dashboard KPI in tempo reale (polling 30s) con grafici Recharts
@@ -103,7 +103,7 @@ backend/
   services/
     planner_engine.py      — motore deterministico puro (dataclass, no ORM, testabile)
     planner_engine_bridge.py — adattatore ORM→PlannerEngine→plan_json
-    ai_planner_service.py  — motore GPT (MARCO) + collect_planning_context + calculate_plan_efficiency
+    ai_planner_service.py  — motore GPT (Felix) + collect_planning_context + calculate_plan_efficiency
     weather_service.py     — Open-Meteo API, WeatherData
     email_poller.py        — IMAP polling ogni 5 min → crea Ticket
     pdf_service.py         — parsing PDF manuali
@@ -131,7 +131,7 @@ frontend/app/
     AssenzeModal.tsx       — gestione assenze tecnici
   dashboard/               — KPI, grafici Recharts
   ticket/                  — tabella paginata server-side, modal dettaglio, kanban
-  planning/                — Piano AI MARCO
+  planning/                — Piano AI Felix
     page.tsx               — pagina principale (fetch, stati, conferma, storico)
     types.ts               — TypeScript types condivisi + helpers (timeToCol, tipoStyle)
     components/
@@ -154,7 +154,7 @@ frontend/app/
 
 ---
 
-## Piano AI MARCO — dettaglio
+## Piano AI Felix — dettaglio
 
 ### Due motori intercambiabili
 | Parametro `mode` | Motore | Velocità | Requisiti |
