@@ -1,96 +1,201 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
-import openai
 import os
-from backend.core.security import get_current_user_payload
+from typing import Any
+
+import openai
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+
 from backend.core.logger_db import db_info
+from backend.core.security import get_current_user_payload
 
 router = APIRouter(prefix="/guide", tags=["guide"])
+
 
 class ChatMessage(BaseModel):
     role: str
     content: str
 
+
+class PageContext(BaseModel):
+    path: str | None = None
+    title: str | None = None
+    area: str | None = None
+    summary: str | None = None
+    actions: list[str] = Field(default_factory=list)
+    user_role: str | None = None
+
+
 class GuideRequest(BaseModel):
-    messages: List[ChatMessage]
+    messages: list[ChatMessage]
+    page_context: PageContext | None = None
 
-# Contesto per il bot basato su AGENTS.md
+
+PAGE_PLAYBOOK: dict[str, dict[str, Any]] = {
+    "/dashboard": {
+        "focus": "lettura KPI, grafici, widget drag and drop, dettaglio asset compatto",
+        "steps": [
+            "Usa Personalizza per riordinare KPI, grafici e dettaglio asset.",
+            "Apri Dettaglio KPI per Asset se devi filtrare per sito, codice, asset, area o stato.",
+            "Controlla MTBF, OEE, downtime e guasti per capire priorita manutentive.",
+        ],
+    },
+    "/ticket": {
+        "focus": "gestione ticket, stati, priorita, Kanban, export",
+        "steps": [
+            "Crea un ticket scegliendo tipo BD, PM o CM.",
+            "Usa filtri e ricerca per isolare backlog e priorita.",
+            "Aggiorna lo stato da tabella o Kanban: Aperto, Pianificato, In corso, Chiuso.",
+        ],
+    },
+    "/planning": {
+        "focus": "generazione piano MARCO, efficienza, Gantt, Kanban, calendario, conferma",
+        "steps": [
+            "Ricarica ticket se i dati non sono aggiornati.",
+            "Genera un piano in modalita deterministica o AI.",
+            "Leggi motivazioni e score prima di confermare; la conferma assegna tecnico e date ai ticket.",
+        ],
+    },
+    "/diagnostic": {
+        "focus": "diagnostica AI, RCA guidata, analisi guasto",
+        "steps": [
+            "Seleziona il ticket o descrivi il problema.",
+            "Rispondi alle domande guidate con sintomi, contesto e prove effettuate.",
+            "Usa il risultato per decidere causa probabile e prossime azioni.",
+        ],
+    },
+    "/assets": {
+        "focus": "anagrafica asset, dati tecnici, filtri, stato operativo",
+        "steps": [
+            "Cerca per nome, codice, area o impianto.",
+            "Apri la scheda asset per dati tecnici e ticket collegati.",
+            "Verifica stato operativo e vincoli prima della pianificazione.",
+        ],
+    },
+    "/tecnici": {
+        "focus": "tecnici, disponibilita, competenze, assenze",
+        "steps": [
+            "Controlla chi e in servizio.",
+            "Registra assenze e orari.",
+            "Mantieni aggiornate le competenze per evitare assegnazioni errate nel planner.",
+        ],
+    },
+    "/manuali": {
+        "focus": "upload manuali PDF, estrazione piano manutenzione",
+        "steps": [
+            "Carica il PDF del manuale.",
+            "Avvia l'analisi per estrarre attivita manutentive.",
+            "Controlla il piano generato nella sezione Piani.",
+        ],
+    },
+    "/piani": {
+        "focus": "attivita manutentive estratte da manuali",
+        "steps": [
+            "Filtra le attivita per asset o frequenza.",
+            "Verifica descrizioni, durata e periodicita.",
+            "Usa le attivita come base per manutenzione preventiva.",
+        ],
+    },
+}
+
+
 MAINTAI_CONTEXT = """
-Sei Felix, l'assistente virtuale e guida ufficiale di MaintAI (v3.1.7).
-MaintAI è un sistema avanzato di gestione della manutenzione industriale AI-powered.
-Il tuo obiettivo è fornire istruzioni dettagliate su ogni parte del software.
+Sei Felix, l'assistente virtuale ufficiale di MaintAI.
+Rispondi sempre in italiano, con tono professionale, pratico e sicuro.
+Il tuo compito non e fare conversazione generica: devi aiutare l'utente a usare il software.
 
-### ARCHITETTURA DATI
-- Siti: Il livello più alto (es. Stabilimento Milano).
-- Impianti: Appartengono ai Siti (es. Linea Imbottigliamento).
-- Asset: I macchinari singoli (es. Motore Pompa 1). Gli asset hanno dati tecnici (marca, modello, matricola) e vincoli meteo o orari.
+Conosci MaintAI:
+- Dashboard: KPI live, grafici, widget drag and drop, dettaglio KPI asset, MTBF, OEE, downtime, guasti.
+- Ticket: stati Aperto, Pianificato, In corso, Chiuso, Eliminato; tipi BD, PM, CM; kanban e tabella.
+- Planning MARCO: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
+- Conferma piano: aggiorna ticket esistenti con stato Pianificato, tecnico, planned_start e planned_finish.
+- Asset: gerarchia Siti > Impianti > Asset, dati tecnici, vincoli e stato operativo.
+- Tecnici: disponibilita, assenze, competenze e orari.
+- Manuali/Piani: upload PDF, estrazione automatica attivita manutentive, consultazione piani.
+- Diagnostica AI: sessioni RCA guidate per problemi e guasti.
+- Admin: tenant, log, utenti, email-to-ticket.
 
-### GESTIONE TICKET
-- Stati: Aperto, Pianificato, In corso, Chiuso, Eliminato.
-- Tipi: BD (Breakdown/Guasto), PM (Preventiva), CM (Correttiva).
-- Paginazione: I ticket sono gestiti server-side con export Excel disponibile.
-- Kanban: Trascina i ticket tra le colonne per cambiare stato (Aperto -> In corso -> Chiuso).
-
-### PIANIFICAZIONE AI (MARCO)
-- Motore: Utilizza il PlannerEngine (deterministico) o GPT per ottimizzare le assegnazioni.
-- Viste: Gantt (slot orari 08-17), Kanban Settimanale, Calendario Mensile.
-- Conferma: Quando confermi un piano, i ticket diventano "Pianificato" e vengono assegnati i tecnici.
-- Efficienza: Ogni piano ha un punteggio di efficienza basato su copertura backlog e utilizzo tecnici.
-
-### DIAGNOSTICA E AI
-- Analisi Ingegneria AI: Sessioni interattive di Root Cause Analysis (RCA). L'AI guida il tecnico con domande per identificare il guasto.
-- Manuali PDF: Carica un manuale in /manuali per estrarre automaticamente i task di manutenzione e creare un piano.
-
-### ALTRE FUNZIONALITÀ
-- Dashboard: Visualizza KPI in tempo reale (polling ogni 30s) con grafici Recharts.
-- Email-to-Ticket: Le email inviate alla casella configurata diventano automaticamente ticket.
-- Gestione Tecnici: Configura assenze, competenze (Meccanico, Elettricista) e orari.
-- Multi-tenant: I dati sono isolati per ogni azienda.
-
-### GUIDA ALLA NAVIGAZIONE (SIDEBAR)
-- Dashboard: Visione d'insieme dei KPI.
-- Operazioni > Ticket: Gestione lista e Kanban.
-- Operazioni > Pianificazione: Accesso al motore MARCO.
-- Operazioni > Analisi Ingegneria AI: Diagnostica guasti.
-- Risorse > Siti & Asset: Gestione anagrafica.
-- Risorse > Tecnici: Gestione personale.
-- Risorse > Piani: Elenco piani estratti da manuali.
-- Impostazioni > Log: Log di sistema per admin.
-
-ISTRUZIONI PER FELIX:
-- Sii estremamente dettagliato e professionale. 
-- Rispondi sempre in ITALIANO.
-- Se l'utente chiede come fare qualcosa, descrivi il percorso nella sidebar e le azioni da compiere nella pagina.
-- Se l'utente segnala problemi di accesso o tecnici, suggerisci di verificare la configurazione CORS o i cookie nelle impostazioni di sicurezza.
+Regole:
+- Se ricevi contesto pagina, parti da quello e spiega cosa si puo fare in quella pagina.
+- Dai percorsi concreti nella sidebar quando utile.
+- Rispondi con passi brevi e azionabili.
+- Se l'utente chiede "cosa posso fare qui", proponi le azioni principali della pagina corrente.
+- Se c'e un problema tecnico, separa diagnosi probabile, controlli e soluzione.
+- Non inventare dati del database: spiega come verificarli nell'interfaccia.
 """
+
+
+def _match_playbook(path: str | None) -> dict[str, Any] | None:
+    if not path:
+        return None
+    if path in PAGE_PLAYBOOK:
+        return PAGE_PLAYBOOK[path]
+    for prefix, playbook in PAGE_PLAYBOOK.items():
+        if path.startswith(prefix):
+            return playbook
+    return None
+
+
+def _fallback_answer(req: GuideRequest) -> str:
+    ctx = req.page_context or PageContext()
+    last = req.messages[-1].content if req.messages else ""
+    title = ctx.title or "questa pagina"
+    playbook = _match_playbook(ctx.path)
+    actions = ctx.actions or (playbook.get("steps", []) if playbook else [])
+    focus = playbook.get("focus") if playbook else ctx.summary
+
+    if "cosa" in last.lower() or "come" in last.lower() or "pagina" in last.lower():
+        intro = f"In {title} puoi lavorare su {focus or 'le funzioni principali di MaintAI'}."
+        steps = actions[:4] or [
+            "Controlla i dati mostrati nella pagina.",
+            "Usa filtri, pulsanti e pannelli disponibili per restringere il lavoro.",
+            "Se vuoi, chiedimi un obiettivo specifico e ti guido passo per passo.",
+        ]
+        return intro + "\n\nAzioni consigliate:\n" + "\n".join(f"- {step}" for step in steps)
+
+    return (
+        f"Sono Felix. In {title} posso guidarti in modo operativo.\n\n"
+        "Dimmi cosa vuoi ottenere, ad esempio: creare un ticket, leggere un KPI, filtrare asset, "
+        "generare un piano MARCO o capire un errore. Posso risponderti con i passaggi esatti."
+    )
+
 
 @router.post("/chat")
 async def guide_chat(
     req: GuideRequest,
-    payload: dict = Depends(get_current_user_payload)
+    payload: dict = Depends(get_current_user_payload),
 ):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return {"content": "Configurazione AI mancante. Contatta l'amministratore."}
+        return {"content": _fallback_answer(req)}
 
-    client = openai.AsyncOpenAI(api_key=api_key)
-    
-    # Costruisci i messaggi per l'API
-    messages = [{"role": "system", "content": MAINTAI_CONTEXT}]
-    for msg in req.messages:
-        messages.append({"role": msg.role, "content": msg.content})
+    ctx = req.page_context or PageContext()
+    page_context = (
+        f"Pagina corrente: {ctx.title or 'non specificata'}\n"
+        f"Percorso: {ctx.path or 'non specificato'}\n"
+        f"Area: {ctx.area or 'non specificata'}\n"
+        f"Ruolo utente: {ctx.user_role or 'operatore'}\n"
+        f"Descrizione pagina: {ctx.summary or 'non disponibile'}\n"
+        f"Azioni disponibili: {', '.join(ctx.actions) if ctx.actions else 'non specificate'}"
+    )
+
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": MAINTAI_CONTEXT},
+        {"role": "system", "content": page_context},
+    ]
+    for msg in req.messages[-10:]:
+        role = msg.role if msg.role in {"user", "assistant"} else "user"
+        messages.append({"role": role, "content": msg.content})
 
     try:
+        client = openai.AsyncOpenAI(api_key=api_key)
         response = await client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             messages=messages,
-            temperature=0.7,
-            max_tokens=500
+            temperature=0.35,
+            max_tokens=900,
         )
-        
-        answer = response.choices[0].message.content
-        db_info("GUIDE", f"Chat guide utilizzata da {payload.get('sub')}")
+        answer = response.choices[0].message.content or _fallback_answer(req)
+        db_info("GUIDE", f"Felix utilizzato da {payload.get('sub')} su {ctx.path or 'pagina sconosciuta'}")
         return {"content": answer}
-    except Exception as e:
-        return {"content": f"Errore durante la comunicazione con l'AI: {str(e)}"}
+    except Exception:
+        return {"content": _fallback_answer(req)}

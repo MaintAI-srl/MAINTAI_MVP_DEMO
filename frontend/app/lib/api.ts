@@ -33,6 +33,7 @@ const SLOW_ENDPOINTS: RegExp[] = [
   /\/manuali\/\d+\/analisi/,
   /\/problem-analysis/,
   /\/diagnostic/,
+  /\/guide\/chat/,
   /\/piani-manutenzione.*import/,
   /\/failure\/tickets\/\d+\/analyze/,
 ];
