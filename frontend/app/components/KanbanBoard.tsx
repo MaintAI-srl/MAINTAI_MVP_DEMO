@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from "@dnd-kit/core";
-import { apiPatch } from "../lib/api";
+import { apiPatch, apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
+
+type Tecnico = { id: number; nome: string; cognome: string; specializzazione?: string | null };
 
 export type KanbanTicket = {
   id: number;
@@ -151,8 +153,16 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
   );
 }
 
-// Modal date picker per pianificazione da Kanban
-function KanbanPianificaModal({ onConfirm, onCancel }: { onConfirm: (date: string) => void; onCancel: () => void }) {
+// Modal date picker + tecnico per pianificazione da Kanban
+function KanbanPianificaModal({
+  tecnici,
+  onConfirm,
+  onCancel,
+}: {
+  tecnici: Tecnico[];
+  onConfirm: (date: string, tecnicoId: number | null) => void;
+  onCancel: () => void;
+}) {
   const getISO = (days: number, hours: number) => {
     const d = new Date();
     d.setDate(d.getDate() + days);
@@ -160,6 +170,7 @@ function KanbanPianificaModal({ onConfirm, onCancel }: { onConfirm: (date: strin
     return d.toISOString().slice(0, 16);
   };
   const [date, setDate] = useState(getISO(0, 8));
+  const [tecnicoId, setTecnicoId] = useState<number | null>(null);
 
   const presets = [
     { label: "Oggi 08:00", d: 0, h: 8 },
@@ -169,28 +180,58 @@ function KanbanPianificaModal({ onConfirm, onCancel }: { onConfirm: (date: strin
   ];
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(6px)" }}>
-      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 20, padding: "32px", width: 400, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
-        <div style={{ fontWeight: 800, fontSize: 18, color: "#a78bfa", marginBottom: 8, textAlign: "center" }}>Pianifica intervento</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 24, textAlign: "center" }}>Trascina i ticket per organizzarli nel tempo.</div>
-        
-        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>
+      <div style={{ background: "var(--surface-2,#111827)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 22, padding: "36px 32px", width: 440, boxShadow: "0 40px 100px rgba(0,0,0,0.8), 0 0 40px rgba(167,139,250,0.08)" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, justifyContent: "center" }}>
+          <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📅</div>
+          <div style={{ fontWeight: 900, fontSize: 19, color: "#a78bfa" }}>Pianifica intervento</div>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 28, textAlign: "center" }}>Imposta data e assegna il tecnico responsabile</div>
+
+        {/* Presets rapidi */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Accesso rapido</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
           {presets.map(p => (
             <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
-              style={{ fontSize: 10, padding: "6px 12px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>
+              style={{ fontSize: 10, padding: "6px 12px", background: "rgba(167,139,250,0.08)", color: "#c4b5fd", border: "1px solid rgba(167,139,250,0.2)", borderRadius: 8, cursor: "pointer", fontWeight: 700, transition: "all 0.15s" }}>
               {p.label}
             </button>
           ))}
         </div>
 
+        {/* Data */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.3)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
-        
-        <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "var(--border-subtle)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Annulla</button>
-          <button disabled={!date} onClick={() => date && onConfirm(date)}
-            style={{ flex: 2, padding: "12px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 12, cursor: date ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: "0 4px 12px rgba(124,58,237,0.3)" }}>
-            Conferma Pianificazione
+          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box", marginBottom: 24 }} />
+
+        {/* Tecnico */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
+          Assegna tecnico <span style={{ color: "rgba(148,163,184,0.5)", fontWeight: 500, textTransform: "none" }}>(opzionale)</span>
+        </div>
+        <select
+          value={tecnicoId ?? ""}
+          onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
+          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)", padding: "12px 16px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box", marginBottom: 32 }}
+        >
+          <option value="">— Nessun tecnico assegnato —</option>
+          {tecnici.map(t => (
+            <option key={t.id} value={t.id}>
+              {t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}
+            </option>
+          ))}
+        </select>
+
+        {/* Azioni */}
+        <div style={{ display: "flex", gap: 12 }}>
+          <button onClick={onCancel}
+            style={{ flex: 1, padding: "13px", background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+            Annulla
+          </button>
+          <button disabled={!date} onClick={() => date && onConfirm(date, tecnicoId)}
+            style={{ flex: 2, padding: "13px", background: date ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(167,139,250,0.2)", color: date ? "#fff" : "#a78bfa", border: "none", borderRadius: 12, cursor: date ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: date ? "0 4px 20px rgba(124,58,237,0.4)" : "none", transition: "all 0.2s" }}>
+            ✓ Conferma pianificazione
           </button>
         </div>
       </div>
@@ -207,8 +248,12 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
   const [local, setLocal] = useState<KanbanTicket[]>(tickets);
   const [pianificaRequest, setPianificaRequest] = useState<{ ticketId: number; durataOre: number } | null>(null);
   const [activeTicket, setActiveTicket] = useState<KanbanTicket | null>(null);
+  const [tecnici, setTecnici] = useState<Tecnico[]>([]);
 
   useEffect(() => { setLocal(tickets); }, [tickets]);
+  useEffect(() => {
+    apiGet<Tecnico[]>("/tecnici").then(setTecnici).catch(() => {});
+  }, []);
 
   function handleDragStart({ active }: DragStartEvent) {
     const t = local.find(t => t.id === active.id) ?? null;
@@ -243,7 +288,7 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     }
   }
 
-  async function confirmPianifica(date: string) {
+  async function confirmPianifica(date: string, tecnicoId: number | null) {
     if (!pianificaRequest) return;
     const { ticketId, durataOre } = pianificaRequest;
     setPianificaRequest(null);
@@ -255,7 +300,11 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     setLocal(l => l.map(t => t.id === ticketId ? { ...t, stato: "Pianificato", planned_start: start, is_manual_plan: true } : t));
 
     try {
-      await apiPatch(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, is_manual_plan: true });
+      const body: Record<string, string | boolean | number | null> = {
+        stato: "Pianificato", planned_start: start, planned_finish: end, is_manual_plan: true,
+      };
+      if (tecnicoId) body.tecnico_id = tecnicoId;
+      await apiPatch(`/tickets/${ticketId}`, body);
       onRefresh();
     } catch (err: any) {
       setLocal(prev);
@@ -287,6 +336,7 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
 
       {pianificaRequest && (
         <KanbanPianificaModal
+          tecnici={tecnici}
           onConfirm={confirmPianifica}
           onCancel={() => setPianificaRequest(null)}
         />

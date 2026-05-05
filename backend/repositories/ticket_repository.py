@@ -1,6 +1,6 @@
 import math
 from sqlalchemy.orm import Session, joinedload
-from backend.db.modelli import Ticket, Asset, Tecnico
+from backend.db.modelli import Ticket, Asset, Tecnico, Impianto, Sito
 from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.security import check_tenant_ownership
 
@@ -12,6 +12,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "asset_id": t.asset_id,
         "asset_name": t.asset.nome if t.asset else None,
         "asset_stato": t.asset.stato if t.asset else None,
+        "sito_name": (t.asset.impianto.sito.nome if t.asset and t.asset.impianto and t.asset.impianto.sito else None),
         "tipo": t.tipo or "CM",
         "priorita": t.priorita,
         "stato": t.stato,
@@ -45,7 +46,7 @@ class TicketRepository:
         tecnico_id: int | None = None,
         piano_id: int | None = None,
     ) -> dict:
-        query = db.query(Ticket).options(joinedload(Ticket.asset))
+        query = db.query(Ticket).options(joinedload(Ticket.asset).joinedload(Asset.impianto).joinedload(Impianto.sito))
         if tenant_id is not None:
             query = query.filter(Ticket.tenant_id == tenant_id)
         # Soft deletion: di default esclude i cancellati, ma l'archivio deve poter
@@ -70,7 +71,7 @@ class TicketRepository:
         }
 
     def get_by_id(self, db: Session, ticket_id: int, tenant_id: int | None = None):
-        query = db.query(Ticket).options(joinedload(Ticket.asset)).filter(Ticket.id == ticket_id)
+        query = db.query(Ticket).options(joinedload(Ticket.asset).joinedload(Asset.impianto).joinedload(Impianto.sito)).filter(Ticket.id == ticket_id)
         if tenant_id is not None:
             query = query.filter(Ticket.tenant_id == tenant_id)
         return query.first()
@@ -127,7 +128,7 @@ class TicketRepository:
         return primo_ticket
 
     def update(self, db: Session, ticket_id: int, data: TicketUpdate, tenant_id: int | None):
-        query = db.query(Ticket).options(joinedload(Ticket.asset))
+        query = db.query(Ticket).options(joinedload(Ticket.asset).joinedload(Asset.impianto).joinedload(Impianto.sito))
         query = query.filter(Ticket.id == ticket_id)
         if tenant_id is not None:
             query = query.filter(Ticket.tenant_id == tenant_id)

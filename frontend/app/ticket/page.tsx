@@ -16,6 +16,7 @@ type Ticket = {
   titolo: string;
   asset_id: number;
   asset_name: string | null;
+  sito_name?: string | null;
   priorita: string;
   tipo: string;
   stato: string;
@@ -813,6 +814,21 @@ export default function TicketPage() {
       enableSorting: false,
     },
     { accessorKey: "id", header: "ID" },
+    {
+      accessorKey: "sito_name",
+      header: "Sito",
+      cell: ({ getValue }) => {
+        const v = getValue<string>();
+        return v ? (
+          <span style={{
+            fontSize: 11, padding: "3px 9px", borderRadius: 6, fontWeight: 700,
+            background: "rgba(99,102,241,0.12)", color: "#818cf8",
+            border: "1px solid rgba(99,102,241,0.25)", whiteSpace: "nowrap",
+          }}>{v}</span>
+        ) : <span style={{ color: "var(--text-disabled)" }}>—</span>;
+      },
+      meta: { filterVariant: "text" },
+    },
     { accessorKey: "titolo", header: "Titolo", meta: { filterVariant: "text" } },
     {
       accessorKey: "asset_name",
