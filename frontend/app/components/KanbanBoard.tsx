@@ -11,6 +11,7 @@ export type KanbanTicket = {
   id: number;
   titolo: string;
   asset_name: string | null;
+  sito_name?: string | null;
   priorita: string;
   fascia_oraria: string;
   stato: string;
@@ -65,6 +66,11 @@ function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOve
       {ticket.asset_name && (
         <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ opacity: 0.7 }}>📦</span> {ticket.asset_name}
+        </div>
+      )}
+      {ticket.sito_name && (
+        <div style={{ fontSize: 11, color: "#a6f6ff", display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+          <span style={{ opacity: 0.75 }}>Sito</span> {ticket.sito_name}
         </div>
       )}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>

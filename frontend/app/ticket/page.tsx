@@ -786,6 +786,7 @@ export default function TicketPage() {
     ? tickets.filter(t =>
         t.titolo.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (t.asset_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.sito_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         String(t.id).includes(searchQuery)
       )
     : tickets;
@@ -1194,7 +1195,7 @@ export default function TicketPage() {
               <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14, pointerEvents: "none" }}>🔍</span>
               <input
                 type="text"
-                placeholder="Cerca per titolo, asset o ID…"
+                placeholder="Cerca per titolo, sito, asset o ID..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{
@@ -1321,6 +1322,11 @@ export default function TicketPage() {
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{detailTicket.priorita}</span>
+                  {detailTicket.sito_name && (
+                    <span style={{ fontSize: 12, color: "#a6f6ff", fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: "rgba(31,232,255,0.10)", border: "1px solid rgba(31,232,255,0.22)" }}>
+                      Sito: {detailTicket.sito_name}
+                    </span>
+                  )}
                   <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{detailTicket.asset_name ?? "Asset non specificato"}</span>
                   <span style={{ color: "var(--border-default)" }}>|</span>
                   <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{detailTicket.tipo} · {detailTicket.durata_stimata_ore?.toFixed(1)}h</span>

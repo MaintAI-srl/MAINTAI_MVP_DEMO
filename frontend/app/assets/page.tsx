@@ -20,6 +20,8 @@ type Asset = {
   anno?: number;
   impianto_id?: number;
   impianto_nome?: string;
+  sito_id?: number;
+  sito_nome?: string;
   limitazioni?: string;
   stato?: string;
   weather_sunny_required?: boolean;
@@ -172,7 +174,7 @@ export default function AssetsPage() {
     const term = search.trim().toLowerCase();
     if (!term) return assets;
     return assets.filter(a =>
-      [a.name, a.codice ?? "", a.area, a.impianto_nome ?? ""].join(" ").toLowerCase().includes(term)
+      [a.name, a.codice ?? "", a.area, a.sito_nome ?? "", a.impianto_nome ?? ""].join(" ").toLowerCase().includes(term)
     );
   }, [assets, search]);
 
@@ -189,8 +191,24 @@ export default function AssetsPage() {
       header: "Nome",
     },
     {
+      accessorKey: "sito_nome",
+      header: "Sito",
+      cell: ({ getValue }) => {
+        const v = getValue<string>();
+        return v ? (
+          <span style={{
+            fontSize: 11, padding: "3px 9px", borderRadius: 6, fontWeight: 700,
+            background: "rgba(31,232,255,0.10)", color: "#a6f6ff",
+            border: "1px solid rgba(31,232,255,0.22)", whiteSpace: "nowrap",
+          }}>{v}</span>
+        ) : <span style={{ color: "var(--text-disabled)" }}>-</span>;
+      },
+      meta: { filterVariant: "text" },
+    },
+    {
       accessorKey: "impianto_nome",
       header: "Impianto",
+      meta: { filterVariant: "text" },
     },
     {
       id: "meteo",
@@ -335,7 +353,7 @@ export default function AssetsPage() {
               className={styles.input}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Cerca per nome, codice, impianto..."
+              placeholder="Cerca per nome, codice, sito, impianto..."
               style={{ flex: 1 }}
             />
             <span style={{ fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
@@ -347,6 +365,7 @@ export default function AssetsPage() {
             columns={columns}
             pageSize={10}
             emptyMessage="Nessun asset trovato"
+            enableColumnFilters
           />
         </section>
       </div>
