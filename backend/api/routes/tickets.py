@@ -148,6 +148,38 @@ def get_ticket(ticket_id: int, db: Session = Depends(get_db), tenant_id: int = D
     return _ticket_to_dict(ticket)
 
 
+@router.post("/tickets/sync-hierarchy")
+def sync_ticket_hierarchy(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Backfill: popola sito_name e impianto_name su tutti i ticket del tenant."""
+    tickets = (
+        db.query(Ticket)
+        .options(
+            _joinedload(Ticket.asset)
+            .joinedload(Asset.impianto)
+            .joinedload(Impianto.sito)
+        )
+        .filter(Ticket.tenant_id == tenant_id)
+        .all()
+    )
+    updated = 0
+    for t in tickets:
+        sito, imp = _resolve_hierarchy(t.asset)
+        changed = False
+        if sito and t.sito_name != sito:
+            t.sito_name = sito
+            changed = True
+        if imp and t.impianto_name != imp:
+            t.impianto_name = imp
+            changed = True
+        if changed:
+            updated += 1
+    db.commit()
+    return {"updated": updated, "total": len(tickets)}
+
+
 @router.post("/tickets")
 def create_ticket(
     data: TicketCreate,
@@ -420,36 +452,3 @@ async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(
     return {"url": ticket.firma_percorso}
 
 
-@router.post("/tickets/sync-hierarchy")
-def sync_ticket_hierarchy(
-    db: Session = Depends(get_db),
-    tenant_id: int = Depends(get_current_tenant_id),
-):
-    """
-    Backfill: popola sito_name e impianto_name su tutti i ticket del tenant
-    che non li hanno ancora, risalendo la catena Ticket→Asset→Impianto→Sito.
-    """
-    tickets = (
-        db.query(Ticket)
-        .options(
-            _joinedload(Ticket.asset)
-            .joinedload(Asset.impianto)
-            .joinedload(Impianto.sito)
-        )
-        .filter(Ticket.tenant_id == tenant_id)
-        .all()
-    )
-    updated = 0
-    for t in tickets:
-        sito, imp = _resolve_hierarchy(t.asset)
-        changed = False
-        if sito and t.sito_name != sito:
-            t.sito_name = sito
-            changed = True
-        if imp and t.impianto_name != imp:
-            t.impianto_name = imp
-            changed = True
-        if changed:
-            updated += 1
-    db.commit()
-    return {"updated": updated, "total": len(tickets)}
