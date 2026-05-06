@@ -35,22 +35,46 @@ def get_tecnici(db: Session = Depends(get_db), tenant_id: int = Depends(get_curr
     ids = [t["id"] for t in tecnici]
     if not ids:
         return tecnici
-    assenze = db.query(TecnicoAssenza).filter(
+    # Fetch all current and future absences to allow frontend Gantt to show them per-day
+    assenze_tutte = db.query(TecnicoAssenza).filter(
         TecnicoAssenza.tecnico_id.in_(ids),
-        TecnicoAssenza.data_inizio <= day_end,
         TecnicoAssenza.data_fine >= day_start,
     )
     if tenant_id is not None:
-        assenze = assenze.filter(TecnicoAssenza.tenant_id == tenant_id)
-    assenze_by_tecnico = {a.tecnico_id: a for a in assenze.all()}
+        assenze_tutte = assenze_tutte.filter(TecnicoAssenza.tenant_id == tenant_id)
+        
+    assenze_list = assenze_tutte.all()
+    
     for tecnico in tecnici:
-        assenza = assenze_by_tecnico.get(tecnico["id"])
-        tecnico["assenza_corrente"] = None if not assenza else {
-            "tipo_assenza": assenza.tipo_assenza,
-            "note": assenza.note,
-            "data_inizio": assenza.data_inizio.isoformat() if assenza.data_inizio else None,
-            "data_fine": assenza.data_fine.isoformat() if assenza.data_fine else None,
-        }
+        t_assenze = [a for a in assenze_list if a.tecnico_id == tecnico["id"]]
+        
+        # Sort absences by start date
+        t_assenze.sort(key=lambda x: x.data_inizio if x.data_inizio else datetime.max)
+        
+        # Find current absence
+        corrente = next((a for a in t_assenze if a.data_inizio <= day_end and a.data_fine >= day_start), None)
+        
+        tecnico["assenze"] = [{
+            "tipo_assenza": a.tipo_assenza,
+            "note": a.note,
+            "data_inizio": a.data_inizio.isoformat() if a.data_inizio else None,
+            "data_fine": a.data_fine.isoformat() if a.data_fine else None,
+        } for a in t_assenze]
+        
+        if corrente:
+            tecnico["assenza_corrente"] = {
+                "tipo_assenza": corrente.tipo_assenza,
+                "note": corrente.note,
+                "data_inizio": corrente.data_inizio.isoformat() if corrente.data_inizio else None,
+                "data_fine": corrente.data_fine.isoformat() if corrente.data_fine else None,
+            }
+            # Dynamically override the status based on current absence
+            tecnico["stato"] = corrente.tipo_assenza.lower()
+        else:
+            tecnico["assenza_corrente"] = None
+            # If there's no current absence, the technician is automatically in service
+            tecnico["stato"] = "in servizio"
+            
     return tecnici
 
 

@@ -103,7 +103,17 @@ function ticketHours(ticket: TicketData | null | undefined): number {
   return Math.max(0.5, Number(ticket?.durata_stimata_ore) || 1);
 }
 
-function isTecnicoOperativo(tecnico: TecnicoData): boolean {
+function isTecnicoOperativo(tecnico: TecnicoData, dataToCheck?: string): boolean {
+  if (dataToCheck && tecnico.assenze) {
+    // Check if the specific date falls within any absence
+    const isAbsent = tecnico.assenze.some(a => {
+      if (!a.data_inizio || !a.data_fine) return false;
+      const start = a.data_inizio.split("T")[0];
+      const end = a.data_fine.split("T")[0];
+      return dataToCheck >= start && dataToCheck <= end;
+    });
+    return !isAbsent;
+  }
   return (tecnico.stato || "").toLowerCase() === "in servizio" && !tecnico.assenza_corrente;
 }
 
@@ -132,7 +142,7 @@ function capacityInfo(
   tickets: TicketData[],
   excludeTicket?: TicketData | null,
 ) {
-  const operativo = isTecnicoOperativo(tecnico);
+  const operativo = isTecnicoOperativo(tecnico, date);
   const capacity = operativo ? Number(tecnico.ore_giornaliere || 8) : 0;
   const assigned = scheduledHoursFor(tickets, tecnico.id, date, excludeTicket?.id);
   const remaining = Math.max(0, capacity - assigned);
@@ -266,22 +276,25 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
 // ─── TecnicoLabel ─────────────────────────────────────────────────────────────
 
 function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number } }) {
-  const assenza = tecnico.assenza_corrente;
   const operativo = isTecnicoOperativo(tecnico);
   const cap = capacity?.capacity ?? (operativo ? Number(tecnico.ore_giornaliere || 8) : 0);
   const remaining = capacity?.remaining ?? cap;
   const assigned = capacity?.assigned ?? 0;
   const usagePct = cap > 0 ? clamp((assigned / cap) * 100, 0, 100) : 0;
+  
+  // Display row differently only if the capacity is 0 across the viewed period
+  const totalOperativo = cap > 0 || operativo;
+  
   return (
     <div style={{
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
       borderRight: "1px solid rgba(59,130,246,0.1)",
-      background: operativo
+      background: totalOperativo
         ? "linear-gradient(90deg, #0b1628 0%, rgba(12,22,40,0.96) 100%)"
         : "linear-gradient(90deg, rgba(48,18,22,0.92) 0%, rgba(12,22,40,0.82) 100%)",
       position: "sticky", left: 0, zIndex: 3,
-      opacity: operativo ? 1 : 0.72,
+      opacity: totalOperativo ? 1 : 0.72,
     }}>
       <div style={{ width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -310,7 +323,7 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
           </div>
           <span style={{ fontSize: 9, color: "rgba(166,246,255,0.72)", whiteSpace: "nowrap" }}>{assigned.toFixed(1)}/{cap.toFixed(1)}h</span>
         </div>
-        {!operativo && (
+        {!totalOperativo && (
           <div style={{
             display: "inline-flex",
             marginTop: 6,
@@ -324,27 +337,7 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
             letterSpacing: "0.06em",
             textTransform: "uppercase",
           }}>
-            Non disponibile · {tecnico.stato}
-          </div>
-        )}
-        {assenza && (
-          <div
-            title={assenza.note || assenza.tipo_assenza}
-            style={{
-              display: "inline-flex",
-              marginTop: 6,
-              padding: "2px 7px",
-              borderRadius: 999,
-              border: "1px solid rgba(248,113,113,0.45)",
-              background: "rgba(127,29,29,0.28)",
-              color: "#fca5a5",
-              fontSize: 9,
-              fontWeight: 800,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-            }}
-          >
-            Assente · {assenza.tipo_assenza}
+            Non disponibile
           </div>
         )}
       </div>
@@ -423,6 +416,15 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
   const dropCap = capacityInfo(tecnico, date, allTickets, draggingTicket);
   const validDrop = isOver && draggingTicket && dropCap.canAccept;
   const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
+  
+  // Find if there is an absence specifically for this day
+  const assenzaGiorno = tecnico.assenze?.find(a => {
+    if (!a.data_inizio || !a.data_fine) return false;
+    const start = a.data_inizio.split("T")[0];
+    const end = a.data_fine.split("T")[0];
+    return date >= start && date <= end;
+  });
+
   return (
     <div ref={setNodeRef} style={{
       width: cellW, minWidth: cellW, minHeight: ROW_H, padding: "4px 3px",
@@ -431,13 +433,21 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
         ? "linear-gradient(180deg, rgba(31,232,255,0.18), rgba(56,217,120,0.08))"
         : invalidDrop
           ? "linear-gradient(180deg, rgba(224,82,82,0.2), rgba(242,184,75,0.08))"
-          : cap.operativo && cap.remaining > 0
-            ? "linear-gradient(180deg, rgba(13,27,42,0.18), transparent)"
-            : "linear-gradient(180deg, rgba(80,20,24,0.16), rgba(13,27,42,0.08))",
+          : assenzaGiorno
+            ? "linear-gradient(180deg, rgba(80,20,24,0.26), rgba(13,27,42,0.12))"
+            : cap.operativo && cap.remaining > 0
+              ? "linear-gradient(180deg, rgba(13,27,42,0.18), transparent)"
+              : "linear-gradient(180deg, rgba(80,20,24,0.16), rgba(13,27,42,0.08))",
       boxShadow: validDrop ? "inset 0 0 0 2px rgba(31,232,255,0.55), inset 0 0 26px rgba(31,232,255,0.13)" : invalidDrop ? "inset 0 0 0 2px rgba(224,82,82,0.55)" : "none",
       transition: "background 0.12s, box-shadow 0.12s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
+      position: "relative",
     }}>
+      {assenzaGiorno && (
+        <div style={{ position: "absolute", top: 2, right: 4, fontSize: 8, color: "rgba(252,165,165,0.6)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          {assenzaGiorno.tipo_assenza}
+        </div>
+      )}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
         fontSize: 9, fontWeight: 900, color: cap.remaining > 0 ? "rgba(166,246,255,0.72)" : "rgba(252,165,165,0.82)",

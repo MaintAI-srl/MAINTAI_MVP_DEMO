@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { apiGet, apiPut } from "../lib/api";
+import { apiGet, apiPost, apiPut } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import UploadAllegati from "../components/UploadAllegati";
 import Skeleton from "../components/Skeleton";
 import VoiceRecorder from "../components/VoiceRecorder";
+
+type AssetResult = { id: number; name: string; impianto_nome?: string; sito_nome?: string; codice?: string };
 
 type Ticket = {
   id: number;

@@ -34,6 +34,12 @@ export interface TecnicoData {
     data_inizio?: string | null;
     data_fine?: string | null;
   } | null;
+  assenze?: Array<{
+    tipo_assenza: string;
+    note?: string | null;
+    data_inizio?: string | null;
+    data_fine?: string | null;
+  }>;
 }
 
 export interface PlannedWO {
