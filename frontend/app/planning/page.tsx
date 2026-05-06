@@ -552,7 +552,7 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
   onSave: (ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) => void;
   onClose: () => void;
 }) {
-  const [tecnicoId, setTecnicoId] = useState<number>((tecnici.find(isTecnicoOperativo) ?? tecnici[0])?.id ?? 0);
+  const [tecnicoId, setTecnicoId] = useState<number>((tecnici.find(t => isTecnicoOperativo(t)) ?? tecnici[0])?.id ?? 0);
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
   const [oraInizio, setOraInizio] = useState(8);
   const durata = ticket.durata_stimata_ore || 1;

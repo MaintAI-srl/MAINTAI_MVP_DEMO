@@ -618,6 +618,23 @@ export default function MobileHomePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeView, setActiveView] = useState<Ticket | null>(null);
+  const [homeView, setHomeView] = useState<"home" | "ticket_vocale" | "piano_odierno">("home");
+  // Ticket Vocale
+  const [voiceStep, setVoiceStep] = useState<"listen" | "confirm_asset" | "form">("listen");
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [foundAssets, setFoundAssets] = useState<AssetResult[]>([]);
+  const [selectedAsset, setSelectedAsset] = useState<AssetResult | null>(null);
+  const [manualSearch, setManualSearch] = useState("");
+  const [manualAssets, setManualAssets] = useState<AssetResult[]>([]);
+  const [nuovoTipo, setNuovoTipo] = useState<"BD"|"PM"|"CM">("BD");
+  const [nuovoPriorita, setNuovoPriorita] = useState<"Alta"|"Media"|"Bassa">("Alta");
+  const [nuovoDesc, setNuovoDesc] = useState("");
+  const [savingTicket, setSavingTicket] = useState(false);
+  // Piano Odierno
+  const [dpiChecked, setDpiChecked] = useState<Record<string, boolean>>({});
+  const [dpiConfirmed, setDpiConfirmed] = useState(false);
+  const [pianoDiOggi, setPianoDiOggi] = useState<Ticket[]>([]);
+  const [loadingPiano, setLoadingPiano] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -669,6 +686,325 @@ export default function MobileHomePage() {
     }
   };
 
+  const DPI_ITEMS = [
+    "Casco di protezione",
+    "Scarpe antinfortunistiche",
+    "Guanti da lavoro",
+    "Occhiali di protezione",
+    "Gilet ad alta visibilità",
+    "Imbracatura (se lavori in quota)",
+  ];
+
+  async function searchAssetsByQuery(q: string) {
+    if (!q.trim()) return;
+    try {
+      const res = await apiGet<{ items?: AssetResult[]; [key: string]: unknown }>(`/assets?query=${encodeURIComponent(q)}&limit=5`);
+      const list = Array.isArray(res) ? res : (res.items ?? []);
+      return list as AssetResult[];
+    } catch { return []; }
+  }
+
+  async function handleVoiceTranscript(text: string) {
+    setVoiceTranscript(text);
+    const assets = await searchAssetsByQuery(text);
+    if (assets && assets.length > 0) {
+      setFoundAssets(assets);
+      setVoiceStep("confirm_asset");
+    } else {
+      notify.error("Nessun asset trovato. Riprova o cerca manualmente.");
+    }
+  }
+
+  async function handleManualSearch(q: string) {
+    setManualSearch(q);
+    if (q.length < 2) { setManualAssets([]); return; }
+    const assets = await searchAssetsByQuery(q);
+    setManualAssets(assets ?? []);
+  }
+
+  async function saveTicketVocale() {
+    if (!selectedAsset) return;
+    setSavingTicket(true);
+    try {
+      await apiPost("/tickets", {
+        titolo: `Intervento su ${selectedAsset.name}`,
+        asset_id: selectedAsset.id,
+        tipo: nuovoTipo,
+        priorita: nuovoPriorita,
+        descrizione: nuovoDesc || null,
+        durata_stimata_ore: 2,
+        fascia_oraria: "diurna",
+        stato: "Aperto",
+      });
+      notify.success("Ticket creato!");
+      setHomeView("home");
+      setVoiceStep("listen");
+      setVoiceTranscript("");
+      setFoundAssets([]);
+      setSelectedAsset(null);
+      setNuovoDesc("");
+      loadTickets();
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "Errore salvataggio ticket");
+    } finally { setSavingTicket(false); }
+  }
+
+  async function loadPianoOdierno() {
+    if (!tecnicoId) return;
+    setLoadingPiano(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const res = await apiGet<{ items: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&stato=Pianificato,In corso&limit=100`);
+      const items = res.items ?? [];
+      const todayItems = items.filter(t => {
+        if (!t.planned_start) return false;
+        return t.planned_start.startsWith(today);
+      });
+      todayItems.sort((a, b) => (a.planned_start ?? "").localeCompare(b.planned_start ?? ""));
+      setPianoDiOggi(todayItems);
+    } catch { notify.error("Errore caricamento piano"); }
+    finally { setLoadingPiano(false); }
+  }
+
+  const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "short" });
+  const allDpiChecked = DPI_ITEMS.every(item => dpiChecked[item]);
+
+  function TicketVocaleView() {
+    return (
+      <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <button onClick={() => { setHomeView("home"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setSelectedAsset(null); }}
+            style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
+          <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>🎙️ Apri Ticket Vocale</span>
+        </div>
+
+        <div style={{ flex: 1, padding: "24px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* STEP: listen */}
+          {voiceStep === "listen" && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, paddingTop: 20 }}>
+              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", fontSize: 15, lineHeight: 1.5 }}>
+                Premi il microfono e pronuncia<br/>il nome dell&apos;asset da segnalare
+              </div>
+              <VoiceRecorder onTranscript={handleVoiceTranscript} />
+              {voiceTranscript && (
+                <div style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 12, padding: "12px 16px", width: "100%", color: "#a5b4fc", fontSize: 14 }}>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Trascritto:</div>
+                  {voiceTranscript}
+                </div>
+              )}
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>— oppure cerca manualmente —</div>
+              <div style={{ width: "100%", display: "flex", gap: 8 }}>
+                <input
+                  value={manualSearch}
+                  onChange={e => handleManualSearch(e.target.value)}
+                  placeholder="Cerca asset per nome..."
+                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#fff", padding: "12px 16px", fontSize: 14, outline: "none" }}
+                />
+              </div>
+              {manualAssets.length > 0 && (
+                <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {manualAssets.map(a => (
+                    <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 16px", color: "#fff", cursor: "pointer", textAlign: "left" }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
+                      {a.sito_nome && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{a.sito_nome}{a.impianto_nome ? ` · ${a.impianto_nome}` : ""}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP: confirm_asset */}
+          {voiceStep === "confirm_asset" && foundAssets.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Asset rilevato dalla voce:</div>
+              <div style={{ background: "rgba(34,197,94,0.06)", border: "2px solid rgba(34,197,94,0.4)", borderRadius: 16, padding: "20px 18px" }}>
+                <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", marginBottom: 6 }}>{foundAssets[0].name}</div>
+                {foundAssets[0].sito_nome && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{foundAssets[0].sito_nome}{foundAssets[0].impianto_nome ? ` · ${foundAssets[0].impianto_nome}` : ""}</div>}
+                {foundAssets[0].codice && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>Cod. {foundAssets[0].codice}</div>}
+              </div>
+              <button onClick={() => { setSelectedAsset(foundAssets[0]); setVoiceStep("form"); }}
+                style={{ padding: "18px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 900, fontSize: 17, cursor: "pointer", boxShadow: "0 8px 24px rgba(34,197,94,0.35)" }}>
+                ✓ ASSET CORRETTO
+              </button>
+              <div style={{ textAlign: "center" }}>
+                <button onClick={() => { setVoiceStep("listen"); setFoundAssets([]); }}
+                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.45)", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+                  Sbagliato? Riprova o cerca manualmente
+                </button>
+              </div>
+              {foundAssets.length > 1 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", textAlign: "center" }}>Altri risultati:</div>
+                  {foundAssets.slice(1).map(a => (
+                    <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", color: "rgba(255,255,255,0.7)", cursor: "pointer", textAlign: "left", fontSize: 13 }}>
+                      {a.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP: form */}
+          {voiceStep === "form" && selectedAsset && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <div style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 12, padding: "12px 16px" }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 3 }}>Asset selezionato</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>{selectedAsset.name}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>Tipo intervento</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {(["BD","PM","CM"] as const).map(t => (
+                    <button key={t} onClick={() => setNuovoTipo(t)}
+                      style={{ padding: "14px 8px", borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: "pointer", border: "2px solid", transition: "all 0.15s",
+                        background: nuovoTipo === t ? (t==="BD"?"rgba(239,68,68,0.2)":t==="PM"?"rgba(34,197,94,0.2)":"rgba(245,158,11,0.2)") : "rgba(255,255,255,0.04)",
+                        borderColor: nuovoTipo === t ? (t==="BD"?"#ef4444":t==="PM"?"#22c55e":"#f59e0b") : "rgba(255,255,255,0.1)",
+                        color: nuovoTipo === t ? (t==="BD"?"#fca5a5":t==="PM"?"#86efac":"#fcd34d") : "rgba(255,255,255,0.5)",
+                      }}>{t === "BD" ? "🔧 BD" : t === "PM" ? "📋 PM" : "⚙️ CM"}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>Priorità</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {(["Alta","Media","Bassa"] as const).map(p => (
+                    <button key={p} onClick={() => setNuovoPriorita(p)}
+                      style={{ padding: "14px 8px", borderRadius: 12, fontWeight: 800, fontSize: 13, cursor: "pointer", border: "2px solid", transition: "all 0.15s",
+                        background: nuovoPriorita === p ? (p==="Alta"?"rgba(239,68,68,0.2)":p==="Media"?"rgba(245,158,11,0.2)":"rgba(100,116,139,0.2)") : "rgba(255,255,255,0.04)",
+                        borderColor: nuovoPriorita === p ? (p==="Alta"?"#ef4444":p==="Media"?"#f59e0b":"#64748b") : "rgba(255,255,255,0.1)",
+                        color: nuovoPriorita === p ? (p==="Alta"?"#fca5a5":p==="Media"?"#fcd34d":"#94a3b8") : "rgba(255,255,255,0.5)",
+                      }}>{p}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Descrizione (opzionale)</div>
+                <textarea value={nuovoDesc} onChange={e => setNuovoDesc(e.target.value)} rows={3} placeholder="Note sull'intervento..."
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#fff", padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
+              </div>
+
+              <button onClick={saveTicketVocale} disabled={savingTicket}
+                style={{ padding: "18px", background: savingTicket ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg,#6366f1,#4f46e5)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 900, fontSize: 17, cursor: savingTicket ? "not-allowed" : "pointer", boxShadow: "0 8px 24px rgba(99,102,241,0.35)" }}>
+                {savingTicket ? "Salvataggio..." : "💾 SALVA TICKET"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function PianoOdiernoView() {
+    return (
+      <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <button onClick={() => { setHomeView("home"); setDpiConfirmed(false); setDpiChecked({}); }}
+            style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
+          <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>📋 Piano Odierno</span>
+        </div>
+
+        {/* DPI Step */}
+        {!dpiConfirmed && (
+          <div style={{ flex: 1, padding: "24px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ textAlign: "center", padding: "0 8px" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🦺</div>
+              <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", marginBottom: 6 }}>Verifica DPI</div>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>Prima di accedere al piano, conferma di indossare tutti i dispositivi di protezione individuale</div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+              {DPI_ITEMS.map(item => {
+                const checked = !!dpiChecked[item];
+                return (
+                  <button key={item} onClick={() => setDpiChecked(prev => ({ ...prev, [item]: !prev[item] }))}
+                    style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+                      background: checked ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
+                      border: `1.5px solid ${checked ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.1)"}`,
+                    }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${checked ? "#22c55e" : "rgba(255,255,255,0.3)"}`, background: checked ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                      {checked && <span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize: 15, color: checked ? "#86efac" : "rgba(255,255,255,0.7)", fontWeight: checked ? 700 : 400, textDecoration: checked ? "line-through" : "none" }}>{item}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 8 }}>
+              <button
+                disabled={!allDpiChecked}
+                onClick={() => { setDpiConfirmed(true); loadPianoOdierno(); }}
+                style={{ width: "100%", padding: "18px", borderRadius: 14, fontWeight: 900, fontSize: 17, cursor: allDpiChecked ? "pointer" : "not-allowed", border: "none", transition: "all 0.2s",
+                  background: allDpiChecked ? "linear-gradient(135deg,#22c55e,#16a34a)" : "rgba(255,255,255,0.06)",
+                  color: allDpiChecked ? "#fff" : "rgba(255,255,255,0.25)",
+                  boxShadow: allDpiChecked ? "0 8px 24px rgba(34,197,94,0.35)" : "none",
+                }}>
+                {allDpiChecked ? "✓ ACCEDI AL PIANO" : `ACCEDI AL PIANO (${Object.values(dpiChecked).filter(Boolean).length}/${DPI_ITEMS.length})`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Piano Step */}
+        {dpiConfirmed && (
+          <div style={{ flex: 1, padding: "20px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              {todayStr}
+            </div>
+
+            {loadingPiano && (
+              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", padding: 40 }}>Caricamento piano...</div>
+            )}
+
+            {!loadingPiano && pianoDiOggi.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>✅</div>
+                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 15 }}>Nessun intervento pianificato per oggi</div>
+              </div>
+            )}
+
+            {!loadingPiano && pianoDiOggi.map(t => {
+              const startTime = t.planned_start ? new Date(t.planned_start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : null;
+              const endTime = t.planned_finish ? new Date(t.planned_finish).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : null;
+              const tipoInfo = tipoLabel(t.tipo);
+              return (
+                <div key={t.id}>
+                  {startTime && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 6, fontWeight: 700 }}>{startTime}{endTime ? `–${endTime}` : ""}</div>}
+                  <button onClick={() => setActiveView(t)}
+                    style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, padding: "16px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: `${tipoInfo.color}18`, border: `1.5px solid ${tipoInfo.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+                      {tipoInfo.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: "#fff", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.titolo}</div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 5, fontWeight: 700, background: `${tipoInfo.color}20`, color: tipoInfo.color, border: `1px solid ${tipoInfo.color}40` }}>{t.tipo}</span>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>⏱ {t.durata_stimata_ore}h</span>
+                        <span style={{ fontSize: 11, color: prioritaColor(t.priorita), fontWeight: 700 }}>{t.priorita}</span>
+                      </div>
+                      {t.asset_name && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>📦 {t.asset_name}</div>}
+                    </div>
+                    <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 18 }}>›</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!mounted) return null;
 
   if (loading) {
@@ -681,9 +1017,6 @@ export default function MobileHomePage() {
       </div>
     );
   }
-
-  const activeTickets   = tickets.filter(t => t.stato === "In corso");
-  const upcomingTickets = tickets.filter(t => t.stato === "Pianificato" || t.stato === "Aperto");
 
   // ── Vista "Lavoro In Corso" ───────────────────────────────────────────────
   if (activeView) {
@@ -698,105 +1031,88 @@ export default function MobileHomePage() {
     );
   }
 
-  // ── Vista lista ───────────────────────────────────────────────────────────
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 8 }}>
+  if (homeView === "ticket_vocale") return <TicketVocaleView />;
+  if (homeView === "piano_odierno") return <PianoOdiernoView />;
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0" }}>
+  // ── Home ─────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+      {/* Header compatto */}
+      <div style={{ padding: "16px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: "clamp(20px, 6vw, 26px)", fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.03em" }}>
-            Ciao, <span style={{ color: "#90b8ff" }}>{user?.username}</span> 👷
-          </h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
-            {activeTickets.length + upcomingTickets.length === 0
-              ? "Nessun intervento assegnato"
-              : `${activeTickets.length} attivi · ${upcomingTickets.length} pianificati`}
-          </p>
+          <div style={{ fontWeight: 900, fontSize: 20, color: "#fff" }}>Ciao, {user?.username ?? "Tecnico"} 👷</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+            {tickets.filter(t => t.stato === "In corso").length} in corso · {tickets.filter(t => t.stato === "Pianificato").length} pianificati
+          </div>
         </div>
-        <button onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }}
-          disabled={refreshing}
-          style={{
-            background: "rgba(91,143,255,0.08)", border: "1px solid rgba(91,143,255,0.20)",
-            borderRadius: 12, width: 46, height: 46,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: refreshing ? "wait" : "pointer", fontSize: 20,
-          }}
-        >🔄</button>
+        <button onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }} disabled={refreshing}
+          style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "8px 12px", cursor: refreshing ? "wait" : "pointer", fontSize: 16 }}>↻</button>
       </div>
 
       {/* Banner no profilo */}
       {tecnicoId === -1 && (
-        <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.30)", borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12 }}>
+        <div style={{ margin: "0 16px 8px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.30)", borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12 }}>
           <span style={{ fontSize: 22 }}>⚠️</span>
           <div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "#fbbf24", marginBottom: 4 }}>Profilo tecnico non collegato</div>
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>Contatta il responsabile per associare l'account.</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>Contatta il responsabile per associare l&apos;account.</div>
           </div>
         </div>
       )}
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-        {[
-          { label: "In corso",    count: activeTickets.length, color: "#fbbf24" },
-          { label: "Pianificati", count: upcomingTickets.filter(t => t.stato === "Pianificato").length, color: "#a78bfa" },
-          { label: "Aperti",      count: upcomingTickets.filter(t => t.stato === "Aperto").length, color: "#60a5fa" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "var(--bg-elevated, var(--border-strong))", border: `1px solid ${s.color}30`, borderTop: `3px solid ${s.color}`, borderRadius: 14, padding: "12px 10px", textAlign: "center" }}>
-            <div style={{ fontSize: "clamp(22px, 7vw, 30px)", fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.count}</div>
-            <div style={{ fontSize: "clamp(9px, 2.5vw, 11px)", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>{s.label}</div>
+      {/* 2 PULSANTONI */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "12px 16px", gap: 12 }}>
+        <button
+          onClick={() => { setHomeView("ticket_vocale"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setManualSearch(""); setManualAssets([]); setSelectedAsset(null); setNuovoDesc(""); }}
+          style={{ flex: 1, minHeight: 140, borderRadius: 20, border: "1.5px solid rgba(99,102,241,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, position: "relative", overflow: "hidden",
+            background: "linear-gradient(145deg, #1e1b4b 0%, #0f0c29 60%, #1a1040 100%)",
+            boxShadow: "0 8px 32px rgba(99,102,241,0.2)",
+          }}
+        >
+          <div style={{ fontSize: 44 }}>🎙️</div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", letterSpacing: "0.5px" }}>APRI TICKET</div>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#818cf8" }}>VOCALE</div>
           </div>
-        ))}
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Riconosce l&apos;asset dalla voce</div>
+        </button>
+
+        <button
+          onClick={() => { setHomeView("piano_odierno"); setDpiConfirmed(false); setDpiChecked({}); setPianoDiOggi([]); }}
+          style={{ flex: 1, minHeight: 140, borderRadius: 20, border: "1.5px solid rgba(20,184,166,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
+            background: "linear-gradient(145deg, #0f2922 0%, #0a1f1a 60%, #0d2520 100%)",
+            boxShadow: "0 8px 32px rgba(20,184,166,0.2)",
+          }}
+        >
+          <div style={{ fontSize: 44 }}>📋</div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", letterSpacing: "0.5px" }}>PIANO</div>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#2dd4bf" }}>ODIERNO</div>
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Verifica DPI e accedi al piano</div>
+        </button>
+
+        {/* Ticket IN CORSO (se presenti) */}
+        {tickets.filter(t => t.stato === "In corso").length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>In corso ora</div>
+            {tickets.filter(t => t.stato === "In corso").map(t => {
+              const tipoInfo = tipoLabel(t.tipo);
+              return (
+                <button key={t.id} onClick={() => setActiveView(t)}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px", background: "rgba(251,191,36,0.06)", border: "1.5px solid rgba(251,191,36,0.35)", borderRadius: 14, cursor: "pointer", marginBottom: 8 }}>
+                  <span style={{ fontSize: 22 }}>{tipoInfo.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.titolo}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{t.asset_name}</div>
+                  </div>
+                  <span style={{ fontSize: 13, color: "#fbbf24", fontWeight: 700 }}>APRI →</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {/* In corso — card cliccabile per aprire vista dedicata */}
-      {activeTickets.length > 0 && (
-        <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.15em", color: "#fbbf24", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fbbf24", display: "inline-block", boxShadow: "0 0 8px #fbbf2480" }} />
-            In corso ora
-          </div>
-          {activeTickets.map(t => (
-            <button key={t.id} onClick={() => setActiveView(t)} style={{
-              display: "flex", alignItems: "center", gap: 14, width: "100%",
-              background: "linear-gradient(135deg, rgba(251,191,36,0.08) 0%, rgba(10,15,30,0.6) 100%)",
-              border: "2px solid #fbbf24", borderRadius: 20, padding: "16px",
-              cursor: "pointer", textAlign: "left",
-            }}>
-              <span style={{ fontSize: 24 }}>{tipoLabel(t.tipo).icon}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.titolo}</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{t.asset_name}</div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 700, fontFamily: "var(--font-mono)" }}>APRI →</span>
-                <span style={{ fontSize: 10, color: "#fbbf24", opacity: 0.6 }}>tocca per dettagli</span>
-              </div>
-            </button>
-          ))}
-        </section>
-      )}
-
-      {/* Prossimi interventi */}
-      <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#60a5fa", display: "inline-block" }} />
-          Prossimi interventi
-        </div>
-        {upcomingTickets.length === 0 ? (
-          <div style={{ padding: 32, textAlign: "center", background: "var(--bg-card, var(--surface-2))", borderRadius: 16, border: "1px dashed var(--border, rgba(255,255,255,0.08))", color: "var(--text-disabled)" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
-            Nessun intervento pianificato
-          </div>
-        ) : upcomingTickets.map(t => (
-          <UpcomingTicketCard
-            key={t.id}
-            ticket={t}
-            onOpen={(ticket) => setActiveView(ticket)}
-          />
-        ))}
-      </section>
     </div>
   );
 }
