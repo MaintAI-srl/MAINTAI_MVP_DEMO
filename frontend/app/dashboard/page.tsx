@@ -122,10 +122,14 @@ const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: "widget-asset", type: "kpi", kpi: "asset_totali" },
   { id: "widget-tech", type: "kpi", kpi: "tecnici_attivi" },
   { id: "widget-open", type: "kpi", kpi: "ticket_aperti" },
-  { id: "widget-priority-chart", type: "chart", chartData: "ticket_by_priority", chartType: "pie" },
+  { id: "widget-in-progress", type: "kpi", kpi: "ticket_in_corso" },
+  { id: "widget-closed", type: "kpi", kpi: "ticket_chiusi" },
   { id: "widget-planned", type: "kpi", kpi: "ticket_pianificati" },
-  { id: "widget-asset-chart", type: "chart", chartData: "asset_by_stato", chartType: "bar" },
+  { id: "widget-guasti", type: "kpi", kpi: "asset_guasti" },
+  { id: "widget-priority-chart", type: "chart", chartData: "ticket_by_priority", chartType: "pie" },
   { id: "widget-mtbf", type: "kpi", kpi: "mtbf_medio" },
+  { id: "widget-oee", type: "kpi", kpi: "oee_medio" },
+  { id: "widget-asset-chart", type: "chart", chartData: "asset_by_stato", chartType: "bar" },
   { id: "widget-oee-chart", type: "chart", chartData: "oee_by_asset", chartType: "area" },
   { id: "widget-asset-detail", type: "asset_table" },
 ];
@@ -159,6 +163,18 @@ function IconCalendar({ size = 20, color = "currentColor" }: { size?: number; co
 }
 function IconActivity({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
+}
+function IconAlert({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+}
+function IconCheck({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+}
+function IconPlay({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+}
+function IconPercent({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -737,7 +753,7 @@ export default function DashboardPage() {
         label: "Asset guasti",
         value: assetOut,
         accent: "#f05252",
-        icon: <IconActivity size={15} />,
+        icon: <IconAlert size={15} />,
         sub: "Criticità operative aperte",
       },
       {
@@ -760,8 +776,8 @@ export default function DashboardPage() {
         id: "ticket_in_corso",
         label: "Ticket in corso",
         value: dashboard?.ticket_in_corso ?? "—",
-        accent: "#9b78ff",
-        icon: <IconTicket size={15} />,
+        accent: "#3b82f6",
+        icon: <IconPlay size={15} />,
         sub: "Lavorazioni attualmente aperte",
       },
       {
@@ -769,7 +785,7 @@ export default function DashboardPage() {
         label: "Ticket chiusi",
         value: dashboard?.ticket_chiusi ?? "—",
         accent: "#10d9b0",
-        icon: <IconTicket size={15} />,
+        icon: <IconCheck size={15} />,
         sub: "Interventi completati",
       },
       {
@@ -793,7 +809,7 @@ export default function DashboardPage() {
         label: "OEE medio",
         value: kpiAsset ? `${kpiAsset.aggregati.avg_oee_pct}%` : "—",
         accent: "#10d9b0",
-        icon: <IconActivity size={15} />,
+        icon: <IconPercent size={15} />,
         sub: "Overall Equipment Effectiveness · 30gg",
       },
     ];
