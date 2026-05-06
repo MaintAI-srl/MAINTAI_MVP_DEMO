@@ -757,12 +757,14 @@ export default function PianificazionePage() {
   const [includeWeekends, setIncludeWeekends] = useState(false);
   const [allowOvertime, setAllowOvertime] = useState(false);
 
+  const [manualEval, setManualEval] = useState<{ score: number; breakdown: any } | null>(null);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ── Dati piano ──────────────────────────────────────────────────────────────
   const planJson = piano?.plan_json ?? { planned_workorders: [], deferred_workorders: [], fermo_assets: [], global_warnings: [] };
-  const effScore: number | undefined = planJson?.efficiency_score;
-  const effBreakdown: EfficiencyBreakdown | undefined = planJson?.efficiency_breakdown;
+  const effScore: number | undefined = planJson?.efficiency_score ?? manualEval?.score;
+  const effBreakdown: EfficiencyBreakdown | undefined = planJson?.efficiency_breakdown ?? manualEval?.breakdown;
 
   // ── Lookup maps per WODetailDrawer ─────────────────────────────────────────
   const ticketMap = useMemo(() => {
@@ -846,10 +848,11 @@ export default function PianificazionePage() {
   const loadData = useCallback(async (background = false) => {
     if (!background) setLoading(true);
     try {
-      const [tecniciRes, activeRes, planRes] = await Promise.all([
+      const [tecniciRes, activeRes, planRes, evalRes] = await Promise.all([
         apiGet<TecnicoAPI[]>("/tecnici"),
         apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso"),
         apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
+        apiPost<{ efficiency_score: number; efficiency_breakdown: any }>("/planning/evaluate").catch(() => null),
       ]);
 
       setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));
@@ -859,6 +862,9 @@ export default function PianificazionePage() {
       setScheduledTickets(scheduled);
       setUnscheduledTickets(unscheduled);
       setPiano(planRes);
+      if (evalRes) {
+        setManualEval({ score: evalRes.efficiency_score, breakdown: evalRes.efficiency_breakdown });
+      }
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
     } finally {
@@ -927,6 +933,17 @@ export default function PianificazionePage() {
       notify.error(e instanceof Error ? e.message : "Errore conferma piano");
     } finally {
       setConfermando(false);
+    }
+  }
+
+  async function clearGantt() {
+    if (!confirm("Sei sicuro di voler svuotare il Gantt? Tutti i ticket torneranno nello stato 'Aperto'.")) return;
+    try {
+      await apiPost("/planning/clear");
+      notify.success("Gantt svuotato con successo");
+      await loadData();
+    } catch (e: unknown) {
+      notify.error("Errore durante lo svuotamento del Gantt");
     }
   }
 
@@ -1189,7 +1206,7 @@ export default function PianificazionePage() {
           <div style={{ flex: 1 }} />
 
           {/* Efficienza badge compatta — pill premium */}
-          <div style={{ display: "none" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {effScore !== undefined && (
             <span style={{
               fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
@@ -1343,6 +1360,26 @@ export default function PianificazionePage() {
               ↻ Ricalcola
             </button>
           )}
+
+          {/* Svuota Gantt */}
+          <button
+            onClick={clearGantt}
+            title="Svuota il Gantt e riporta i ticket ad Aperto"
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(239,68,68,0.5)",
+              color: "#fca5a5",
+              borderRadius: 6,
+              padding: "6px 12px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.12s",
+            }}
+          >
+            Svuota Gantt
+          </button>
 
           </div>
 
