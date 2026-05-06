@@ -68,12 +68,14 @@ def get_tecnici(db: Session = Depends(get_db), tenant_id: int = Depends(get_curr
                 "data_inizio": corrente.data_inizio.isoformat() if corrente.data_inizio else None,
                 "data_fine": corrente.data_fine.isoformat() if corrente.data_fine else None,
             }
-            # Dynamically override the status based on current absence
+            # Assenza attiva: stato derivato dall'assenza (es. "ferie", "malattia", "corso")
             tecnico["stato"] = corrente.tipo_assenza.lower()
         else:
             tecnico["assenza_corrente"] = None
-            # If there's no current absence, the technician is automatically in service
-            tecnico["stato"] = "in servizio"
+            # Nessuna assenza: mantieni il valore DB (non sovrascrivere)
+            # Se il campo DB è vuoto/None usa "in servizio" come fallback
+            if not tecnico.get("stato"):
+                tecnico["stato"] = "in servizio"
             
     return tecnici
 

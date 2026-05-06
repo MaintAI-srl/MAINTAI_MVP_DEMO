@@ -109,17 +109,20 @@ function ticketHours(ticket: TicketData | null | undefined): number {
 }
 
 function isTecnicoOperativo(tecnico: TecnicoData, dataToCheck?: string): boolean {
+  // Controlla sempre lo stato base: solo "in servizio" è pianificabile
+  const statoOk = ["in servizio", "in_servizio"].includes((tecnico.stato || "").toLowerCase());
+  if (!statoOk) return false;
+  // Se viene fornita una data specifica, controlla le assenze per quella data
   if (dataToCheck && tecnico.assenze) {
-    // Check if the specific date falls within any absence
-    const isAbsent = tecnico.assenze.some(a => {
+    return !tecnico.assenze.some(a => {
       if (!a.data_inizio || !a.data_fine) return false;
       const start = a.data_inizio.split("T")[0];
       const end = a.data_fine.split("T")[0];
       return dataToCheck >= start && dataToCheck <= end;
     });
-    return !isAbsent;
   }
-  return (tecnico.stato || "").toLowerCase() === "in servizio" && !tecnico.assenza_corrente;
+  // Senza data specifica, controlla assenza_corrente
+  return !tecnico.assenza_corrente;
 }
 
 function plannedDate(ticket: TicketData): string | null {

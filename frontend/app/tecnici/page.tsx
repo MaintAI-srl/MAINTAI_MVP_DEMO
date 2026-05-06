@@ -433,19 +433,24 @@ export default function TecniciPage() {
                       </td>
                       <td><span className={styles.hoursPill}>{t.ore_giornaliere?.toFixed(1)}h</span></td>
                       <td style={{ fontSize: 12, color: "var(--text-soft)" }}>{t.orario_inizio}–{t.orario_fine}</td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <StatusToggle 
-                          size="sm"
-                          currentValue={t.stato}
-                          disabled={isUpdatingStatus === t.id}
-                          onChange={(s) => handleQuickStatusChange(t.id, s)}
-                          options={[
-                            { value: "in servizio", label: "Servizio", color: "#34d399" },
-                            { value: "ferie", label: "Ferie", color: "#38bdf8" },
-                            { value: "malattia", label: "Malattia", color: "#f87171" },
-                            { value: "corso", label: "Corso", color: "#fbbf24" },
-                          ]}
-                        />
+                      <td>
+                        {(() => {
+                          const s = (t.stato || "in servizio").toLowerCase();
+                          const c = STATO_COLORS[s] ?? STATO_COLORS["in servizio"];
+                          const labels: Record<string, string> = {
+                            "in servizio": "In Servizio", "ferie": "Ferie",
+                            "malattia": "Malattia", "corso": "Corso",
+                          };
+                          return (
+                            <span style={{
+                              fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 700,
+                              color: c.color, background: c.bg, border: `1px solid ${c.border}`,
+                              whiteSpace: "nowrap",
+                            }}>
+                              {labels[s] ?? t.stato}
+                            </span>
+                          );
+                        })()}
                       </td>
                       {isAdmin && (
                         <td>

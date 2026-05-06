@@ -88,8 +88,6 @@ def _validate_planning_capacity(db: Session, data: TicketUpdate, ticket: Ticket,
     tecnico = tecnico_query.first()
     if not tecnico:
         raise HTTPException(status_code=400, detail="Tecnico non trovato per la pianificazione.")
-    if (tecnico.stato or "").lower() != "in servizio":
-        raise HTTPException(status_code=400, detail=f"Tecnico non disponibile: stato '{tecnico.stato}'.")
 
     planned_day = target_start.date()
     day_start = datetime.combine(planned_day, time.min)

@@ -1,5 +1,6 @@
+from datetime import date, datetime, time
 from sqlalchemy.orm import Session, joinedload
-from backend.db.modelli import Tecnico
+from backend.db.modelli import Tecnico, TecnicoAssenza
 from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate
 
 
@@ -31,10 +32,31 @@ class TecnicoRepository:
         return [self._to_dict(t) for t in query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()]
 
     def get_disponibili(self, db: Session, tenant_id: int | None) -> list[dict]:
-        query = db.query(Tecnico).options(joinedload(Tecnico.utente)).filter(Tecnico.stato == "in servizio")
+        """Restituisce tecnici senza assenza attiva oggi — fonte di verità: tabella assenze."""
+        today = date.today()
+        day_start = datetime.combine(today, time.min)
+        day_end = datetime.combine(today, time.max)
+
+        # Tecnici con assenza attiva oggi
+        assenti_ids_q = db.query(TecnicoAssenza.tecnico_id).filter(
+            TecnicoAssenza.data_inizio <= day_end,
+            TecnicoAssenza.data_fine >= day_start,
+        )
+        if tenant_id is not None:
+            assenti_ids_q = assenti_ids_q.filter(TecnicoAssenza.tenant_id == tenant_id)
+        assenti_ids = {r[0] for r in assenti_ids_q.all()}
+
+        query = db.query(Tecnico).options(joinedload(Tecnico.utente))
         if tenant_id is not None:
             query = query.filter(Tecnico.tenant_id == tenant_id)
-        return [self._to_dict(t) for t in query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()]
+        tutti = query.order_by(Tecnico.cognome, Tecnico.nome).limit(500).all()
+        # Escludi tecnici assenti oggi e tecnici non in servizio per DB stato
+        disponibili = [
+            t for t in tutti
+            if t.id not in assenti_ids
+            and (t.stato or "in servizio").lower() in ("in servizio", "in_servizio")
+        ]
+        return [self._to_dict(t) for t in disponibili]
 
     def get_by_id(self, db: Session, tecnico_id: int, tenant_id: int | None) -> dict | None:
         query = db.query(Tecnico).options(joinedload(Tecnico.utente)).filter(Tecnico.id == tecnico_id)
