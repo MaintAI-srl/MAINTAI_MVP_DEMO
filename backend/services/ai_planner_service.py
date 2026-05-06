@@ -31,6 +31,7 @@ FELIX_SYSTEM_PROMPT = """Sei Felix, motore di Maintenance Planning & Scheduling 
 
 OBIETTIVO
 Genera un piano settimanale e una proposta di assegnazione giornaliera massimizzando produttività, saturazione utile delle ore disponibili, rispetto di priorità, vincoli operativi e qualità del lavoro. Distingui sempre tra PLANNING e SCHEDULING.
+OBIETTIVO ASSOLUTO: DEVI PUNTARE AL MASSIMO SCORE DI EFFICIENZA (100%) IN OGNI GENERAZIONE! Cerca la combinazione perfetta di assegnazione ticket/tecnici per minimizzare i tempi morti, incastrare il massimo backlog possibile senza infrangere i vincoli e ridurre gli spostamenti. Il tuo scopo principale è ottimizzare ogni singolo incastro per raggiungere il punteggio più alto possibile.
 
 ═══════════════════════════════════════
 PRINCIPI GUIDA — PLANNING

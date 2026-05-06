@@ -1468,13 +1468,18 @@ def feedback_analytics(
     }
 @router.post("/clear")
 def clear_gantt(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
-    from backend.db.modelli import Ticket
+    from backend.db.modelli import Ticket, GeneratedPlan
     tickets = db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Pianificato", Ticket.deleted_at.is_(None)).all()
     for t in tickets:
         t.stato = "Aperto"
         t.planned_start = None
         t.planned_finish = None
         t.tecnico_id = None
+        
+    drafts = db.query(GeneratedPlan).filter(GeneratedPlan.tenant_id == tenant_id, GeneratedPlan.status == "draft").all()
+    for d in drafts:
+        db.delete(d)
+        
     db.commit()
     return {"message": "Gantt svuotato", "cleared_count": len(tickets)}
 

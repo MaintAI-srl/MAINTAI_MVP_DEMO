@@ -718,7 +718,7 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
 export default function PianificazionePage() {
   // Gantt state
   const [view, setView] = useState<ViewMode>("week");
-  const [currentDate, setCurrentDate] = useState(() => addDays(new Date(), 1));
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
   const [scheduledTickets, setScheduledTickets] = useState<TicketData[]>([]);
   const [unscheduledTickets, setUnscheduledTickets] = useState<TicketData[]>([]);
@@ -734,7 +734,7 @@ export default function PianificazionePage() {
   const [piano, setPiano] = useState<GeneratedPlan | null>(null);
   const [generando, setGenerando] = useState(false);
   const [confermando, setConfermando] = useState(false);
-  const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
+  const [engineMode, setEngineMode] = useState<EngineMode>("ai");
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [replanModal, setReplanModal] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -1208,7 +1208,11 @@ export default function PianificazionePage() {
           {/* Efficienza badge compatta — pill premium */}
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {effScore !== undefined && (
-            <span style={{
+            <span 
+              title={effBreakdown 
+                ? `Dettagli Score:\nCopertura Backlog: ${effBreakdown.copertura_backlog?.toFixed(1)}%\nUtilizzo Tecnici: ${effBreakdown.utilizzo_tecnici?.toFixed(1)}%\nRispetto Priorità: ${effBreakdown.rispetto_priorita?.toFixed(1)}%\nRiduzione Spostamenti: ${effBreakdown.riduzione_spostamenti?.toFixed(1)}%\nMatching Competenze: ${effBreakdown.matching_competenze?.toFixed(1)}%`
+                : "Score di efficienza del piano"}
+              style={{
               fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
               background: effScore >= 80
                 ? "linear-gradient(135deg, rgba(20,83,45,0.6), rgba(5,150,105,0.3))"
@@ -1228,17 +1232,7 @@ export default function PianificazionePage() {
             </span>
           )}
 
-          {/* Piano status badge */}
-          {piano && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 3,
-              background: piano.status === "draft" ? "#1e3a5f" : "#065f46",
-              color: piano.status === "draft" ? "#60a5fa" : "#86efac",
-              border: `1px solid ${piano.status === "draft" ? "#3b82f644" : "#22c55e44"}`,
-            }}>
-              {piano.status === "draft" ? "BOZZA" : "CONFERMATO"}
-            </span>
-          )}
+          {/* Piano status badge Nascosto */}
 
           {/* Engine toggle Nascosto per richiesta utente */}
 
@@ -1277,18 +1271,7 @@ export default function PianificazionePage() {
             ) : "⚡ Genera Piano AI"}
           </button>
 
-          {/* Conferma piano */}
-          {piano?.status === "draft" && (
-            <button onClick={confirmPlan} disabled={confermando} style={{
-              background: confermando ? "rgba(31,41,55,0.8)" : "#065f46",
-              border: "1px solid #059669",
-              color: "#86efac", borderRadius: 8, padding: "8px 16px",
-              fontSize: 12, fontWeight: 700, cursor: confermando ? "not-allowed" : "pointer",
-              transition: "all 0.12s",
-            }}>
-              {confermando ? "Confermando..." : "✓ Conferma"}
-            </button>
-          )}
+          {/* Pulsante Conferma Nascosto per richiesta utente */}
 
           {/* Ricalcola piano */}
           {piano && (
