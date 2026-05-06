@@ -191,7 +191,7 @@ function computeLanes(dayWOs: TicketData[]) {
 
 // ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
 
-function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: ViewMode; onClick: () => void }) {
+function TicketBlock({ ticket, view, onClick, onHover }: { ticket: TicketData; view: ViewMode; onClick: () => void; onHover?: (t: TicketData | null, e?: React.MouseEvent) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `t-${ticket.id}`,
     data: { ticket },
@@ -228,10 +228,15 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.16)";
           (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+          if (onHover && !isDragging) onHover(ticket, e);
+        }}
+        onMouseMove={(e) => {
+          if (onHover && !isDragging) onHover(ticket, e);
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
           (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+          if (onHover) onHover(null);
         }}
       >
         <div style={{ fontSize: 9, color: s.text, opacity: 0.7, letterSpacing: "0.08em" }}>{ticket.tipo} · {dur}h</div>
@@ -258,12 +263,15 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
         transition: "filter 0.12s, transform 0.12s",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)";
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.16)";
+        if (onHover && !isDragging) onHover(ticket, e);
+      }}
+      onMouseMove={(e) => {
+        if (onHover && !isDragging) onHover(ticket, e);
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+        if (onHover) onHover(null);
       }}
     >
       <div style={{ fontSize: 10, color: s.text, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -450,7 +458,7 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
           const top = 6 + laneInfo.lane * (laneHeight + 4);
           return (
             <div key={t.gantt_key ?? t.id} style={{ position: "absolute", left, top, zIndex: 2 }}>
-              <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} />
+              <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as any).__setHoverTooltip?.(tk, e)} />
             </div>
           );
         })}
@@ -543,7 +551,7 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
         <span>{cap.remaining.toFixed(1)}h</span>
         <span style={{ opacity: 0.62 }}>{cap.capacity.toFixed(0)}h</span>
       </div>
-      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} />)}
+      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as any).__setHoverTooltip?.(tk, e)} />)}
     </div>
   );
 }
@@ -731,6 +739,20 @@ export default function PianificazionePage() {
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [replanModal, setReplanModal] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [hoverTooltip, setHoverTooltip] = useState<{ ticket: TicketData; x: number; y: number } | null>(null);
+  
+  // Set global handler for deeply nested TicketBlocks
+  useEffect(() => {
+    (window as any).__setHoverTooltip = (ticket: TicketData | null, e?: React.MouseEvent) => {
+      if (!ticket || !e) {
+        setHoverTooltip(null);
+      } else {
+        setHoverTooltip({ ticket, x: e.clientX, y: e.clientY });
+      }
+    };
+    return () => { delete (window as any).__setHoverTooltip; };
+  }, []);
+
   // Selettore orizzonte pianificazione (#14)
   const [horizonDays, setHorizonDays] = useState(7);
   const [includeWeekends, setIncludeWeekends] = useState(false);
@@ -1544,6 +1566,46 @@ export default function PianificazionePage() {
         tecnico={selectedWO?.tecnico ?? null}
         onClose={() => setSelectedWO(null)}
       />
+
+      {/* Hover Tooltip (Nuvoletta Descrittiva) */}
+      {hoverTooltip && !draggingTicket && (
+        <div style={{
+          position: "fixed", top: hoverTooltip.y + 15, left: hoverTooltip.x + 15, zIndex: 10000,
+          background: "rgba(10, 22, 40, 0.95)", backdropFilter: "blur(8px)",
+          border: `1px solid ${tipoStyle(hoverTooltip.ticket.tipo).border}`,
+          borderRadius: 8, padding: "10px 14px", color: "#f8fafc", width: 280,
+          boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.2)",
+          pointerEvents: "none", transition: "opacity 0.1s",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: tipoStyle(hoverTooltip.ticket.tipo).text, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {hoverTooltip.ticket.tipo} · #{hoverTooltip.ticket.id}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>
+              {ticketHours(hoverTooltip.ticket)}h
+            </span>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3, marginBottom: 4 }}>
+            {hoverTooltip.ticket.titolo}
+          </div>
+          <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.4 }}>
+            {hoverTooltip.ticket.descrizione && hoverTooltip.ticket.descrizione.length > 80
+              ? hoverTooltip.ticket.descrizione.substring(0, 80) + "..."
+              : hoverTooltip.ticket.descrizione || "Nessuna descrizione."}
+          </div>
+          {(hoverTooltip.ticket.asset_name || hoverTooltip.ticket.impianto_name || hoverTooltip.ticket.sito_name) && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: 10, color: "#94a3b8" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ color: "#64748b" }}>📍</span> 
+                {hoverTooltip.ticket.sito_name} › {hoverTooltip.ticket.impianto_name}
+              </div>
+              <div style={{ fontWeight: 600, color: "#e2e8f0", marginTop: 2, paddingLeft: 16 }}>
+                {hoverTooltip.ticket.asset_name}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ReplanModal — Ricalcolo adattivo */}
       <ReplanModal
