@@ -1466,16 +1466,15 @@ def feedback_analytics(
         "technician_change_rate": technician_change_rate,
         "by_tipo": by_tipo,
     }
-@ r o u t e r . p o s t ( " / c l e a r " ) 
- d e f   c l e a r _ g a n t t ( d b :   S e s s i o n   =   D e p e n d s ( g e t _ d b ) ,   t e n a n t _ i d :   i n t   =   D e p e n d s ( g e t _ c u r r e n t _ t e n a n t _ i d ) ) : 
-         f r o m   b a c k e n d . d b . m o d e l l i   i m p o r t   T i c k e t 
-         t i c k e t s   =   d b . q u e r y ( T i c k e t ) . f i l t e r ( T i c k e t . t e n a n t _ i d   = =   t e n a n t _ i d ,   T i c k e t . s t a t o   = =   " P i a n i f i c a t o " ,   T i c k e t . d e l e t e d _ a t . i s _ ( N o n e ) ) . a l l ( ) 
-         f o r   t   i n   t i c k e t s : 
-                 t . s t a t o   =   " A p e r t o " 
-                 t . p l a n n e d _ s t a r t   =   N o n e 
-                 t . p l a n n e d _ f i n i s h   =   N o n e 
-                 t . t e c n i c o _ i d   =   N o n e 
-         d b . c o m m i t ( ) 
-         r e t u r n   { " m e s s a g e " :   " G a n t t   s v u o t a t o " ,   " c l e a r e d _ c o u n t " :   l e n ( t i c k e t s ) } 
-  
- 
+@router.post("/clear")
+def clear_gantt(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    from backend.db.modelli import Ticket
+    tickets = db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Pianificato", Ticket.deleted_at.is_(None)).all()
+    for t in tickets:
+        t.stato = "Aperto"
+        t.planned_start = None
+        t.planned_finish = None
+        t.tecnico_id = None
+    db.commit()
+    return {"message": "Gantt svuotato", "cleared_count": len(tickets)}
+
