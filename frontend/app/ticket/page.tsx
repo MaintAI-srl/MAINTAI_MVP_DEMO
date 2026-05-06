@@ -674,6 +674,10 @@ export default function TicketPage() {
     } catch { notify.error("Errore nel salvataggio ticket."); }
   }
 
+  function statusUpdateError(err: unknown, fallback = "Errore aggiornamento stato.") {
+    notify.error(err instanceof Error ? err.message : fallback);
+  }
+
   async function handleStatoChange(ticketId: number, nuovoStato: string) {
     if (nuovoStato === "Pianificato") {
       const t = tickets.find(t => t.id === ticketId) || archivioItems.find(t => t.id === ticketId);
@@ -687,7 +691,7 @@ export default function TicketPage() {
             const end = new Date(new Date(plannedDate).getTime() + durataOre * 3600000).toISOString();
             await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, is_manual_plan: true });
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-          } catch { notify.error("Errore aggiornamento stato."); }
+          } catch (err) { statusUpdateError(err); }
           finally { setUpdatingId(null); }
         }
       });
@@ -701,7 +705,7 @@ export default function TicketPage() {
           try {
             await apiPut(`/tickets/${ticketId}`, { stato: "Eliminato", eliminazione_note: reason });
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-          } catch { notify.error("Errore aggiornamento stato."); }
+          } catch (err) { statusUpdateError(err); }
           finally { setUpdatingId(null); }
         }
       });
@@ -711,11 +715,17 @@ export default function TicketPage() {
     try {
       const body: Record<string, string | null | boolean> = { stato: nuovoStato };
       if (nuovoStato === "Aperto") { body.planned_start = null; body.planned_finish = null; body.is_manual_plan = false; }
-      if (nuovoStato === "In corso") body.asset_stato = "stopped";
-      if (nuovoStato === "Chiuso") body.asset_stato = "service";
+      if (nuovoStato === "In corso") {
+        body.asset_stato = "stopped";
+        body.execution_start = new Date().toISOString();
+      }
+      if (nuovoStato === "Chiuso") {
+        body.asset_stato = "service";
+        body.execution_finish = new Date().toISOString();
+      }
       await apiPut(`/tickets/${ticketId}`, body);
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-    } catch { notify.error("Errore aggiornamento stato."); }
+    } catch (err) { statusUpdateError(err); }
     finally { setUpdatingId(null); }
   }
 
@@ -730,7 +740,7 @@ export default function TicketPage() {
             await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start, is_manual_plan: true });
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-          } catch { notify.error("Errore aggiornamento bulk."); }
+          } catch (err) { statusUpdateError(err, "Errore aggiornamento bulk."); }
         }
       });
       return;
@@ -744,7 +754,7 @@ export default function TicketPage() {
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
             notify.success(`${selectedIds.size} ticket eliminati.`);
-          } catch { notify.error("Errore aggiornamento bulk."); }
+          } catch (err) { statusUpdateError(err, "Errore aggiornamento bulk."); }
         }
       });
       return;
@@ -754,10 +764,12 @@ export default function TicketPage() {
         ids: Array.from(selectedIds),
         stato: nuovoStato,
         asset_stato: nuovoStato === "In corso" ? "stopped" : nuovoStato === "Chiuso" ? "service" : undefined,
+        execution_start: nuovoStato === "In corso" ? new Date().toISOString() : undefined,
+        execution_finish: nuovoStato === "Chiuso" ? new Date().toISOString() : undefined,
       });
       setSelectedIds(new Set());
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-    } catch { notify.error("Errore aggiornamento bulk."); }
+    } catch (err) { statusUpdateError(err, "Errore aggiornamento bulk."); }
   }
 
   function toggleSelect(id: number) {

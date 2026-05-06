@@ -33,6 +33,8 @@ class BulkStatusUpdate(PydanticModel):
     asset_stato: Optional[str] = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
+    execution_start: Optional[datetime] = None
+    execution_finish: Optional[datetime] = None
     is_manual_plan: Optional[bool] = None
     eliminazione_note: Optional[str] = None
 
@@ -243,6 +245,10 @@ def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), te
                 ticket.planned_start = data.planned_start
             if data.planned_finish:
                 ticket.planned_finish = data.planned_finish
+            if data.execution_start:
+                ticket.execution_start = data.execution_start
+            if data.execution_finish:
+                ticket.execution_finish = data.execution_finish
             if data.is_manual_plan is not None:
                 ticket.is_manual_plan = data.is_manual_plan
             ticket.deleted_at = None

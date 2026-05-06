@@ -316,13 +316,21 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     setLocal(l => l.map(t => t.id === ticketId ? { ...t, stato: nuovoStato } : t));
 
     try {
-      const body: Record<string, string | boolean> = { stato: nuovoStato };
+      const body: Record<string, string | boolean | null> = { stato: nuovoStato };
       if (nuovoStato === "Aperto") body.is_manual_plan = false;
+      if (nuovoStato === "In corso") {
+        body.asset_stato = "stopped";
+        body.execution_start = new Date().toISOString();
+      }
+      if (nuovoStato === "Chiuso") {
+        body.asset_stato = "service";
+        body.execution_finish = new Date().toISOString();
+      }
       await apiPatch(`/tickets/${ticketId}`, body);
       onRefresh();
-    } catch {
+    } catch (err) {
       setLocal(prev);
-      notify.error("Errore nell'aggiornamento stato ticket.");
+      notify.error(err instanceof Error ? err.message : "Errore nell'aggiornamento stato ticket.");
     }
   }
 
