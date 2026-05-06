@@ -65,6 +65,12 @@ def dashboard_kpi_asset(
     area: str | None = None,
     search: str | None = None,
     stato: str | None = None,
+    # Filtri granulari colonna
+    sito: str | None = None,
+    codice: str | None = None,
+    asset_name: str | None = None,
+    asset_area: str | None = None,
+    asset_stato: str | None = None,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -79,6 +85,19 @@ def dashboard_kpi_asset(
         q = q.filter((Asset.nome.ilike(f"%{search}%")) | (Asset.codice.ilike(f"%{search}%")))
     if stato:
         q = q.filter(Asset.stato == stato)
+        
+    # Filtri colonna specifici
+    if codice:
+        q = q.filter(Asset.codice.ilike(f"%{codice}%"))
+    if asset_name:
+        q = q.filter(Asset.nome.ilike(f"%{asset_name}%"))
+    if asset_area:
+        q = q.filter(Asset.area.ilike(f"%{asset_area}%"))
+    if asset_stato:
+        q = q.filter(Asset.stato.ilike(f"%{asset_stato}%"))
+    if sito:
+        # Sito richiede join
+        q = q.join(Asset.impianto).join(Impianto.sito).filter(Impianto.sito.nome.ilike(f"%{sito}%"))
 
     total = q.count()
     assets = (

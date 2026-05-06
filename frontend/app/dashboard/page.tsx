@@ -431,14 +431,16 @@ function DashboardChartContent({ data, chartType, accent }: { data: ChartItem[];
   if (chartType === "pie") {
     const total = data.reduce((acc, curr) => acc + curr.value, 0);
     return (
-      <ResponsiveContainer width="100%" height={260}>
-        <PieChart margin={{ bottom: 20 }}>
+      <ResponsiveContainer width="100%" height={320}>
+        <PieChart margin={{ bottom: 40, top: 10 }}>
           <Pie
             data={data}
             dataKey="value"
             nameKey="name"
-            innerRadius={62}
-            outerRadius={90}
+            cx="50%"
+            cy="45%"
+            innerRadius={60}
+            outerRadius={80}
             paddingAngle={3}
             strokeWidth={0}
             label={({ name, value }) => {
@@ -452,7 +454,14 @@ function DashboardChartContent({ data, chartType, accent }: { data: ChartItem[];
             ))}
           </Pie>
           <Tooltip contentStyle={chartTooltipStyle} />
-          <Legend verticalAlign="bottom" align="center" iconType="circle" iconSize={7} formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>{v}</span>} />
+          <Legend 
+            verticalAlign="bottom" 
+            align="center" 
+            iconType="circle" 
+            iconSize={8} 
+            wrapperStyle={{ paddingTop: 20 }}
+            formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 11, fontWeight: 600 }}>{v}</span>} 
+          />
         </PieChart>
       </ResponsiveContainer>
     );
