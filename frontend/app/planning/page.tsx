@@ -893,18 +893,37 @@ export default function PianificazionePage() {
           notify.warning(`Capienza insufficiente: servono ${ticketHours(ticket).toFixed(1)}h, restano ${c.remaining.toFixed(1)}h`);
           return;
         }
+        
+        // --- OPTIMISTIC UPDATE ---
+        const newStart = start ?? `${data}T08:00:00`;
+        const newFinish = finish ?? `${data}T17:00:00`;
+        
+        const updateTicketList = (list: TicketData[]) => {
+          return list.map(t => t.id === ticketId ? { ...t, tecnico_id: tecnicoId, planned_start: newStart, planned_finish: newFinish, stato: "Pianificato" } : t);
+        };
+        
+        if (ticket.planned_start) {
+          setScheduledTickets(prev => updateTicketList(prev));
+        } else {
+          const updatedTicket = { ...ticket, tecnico_id: tecnicoId, planned_start: newStart, planned_finish: newFinish, stato: "Pianificato" };
+          setScheduledTickets(prev => [...prev, updatedTicket]);
+          setUnscheduledTickets(prev => prev.filter(t => t.id !== ticketId));
+        }
+        // -------------------------
+
+        await apiPut(`/tickets/${ticketId}`, {
+          tecnico_id: tecnicoId,
+          planned_start: newStart,
+          planned_finish: newFinish,
+          stato: "Pianificato",
+          is_manual_plan: true,
+        });
+        notify.success(`Ticket #${ticketId} pianificato`);
+        loadData(true); // background sync
       }
-      await apiPut(`/tickets/${ticketId}`, {
-        tecnico_id: tecnicoId,
-        planned_start: start ?? `${data}T08:00:00`,
-        planned_finish: finish ?? `${data}T17:00:00`,
-        stato: "Pianificato",
-        is_manual_plan: true,
-      });
-      notify.success(`Ticket #${ticketId} pianificato`);
-      await loadData();
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore salvataggio");
+      loadData(true); // revert in case of error
     }
   }
 
@@ -952,23 +971,64 @@ export default function PianificazionePage() {
       }
     }
 
-    const startDate = new Date(
-      `${dropTarget.date}T${String(newHour).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}:00`,
-    );
-    const durationMs = Math.max(0.5, droppedTicket.durata_stimata_ore || 1) * 3600000;
-    const endDate = new Date(startDate.getTime() + durationMs);
-    if (view === "day" && endDate.getHours() + endDate.getMinutes() / 60 > DAY_END_H) {
-      notify.warning("Il ticket finisce fuori dalla griglia oraria visibile");
-      return;
-    }
+    // --- OPTIMISTIC UPDATE ---
+    const newStartStr = `${String(newHour).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}`;
+    const durationHours = droppedTicket.durata_stimata_ore || 1;
+    const newEndDec = newHour + (newMinute/60) + durationHours;
+    const newEndH = Math.floor(newEndDec);
+    const newEndM = Math.round((newEndDec - newEndH) * 60);
+    const newEndStr = `${String(newEndH).padStart(2, "0")}:${String(newEndM).padStart(2, "0")}`;
 
-    await savePianificazioneManuale(
-      droppedTicket.id,
-      dropTarget.tecnico_id,
-      dropTarget.date,
-      formatLocalDateTimeSeconds(startDate),
-      formatLocalDateTimeSeconds(endDate),
-    );
+    if (piano?.status === "draft") {
+       // Optimistic update for draft
+       const newWos = [...(piano.plan_json?.planned_workorders || [])];
+       const woIndex = newWos.findIndex(w => w.wo_id === droppedTicket.id);
+       if (woIndex >= 0) {
+           newWos[woIndex] = {
+               ...newWos[woIndex],
+               technician_id: dropTarget.tecnico_id,
+               planned_date: dropTarget.date,
+               planned_start_time: newStartStr,
+               planned_end_time: newEndStr,
+           };
+           setPiano({
+               ...piano,
+               plan_json: {
+                   ...piano.plan_json,
+                   planned_workorders: newWos
+               }
+           });
+       }
+    } else {
+       // Optimistic update for confirmed/db
+       const newStartIso = `${dropTarget.date}T${newStartStr}:00`;
+       const newEndIso = `${dropTarget.date}T${newEndStr}:00`;
+       const updateTicketList = (list: TicketData[]) => list.map(t => t.id === droppedTicket.id ? { ...t, tecnico_id: dropTarget.tecnico_id, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" } : t);
+       
+       if (droppedTicket.planned_start) {
+         setScheduledTickets(prev => updateTicketList(prev));
+       } else {
+         setScheduledTickets(prev => [...prev, { ...droppedTicket, tecnico_id: dropTarget.tecnico_id, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" }]);
+         setUnscheduledTickets(prev => prev.filter(t => t.id !== droppedTicket.id));
+       }
+    }
+    // -------------------------
+
+    try {
+      await apiPost("/planning/move-ticket", {
+        ticket_id: droppedTicket.id,
+        new_date: dropTarget.date,
+        new_start_hour: newHour,
+        new_start_minute: newMinute,
+        tecnico_id: dropTarget.tecnico_id,
+        skip_engine_validation: piano?.status === "draft",
+      });
+      notify.success(`Ticket #${droppedTicket.id} spostato`);
+      loadData(true);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore spostamento ticket");
+      loadData(true);
+    }
   }
   // ── Navigazione data ────────────────────────────────────────────────────────
   function navigate(dir: 1 | -1) {
