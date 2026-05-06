@@ -697,21 +697,38 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
         ai_client = get_openai_client()
         model = get_openai_model()
 
-        response = ai_client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": FELIX_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": RESPONSE_SCHEMA,
-            },
-            temperature=0.2,
-            max_tokens=4096,
-        )
+        # Prova prima con Structured Output (json_schema) — richiede gpt-4o o gpt-4.1+
+        # Se il modello non supporta strict json_schema, cade nel fallback json_object
+        raw = None
+        try:
+            response = ai_client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": FELIX_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": RESPONSE_SCHEMA,
+                },
+                temperature=0.2,
+                max_tokens=4096,
+            )
+            raw = response.choices[0].message.content
+        except Exception as schema_err:
+            logger.warning("AI Planner: json_schema non supportato (%s) — fallback a json_object", schema_err)
+            response = ai_client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": FELIX_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message + "\n\nRispondi SOLO con JSON valido, nessun testo aggiuntivo."},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+                max_tokens=4096,
+            )
+            raw = response.choices[0].message.content
 
-        raw = response.choices[0].message.content
         plan_result = json.loads(raw)
 
         # Integra splitting e calcolo orari (con buffer spostamento impianti #5)
