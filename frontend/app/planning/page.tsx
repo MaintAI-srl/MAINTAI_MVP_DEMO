@@ -51,14 +51,19 @@ interface TecnicoAPI {
   assenza_corrente?: TecnicoData["assenza_corrente"];
 }
 
+import { createContext, useContext } from "react";
+
 // ─── Costanti Gantt ───────────────────────────────────────────────────────────
 
 const DAY_START_H = 7;
 const DAY_END_H = 19;
-const HOUR_W = 80;
-const DAY_W = 156;
-const ROW_H = 82;
+const BASE_HOUR_W = 80;
+const BASE_DAY_W = 156;
+const BASE_ROW_H = 82;
 const LABEL_W = 238;
+
+const ZoomContext = createContext<number>(1);
+function useZoom() { return useContext(ZoomContext); }
 
 const PRIO_COLORS: Record<string, string> = {
   Alta: "#ef4444",
@@ -151,6 +156,36 @@ function capacityInfo(
   return { operativo, capacity, assigned, remaining, needed, canAccept };
 }
 
+// ─── Lane calculator ──────────────────────────────────────────────────────────
+
+function computeLanes(dayWOs: TicketData[]) {
+  const sorted = [...dayWOs].sort((a, b) => {
+    const pa = parseStart(a), pb = parseStart(b);
+    const ha = pa ? pa.hour + pa.minute / 60 : 8;
+    const hb = pb ? pb.hour + pb.minute / 60 : 8;
+    return ha - hb;
+  });
+  const laneEndTime: number[] = [];
+  const assignments: number[] = [];
+
+  for (const wo of sorted) {
+    const p = parseStart(wo);
+    const startH = p ? p.hour + p.minute / 60 : 8;
+    const dur = ticketHours(wo);
+    const endH = startH + dur;
+    
+    // allow a slight overlap (0.01h) to prevent precision issues
+    let lane = laneEndTime.findIndex(end => startH >= end - 0.01);
+    if (lane === -1) lane = laneEndTime.length;
+    laneEndTime[lane] = endH;
+    assignments.push(lane);
+  }
+
+  const totalLanes = laneEndTime.length || 1;
+  const laneMap = new Map(sorted.map((wo, i) => [wo.gantt_key ?? wo.id, { lane: assignments[i] }]));
+  return { laneMap, totalLanes };
+}
+
 // ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
 
 function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: ViewMode; onClick: () => void }) {
@@ -162,6 +197,9 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
   const dur = ticketHours(ticket);
 
   if (view === "day") {
+    const zoom = useZoom();
+    const HOUR_W = BASE_HOUR_W * zoom;
+    const ROW_H = BASE_ROW_H * zoom;
     return (
       <div
         ref={setNodeRef} {...listeners} {...attributes}
@@ -356,14 +394,24 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
     data: { tecnico_id: tecnico.id, date: dateStr },
   });
   const dayTickets = tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; });
+  const { laneMap, totalLanes } = computeLanes(dayTickets);
   const cap = capacityInfo(tecnico, dateStr, allTickets);
   const dropCap = capacityInfo(tecnico, dateStr, allTickets, draggingTicket);
+  
+  const zoom = useZoom();
+  const HOUR_W = BASE_HOUR_W * zoom;
+  const ROW_H = BASE_ROW_H * zoom;
   const timelineW = (DAY_END_H - DAY_START_H) * HOUR_W;
+  
+  // Calculate dynamic height if there are multiple lanes
+  const laneHeight = ROW_H - 12; // Height of TicketBlock
+  const dynamicHeight = Math.max(ROW_H, 6 + totalLanes * (laneHeight + 4));
+
   const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
   const validDrop = isOver && draggingTicket && dropCap.canAccept;
 
   return (
-    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid rgba(31,78,107,0.25)" }}>
+    <div style={{ display: "flex", height: dynamicHeight, borderBottom: "1px solid rgba(31,78,107,0.25)" }}>
       <TecnicoLabel tecnico={tecnico} capacity={cap} />
       <div ref={setNodeRef} style={{
         position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
@@ -391,8 +439,10 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
         {dayTickets.map((t) => {
           const p = parseStart(t)!;
           const left = (p.hour - DAY_START_H) * HOUR_W + (p.minute / 60) * HOUR_W;
+          const laneInfo = laneMap.get(t.gantt_key ?? t.id) ?? { lane: 0 };
+          const top = 6 + laneInfo.lane * (laneHeight + 4);
           return (
-            <div key={t.gantt_key ?? t.id} style={{ position: "absolute", left, top: 6, zIndex: 2 }}>
+            <div key={t.gantt_key ?? t.id} style={{ position: "absolute", left, top, zIndex: 2 }}>
               <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} />
             </div>
           );
@@ -416,6 +466,9 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
   const dropCap = capacityInfo(tecnico, date, allTickets, draggingTicket);
   const validDrop = isOver && draggingTicket && dropCap.canAccept;
   const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
+  
+  const zoom = useZoom();
+  const ROW_H = BASE_ROW_H * zoom;
   
   // Find if there is an absence specifically for this day
   const assenzaGiorno = tecnico.assenze?.find(a => {
@@ -466,6 +519,9 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
 function MultiDayRow({ tecnico, tickets, allTickets, days, view, draggingTicket, onTicketClick }: {
   tecnico: TecnicoData; tickets: TicketData[]; allTickets: TicketData[]; days: Date[]; view: ViewMode; draggingTicket: TicketData | null; onTicketClick: (t: TicketData) => void;
 }) {
+  const zoom = useZoom();
+  const DAY_W = BASE_DAY_W * zoom;
+  const ROW_H = BASE_ROW_H * zoom;
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   const rowCapacity = days.reduce((acc, day) => {
     const c = capacityInfo(tecnico, format(day, "yyyy-MM-dd"), allTickets);
@@ -640,6 +696,7 @@ export default function PianificazionePage() {
   const [engineMode, setEngineMode] = useState<EngineMode>("deterministic");
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [replanModal, setReplanModal] = useState(false);
+  const [zoom, setZoom] = useState(1);
   // Selettore orizzonte pianificazione (#14)
   const [horizonDays, setHorizonDays] = useState(7);
   const [includeWeekends, setIncludeWeekends] = useState(false);
@@ -731,8 +788,8 @@ export default function PianificazionePage() {
     } catch { /* silenzioso */ }
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     try {
       const [tecniciRes, activeRes, planRes] = await Promise.all([
         apiGet<TecnicoAPI[]>("/tecnici"),
@@ -750,7 +807,7 @@ export default function PianificazionePage() {
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
 
@@ -758,10 +815,10 @@ export default function PianificazionePage() {
 
   useEffect(() => {
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") loadData();
+      if (document.visibilityState === "visible") loadData(true);
     }
     function onDataChanged() {
-      loadData();
+      loadData(true);
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("focus", onDataChanged);
@@ -885,7 +942,7 @@ export default function PianificazionePage() {
       const draggedRect = event.active.rect.current.translated;
       if (draggedRect && droppableRect) {
         const relX = Math.max(0, draggedRect.left - droppableRect.left);
-        const totalMin = (relX / HOUR_W) * 60;
+        const totalMin = (relX / (BASE_HOUR_W * zoom)) * 60;
         const rounded = Math.round(totalMin / 30) * 30;
         newHour = clamp(DAY_START_H + Math.floor(rounded / 60), DAY_START_H, DAY_END_H - 1);
         newMinute = rounded % 60;
@@ -917,8 +974,8 @@ export default function PianificazionePage() {
   }
 
   const days = getDays(currentDate, view);
-  const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
-  const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * HOUR_W : days.length * cellW);
+  const cellW = view === "week" ? BASE_DAY_W * zoom : Math.round(BASE_DAY_W * zoom * 0.75);
+  const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * (BASE_HOUR_W * zoom) : days.length * cellW);
   const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
   const visibleUnscheduledTickets = unscheduledTickets;
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
@@ -956,6 +1013,7 @@ export default function PianificazionePage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+    <ZoomContext.Provider value={zoom}>
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--surface-1)", fontFamily: "'IBM Plex Mono', monospace", color: "#f9fafb" }}>
 
@@ -988,6 +1046,27 @@ export default function PianificazionePage() {
             <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>‹</button>
             <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>OGGI</button>
             <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>›</button>
+          </div>
+
+          {/* Controlli Zoom */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid rgba(255,255,255,0.08)", paddingLeft: 12 }}>
+            <button
+              onClick={() => setZoom(z => Math.max(0.6, z - 0.2))}
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#9ca3af", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+              title="Zoom Out"
+            >
+              -
+            </button>
+            <span style={{ fontSize: 11, color: "#9ca3af", minWidth: 32, textAlign: "center", fontWeight: 600 }}>
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom(z => Math.min(2.0, z + 0.2))}
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#9ca3af", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+              title="Zoom In"
+            >
+              +
+            </button>
           </div>
 
           <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 700, textTransform: "capitalize" }}>{dateLabel}</span>
@@ -1238,7 +1317,7 @@ export default function PianificazionePage() {
                   </div>
                   {view === "day"
                     ? Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => (
-                        <div key={i} style={{ width: HOUR_W, minWidth: HOUR_W, display: "flex", alignItems: "center", paddingLeft: 6, borderRight: "1px solid rgba(59,130,246,0.06)", fontSize: 10, color: "rgba(148,163,184,0.7)", fontWeight: 700, letterSpacing: "0.08em" }}>
+                        <div key={i} style={{ width: BASE_HOUR_W * zoom, minWidth: BASE_HOUR_W * zoom, display: "flex", alignItems: "center", paddingLeft: 6, borderRight: "1px solid rgba(59,130,246,0.06)", fontSize: 10, color: "rgba(148,163,184,0.7)", fontWeight: 700, letterSpacing: "0.08em" }}>
                           {String(DAY_START_H + i).padStart(2, "0")}:00
                         </div>
                       ))
@@ -1388,5 +1467,6 @@ export default function PianificazionePage() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </DndContext>
+    </ZoomContext.Provider>
   );
 }
