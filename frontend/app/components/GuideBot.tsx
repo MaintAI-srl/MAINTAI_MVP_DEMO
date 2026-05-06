@@ -217,6 +217,59 @@ function localGuideAnswer(pageGuide: PageGuide, question: string): string {
   ].join("\n");
 }
 
+/* ── Mini Animations for "How-to" ─────────────────────────────────── */
+
+function AnimDashboard() {
+  return (
+    <div className="relative w-24 h-16 bg-cyan-900/20 border border-cyan-400/20 rounded-lg overflow-hidden flex items-center justify-center gap-1 p-1">
+      <div className="w-6 h-10 bg-cyan-400/30 rounded border border-cyan-400/40 animate-pulse" />
+      <div className="w-8 h-12 bg-cyan-400/50 rounded border border-cyan-400/60 animate-bounce" style={{ animationDelay: "0.2s" }} />
+      <div className="w-6 h-8 bg-cyan-400/20 rounded border border-cyan-400/30 animate-pulse" style={{ animationDelay: "0.4s" }} />
+    </div>
+  );
+}
+
+function AnimTicket() {
+  return (
+    <div className="relative w-24 h-16 bg-amber-900/20 border border-amber-400/20 rounded-lg overflow-hidden flex flex-col p-1.5 gap-1.5">
+      <div className="h-2 w-full bg-amber-400/30 rounded" />
+      <div className="h-2 w-2/3 bg-amber-400/20 rounded" />
+      <div className="mt-auto h-4 w-full bg-amber-400/60 rounded border border-amber-400/50 animate-pulse flex items-center justify-center">
+        <div className="w-1 h-1 bg-white rounded-full animate-ping" />
+      </div>
+    </div>
+  );
+}
+
+function AnimPlanning() {
+  return (
+    <div className="relative w-24 h-16 bg-violet-900/20 border border-violet-400/20 rounded-lg overflow-hidden flex flex-col p-2 gap-2">
+      <div className="h-1.5 w-8 bg-violet-400/40 rounded self-start translate-x-2 animate-[slideInRight_2s_infinite]" />
+      <div className="h-1.5 w-12 bg-violet-400/60 rounded self-start translate-x-4 animate-[slideInRight_3s_infinite]" />
+      <div className="h-1.5 w-6 bg-violet-400/30 rounded self-start translate-x-1 animate-[slideInRight_2.5s_infinite]" />
+    </div>
+  );
+}
+
+function AnimSearch() {
+  return (
+    <div className="relative w-24 h-16 bg-emerald-900/20 border border-emerald-400/20 rounded-lg overflow-hidden flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-2 border-emerald-400/40 animate-ping absolute" />
+      <div className="w-6 h-6 rounded-full border-2 border-emerald-400/60 flex items-center justify-center">
+        <div className="w-3 h-3 border-2 border-emerald-400/80 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+function ActionPreview({ intent }: { intent: string }) {
+  if (intent.includes("dashboard") || intent.includes("customize") || intent.includes("kpi")) return <AnimDashboard />;
+  if (intent.includes("ticket") || intent.includes("create")) return <AnimTicket />;
+  if (intent.includes("planning") || intent.includes("piano") || intent.includes("marco")) return <AnimPlanning />;
+  if (intent.includes("find") || intent.includes("search") || intent.includes("asset")) return <AnimSearch />;
+  return null;
+}
+
 export default function GuideBot() {
   const { isAuthenticated, user } = useAuth();
   const pathname = usePathname();
@@ -319,14 +372,25 @@ export default function GuideBot() {
 
               <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
                 {messages.map((m, i) => (
-                  <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && <Bot size={20} className="mt-2 shrink-0 text-cyan-300" />}
-                    <div className={`max-w-[84%] whitespace-pre-wrap rounded-2xl p-3.5 text-base leading-7 ${
-                      m.role === "user"
-                        ? "bg-blue-600 text-white rounded-tr-md shadow-lg shadow-blue-900/20"
-                        : "bg-white/6 border border-white/10 text-slate-100 rounded-tl-md"
-                    }`}>
-                      {m.content}
+                    <div className="flex flex-col gap-2 max-w-[84%]">
+                      <div className={`whitespace-pre-wrap rounded-2xl p-3.5 text-base leading-7 ${
+                        m.role === "user"
+                          ? "bg-blue-600 text-white rounded-tr-md shadow-lg shadow-blue-900/20"
+                          : "bg-white/6 border border-white/10 text-slate-100 rounded-tl-md"
+                      }`}>
+                        {m.content}
+                      </div>
+                      
+                      {m.role === "assistant" && i > 0 && (
+                        <div className="flex items-center gap-3 mt-1">
+                          <ActionPreview intent={m.content.toLowerCase()} />
+                          <div className="text-[10px] font-black text-cyan-400/60 uppercase tracking-widest italic animate-pulse">
+                            Visual Preview
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {m.role === "user" && <User size={20} className="mt-2 shrink-0 text-blue-200" />}
                   </div>
