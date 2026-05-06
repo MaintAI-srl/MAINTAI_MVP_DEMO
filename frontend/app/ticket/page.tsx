@@ -31,6 +31,7 @@ type Ticket = {
   parent_id?: number | null;
   diagnosi_eseguita?: boolean;
   is_manual_plan?: boolean;
+  created_at?: string | null;
 };
 
 type Asset = { id: number; name: string };
@@ -586,10 +587,10 @@ export default function TicketPage() {
   const [archivio, setArchivio] = useState<PagedResult | null>(null);
   const [kanbanTickets, setKanbanTickets] = useState<KanbanTicket[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [tab, setTab] = useState<"attivi" | "archivio" | "kanban">("attivi");
+  const [tab, setTab] = useState<"attivi" | "archivio">("attivi");
   const [page, setPage] = useState(1);
   const [pageArch, setPageArch] = useState(1);
-  const LIMIT = 25;
+  const LIMIT = 10;
 
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -612,6 +613,7 @@ export default function TicketPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [showNuovoTicket, setShowNuovoTicket] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tableOpen, setTableOpen] = useState(true);
 
   useEffect(() => {
     apiGet<Asset[]>("/assets")
@@ -621,7 +623,7 @@ export default function TicketPage() {
 
   useEffect(() => { loadAttivi(page); }, [page]);
   useEffect(() => { if (tab === "archivio") loadArchivio(pageArch); }, [tab, pageArch]);
-  useEffect(() => { if (tab === "kanban") loadKanban(); }, [tab]);
+  useEffect(() => { loadKanban(); }, []);
 
   useEffect(() => {
     function handler() { setCtxMenu(null); }
@@ -777,18 +779,33 @@ export default function TicketPage() {
   function handleSaved() {
     loadAttivi(page);
     if (tab === "archivio") loadArchivio(pageArch);
+    loadKanban();
   }
 
   const tickets = result?.items ?? [];
   const archivioItems = archivio?.items ?? [];
 
   const filteredTickets = searchQuery.trim()
-    ? tickets.filter(t =>
-        t.titolo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.asset_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.sito_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(t.id).includes(searchQuery)
-      )
+    ? tickets.filter(t => {
+        const q = searchQuery.toLowerCase();
+        const dateStr = (iso: string | null | undefined) =>
+          iso ? new Date(iso).toLocaleDateString("it-IT") : "";
+        return [
+          t.titolo,
+          t.asset_name ?? "",
+          t.sito_name ?? "",
+          String(t.id),
+          t.tipo,
+          t.priorita,
+          t.stato,
+          t.fascia_oraria,
+          t.descrizione ?? "",
+          dateStr(t.created_at),
+          dateStr(t.planned_start),
+          dateStr(t.planned_finish),
+          dateStr(t.execution_finish),
+        ].some(field => field.toLowerCase().includes(q));
+      })
     : tickets;
 
   const ticketColumns: ColumnDef<Ticket>[] = [
@@ -830,6 +847,20 @@ export default function TicketPage() {
       },
       meta: { filterVariant: "text" },
     },
+    {
+      accessorKey: "created_at",
+      header: "Creato il",
+      cell: ({ getValue }) => {
+        const v = getValue<string>();
+        if (!v) return <span style={{ color: "var(--text-disabled)" }}>—</span>;
+        return (
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {new Date(v).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
+          </span>
+        );
+      },
+      meta: { filterVariant: "date" },
+    },
     { accessorKey: "titolo", header: "Titolo", meta: { filterVariant: "text" } },
     {
       accessorKey: "asset_name",
@@ -868,22 +899,12 @@ export default function TicketPage() {
       cell: ({ row }) => {
         const t = row.original;
         return (
-          <div onClick={e => e.stopPropagation()}>
-            <StatusToggle
-              size="sm"
-              currentValue={t.stato}
-              onChange={(s) => handleStatoChange(t.id, s)}
-              disabled={updatingId === t.id}
-              options={[
-                { value: "Aperto", label: "Ape", color: "#60a5fa" },
-                { value: "Pianificato", label: "Pia", color: "#a78bfa" },
-                { value: "In corso", label: "Cor", color: "#fbbf24" },
-                { value: "Chiuso", label: "Chi", color: "#34d399" },
-              ]}
-            />
-          </div>
+          <span style={{ ...statoStyle(t.stato), fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
+            {t.stato}
+          </span>
         );
       },
+      meta: { filterVariant: "select", options: ["Aperto", "Pianificato", "In corso"] },
     },
     { accessorKey: "fascia_oraria", header: "Fascia" },
     {
@@ -900,6 +921,7 @@ export default function TicketPage() {
           </span>
         );
       },
+      meta: { filterVariant: "date" },
     },
     {
       accessorKey: "planned_finish",
@@ -915,6 +937,7 @@ export default function TicketPage() {
           </span>
         );
       },
+      meta: { filterVariant: "date" },
     },
     {
       id: "durata",
@@ -1176,9 +1199,9 @@ export default function TicketPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16, background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 8px", width: "fit-content" }}>
-        {(["attivi", "archivio", "kanban"] as const).map(t => (
+        {(["attivi", "archivio"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, cursor: "pointer", fontWeight: 600, background: tab === t ? "rgba(99,102,241,0.25)" : "transparent", color: tab === t ? "#a5b4fc" : "rgba(148,163,184,0.6)", transition: "all 0.15s" }}>
-            {t === "attivi" ? `Attivi (${result?.total ?? 0})` : t === "archivio" ? `Archivio (${archivio?.total ?? 0})` : "Kanban"}
+            {t === "attivi" ? `Attivi (${result?.total ?? 0})` : `Archivio (${archivio?.total ?? 0})`}
           </button>
         ))}
       </div>
@@ -1189,53 +1212,74 @@ export default function TicketPage() {
 
       {tab === "attivi" && result !== null && (
         <>
-          {/* Search bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
-              <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14, pointerEvents: "none" }}>🔍</span>
-              <input
-                type="text"
-                placeholder="Cerca per titolo, sito, asset o ID..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: "100%", padding: "7px 12px 7px 32px",
-                  background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
-                  borderRadius: 7, color: "var(--text-primary)", fontSize: 13, outline: "none",
-                  boxSizing: "border-box",
-                  borderColor: searchQuery ? "rgba(99,102,241,0.5)" : undefined,
-                  transition: "border-color 0.15s",
-                }}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}
-                >×</button>
-              )}
-            </div>
-            {searchQuery && (
-              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {filteredTickets.length} risultat{filteredTickets.length === 1 ? "o" : "i"}
-              </span>
-            )}
-          </div>
+          <button
+            onClick={() => setTableOpen(o => !o)}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
+              background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-default)",
+              borderRadius: 10, cursor: "pointer", color: "var(--text-primary)",
+              fontSize: 13, fontWeight: 700, width: "100%", marginBottom: 8,
+              transition: "background 0.15s",
+            }}
+          >
+            <span style={{ color: "var(--cobalt-bright)", fontSize: 16 }}>{tableOpen ? "▲" : "▼"}</span>
+            {tableOpen ? "Nascondi lista" : "Mostra lista"}
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+              {result?.total ?? 0} ticket
+            </span>
+          </button>
 
-          <DataTable
-            data={filteredTickets}
-            columns={ticketColumns}
-            manualPagination
-            pageCount={result?.pages ?? 1}
-            pageIndex={page - 1}
-            onPageChange={(p) => setPage(p + 1)}
-            emptyMessage="Nessun ticket attivo"
-            onRowClick={(t) => setDetailTicket(t)}
-            enableColumnFilters
-            getRowProps={(t) => ({
-              onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
-              style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
-            })}
-          />
+          {tableOpen && (
+            <>
+              {/* Search bar */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
+                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14, pointerEvents: "none" }}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Cerca per titolo, sito, asset o ID..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%", padding: "7px 12px 7px 32px",
+                      background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+                      borderRadius: 7, color: "var(--text-primary)", fontSize: 13, outline: "none",
+                      boxSizing: "border-box",
+                      borderColor: searchQuery ? "rgba(99,102,241,0.5)" : undefined,
+                      transition: "border-color 0.15s",
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}
+                    >×</button>
+                  )}
+                </div>
+                {searchQuery && (
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    {filteredTickets.length} risultat{filteredTickets.length === 1 ? "o" : "i"}
+                  </span>
+                )}
+              </div>
+
+              <DataTable
+                data={filteredTickets}
+                columns={ticketColumns}
+                manualPagination
+                pageCount={result?.pages ?? 1}
+                pageIndex={page - 1}
+                onPageChange={(p) => setPage(p + 1)}
+                emptyMessage="Nessun ticket attivo"
+                onRowClick={(t) => setDetailTicket(t)}
+                enableColumnFilters
+                getRowProps={(t) => ({
+                  onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
+                  style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
+                })}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -1261,9 +1305,13 @@ export default function TicketPage() {
         </>
       )}
 
-      {tab === "kanban" && (
+      {/* Kanban — sempre visibile */}
+      <div style={{ marginTop: 24 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 12 }}>
+          Board Kanban
+        </div>
         <KanbanBoard tickets={kanbanTickets} onRefresh={loadKanban} />
-      )}
+      </div>
 
       {/* Context menu */}
       {ctxMenu && (

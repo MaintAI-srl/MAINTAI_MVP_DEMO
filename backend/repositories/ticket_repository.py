@@ -31,6 +31,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "piano_manutenzione_id": getattr(t, "piano_manutenzione_id", None),
         "origine_piano": getattr(t, "origine_piano", None),
         "tenant_id": t.tenant_id,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
 

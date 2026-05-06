@@ -13,7 +13,7 @@ import {
   type RowSelectionState,
   type TableOptions,
 } from "@tanstack/react-table";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData> {
@@ -31,6 +31,64 @@ interface DataTableProps<TData> {
   onRowClick?: (row: TData) => void;
   getRowProps?: (row: TData) => React.HTMLAttributes<HTMLTableRowElement>;
   enableColumnFilters?: boolean;
+}
+
+const filterSelectStyle: React.CSSProperties = {
+  width: "100%", fontSize: 11, padding: "3px 6px",
+  background: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
+  borderRadius: 4, color: "var(--text-muted)",
+  cursor: "pointer", outline: "none", colorScheme: "dark",
+};
+
+function DateFilterCell({ column }: { column: any }) {
+  const [preset, setPreset] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  useEffect(() => {
+    if (preset === "" ) { column.setFilterValue(undefined); return; }
+    if (preset === "personalizzata") {
+      if (from || to) column.setFilterValue({ preset, from, to });
+      return;
+    }
+    column.setFilterValue({ preset, from: "", to: "" });
+  }, [preset, from, to]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <select
+        value={preset}
+        onChange={(e) => { setPreset(e.target.value); setFrom(""); setTo(""); }}
+        style={{ ...filterSelectStyle, color: preset ? "#a5b4fc" : "var(--text-muted)" }}
+      >
+        <option value="">Tutte le date</option>
+        <option value="questa_settimana">Questa settimana</option>
+        <option value="prossima_settimana">Prossima settimana</option>
+        <option value="settimana_prec">Settimana prec.</option>
+        <option value="questo_mese">Questo mese</option>
+        <option value="mese_prec">Mese precedente</option>
+        <option value="quest_anno">Quest&apos;anno</option>
+        <option value="anno_scorso">Anno scorso</option>
+        <option value="personalizzata">Personalizzata...</option>
+      </select>
+      {preset === "personalizzata" && (
+        <div style={{ display: "flex", gap: 2, marginTop: 2 }}>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            style={{ ...filterSelectStyle, flex: 1 }}
+          />
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            style={{ ...filterSelectStyle, flex: 1 }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function DataTable<TData>({
@@ -166,6 +224,14 @@ export function DataTable<TData>({
                             outline: "none", boxSizing: "border-box",
                           }}
                         />
+                      </th>
+                    );
+                  }
+
+                  if (filterVariant === "date") {
+                    return (
+                      <th key={header.id} style={{ padding: "4px 6px" }} onClick={(e) => e.stopPropagation()}>
+                        <DateFilterCell column={header.column} />
                       </th>
                     );
                   }
