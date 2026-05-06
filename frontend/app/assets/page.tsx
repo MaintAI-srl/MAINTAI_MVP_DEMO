@@ -78,6 +78,21 @@ export default function AssetsPage() {
   }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(loadAssets, 150);
+    };
+    window.addEventListener("maintai:data-changed", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("maintai:data-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     if (codice.trim() || !descrizione.trim()) { setCodicePreview(""); return; }
     const timer = setTimeout(async () => {
       try {

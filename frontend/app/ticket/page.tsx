@@ -627,6 +627,25 @@ export default function TicketPage() {
   useEffect(() => { loadKanban(); }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadAttivi(page);
+        if (tab === "archivio") loadArchivio(pageArch);
+        loadKanban();
+      }, 150);
+    };
+    window.addEventListener("maintai:data-changed", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("maintai:data-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [page, pageArch, tab]);
+
+  useEffect(() => {
     function handler() { setCtxMenu(null); }
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);

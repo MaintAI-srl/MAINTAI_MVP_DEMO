@@ -597,8 +597,17 @@ export default function PianificazionePage() {
     function onVisibilityChange() {
       if (document.visibilityState === "visible") loadData();
     }
+    function onDataChanged() {
+      loadData();
+    }
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onDataChanged);
+    window.addEventListener("maintai:data-changed", onDataChanged);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onDataChanged);
+      window.removeEventListener("maintai:data-changed", onDataChanged);
+    };
   }, [loadData]);
 
   // ── Genera piano AI ─────────────────────────────────────────────────────────

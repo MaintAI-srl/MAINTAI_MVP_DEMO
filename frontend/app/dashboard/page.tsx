@@ -723,6 +723,18 @@ export default function DashboardPage() {
       finally { setLoading(false); }
     }
     loadInitial();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(loadInitial, 200);
+    };
+    window.addEventListener("maintai:data-changed", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("maintai:data-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
 
   useEffect(() => { loadKPIs(); }, [page, search, selectedArea, selectedStato, assetColumnFilters]);

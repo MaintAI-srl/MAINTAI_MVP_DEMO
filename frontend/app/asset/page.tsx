@@ -707,6 +707,21 @@ export default function AssetPage() {
   }, []);
   useEffect(() => { loadTree(); }, [loadTree]);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(loadTree, 150);
+    };
+    window.addEventListener("maintai:data-changed", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("maintai:data-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loadTree]);
+
   const toggleSito = (id: number) => setExpandedSiti(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleImpianto = (id: number) => setExpandedImpianti(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 

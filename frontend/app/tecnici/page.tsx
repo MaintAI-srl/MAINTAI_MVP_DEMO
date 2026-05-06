@@ -129,6 +129,25 @@ export default function TecniciPage() {
     if (isAdmin) loadUtenti();
   }, [isAdmin]);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadTecnici();
+        loadStats();
+        if (isAdmin) loadUtenti();
+      }, 150);
+    };
+    window.addEventListener("maintai:data-changed", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("maintai:data-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [isAdmin]);
+
   async function loadTecnici() {
     try {
       const d = await apiGet<Tecnico[]>("/tecnici");

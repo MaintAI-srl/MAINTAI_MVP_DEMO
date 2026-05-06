@@ -46,6 +46,12 @@ function shouldDispatchUnauthorized(path: string): boolean {
   return path !== "/auth/me" && path !== "/auth/logout";
 }
 
+function dispatchDataChanged(method: string, path: string) {
+  if (typeof window === "undefined") return;
+  if (method === "GET") return;
+  window.dispatchEvent(new CustomEvent("maintai:data-changed", { detail: { method, path, at: Date.now() } }));
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -107,6 +113,8 @@ async function request<T>(
       }
       throw new Error(message);
     }
+
+    dispatchDataChanged(method, path);
 
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
@@ -178,6 +186,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
       } catch {}
       throw new Error(message);
     }
+    dispatchDataChanged("POST", path);
     return res.json() as Promise<T>;
   } catch (error: unknown) {
     clearTimeout(id);
