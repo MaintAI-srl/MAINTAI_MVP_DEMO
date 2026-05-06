@@ -1236,7 +1236,7 @@ export default function PianificazionePage() {
           </span>
 
           {/* Refresh */}
-          <button onClick={loadData} disabled={loading} title="Aggiorna" style={{
+          <button onClick={() => loadData()} disabled={loading} title="Aggiorna" style={{
             background: "transparent", border: "1px solid rgba(55,65,81,0.8)", color: "rgba(148,163,184,0.8)",
             width: 28, height: 28, cursor: "pointer", fontSize: 14, opacity: loading ? 0.5 : 1,
             borderRadius: 6, transition: "border-color 0.12s",

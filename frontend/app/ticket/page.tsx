@@ -7,7 +7,7 @@ import { SkeletonTable } from "../components/Skeleton";
 import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
-import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import { DataTable, dateRangeFilterFn, type ColumnDef } from "@/components/ui/data-table";
 import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
@@ -890,6 +890,7 @@ export default function TicketPage() {
           </span>
         );
       },
+      filterFn: dateRangeFilterFn,
       meta: { filterVariant: "date" },
     },
     { accessorKey: "titolo", header: "Titolo", meta: { filterVariant: "text" } },
@@ -952,6 +953,7 @@ export default function TicketPage() {
           </span>
         );
       },
+      filterFn: dateRangeFilterFn,
       meta: { filterVariant: "date" },
     },
     {
@@ -968,6 +970,7 @@ export default function TicketPage() {
           </span>
         );
       },
+      filterFn: dateRangeFilterFn,
       meta: { filterVariant: "date" },
     },
     {
@@ -1318,7 +1321,6 @@ export default function TicketPage() {
                 onPageChange={(p) => setPage(p + 1)}
                 emptyMessage="Nessun ticket attivo"
                 onRowClick={(t) => setDetailTicket(t)}
-                enableColumnFilters
                 getRowProps={(t) => ({
                   onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
                   style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },

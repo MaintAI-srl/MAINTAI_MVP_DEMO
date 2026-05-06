@@ -5,7 +5,7 @@ from sqlalchemy import func, case, distinct
 from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
-from backend.db.modelli import Asset, Impianto, Tecnico, Ticket, AttivitaManutenzione
+from backend.db.modelli import Asset, Impianto, Sito, Tecnico, Ticket, AttivitaManutenzione
 
 router = APIRouter()
 
@@ -118,7 +118,7 @@ def dashboard_kpi_asset(
         q = q.filter(Asset.stato.ilike(f"%{asset_stato}%"))
     if sito:
         # Sito richiede join
-        q = q.join(Asset.impianto).join(Impianto.sito).filter(Impianto.sito.nome.ilike(f"%{sito}%"))
+        q = q.join(Asset.impianto).join(Impianto.sito).filter(Sito.nome.ilike(f"%{sito}%"))
 
     total = q.count()
     assets = (

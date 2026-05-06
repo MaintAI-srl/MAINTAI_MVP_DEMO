@@ -695,7 +695,6 @@ export default function DashboardPage() {
         ...(search && { search }),
         ...(selectedArea && { area: selectedArea }),
         ...(selectedStato && { stato: selectedStato }),
-        // Aggiungi filtri colonna tabella
         ...(assetColumnFilters.sito && { sito: assetColumnFilters.sito }),
         ...(assetColumnFilters.codice && { codice: assetColumnFilters.codice }),
         ...(assetColumnFilters.asset && { asset_name: assetColumnFilters.asset }),
@@ -703,22 +702,20 @@ export default function DashboardPage() {
         ...(assetColumnFilters.stato && { asset_stato: assetColumnFilters.stato }),
       });
       setKpiAsset(await apiGet<any>(`/dashboard/kpi-asset?${q.toString()}`));
-    } catch {}
+    } catch { notify.error("Errore caricamento KPI asset."); }
   }
 
   useEffect(() => {
     async function loadInitial() {
       try {
-        const [dashboardData, chartsData, trendData, kpiData] = await Promise.all([
+        const [dashboardData, chartsData, trendData] = await Promise.all([
           apiGet<DashboardData>("/dashboard"),
           apiGet<DashboardCharts>("/dashboard/charts"),
           apiGet<TrendData>("/dashboard/trends").catch(() => null),
-          apiGet<any>("/dashboard/kpi-asset?page=1&limit=10"),
         ]);
         if (dashboardData) { setDashboard(dashboardData); if (dashboardData.areas) setAreas(dashboardData.areas); }
         if (chartsData) setCharts(chartsData);
         if (trendData) setTrend(trendData);
-        if (kpiData) setKpiAsset(kpiData);
         setLastUpdate(new Date());
       } catch { notify.error("Errore di connessione al backend."); }
       finally { setLoading(false); }
@@ -727,7 +724,8 @@ export default function DashboardPage() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const refresh = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(loadInitial, 200);
+      // Ricarica dashboard + charts + kpi rispettando i filtri attivi
+      timer = setTimeout(() => { loadInitial(); loadKPIs(); }, 200);
     };
     window.addEventListener("maintai:data-changed", refresh);
     window.addEventListener("focus", refresh);

@@ -40,6 +40,57 @@ const filterSelectStyle: React.CSSProperties = {
   cursor: "pointer", outline: "none", colorScheme: "dark",
 };
 
+/** Calcola {from, to} Date da un preset stringa */
+function getPresetRange(preset: string): { from: Date | null; to: Date | null } {
+  const now = new Date();
+  const dow = now.getDay(); // 0=dom, 1=lun
+  const monday = (d: Date, offset = 0) => { const m = new Date(d); m.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7); m.setHours(0,0,0,0); return m; };
+  const sunday = (d: Date, offset = 0) => { const m = monday(d, offset); m.setDate(m.getDate() + 6); m.setHours(23,59,59,999); return m; };
+  switch (preset) {
+    case "questa_settimana":   return { from: monday(now, 0),  to: sunday(now, 0)  };
+    case "prossima_settimana": return { from: monday(now, 1),  to: sunday(now, 1)  };
+    case "settimana_prec":     return { from: monday(now, -1), to: sunday(now, -1) };
+    case "questo_mese": {
+      const f = new Date(now.getFullYear(), now.getMonth(), 1);
+      const t = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      return { from: f, to: t };
+    }
+    case "mese_prec": {
+      const f = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const t = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      return { from: f, to: t };
+    }
+    case "quest_anno": {
+      return { from: new Date(now.getFullYear(), 0, 1), to: new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999) };
+    }
+    case "anno_scorso": {
+      return { from: new Date(now.getFullYear() - 1, 0, 1), to: new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999) };
+    }
+    default: return { from: null, to: null };
+  }
+}
+
+/** FilterFn da usare nelle colonne con filterVariant:"date" */
+export function dateRangeFilterFn(row: any, columnId: string, filterValue: any): boolean {
+  if (!filterValue) return true;
+  const { preset, from, to } = filterValue as { preset: string; from: string; to: string };
+  if (!preset) return true;
+  const raw = row.getValue(columnId);
+  if (!raw) return false;
+  const cellDate = new Date(raw as string);
+  if (isNaN(cellDate.getTime())) return false;
+  if (preset === "personalizzata") {
+    if (from && cellDate < new Date(from + "T00:00:00")) return false;
+    if (to   && cellDate > new Date(to   + "T23:59:59")) return false;
+    return true;
+  }
+  const range = getPresetRange(preset);
+  if (range.from && cellDate < range.from) return false;
+  if (range.to   && cellDate > range.to)   return false;
+  return true;
+}
+dateRangeFilterFn.autoRemove = (val: any) => !val || !val.preset;
+
 function DateFilterCell({ column }: { column: any }) {
   const [preset, setPreset] = useState("");
   const [from, setFrom] = useState("");
@@ -118,6 +169,7 @@ export function DataTable<TData>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    filterFns: { dateRange: dateRangeFilterFn } as any,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: (updater) => {
@@ -135,7 +187,7 @@ export function DataTable<TData>({
         : { pagination }),
     },
     ...(manualPagination
-      ? { manualPagination: true, pageCount: pageCount ?? -1 }
+      ? { manualPagination: true, manualFiltering: true, pageCount: pageCount ?? -1 }
       : {
           getPaginationRowModel: getPaginationRowModel(),
           onPaginationChange: setPagination,
