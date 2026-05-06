@@ -91,9 +91,9 @@ type ChartDataId =
   | "guasti_by_asset";
 type ChartDisplayType = "pie" | "bar" | "area" | "line";
 type DashboardWidget =
-  | { id: string; type: "kpi"; kpi: KpiOptionId }
-  | { id: string; type: "chart"; chartData: ChartDataId; chartType: ChartDisplayType }
-  | { id: string; type: "asset_table" };
+  | { id: string; type: "kpi"; kpi: KpiOptionId; hidden?: boolean }
+  | { id: string; type: "chart"; chartData: ChartDataId; chartType: ChartDisplayType; hidden?: boolean }
+  | { id: string; type: "asset_table"; hidden?: boolean };
 type AssetColumnFilters = {
   sito: string;
   codice: string;
@@ -143,6 +143,7 @@ function normalizeDashboardWidgets(saved: unknown): DashboardWidget[] {
       (item.type === "chart" && !!item.chartData && !!item.chartType)
     )
   );
+  // Ensure we keep the hidden state from saved if present
   const ids = new Set(valid.map((item) => item.id));
   const missingDefaults = DEFAULT_DASHBOARD_WIDGETS.filter((item) => !ids.has(item.id));
   return [...valid, ...missingDefaults];
@@ -428,16 +429,30 @@ function DashboardChartContent({ data, chartType, accent }: { data: ChartItem[];
   }
 
   if (chartType === "pie") {
+    const total = data.reduce((acc, curr) => acc + curr.value, 0);
     return (
-      <ResponsiveContainer width="100%" height={240}>
-        <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={62} outerRadius={90} paddingAngle={3} strokeWidth={0}>
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart margin={{ bottom: 20 }}>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={62}
+            outerRadius={90}
+            paddingAngle={3}
+            strokeWidth={0}
+            label={({ name, value }) => {
+              const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+              return `${name}: ${pct}%`;
+            }}
+            labelLine={{ stroke: "var(--text-muted)", strokeWidth: 1 }}
+          >
             {data.map((entry, i) => (
               <Cell key={entry.name} fill={PRIORITY_COLORS[i % PRIORITY_COLORS.length]} stroke={PRIORITY_COLORS[i % PRIORITY_COLORS.length]} strokeWidth={1} />
             ))}
           </Pie>
           <Tooltip contentStyle={chartTooltipStyle} />
-          <Legend iconType="circle" iconSize={7} formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>{v}</span>} />
+          <Legend verticalAlign="bottom" align="center" iconType="circle" iconSize={7} formatter={(v) => <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>{v}</span>} />
         </PieChart>
       </ResponsiveContainer>
     );
@@ -536,19 +551,7 @@ function AssetDetailWidget({
   onFilterChange: (key: keyof AssetColumnFilters, value: string) => void;
   onPageChange: (page: number) => void;
 }) {
-  const filteredAssets = assets.filter((a) => {
-    const values = {
-      sito: a.asset_sito || "",
-      codice: a.asset_codice || "",
-      asset: a.asset_nome || "",
-      area: a.asset_area || "",
-      stato: a.stato || "",
-    };
-    return (Object.keys(filters) as (keyof AssetColumnFilters)[]).every((key) => {
-      const needle = filters[key].trim().toLowerCase();
-      return !needle || values[key].toLowerCase().includes(needle);
-    });
-  });
+  const filteredAssets = assets;
   const columns: { key: keyof AssetColumnFilters; label: string; width?: number }[] = [
     { key: "sito", label: "Sito", width: 140 },
     { key: "codice", label: "Codice", width: 110 },
@@ -676,7 +679,19 @@ export default function DashboardPage() {
 
   async function loadKPIs() {
     try {
-      const q = new URLSearchParams({ page: String(page), limit: "10", ...(search && { search }), ...(selectedArea && { area: selectedArea }), ...(selectedStato && { stato: selectedStato }) });
+      const q = new URLSearchParams({
+        page: String(page),
+        limit: "10",
+        ...(search && { search }),
+        ...(selectedArea && { area: selectedArea }),
+        ...(selectedStato && { stato: selectedStato }),
+        // Aggiungi filtri colonna tabella
+        ...(assetColumnFilters.sito && { sito: assetColumnFilters.sito }),
+        ...(assetColumnFilters.codice && { codice: assetColumnFilters.codice }),
+        ...(assetColumnFilters.asset && { asset_name: assetColumnFilters.asset }),
+        ...(assetColumnFilters.area && { asset_area: assetColumnFilters.area }),
+        ...(assetColumnFilters.stato && { asset_stato: assetColumnFilters.stato }),
+      });
       setKpiAsset(await apiGet<any>(`/dashboard/kpi-asset?${q.toString()}`));
     } catch {}
   }
@@ -701,7 +716,7 @@ export default function DashboardPage() {
     loadInitial();
   }, []);
 
-  useEffect(() => { loadKPIs(); }, [page, search, selectedArea, selectedStato]);
+  useEffect(() => { loadKPIs(); }, [page, search, selectedArea, selectedStato, assetColumnFilters]);
 
   useEffect(() => {
     try {
@@ -913,6 +928,14 @@ export default function DashboardPage() {
   const changeWidgetChartType = (id: string, chartType: ChartDisplayType) => {
     setDashboardWidgets((items) => items.map((item) => item.id === id && item.type === "chart" ? { ...item, chartType } : item));
   };
+  
+  const toggleWidgetVisibility = (id: string) => {
+    setDashboardWidgets((items) => items.map((item) => item.id === id ? { ...item, hidden: !item.hidden } : item));
+  };
+
+  const showAllWidgets = () => {
+    setDashboardWidgets((items) => items.map((item) => ({ ...item, hidden: false })));
+  };
 
   const resetDashboardWidgets = () => {
     setDashboardWidgets(DEFAULT_DASHBOARD_WIDGETS);
@@ -1010,9 +1033,14 @@ export default function DashboardPage() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {isCustomizing && (
-                <button type="button" className="btn btn-secondary" style={{ padding: "7px 12px", fontSize: 12 }} onClick={resetDashboardWidgets}>
-                  Ripristina
-                </button>
+                <>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "7px 12px", fontSize: 12 }} onClick={showAllWidgets}>
+                    Mostra tutti
+                  </button>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "7px 12px", fontSize: 12 }} onClick={resetDashboardWidgets}>
+                    Ripristina
+                  </button>
+                </>
               )}
               <button type="button" className={isCustomizing ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "7px 14px", fontSize: 12 }} onClick={() => setIsCustomizing((value) => !value)}>
                 {isCustomizing ? "Fine" : "Personalizza"}
@@ -1024,84 +1052,180 @@ export default function DashboardPage() {
             <SortableContext items={dashboardWidgets.map((item) => item.id)} strategy={rectSortingStrategy}>
               <div className="dashboard-widget-grid">
                 {dashboardWidgets.map((widget) => {
-                  if (widget.type === "kpi") {
-                    const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
-                    return (
-                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing} expanded={assetDetailOpen}>
-                        {({ attributes, listeners }) => (
-      <div style={{ position: "relative", height: "100%" }}>
-                            {isCustomizing && (
-                              <WidgetControls attributes={attributes} listeners={listeners}>
-                                <MiniSelect
-                                  label="Tipo KPI"
-                                  value={widget.kpi}
-                                  options={kpiOptions.map((item) => ({ value: item.id, label: item.label }))}
-                                  onChange={(value) => changeWidgetKpi(widget.id, value as KpiOptionId)}
-                                />
-                              </WidgetControls>
-                            )}
-                            <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
-                          </div>
-                        )}
-                      </SortableDashboardTile>
-                    );
-                  }
-                  if (widget.type === "asset_table") {
-                    return (
-                      <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing} expanded={assetDetailOpen}>
-                        {({ attributes, listeners }) => (
-                          <div style={{ position: "relative", height: "100%" }}>
-                            {isCustomizing && (
-                              <WidgetControls attributes={attributes} listeners={listeners}>
-                                <span style={{ height: 31, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-secondary)", fontSize: 11, fontWeight: 800 }}>
-                                  Dettaglio asset
-                                </span>
-                              </WidgetControls>
-                            )}
-                            <AssetDetailWidget
-                              assets={kpiAsset?.assets ?? []}
-                              total={kpiAsset?.total ?? 0}
-                              page={page}
-                              pages={kpiAsset?.pages ?? 0}
-                              open={assetDetailOpen}
-                              filters={assetColumnFilters}
-                              onToggle={() => setAssetDetailOpen((value) => !value)}
-                              onFilterChange={(key, value) => setAssetColumnFilters((current) => ({ ...current, [key]: value }))}
-                              onPageChange={setPage}
-                            />
-                          </div>
-                        )}
-                      </SortableDashboardTile>
-                    );
-                  }
-                  const chart = chartOptionsById.get(widget.chartData) ?? chartOptions[0];
-                  return (
-                    <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing}>
-                      {({ attributes, listeners }) => (
-                        <div style={{ position: "relative", height: "100%" }}>
+                  if (widget.hidden && !isCustomizing) return null;
+                  
+                  const renderWidgetContent = () => {
+                    if (widget.type === "kpi") {
+                      const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
+                      return (
+                        <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
                           {isCustomizing && (
-                            <WidgetControls attributes={attributes} listeners={listeners}>
+                            <WidgetControls attributes={{}} listeners={{}}>
+                              <button 
+                                type="button" 
+                                onClick={() => toggleWidgetVisibility(widget.id)}
+                                style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
+                              >
+                                {widget.hidden ? "Mostra" : "Nascondi"}
+                              </button>
                               <MiniSelect
-                                label="Dati grafico"
-                                value={widget.chartData}
-                                options={chartOptions.map((item) => ({ value: item.id, label: item.title }))}
-                                onChange={(value) => changeWidgetChartData(widget.id, value as ChartDataId)}
-                                width={170}
-                              />
-                              <MiniSelect
-                                label="Tipologia grafico"
-                                value={widget.chartType}
-                                options={chartTypeOptions}
-                                onChange={(value) => changeWidgetChartType(widget.id, value as ChartDisplayType)}
-                                width={104}
+                                label="Tipo KPI"
+                                value={widget.kpi}
+                                options={kpiOptions.map((item) => ({ value: item.id, label: item.label }))}
+                                onChange={(value) => changeWidgetKpi(widget.id, value as KpiOptionId)}
                               />
                             </WidgetControls>
                           )}
-                          <ChartCard title={chart.title} subtitle={chart.subtitle} accent={chart.accent}>
-                            <DashboardChartContent data={chart.data} chartType={widget.chartType} accent={chart.accent} />
-                          </ChartCard>
+                          <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
                         </div>
-                      )}
+                      );
+                    }
+                    if (widget.type === "asset_table") {
+                      return (
+                        <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
+                          {isCustomizing && (
+                            <WidgetControls attributes={{}} listeners={{}}>
+                              <button 
+                                type="button" 
+                                onClick={() => toggleWidgetVisibility(widget.id)}
+                                style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
+                              >
+                                {widget.hidden ? "Mostra" : "Nascondi"}
+                              </button>
+                              <span style={{ height: 31, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-secondary)", fontSize: 11, fontWeight: 800 }}>
+                                Dettaglio asset
+                              </span>
+                            </WidgetControls>
+                          )}
+                          <AssetDetailWidget
+                            assets={kpiAsset?.assets ?? []}
+                            total={kpiAsset?.total ?? 0}
+                            page={page}
+                            pages={kpiAsset?.pages ?? 0}
+                            open={assetDetailOpen}
+                            filters={assetColumnFilters}
+                            onToggle={() => setAssetDetailOpen((value) => !value)}
+                            onFilterChange={(key, value) => setAssetColumnFilters((current) => ({ ...current, [key]: value }))}
+                            onPageChange={setPage}
+                          />
+                        </div>
+                      );
+                    }
+                    const chart = chartOptionsById.get(widget.chartData) ?? chartOptions[0];
+                    return (
+                      <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
+                        {isCustomizing && (
+                          <WidgetControls attributes={{}} listeners={{}}>
+                            <button 
+                              type="button" 
+                              onClick={() => toggleWidgetVisibility(widget.id)}
+                              style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
+                            >
+                              {widget.hidden ? "Mostra" : "Nascondi"}
+                            </button>
+                            <MiniSelect
+                              label="Dati grafico"
+                              value={widget.chartData}
+                              options={chartOptions.map((item) => ({ value: item.id, label: item.title }))}
+                              onChange={(value) => changeWidgetChartData(widget.id, value as ChartDataId)}
+                              width={170}
+                            />
+                            <MiniSelect
+                              label="Tipologia grafico"
+                              value={widget.chartType}
+                              options={chartTypeOptions}
+                              onChange={(value) => changeWidgetChartType(widget.id, value as ChartDisplayType)}
+                              width={104}
+                            />
+                          </WidgetControls>
+                        )}
+                        <ChartCard title={chart.title} subtitle={chart.subtitle} accent={chart.accent}>
+                          <DashboardChartContent data={chart.data} chartType={widget.chartType} accent={chart.accent} />
+                        </ChartCard>
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing} expanded={assetDetailOpen}>
+                      {(drag) => {
+                        // Pass active drag attributes to our controls inside the widget
+                        const content = renderWidgetContent();
+                        // Re-inject the drag handles into the WidgetControls within the content
+                        // Actually, SortableDashboardTile already wraps the children. 
+                        // I'll simplify the render logic to avoid issues with dnd-kit.
+                        return (
+                          <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
+                            {isCustomizing && (
+                              <WidgetControls attributes={drag.attributes} listeners={drag.listeners}>
+                                <button 
+                                  type="button" 
+                                  onClick={() => toggleWidgetVisibility(widget.id)}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
+                                >
+                                  {widget.hidden ? "Mostra" : "Nascondi"}
+                                </button>
+                                {widget.type === "kpi" && (
+                                  <MiniSelect
+                                    label="Tipo KPI"
+                                    value={widget.kpi}
+                                    options={kpiOptions.map((item) => ({ value: item.id, label: item.label }))}
+                                    onChange={(value) => changeWidgetKpi(widget.id, value as KpiOptionId)}
+                                  />
+                                )}
+                                {widget.type === "chart" && (
+                                  <>
+                                    <MiniSelect
+                                      label="Dati grafico"
+                                      value={widget.chartData}
+                                      options={chartOptions.map((item) => ({ value: item.id, label: item.title }))}
+                                      onChange={(value) => changeWidgetChartData(widget.id, value as ChartDataId)}
+                                      width={170}
+                                    />
+                                    <MiniSelect
+                                      label="Tipologia grafico"
+                                      value={widget.chartType}
+                                      options={chartTypeOptions}
+                                      onChange={(value) => changeWidgetChartType(widget.id, value as ChartDisplayType)}
+                                      width={104}
+                                    />
+                                  </>
+                                )}
+                                {widget.type === "asset_table" && (
+                                  <span style={{ height: 31, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-secondary)", fontSize: 11, fontWeight: 800 }}>
+                                    Dettaglio asset
+                                  </span>
+                                )}
+                              </WidgetControls>
+                            )}
+                            {widget.type === "kpi" && (
+                              <KpiCard label={kpiOptionsById.get(widget.kpi)?.label || ""} value={kpiOptionsById.get(widget.kpi)?.value || ""} accent={kpiOptionsById.get(widget.kpi)?.accent || ""} sub={kpiOptionsById.get(widget.kpi)?.sub} icon={kpiOptionsById.get(widget.kpi)?.icon} />
+                            )}
+                            {widget.type === "chart" && (
+                              <ChartCard title={chartOptionsById.get(widget.chartData)?.title || ""} subtitle={chartOptionsById.get(widget.chartData)?.subtitle} accent={chartOptionsById.get(widget.chartData)?.accent}>
+                                <DashboardChartContent data={chartOptionsById.get(widget.chartData)?.data || []} chartType={widget.chartType} accent={chartOptionsById.get(widget.chartData)?.accent || ""} />
+                              </ChartCard>
+                            )}
+                            {widget.type === "asset_table" && (
+                              <AssetDetailWidget
+                                assets={kpiAsset?.assets ?? []}
+                                total={kpiAsset?.total ?? 0}
+                                page={page}
+                                pages={kpiAsset?.pages ?? 0}
+                                open={assetDetailOpen}
+                                filters={assetColumnFilters}
+                                onToggle={() => setAssetDetailOpen((value) => !value)}
+                                onFilterChange={(key, value) => {
+                                  setAssetColumnFilters((current) => ({ ...current, [key]: value }));
+                                  setPage(1); // Resetta pagina quando si filtra
+                                }}
+                                onPageChange={setPage}
+                              />
+                            )}
+                          </div>
+                        );
+                      }}
                     </SortableDashboardTile>
                   );
                 })}
