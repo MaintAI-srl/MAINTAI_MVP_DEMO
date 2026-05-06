@@ -148,7 +148,7 @@ def get_ticket(ticket_id: int, db: Session = Depends(get_db), tenant_id: int = D
     return _ticket_to_dict(ticket)
 
 
-@router.post("/tickets/sync-hierarchy")
+@router.post("/sync-tickets-hierarchy")
 def sync_ticket_hierarchy(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),

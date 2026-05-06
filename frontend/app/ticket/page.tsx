@@ -1040,7 +1040,7 @@ export default function TicketPage() {
             type="button"
             onClick={async () => {
               try {
-                const r = await apiPost<{ updated: number; total: number }>("/tickets/sync-hierarchy", {});
+                const r = await apiPost<{ updated: number; total: number }>("/sync-tickets-hierarchy", {});
                 notify.success(`Siti sincronizzati: ${r.updated} ticket aggiornati su ${r.total}`);
                 loadAttivi(page);
               } catch { notify.error("Errore sincronizzazione siti"); }
