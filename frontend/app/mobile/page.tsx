@@ -695,10 +695,10 @@ export default function MobileHomePage() {
     "Imbracatura (se lavori in quota)",
   ];
 
-  async function searchAssetsByQuery(q: string) {
-    if (!q.trim()) return;
+  async function searchAssetsByQuery(q: string): Promise<AssetResult[]> {
+    if (!q.trim()) return [];
     try {
-      const res = await apiGet<{ items?: AssetResult[]; [key: string]: unknown }>(`/assets?query=${encodeURIComponent(q)}&limit=5`);
+      const res = await apiGet<{ items?: AssetResult[]; [key: string]: unknown }>(`/assets?query=${encodeURIComponent(q)}&limit=10`);
       const list = Array.isArray(res) ? res : (res.items ?? []);
       return list as AssetResult[];
     } catch { return []; }
@@ -706,12 +706,25 @@ export default function MobileHomePage() {
 
   async function handleVoiceTranscript(text: string) {
     setVoiceTranscript(text);
-    const assets = await searchAssetsByQuery(text);
-    if (assets && assets.length > 0) {
+    // Cerca prima con il testo completo
+    let assets = await searchAssetsByQuery(text);
+    // Se non trova nulla, prova ogni parola significativa (>2 caratteri) separatamente
+    if (assets.length === 0) {
+      const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const seen = new Set<number>();
+      for (const word of words) {
+        const res = await searchAssetsByQuery(word);
+        for (const a of res) {
+          if (!seen.has(a.id)) { seen.add(a.id); assets.push(a); }
+        }
+        if (assets.length >= 10) break;
+      }
+    }
+    if (assets.length > 0) {
       setFoundAssets(assets);
       setVoiceStep("confirm_asset");
     } else {
-      notify.error("Nessun asset trovato. Riprova o cerca manualmente.");
+      notify.error("Nessun asset trovato. Riprova o cerca manualmente sotto.");
     }
   }
 
@@ -819,34 +832,41 @@ export default function MobileHomePage() {
 
           {/* STEP: confirm_asset */}
           {voiceStep === "confirm_asset" && foundAssets.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Asset rilevato dalla voce:</div>
-              <div style={{ background: "rgba(34,197,94,0.06)", border: "2px solid rgba(34,197,94,0.4)", borderRadius: 16, padding: "20px 18px" }}>
-                <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", marginBottom: 6 }}>{foundAssets[0].name}</div>
-                {foundAssets[0].sito_nome && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{foundAssets[0].sito_nome}{foundAssets[0].impianto_nome ? ` · ${foundAssets[0].impianto_nome}` : ""}</div>}
-                {foundAssets[0].codice && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>Cod. {foundAssets[0].codice}</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>
+                  {foundAssets.length} asset trovati per &ldquo;{voiceTranscript}&rdquo;
+                </span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
               </div>
-              <button onClick={() => { setSelectedAsset(foundAssets[0]); setVoiceStep("form"); }}
-                style={{ padding: "18px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 900, fontSize: 17, cursor: "pointer", boxShadow: "0 8px 24px rgba(34,197,94,0.35)" }}>
-                ✓ ASSET CORRETTO
-              </button>
-              <div style={{ textAlign: "center" }}>
-                <button onClick={() => { setVoiceStep("listen"); setFoundAssets([]); }}
-                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.45)", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
-                  Sbagliato? Riprova o cerca manualmente
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
+                Tocca l&apos;asset corretto per procedere
+              </div>
+              {foundAssets.map((a, idx) => (
+                <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "16px",
+                    background: idx === 0 ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)",
+                    border: `1.5px solid ${idx === 0 ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.1)"}`,
+                    borderRadius: 14, cursor: "pointer", textAlign: "left",
+                  }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: idx === 0 ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16 }}>
+                    {idx === 0 ? "✓" : "📦"}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: idx === 0 ? "#86efac" : "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                      {[a.codice && `Cod. ${a.codice}`, a.sito_nome, a.impianto_nome].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  <span style={{ color: idx === 0 ? "#34d399" : "rgba(255,255,255,0.25)", fontSize: 18 }}>›</span>
                 </button>
-              </div>
-              {foundAssets.length > 1 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", textAlign: "center" }}>Altri risultati:</div>
-                  {foundAssets.slice(1).map(a => (
-                    <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
-                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", color: "rgba(255,255,255,0.7)", cursor: "pointer", textAlign: "left", fontSize: 13 }}>
-                      {a.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+              ))}
+              <button onClick={() => { setVoiceStep("listen"); setFoundAssets([]); setVoiceTranscript(""); }}
+                style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer", padding: "10px", marginTop: 4 }}>
+                ← Riprova ricerca
+              </button>
             </div>
           )}
 
