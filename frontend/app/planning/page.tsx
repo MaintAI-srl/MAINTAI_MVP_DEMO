@@ -53,12 +53,12 @@ interface TecnicoAPI {
 
 // ─── Costanti Gantt ───────────────────────────────────────────────────────────
 
-const DAY_START_H = 0;
-const DAY_END_H = 24;
+const DAY_START_H = 7;
+const DAY_END_H = 19;
 const HOUR_W = 80;
-const DAY_W = 130;
-const ROW_H = 64;
-const LABEL_W = 200;
+const DAY_W = 156;
+const ROW_H = 82;
+const LABEL_W = 238;
 
 const PRIO_COLORS: Record<string, string> = {
   Alta: "#ef4444",
@@ -99,6 +99,48 @@ function planDateTime(dateStr: string, timeStr?: string | null): string {
   return `${dateStr}T${time}:00`;
 }
 
+function ticketHours(ticket: TicketData | null | undefined): number {
+  return Math.max(0.5, Number(ticket?.durata_stimata_ore) || 1);
+}
+
+function isTecnicoOperativo(tecnico: TecnicoData): boolean {
+  return (tecnico.stato || "").toLowerCase() === "in servizio" && !tecnico.assenza_corrente;
+}
+
+function plannedDate(ticket: TicketData): string | null {
+  const parsed = parseStart(ticket);
+  return parsed?.date ?? null;
+}
+
+function scheduledHoursFor(
+  tickets: TicketData[],
+  tecnicoId: number,
+  date: string,
+  excludeTicketId?: number,
+): number {
+  return tickets.reduce((sum, ticket) => {
+    if (ticket.id === excludeTicketId) return sum;
+    if (ticket.tecnico_id !== tecnicoId) return sum;
+    if (plannedDate(ticket) !== date) return sum;
+    return sum + ticketHours(ticket);
+  }, 0);
+}
+
+function capacityInfo(
+  tecnico: TecnicoData,
+  date: string,
+  tickets: TicketData[],
+  excludeTicket?: TicketData | null,
+) {
+  const operativo = isTecnicoOperativo(tecnico);
+  const capacity = operativo ? Number(tecnico.ore_giornaliere || 8) : 0;
+  const assigned = scheduledHoursFor(tickets, tecnico.id, date, excludeTicket?.id);
+  const remaining = Math.max(0, capacity - assigned);
+  const needed = ticketHours(excludeTicket);
+  const canAccept = operativo && (!excludeTicket || remaining >= needed);
+  return { operativo, capacity, assigned, remaining, needed, canAccept };
+}
+
 // ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
 
 function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: ViewMode; onClick: () => void }) {
@@ -107,7 +149,7 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
     data: { ticket },
   });
   const s = tipoStyle(ticket.tipo);
-  const dur = Math.max(0.5, ticket.durata_stimata_ore || 1);
+  const dur = ticketHours(ticket);
 
   if (view === "day") {
     return (
@@ -121,19 +163,25 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
           background: s.bg,
           border: `1px solid ${s.border}`,
           borderLeft: `3px solid ${s.border}`,
-          borderRadius: 5,
-          padding: "4px 6px",
+          borderRadius: 8,
+          padding: "7px 9px",
           cursor: isDragging ? "grabbing" : "grab",
           opacity: isDragging ? 0.25 : 1,
           overflow: "hidden",
           userSelect: "none",
           boxSizing: "border-box",
           zIndex: isDragging ? 0 : 2,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 var(--border-subtle)",
-          transition: "filter 0.12s",
+          boxShadow: `0 10px 24px rgba(0,0,0,0.42), 0 0 16px ${s.border}22, inset 0 1px 0 rgba(255,255,255,0.12)`,
+          transition: "filter 0.12s, transform 0.12s",
         }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)"; }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.16)";
+          (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
+          (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+        }}
       >
         <div style={{ fontSize: 9, color: s.text, opacity: 0.7, letterSpacing: "0.08em" }}>{ticket.tipo} · {dur}h</div>
         <div style={{ fontSize: 11, color: s.text, fontWeight: 700, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -152,14 +200,20 @@ function TicketBlock({ ticket, view, onClick }: { ticket: TicketData; view: View
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       style={{
         background: s.bg, border: `1px solid ${s.border}`, borderLeft: `3px solid ${s.border}`,
-        borderRadius: 5, padding: "3px 5px", marginBottom: 2,
+        borderRadius: 8, padding: "5px 7px", marginBottom: 4,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.25 : 1,
         overflow: "hidden", userSelect: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 var(--border-subtle)",
-        transition: "filter 0.12s",
+        boxShadow: `0 8px 18px rgba(0,0,0,0.36), 0 0 14px ${s.border}18, inset 0 1px 0 rgba(255,255,255,0.12)`,
+        transition: "filter 0.12s, transform 0.12s",
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)"; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)"; }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)";
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+      }}
     >
       <div style={{ fontSize: 10, color: s.text, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
@@ -211,23 +265,68 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
 
 // ─── TecnicoLabel ─────────────────────────────────────────────────────────────
 
-function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
+function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number } }) {
   const assenza = tecnico.assenza_corrente;
+  const operativo = isTecnicoOperativo(tecnico);
+  const cap = capacity?.capacity ?? (operativo ? Number(tecnico.ore_giornaliere || 8) : 0);
+  const remaining = capacity?.remaining ?? cap;
+  const assigned = capacity?.assigned ?? 0;
+  const usagePct = cap > 0 ? clamp((assigned / cap) * 100, 0, 100) : 0;
   return (
     <div style={{
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
       borderRight: "1px solid rgba(59,130,246,0.1)",
-      background: "linear-gradient(90deg, var(--surface-1) 0%, rgba(12,22,40,0.95) 100%)",
+      background: operativo
+        ? "linear-gradient(90deg, #0b1628 0%, rgba(12,22,40,0.96) 100%)"
+        : "linear-gradient(90deg, rgba(48,18,22,0.92) 0%, rgba(12,22,40,0.82) 100%)",
       position: "sticky", left: 0, zIndex: 3,
+      opacity: operativo ? 1 : 0.72,
     }}>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.3 }}>
-          {tecnico.nome} {tecnico.cognome ?? ""}
+      <div style={{ width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#e2e8f0", lineHeight: 1.3 }}>
+            {tecnico.nome} {tecnico.cognome ?? ""}
+          </div>
+          <div style={{
+            fontSize: 10, fontWeight: 900, color: remaining > 0 ? "#a6f6ff" : "#fca5a5",
+            border: `1px solid ${remaining > 0 ? "rgba(31,232,255,0.28)" : "rgba(224,82,82,0.45)"}`,
+            background: remaining > 0 ? "rgba(31,232,255,0.08)" : "rgba(224,82,82,0.13)",
+            borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap",
+          }}>
+            {remaining.toFixed(1)}h libere
+          </div>
         </div>
-        <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)", marginTop: 1 }}>
+        <div style={{ fontSize: 10, color: "rgba(148,163,184,0.78)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {tecnico.skill ?? tecnico.competenze ?? ""}
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
+          <div style={{ flex: 1, height: 5, borderRadius: 999, background: "rgba(83,97,116,0.22)", overflow: "hidden" }}>
+            <div style={{
+              width: `${usagePct}%`, height: "100%", borderRadius: 999,
+              background: usagePct > 92 ? "#e05252" : usagePct > 72 ? "#f2b84b" : "#38d978",
+              boxShadow: usagePct > 92 ? "0 0 10px rgba(224,82,82,0.45)" : "0 0 10px rgba(56,217,120,0.28)",
+            }} />
+          </div>
+          <span style={{ fontSize: 9, color: "rgba(166,246,255,0.72)", whiteSpace: "nowrap" }}>{assigned.toFixed(1)}/{cap.toFixed(1)}h</span>
+        </div>
+        {!operativo && (
+          <div style={{
+            display: "inline-flex",
+            marginTop: 6,
+            padding: "2px 7px",
+            borderRadius: 999,
+            border: "1px solid rgba(224,82,82,0.45)",
+            background: "rgba(224,82,82,0.15)",
+            color: "#fca5a5",
+            fontSize: 9,
+            fontWeight: 900,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}>
+            Non disponibile · {tecnico.stato}
+          </div>
+        )}
         {assenza && (
           <div
             title={assenza.note || assenza.tipo_assenza}
@@ -255,8 +354,8 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
 
 // ─── DayRow ───────────────────────────────────────────────────────────────────
 
-function DayRow({ tecnico, tickets, day, onTicketClick }: {
-  tecnico: TecnicoData; tickets: TicketData[]; day: Date; onTicketClick: (t: TicketData) => void;
+function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketClick }: {
+  tecnico: TecnicoData; tickets: TicketData[]; allTickets: TicketData[]; day: Date; draggingTicket: TicketData | null; onTicketClick: (t: TicketData) => void;
 }) {
   const dateStr = format(day, "yyyy-MM-dd");
   const { setNodeRef, isOver } = useDroppable({
@@ -264,16 +363,38 @@ function DayRow({ tecnico, tickets, day, onTicketClick }: {
     data: { tecnico_id: tecnico.id, date: dateStr },
   });
   const dayTickets = tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; });
+  const cap = capacityInfo(tecnico, dateStr, allTickets);
+  const dropCap = capacityInfo(tecnico, dateStr, allTickets, draggingTicket);
   const timelineW = (DAY_END_H - DAY_START_H) * HOUR_W;
+  const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
+  const validDrop = isOver && draggingTicket && dropCap.canAccept;
 
   return (
-    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid var(--border-subtle)" }}>
-      <TecnicoLabel tecnico={tecnico} />
+    <div style={{ display: "flex", height: ROW_H, borderBottom: "1px solid rgba(31,78,107,0.25)" }}>
+      <TecnicoLabel tecnico={tecnico} capacity={cap} />
       <div ref={setNodeRef} style={{
         position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
-        background: isOver ? "rgba(59,130,246,0.07)" : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(59,130,246,0.05) ${HOUR_W - 1}px, rgba(59,130,246,0.05) ${HOUR_W}px)`,
-        transition: "background 0.12s",
+        background: validDrop
+          ? `linear-gradient(90deg, rgba(31,232,255,0.18), rgba(56,217,120,0.09)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(31,232,255,0.12) ${HOUR_W - 1}px, rgba(31,232,255,0.12) ${HOUR_W}px)`
+          : invalidDrop
+            ? `linear-gradient(90deg, rgba(224,82,82,0.18), rgba(242,184,75,0.08)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(224,82,82,0.12) ${HOUR_W - 1}px, rgba(224,82,82,0.12) ${HOUR_W}px)`
+            : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(31,78,107,0.14) ${HOUR_W - 1}px, rgba(31,78,107,0.14) ${HOUR_W}px)`,
+        boxShadow: validDrop ? "inset 0 0 0 2px rgba(31,232,255,0.55), inset 0 0 32px rgba(31,232,255,0.12)" : invalidDrop ? "inset 0 0 0 2px rgba(224,82,82,0.55)" : "none",
+        transition: "background 0.12s, box-shadow 0.12s",
       }}>
+        {isOver && draggingTicket && (
+          <div style={{
+            position: "absolute", right: 12, top: 10, zIndex: 4,
+            fontSize: 11, fontWeight: 900,
+            color: dropCap.canAccept ? "#a6f6ff" : "#fca5a5",
+            background: dropCap.canAccept ? "rgba(7,17,31,0.88)" : "rgba(80,20,24,0.92)",
+            border: `1px solid ${dropCap.canAccept ? "rgba(31,232,255,0.48)" : "rgba(224,82,82,0.58)"}`,
+            borderRadius: 999, padding: "5px 10px",
+            boxShadow: dropCap.canAccept ? "0 0 18px rgba(31,232,255,0.18)" : "0 0 18px rgba(224,82,82,0.18)",
+          }}>
+            {dropCap.canAccept ? `Disponibile: ${dropCap.remaining.toFixed(1)}h` : !dropCap.operativo ? "Non disponibile" : `Capienza insufficiente: ${dropCap.remaining.toFixed(1)}h`}
+          </div>
+        )}
         {dayTickets.map((t) => {
           const p = parseStart(t)!;
           const left = (p.hour - DAY_START_H) * HOUR_W + (p.minute / 60) * HOUR_W;
@@ -290,22 +411,41 @@ function DayRow({ tecnico, tickets, day, onTicketClick }: {
 
 // ─── DayCell ──────────────────────────────────────────────────────────────────
 
-function DayCell({ tecnico_id, date, tickets, onTicketClick, cellW }: {
-  tecnico_id: number; date: string; tickets: TicketData[];
+function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketClick, cellW }: {
+  tecnico: TecnicoData; date: string; tickets: TicketData[]; allTickets: TicketData[]; draggingTicket: TicketData | null;
   onTicketClick: (t: TicketData) => void; cellW: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: `cell-${tecnico_id}-${date}`,
-    data: { tecnico_id, date },
+    id: `cell-${tecnico.id}-${date}`,
+    data: { tecnico_id: tecnico.id, date },
   });
+  const cap = capacityInfo(tecnico, date, allTickets);
+  const dropCap = capacityInfo(tecnico, date, allTickets, draggingTicket);
+  const validDrop = isOver && draggingTicket && dropCap.canAccept;
+  const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
   return (
     <div ref={setNodeRef} style={{
       width: cellW, minWidth: cellW, minHeight: ROW_H, padding: "4px 3px",
-      borderRight: "1px solid rgba(59,130,246,0.06)",
-      background: isOver ? "rgba(59,130,246,0.08)" : "transparent",
-      transition: "background 0.12s", overflow: "hidden",
+      borderRight: "1px solid rgba(31,78,107,0.18)",
+      background: validDrop
+        ? "linear-gradient(180deg, rgba(31,232,255,0.18), rgba(56,217,120,0.08))"
+        : invalidDrop
+          ? "linear-gradient(180deg, rgba(224,82,82,0.2), rgba(242,184,75,0.08))"
+          : cap.operativo && cap.remaining > 0
+            ? "linear-gradient(180deg, rgba(13,27,42,0.18), transparent)"
+            : "linear-gradient(180deg, rgba(80,20,24,0.16), rgba(13,27,42,0.08))",
+      boxShadow: validDrop ? "inset 0 0 0 2px rgba(31,232,255,0.55), inset 0 0 26px rgba(31,232,255,0.13)" : invalidDrop ? "inset 0 0 0 2px rgba(224,82,82,0.55)" : "none",
+      transition: "background 0.12s, box-shadow 0.12s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
     }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        fontSize: 9, fontWeight: 900, color: cap.remaining > 0 ? "rgba(166,246,255,0.72)" : "rgba(252,165,165,0.82)",
+        padding: "1px 4px 3px", flexShrink: 0,
+      }}>
+        <span>{cap.remaining.toFixed(1)}h</span>
+        <span style={{ opacity: 0.62 }}>{cap.capacity.toFixed(0)}h</span>
+      </div>
       {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} />)}
     </div>
   );
@@ -313,19 +453,28 @@ function DayCell({ tecnico_id, date, tickets, onTicketClick, cellW }: {
 
 // ─── MultiDayRow ──────────────────────────────────────────────────────────────
 
-function MultiDayRow({ tecnico, tickets, days, view, onTicketClick }: {
-  tecnico: TecnicoData; tickets: TicketData[]; days: Date[]; view: ViewMode; onTicketClick: (t: TicketData) => void;
+function MultiDayRow({ tecnico, tickets, allTickets, days, view, draggingTicket, onTicketClick }: {
+  tecnico: TecnicoData; tickets: TicketData[]; allTickets: TicketData[]; days: Date[]; view: ViewMode; draggingTicket: TicketData | null; onTicketClick: (t: TicketData) => void;
 }) {
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
+  const rowCapacity = days.reduce((acc, day) => {
+    const c = capacityInfo(tecnico, format(day, "yyyy-MM-dd"), allTickets);
+    acc.capacity += c.capacity;
+    acc.assigned += c.assigned;
+    acc.remaining += c.remaining;
+    return acc;
+  }, { capacity: 0, assigned: 0, remaining: 0 });
   return (
-    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid var(--border-subtle)" }}>
-      <TecnicoLabel tecnico={tecnico} />
+    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid rgba(31,78,107,0.25)" }}>
+      <TecnicoLabel tecnico={tecnico} capacity={rowCapacity} />
       {days.map((day) => {
         const dateStr = format(day, "yyyy-MM-dd");
         return (
           <DayCell
-            key={dateStr} tecnico_id={tecnico.id} date={dateStr}
+            key={dateStr} tecnico={tecnico} date={dateStr}
             tickets={tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; })}
+            allTickets={allTickets}
+            draggingTicket={draggingTicket}
             onTicketClick={onTicketClick} cellW={cellW}
           />
         );
@@ -393,7 +542,7 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
   onSave: (ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) => void;
   onClose: () => void;
 }) {
-  const [tecnicoId, setTecnicoId] = useState<number>(tecnici[0]?.id ?? 0);
+  const [tecnicoId, setTecnicoId] = useState<number>((tecnici.find(isTecnicoOperativo) ?? tecnici[0])?.id ?? 0);
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
   const [oraInizio, setOraInizio] = useState(8);
   const durata = ticket.durata_stimata_ore || 1;
@@ -416,7 +565,11 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
           <div>
             <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO</label>
             <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
-              {tecnici.map((t) => <option key={t.id} value={t.id}>{t.nome} {t.cognome ?? ""}</option>)}
+              {tecnici.map((t) => (
+                <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t)}>
+                  {t.nome} {t.cognome ?? ""} · {isTecnicoOperativo(t) ? `${t.ore_giornaliere || 8}h/gg` : `non disponibile (${t.stato})`}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -658,6 +811,19 @@ export default function PianificazionePage() {
   // ── Pianificazione manuale ──────────────────────────────────────────────────
   async function savePianificazioneManuale(ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) {
     try {
+      const ticket = ticketMap.get(ticketId) ?? ticketDaPianificare;
+      const tecnico = tecnicoMap.get(tecnicoId);
+      if (ticket && tecnico) {
+        const c = capacityInfo(tecnico, data, ganttTickets, ticket);
+        if (!c.operativo) {
+          notify.warning(`${tecnico.nome} ${tecnico.cognome ?? ""} non disponibile: ticket non pianificato`);
+          return;
+        }
+        if (c.remaining < ticketHours(ticket)) {
+          notify.warning(`Capienza insufficiente: servono ${ticketHours(ticket).toFixed(1)}h, restano ${c.remaining.toFixed(1)}h`);
+          return;
+        }
+      }
       await apiPut(`/tickets/${ticketId}`, {
         tecnico_id: tecnicoId,
         planned_start: start ?? `${data}T08:00:00`,
@@ -689,6 +855,18 @@ export default function PianificazionePage() {
 
     const dropTarget = over.data.current as { tecnico_id?: number; date?: string } | undefined;
     if (!dropTarget?.tecnico_id || !dropTarget?.date) return;
+    const targetTecnico = tecnicoMap.get(dropTarget.tecnico_id);
+    if (!targetTecnico) return;
+
+    const dropCapacity = capacityInfo(targetTecnico, dropTarget.date, ganttTickets, droppedTicket);
+    if (!dropCapacity.operativo) {
+      notify.warning(`${targetTecnico.nome} ${targetTecnico.cognome ?? ""} non disponibile: assegnazione rifiutata`);
+      return;
+    }
+    if (dropCapacity.remaining < ticketHours(droppedTicket)) {
+      notify.warning(`Capienza insufficiente per ${targetTecnico.nome}: restano ${dropCapacity.remaining.toFixed(1)}h, il ticket richiede ${ticketHours(droppedTicket).toFixed(1)}h`);
+      return;
+    }
 
     let newHour = 8;
     let newMinute = 0;
@@ -709,6 +887,10 @@ export default function PianificazionePage() {
     );
     const durationMs = Math.max(0.5, droppedTicket.durata_stimata_ore || 1) * 3600000;
     const endDate = new Date(startDate.getTime() + durationMs);
+    if (view === "day" && endDate.getHours() + endDate.getMinutes() / 60 > DAY_END_H) {
+      notify.warning("Il ticket finisce fuori dalla griglia oraria visibile");
+      return;
+    }
 
     await savePianificazioneManuale(
       droppedTicket.id,
@@ -730,6 +912,32 @@ export default function PianificazionePage() {
   const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
   const visibleUnscheduledTickets = unscheduledTickets;
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
+  const columnCapacity = useMemo(() => {
+    const map = new Map<string, { capacity: number; assigned: number; remaining: number; unavailable: number }>();
+    days.forEach((day) => {
+      const date = format(day, "yyyy-MM-dd");
+      const totals = tecnici.reduce((acc, tecnico) => {
+        const c = capacityInfo(tecnico, date, ganttTickets);
+        acc.capacity += c.capacity;
+        acc.assigned += c.assigned;
+        acc.remaining += c.remaining;
+        if (!c.operativo) acc.unavailable += 1;
+        return acc;
+      }, { capacity: 0, assigned: 0, remaining: 0, unavailable: 0 });
+      map.set(date, totals);
+    });
+    return map;
+  }, [days, tecnici, ganttTickets]);
+  const visibleTotals = useMemo(() => {
+    return days.reduce((acc, day) => {
+      const c = columnCapacity.get(format(day, "yyyy-MM-dd"));
+      if (!c) return acc;
+      acc.capacity += c.capacity;
+      acc.assigned += c.assigned;
+      acc.remaining += c.remaining;
+      return acc;
+    }, { capacity: 0, assigned: 0, remaining: 0 });
+  }, [columnCapacity, days]);
 
   const dateLabel =
     view === "day"
@@ -811,7 +1019,9 @@ export default function PianificazionePage() {
             </span>
           )}
 
-          <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {ganttTickets.length} in Gantt</span>
+          <span style={{ fontSize: 10, color: "#6b7280" }}>
+            {tecnici.length} tecnici · {ganttTickets.length} in Gantt · {visibleTotals.remaining.toFixed(1)}h libere
+          </span>
 
           {/* Engine toggle */}
           <div style={{ display: "flex", gap: 3, fontSize: 11 }}>
@@ -932,7 +1142,9 @@ export default function PianificazionePage() {
 
           </div>
 
-          <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {ganttTickets.length} in Gantt</span>
+          <span style={{ fontSize: 10, color: "#6b7280" }}>
+            {tecnici.length} tecnici · {ganttTickets.length} in Gantt · {visibleTotals.remaining.toFixed(1)}h libere
+          </span>
 
           {/* Refresh */}
           <button onClick={loadData} disabled={loading} title="Aggiorna" style={{
@@ -1012,7 +1224,7 @@ export default function PianificazionePage() {
                     position: "sticky", left: 0,
                     background: "linear-gradient(180deg, var(--surface-1) 0%, #0a1422 100%)", zIndex: 11,
                   }}>
-                    TECNICO
+                    TECNICO · ORE RESIDUE
                   </div>
                   {view === "day"
                     ? Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => (
@@ -1022,6 +1234,7 @@ export default function PianificazionePage() {
                       ))
                     : days.map((day) => {
                         const today = isToday(day);
+                        const cap = columnCapacity.get(format(day, "yyyy-MM-dd"));
                         return (
                           <div key={day.toISOString()} style={{
                             width: cellW, minWidth: cellW, display: "flex", flexDirection: "column",
@@ -1037,6 +1250,9 @@ export default function PianificazionePage() {
                               textShadow: today ? "0 0 8px rgba(96,165,250,0.6)" : "none",
                             }}>
                               {format(day, "d")}
+                            </div>
+                            <div style={{ fontSize: 9, color: (cap?.remaining ?? 0) > 0 ? "#a6f6ff" : "#fca5a5", fontWeight: 900, marginTop: 2 }}>
+                              {(cap?.remaining ?? 0).toFixed(1)}h / {(cap?.capacity ?? 0).toFixed(0)}h
                             </div>
                           </div>
                         );
@@ -1061,9 +1277,30 @@ export default function PianificazionePage() {
                       }
                     };
                     if (view === "day") {
-                      return <DayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} day={days[0]!} onTicketClick={handleTicketClick} />;
+                      return (
+                        <DayRow
+                          key={tecnico.id}
+                          tecnico={tecnico}
+                          tickets={tickets}
+                          allTickets={ganttTickets}
+                          day={days[0]!}
+                          draggingTicket={draggingTicket}
+                          onTicketClick={handleTicketClick}
+                        />
+                      );
                     }
-                    return <MultiDayRow key={tecnico.id} tecnico={tecnico} tickets={tickets} days={days} view={view} onTicketClick={handleTicketClick} />;
+                    return (
+                      <MultiDayRow
+                        key={tecnico.id}
+                        tecnico={tecnico}
+                        tickets={tickets}
+                        allTickets={ganttTickets}
+                        days={days}
+                        view={view}
+                        draggingTicket={draggingTicket}
+                        onTicketClick={handleTicketClick}
+                      />
+                    );
                   })
                 )}
               </div>

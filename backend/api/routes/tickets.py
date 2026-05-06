@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta, datetime, timezone, time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,7 +13,7 @@ from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.logging_config import get_logger
 from backend.core.exceptions import AppError
 from backend.core.logger_db import log_to_db
-from backend.db.modelli import Ticket, AttivitaManutenzione, Asset, Impianto, Sito
+from backend.db.modelli import Ticket, AttivitaManutenzione, Asset, Impianto, Sito, Tecnico, TecnicoAssenza
 from sqlalchemy.orm import joinedload as _joinedload
 from backend.repositories.ticket_repository import _resolve_hierarchy
 from backend.services.condition_maintenance_service import latest_running_hours_by_asset
@@ -69,6 +69,61 @@ def _validate_ticket_update(data: TicketUpdate, ticket: Ticket) -> None:
         raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione e obbligatorio (min 5 caratteri).")
     if data.durata_stimata_ore is not None and data.durata_stimata_ore <= 0:
         raise HTTPException(status_code=400, detail="La durata stimata deve essere maggiore di zero.")
+
+
+def _validate_planning_capacity(db: Session, data: TicketUpdate, ticket: Ticket, tenant_id: int | None) -> None:
+    fields_set = data.model_fields_set
+    target_status = data.stato or ticket.stato
+    if target_status != "Pianificato":
+        return
+
+    target_tecnico_id = data.tecnico_id if "tecnico_id" in fields_set else ticket.tecnico_id
+    target_start = data.planned_start if "planned_start" in fields_set else ticket.planned_start
+    if not target_tecnico_id or not target_start:
+        return
+
+    tecnico_query = db.query(Tecnico).filter(Tecnico.id == target_tecnico_id)
+    if tenant_id is not None:
+        tecnico_query = tecnico_query.filter(Tecnico.tenant_id == tenant_id)
+    tecnico = tecnico_query.first()
+    if not tecnico:
+        raise HTTPException(status_code=400, detail="Tecnico non trovato per la pianificazione.")
+    if (tecnico.stato or "").lower() != "in servizio":
+        raise HTTPException(status_code=400, detail=f"Tecnico non disponibile: stato '{tecnico.stato}'.")
+
+    planned_day = target_start.date()
+    day_start = datetime.combine(planned_day, time.min)
+    day_end = datetime.combine(planned_day, time.max)
+
+    assenza_query = db.query(TecnicoAssenza).filter(
+        TecnicoAssenza.tecnico_id == target_tecnico_id,
+        TecnicoAssenza.data_inizio <= day_end,
+        TecnicoAssenza.data_fine >= day_start,
+    )
+    if tenant_id is not None:
+        assenza_query = assenza_query.filter(TecnicoAssenza.tenant_id == tenant_id)
+    assenza = assenza_query.first()
+    if assenza:
+        raise HTTPException(status_code=400, detail=f"Tecnico non disponibile: {assenza.tipo_assenza}.")
+
+    planned_query = db.query(func.coalesce(func.sum(Ticket.durata_stimata_ore), 0.0)).filter(
+        Ticket.tecnico_id == target_tecnico_id,
+        Ticket.id != ticket.id,
+        Ticket.planned_start >= day_start,
+        Ticket.planned_start <= day_end,
+        Ticket.stato.in_(["Pianificato", "In corso"]),
+    )
+    if tenant_id is not None:
+        planned_query = planned_query.filter(Ticket.tenant_id == tenant_id)
+    already_assigned = float(planned_query.scalar() or 0.0)
+    capacity = float(tecnico.ore_giornaliere or 8)
+    requested = float(data.durata_stimata_ore or ticket.durata_stimata_ore or 1)
+    remaining = capacity - already_assigned
+    if requested > remaining + 0.001:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Capienza insufficiente per {tecnico.nome}: restano {max(0, remaining):.1f}h, il ticket richiede {requested:.1f}h.",
+        )
 
 
 @router.get("/tickets")
@@ -288,6 +343,8 @@ def patch_ticket(
         if not data.eliminazione_note or len(data.eliminazione_note) < 5:
             raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione è obbligatorio (min 5 caratteri).")
 
+    _validate_planning_capacity(db, data, ticket_orm, tenant_id)
+
     result = ticket_repository.update(db, ticket_id, data, tenant_id)
 
     if data.stato == "Eliminato":
@@ -326,6 +383,8 @@ def update_ticket(
     if data.stato == "Eliminato":
         if not data.eliminazione_note or len(data.eliminazione_note) < 5:
             raise HTTPException(status_code=400, detail="Il motivo dell'eliminazione è obbligatorio (min 5 caratteri).")
+
+    _validate_planning_capacity(db, data, ticket_orm, tenant_id)
 
     result = ticket_repository.update(db, ticket_id, data, tenant_id)
 
