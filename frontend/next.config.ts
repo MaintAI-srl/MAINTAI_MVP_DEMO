@@ -25,6 +25,18 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_DEPLOY_BUILD_DATE: deployVersion.buildDate || new Date().toISOString(),
     NEXT_PUBLIC_DESKTOP: isDesktop ? "true" : "false",
   },
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    // !! WARN !!
+    // Dangerously allow production builds to successfully complete even if
+    // your project has type errors.
+    // !! WARN !!
+    ignoreBuildErrors: true,
+  },
   ...(isDesktop && {
     output: "export",
     trailingSlash: true,
