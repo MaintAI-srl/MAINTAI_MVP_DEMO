@@ -6,6 +6,17 @@ from backend.schemas.schemas import AssetCreate, AssetUpdate
 from backend.core.security import check_tenant_ownership
 
 
+def _normalize_asset_stato(stato: str | None) -> str:
+    value = (stato or "service").strip().lower()
+    if value in {"operativo", "in servizio", "in_servizio", "service"}:
+        return "service"
+    if value in {"fermo", "fermo prog", "fermo prog.", "fermo programmato", "stopped"}:
+        return "stopped"
+    if value in {"guasto", "fuori servizio", "oos", "out of service", "out_of_service"}:
+        return "out of service"
+    return "service"
+
+
 def _to_dict(asset: Asset) -> dict:
     impianto_nome = None
     sito_id = None
@@ -33,7 +44,7 @@ def _to_dict(asset: Asset) -> dict:
         "sito_id": sito_id,
         "sito_nome": sito_nome,
         "limitazioni": asset.limitazioni or "",
-        "stato": asset.stato or "service",
+        "stato": _normalize_asset_stato(asset.stato),
         "stato_changed_at": stato_changed_at,
         "weather_sunny_required": asset.weather_sunny_required or False,
         "weather_max_wind_kmh": asset.weather_max_wind_kmh,
@@ -133,7 +144,7 @@ class AssetRepository:
             anno=data.anno,
             impianto_id=data.impianto_id,
             limitazioni=data.limitazioni or "",
-            stato=data.stato or "service",
+            stato=_normalize_asset_stato(data.stato),
             weather_sunny_required=data.weather_sunny_required or False,
             weather_max_wind_kmh=data.weather_max_wind_kmh,
             weather_max_rain_mm=data.weather_max_rain_mm,
@@ -190,11 +201,11 @@ class AssetRepository:
             asset.impianto_id = data.impianto_id
         if data.limitazioni is not None:
             asset.limitazioni = data.limitazioni
-        if data.stato is not None and data.stato != asset.stato:
-            asset.stato = data.stato
+        if data.stato is not None and _normalize_asset_stato(data.stato) != _normalize_asset_stato(asset.stato):
+            asset.stato = _normalize_asset_stato(data.stato)
             asset.stato_changed_at = datetime.now(timezone.utc)
         elif data.stato is not None:
-            asset.stato = data.stato
+            asset.stato = _normalize_asset_stato(data.stato)
         if data.weather_sunny_required is not None:
             asset.weather_sunny_required = data.weather_sunny_required
         if data.weather_max_wind_kmh is not None:

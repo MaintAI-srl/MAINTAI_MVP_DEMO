@@ -5,6 +5,17 @@ from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.security import check_tenant_ownership
 
 
+def _normalize_asset_stato(stato: str | None) -> str:
+    value = (stato or "service").strip().lower()
+    if value in {"operativo", "in servizio", "in_servizio", "service"}:
+        return "service"
+    if value in {"fermo", "fermo prog", "fermo prog.", "fermo programmato", "stopped"}:
+        return "stopped"
+    if value in {"guasto", "fuori servizio", "oos", "out of service", "out_of_service"}:
+        return "out of service"
+    return "service"
+
+
 def _resolve_hierarchy(asset: Asset | None) -> tuple[str | None, str | None]:
     """Risale la gerarchia Asset → Impianto → Sito e restituisce (sito_name, impianto_name)."""
     if not asset:
@@ -28,7 +39,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "titolo": t.titolo,
         "asset_id": t.asset_id,
         "asset_name": t.asset.nome if t.asset else None,
-        "asset_stato": t.asset.stato if t.asset else None,
+        "asset_stato": _normalize_asset_stato(t.asset.stato) if t.asset else None,
         "sito_name": stored_sito,
         "impianto_name": stored_imp,
         "tipo": t.tipo or "CM",
@@ -117,14 +128,14 @@ class TicketRepository:
             )
         if _asset:
             if getattr(data, "asset_stato", None) is not None:
-                _asset.stato = data.asset_stato
+                _asset.stato = _normalize_asset_stato(data.asset_stato)
             s, i = _resolve_hierarchy(_asset)
             dump["sito_name"] = s
             dump["impianto_name"] = i
         elif getattr(data, "asset_stato", None) is not None:
             _a2 = db.query(Asset).filter(Asset.id == data.asset_id, Asset.tenant_id == tenant_id).first()
             if _a2:
-                _a2.stato = data.asset_stato
+                _a2.stato = _normalize_asset_stato(data.asset_stato)
 
         if durata_totale <= 8.0:
             ticket = Ticket(**dump)
@@ -179,7 +190,7 @@ class TicketRepository:
         if getattr(data, "asset_stato", None) is not None:
             if ticket.asset:
                 # L'asset del ticket è già implicitamente validato (ticket.tenant_id == asset.tenant_id)
-                ticket.asset.stato = data.asset_stato
+                ticket.asset.stato = _normalize_asset_stato(data.asset_stato)
         if data.fascia_oraria is not None:
             ticket.fascia_oraria = data.fascia_oraria
         if data.durata_stimata_ore is not None:

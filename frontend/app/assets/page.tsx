@@ -6,6 +6,7 @@ import { notify } from "@/lib/toast";
 import styles from "./assets.module.css";
 import AssetAnalyticsModal from "../components/AssetAnalyticsModal";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import { ASSET_STATUS_OPTIONS, assetStatusLabel, assetStatusStyle } from "../lib/assetStatus";
 
 type Impianto = { id: number; nome: string };
 type Asset = {
@@ -28,20 +29,6 @@ type Asset = {
   weather_max_wind_kmh?: number;
   weather_max_rain_mm?: number;
 };
-
-const STATI_ASSET = ["service", "out of service", "stopped"];
-
-const STATO_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  "service":         { color: "#34d399", bg: "rgba(52,211,153,.1)",  border: "rgba(52,211,153,.3)"  },
-  "out of service":  { color: "#f87171", bg: "rgba(248,113,113,.1)", border: "rgba(248,113,113,.3)" },
-  "stopped":         { color: "#fbbf24", bg: "rgba(251,191,36,.1)",  border: "rgba(251,191,36,.3)"  },
-};
-
-function statoStyle(s: string) {
-  const c = STATO_COLORS[s] ?? STATO_COLORS["service"];
-  return { color: c.color, background: c.bg, border: `1px solid ${c.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 };
-}
-
 
 export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -247,7 +234,7 @@ export default function AssetsPage() {
       accessorKey: "stato",
       header: "Stato",
       cell: ({ getValue }) => (
-        <span style={statoStyle(getValue<string>() || "service")}>{getValue<string>()}</span>
+        <span style={assetStatusStyle(getValue<string>() || "service")}>{assetStatusLabel(getValue<string>())}</span>
       ),
     },
     {
@@ -344,7 +331,7 @@ export default function AssetsPage() {
             <div className={`${styles.field} ${styles.span2}`}>
               <label className={styles.label}>Stato operativo</label>
               <select className={styles.input} value={stato} onChange={e => setStato(e.target.value)}>
-                {STATI_ASSET.map(s => <option key={s} value={s}>{s}</option>)}
+                {ASSET_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
 

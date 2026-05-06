@@ -10,6 +10,7 @@ import StatusToggle from "../components/StatusToggle";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
 
 type Ticket = {
   id: number;
@@ -43,9 +44,7 @@ const STATI_ATTIVI = ["Aperto", "Pianificato", "In corso"];
 const STATI_ARCHIVIO = ["Chiuso", "Eliminato"];
 const ASSET_STATE_OPTIONS = [
   { value: "", label: "Mantieni", color: "#94a3b8" },
-  { value: "service", label: "Service", color: "#34d399" },
-  { value: "stopped", label: "Fermo", color: "#fbbf24" },
-  { value: "out of service", label: "OOS", color: "#f87171" },
+  ...ASSET_STATUS_OPTIONS,
 ];
 
 function statoStyle(s: string): React.CSSProperties {
@@ -550,7 +549,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontSize: 22 }}>✅</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#34d399" }}>Operativo (Service)</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#34d399" }}>OPERATIVO</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>L&apos;asset è pronto e funzionante.</div>
               </div>
             </button>
@@ -558,7 +557,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontSize: 22 }}>⏸️</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#fbbf24" }}>Fermo (Stopped)</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#fbbf24" }}>FERMO PROG.</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset in attesa di ulteriori verifiche.</div>
               </div>
             </button>
@@ -566,7 +565,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontSize: 22 }}>🔴</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#f87171" }}>Fuori Servizio (OOS)</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#f87171" }}>GUASTO</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>L&apos;asset richiede ulteriori interventi.</div>
               </div>
             </button>

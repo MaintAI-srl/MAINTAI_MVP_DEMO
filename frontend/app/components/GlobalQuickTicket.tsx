@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Button } from "@/components/ui/button";
 import { apiPost, apiGet, API_BASE } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
 
 type Asset = { id: number; name: string; nome: string; codice: string };
 
@@ -201,9 +202,7 @@ export default function GlobalQuickTicket() {
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {[
                   { value: "", label: "Mantieni", color: "#94a3b8" },
-                  { value: "service", label: "Service", color: "#34d399" },
-                  { value: "stopped", label: "Fermo", color: "#fbbf24" },
-                  { value: "out of service", label: "OOS", color: "#f87171" },
+                  ...ASSET_STATUS_OPTIONS,
                 ].map((s) => (
                   <button
                     key={s.value || "keep"}

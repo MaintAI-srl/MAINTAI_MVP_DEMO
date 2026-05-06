@@ -53,7 +53,7 @@ function getSafetyChecklist(assetName: string, tipo: string): { id: number; text
   const name = (assetName || "").toLowerCase();
   if (name.includes("pompa") || name.includes("pump")) {
     return [
-      { id: 1, text: "Verifica che la pompa sia in stato FERMO" },
+      { id: 1, text: "Verifica che la pompa sia in stato FERMO PROG." },
       { id: 2, text: "Chiudi valvola aspirazione e mandata" },
       { id: 3, text: "Applica blocco/targhetta (LOTO) sul quadro" },
       { id: 4, text: "Sfoga la pressione residua nel corpo pompa" },

@@ -17,16 +17,21 @@ import { notify } from "@/lib/toast";
 import { format, addDays, subDays, parseISO, startOfWeek, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 
+import { createContext, useContext } from "react";
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 type ViewMode = "day" | "week" | "2week";
 
 const DAY_START_H = 0;
 const DAY_END_H = 24;
-const HOUR_W = 80;
-const DAY_W = 130;
-const ROW_H = 72;
+const BASE_HOUR_W = 100;
+const BASE_DAY_W = 160;
+const BASE_ROW_H = 80;
 const LABEL_W = 200;
+
+const ZoomContext = createContext<number>(1);
+function useZoom() { return useContext(ZoomContext); }
 
 const PRIO_COLORS: Record<string, string> = {
   Alta: "#ef4444",
@@ -75,6 +80,9 @@ function TicketBlock({
 
   const s = tipoStyle(ticket.tipo);
   const dur = Math.max(0.5, ticket.durata_stimata_ore || 1);
+  const zoom = useZoom();
+  const HOUR_W = BASE_HOUR_W * zoom;
+  const ROW_H = BASE_ROW_H * zoom;
 
   if (view === "day") {
     return (
@@ -243,6 +251,10 @@ function DayRow({
     return p && p.date === dateStr;
   });
 
+  const zoom = useZoom();
+  const HOUR_W = BASE_HOUR_W * zoom;
+  const ROW_H = BASE_ROW_H * zoom;
+
   const timelineW = (DAY_END_H - DAY_START_H) * HOUR_W;
 
   return (
@@ -295,6 +307,9 @@ function DayCell({
     data: { tecnico_id, date },
   });
 
+  const zoom = useZoom();
+  const ROW_H = BASE_ROW_H * zoom;
+
   return (
     <div
       ref={setNodeRef}
@@ -334,6 +349,9 @@ function MultiDayRow({
   view: ViewMode;
   onTicketClick: (t: TicketData) => void;
 }) {
+  const zoom = useZoom();
+  const DAY_W = BASE_DAY_W * zoom;
+  const ROW_H = BASE_ROW_H * zoom;
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
 
   return (
@@ -485,6 +503,7 @@ export default function GanttRisorse() {
   const [draggingTicket, setDraggingTicket] = useState<TicketData | null>(null);
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
   const [filterTipo, setFilterTipo] = useState("");
+  const [zoom, setZoom] = useState(1);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -542,6 +561,8 @@ export default function GanttRisorse() {
     let newHour = 8;
     let newMinute = 0;
 
+    const HOUR_W = BASE_HOUR_W * zoom;
+
     if (view === "day") {
       const droppableRect = over.rect;
       const draggedRect = event.active.rect.current.translated;
@@ -583,11 +604,14 @@ export default function GanttRisorse() {
       ? format(days[0]!, "EEEE d MMMM yyyy", { locale: it })
       : `${format(days[0]!, "d MMM", { locale: it })} – ${format(days[days.length - 1]!, "d MMM yyyy", { locale: it })}`;
 
+  const DAY_W = BASE_DAY_W * zoom;
+  const HOUR_W = BASE_HOUR_W * zoom;
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   const timelineMinW =
     LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * HOUR_W : days.length * cellW);
 
   return (
+    <ZoomContext.Provider value={zoom}>
     <div
       style={{
         display: "flex",
@@ -658,6 +682,27 @@ export default function GanttRisorse() {
             style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1 }}
           >
             ›
+          </button>
+        </div>
+
+        {/* Zoom Controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8, marginRight: 8 }}>
+          <button
+            onClick={() => setZoom(z => Math.max(0.6, z - 0.2))}
+            style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", width: 24, height: 24, cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+            title="Zoom Out"
+          >
+            -
+          </button>
+          <span style={{ fontSize: 10, color: "var(--text-muted)", minWidth: 28, textAlign: "center" }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={() => setZoom(z => Math.min(2.0, z + 0.2))}
+            style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", width: 24, height: 24, cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+            title="Zoom In"
+          >
+            +
           </button>
         </div>
 
@@ -913,5 +958,6 @@ export default function GanttRisorse() {
         <TicketDetailDrawer ticket={detailTicket} onClose={() => setDetailTicket(null)} />
       )}
     </div>
+    </ZoomContext.Provider>
   );
 }

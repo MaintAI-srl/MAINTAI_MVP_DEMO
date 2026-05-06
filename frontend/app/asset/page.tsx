@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
 import StatusToggle from "../components/StatusToggle";
+import { ASSET_STATUS_OPTIONS, assetStatusLabel, assetStatusStyle } from "../lib/assetStatus";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,13 +49,7 @@ function CriticitaChip({ valore }: { valore: string }) {
   );
 }
 function StatoChip({ stato }: { stato: string }) {
-  const map: Record<string, string> = { service: "var(--green)", "out of service": "var(--red)", stopped: "var(--amber)" };
-  const color = map[stato] || "var(--text-secondary)";
-  return (
-    <span style={{ background: color + "22", color, border: `1px solid ${color}55`, borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontWeight: 600 }}>
-      {stato}
-    </span>
-  );
+  return <span style={{ ...assetStatusStyle(stato), borderRadius: "999px", padding: "2px 10px" }}>{assetStatusLabel(stato)}</span>;
 }
 function DetailRow({ label, value }: { label: string; value?: string | number | null }) {
   if (!value && value !== 0) return null;
@@ -531,11 +526,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
               currentValue={detail.stato}
               onChange={quickStatusChange}
               disabled={updatingStatus}
-              options={[
-                { value: "service", label: "Servizio", color: "var(--green)" },
-                { value: "stopped", label: "Fermo", color: "var(--amber)" },
-                { value: "out of service", label: "Guasto", color: "var(--red)" },
-              ]}
+              options={ASSET_STATUS_OPTIONS}
             />
             {detail.codice && <span style={{ fontSize: "11px", color: "var(--text-secondary)", padding: "2px 8px", background: "var(--bg-elevated)", borderRadius: "4px", border: "1px solid var(--border)" }}>{detail.codice}</span>}
           </div>
@@ -583,9 +574,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             </FormField>
             <FormField label="Stato">
               <select style={inputStyle} value={editForm.stato || "service"} onChange={upd("stato")}>
-                <option value="service">In servizio</option>
-                <option value="out of service">Fuori servizio</option>
-                <option value="stopped">Fermo</option>
+                {ASSET_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </FormField>
           </div>

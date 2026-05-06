@@ -12,6 +12,27 @@ router = APIRouter()
 TEMPO_PROGRAMMATO_H = 720.0  # ore/mese
 
 
+def _asset_stato_key(stato: str | None) -> str:
+    value = (stato or "service").strip().lower()
+    if value in {"operativo", "in servizio", "in_servizio"}:
+        return "service"
+    if value in {"fermo", "fermo prog", "fermo prog.", "fermo programmato", "fermo_prog"}:
+        return "stopped"
+    if value in {"guasto", "oos", "fuori servizio", "out_of_service"}:
+        return "out of service"
+    if value in {"service", "stopped", "out of service"}:
+        return value
+    return "service"
+
+
+def _asset_stato_label(stato: str | None) -> str:
+    return {
+        "service": "OPERATIVO",
+        "stopped": "FERMO PROG.",
+        "out of service": "GUASTO",
+    }[_asset_stato_key(stato)]
+
+
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     # Tutto in query aggregate — niente loop Python
@@ -21,10 +42,10 @@ def dashboard(db: Session = Depends(get_db), tenant_id: int = Depends(get_curren
         .group_by(Asset.stato)
         .all()
     )
-    asset_stati = {"service": 0, "out of service": 0, "stopped": 0, "fermo": 0}
+    asset_stati = {"service": 0, "out of service": 0, "stopped": 0}
     total_assets = 0
     for stato, cnt in asset_stati_rows:
-        s = (stato or "service").lower()
+        s = _asset_stato_key(stato)
         asset_stati[s] = asset_stati.get(s, 0) + cnt
         total_assets += cnt
 
@@ -180,7 +201,8 @@ def dashboard_kpi_asset(
 
         # OEE / availability (ultimi 30gg)
         downtime_ongoing = 0.0
-        if a.stato == "out of service" and a.stato_changed_at:
+        asset_stato = _asset_stato_key(a.stato)
+        if asset_stato == "out of service" and a.stato_changed_at:
             ts = a.stato_changed_at if a.stato_changed_at.tzinfo else a.stato_changed_at.replace(tzinfo=timezone.utc)
             start_event = max(ts, cutoff)
             downtime_ongoing = max(0.0, (now - start_event).total_seconds() / 3600)
@@ -195,7 +217,7 @@ def dashboard_kpi_asset(
         if a.stato_changed_at:
             ts = a.stato_changed_at if a.stato_changed_at.tzinfo else a.stato_changed_at.replace(tzinfo=timezone.utc)
             stato_changed_at_iso = ts.isoformat()
-            if a.stato == "out of service":
+            if asset_stato == "out of service":
                 downtime_seconds = int((now - ts).total_seconds())
 
         kpi_list.append({
@@ -204,7 +226,7 @@ def dashboard_kpi_asset(
             "asset_nome":      a.nome,
             "asset_codice":    a.codice or "",
             "asset_area":      a.area or "",
-            "stato":           a.stato or "service",
+            "stato":           asset_stato,
             "stato_changed_at": stato_changed_at_iso,
             "downtime_seconds": downtime_seconds,
             "mtbf_giorni":     mtbf,
@@ -284,7 +306,13 @@ def dashboard_charts(db: Session = Depends(get_db), tenant_id: int = Depends(get
             {"name": "BD",  "value": by_tipo.get("BD",  0)},
             {"name": "ISP", "value": by_tipo.get("ISP", 0)},
         ],
-        "asset_by_stato": [{"name": k or "service", "value": v} for k, v in by_stato_asset.items()],
+        "asset_by_stato": [
+            {"name": label, "value": value}
+            for label, value in {
+                _asset_stato_label(k): sum(cnt for raw, cnt in by_stato_asset.items() if _asset_stato_label(raw) == _asset_stato_label(k))
+                for k in by_stato_asset.keys()
+            }.items()
+        ],
     }
 
 

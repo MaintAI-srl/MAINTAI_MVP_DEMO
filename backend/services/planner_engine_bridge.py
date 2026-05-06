@@ -219,10 +219,10 @@ def _build_planner_tickets(
             created = t.created_at.date() if isinstance(t.created_at, datetime) else t.created_at
             eta_giorni = max(0, (today_ref - created).days)
 
-        # Giorni non operativi: l'asset in stato "Fermo" blocca la continuazione (#8)
+        # Giorni non operativi: l'asset in FERMO PROG. blocca la continuazione (#8)
         giorni_non_operativi: List[date_type] = []
-        if asset and getattr(asset, "stato", None) == "Fermo":
-            # Asset in fermo: tutti i giorni dell'orizzonte sono non operativi
+        if asset and (getattr(asset, "stato", None) or "").lower() in {"stopped", "fermo", "fermo prog.", "fermo programmato"}:
+            # Asset in FERMO PROG.: tutti i giorni dell'orizzonte sono non operativi
             horizon_end = today_ref + timedelta(days=30)
             d = today_ref
             while d <= horizon_end:

@@ -62,7 +62,7 @@ R1 — PRIORITÀ BD: i guasti Breakdown hanno priorità assoluta e vengono piani
 R2 — BILANCIAMENTO: il backlog settimanale (esclusi BD) deve tendere al 70% PM e 30% CM. Se il backlog non lo permette, avvicinati privilegiando i PM.
 R3 — SKILL MATCH: assegna ogni WO esclusivamente al tecnico con le skill richieste. Con più candidati validi, preferisci chi ha più ore disponibili (saturazione utile), poi vicinanza logistica, poi continuità sullo stesso asset. Non usare sempre il tecnico migliore: preserva capacità critica per lavori ad alta complessità.
 R4 — VINCOLI METEO: rispetta sempre i vincoli asset. NO_RAIN blocca con precipitazioni previste. NO_FROST blocca sotto 2°C. NO_WIND blocca sopra 40 km/h. Se meteo non disponibile, pianifica e aggiungi warning.
-R5 — ASSET IN FERMO: se un asset ha fermo_on_schedule attivo, inseriscilo in fermo_assets. L'asset entrerà in FERMO alla conferma del piano.
+R5 — ASSET IN FERMO PROG.: se un asset ha fermo_on_schedule attivo, inseriscilo in fermo_assets. L'asset entrerà in FERMO PROG. alla conferma del piano.
 R6 — LOGISTICA: raggruppa WO compatibili per area, asset, sistema, fermata, skill. Favorisci lotti che riducono micro-spostamenti. Almeno 30 min di buffer tra interventi consecutivi dello stesso tecnico.
 R7 — BUFFER REATTIVO: ogni giorno deve avere un buffer esplicito per urgenze, coerente con lo storico del sito.
 R8 — WO NON PRONTE: se mancano materiali, permessi o condizioni minime, non schedulare il WO come eseguibile: inseriscilo nei deferred con motivazione che indica il collo di bottiglia.
@@ -81,7 +81,7 @@ Mappa il tuo piano nel JSON schema richiesto nel modo seguente:
 • deferred_workorders → WO non pronte o non schedulabili
   - reason: collo di bottiglia specifico (skill mancante, materiali, meteo, finestra non disponibile, compliance)
 
-• fermo_assets → asset che entrano in fermo alla conferma
+• fermo_assets → asset che entrano in FERMO PROG. alla conferma
 
 • global_warnings → eccezioni, conflitti di risorse, sovraccarichi/sottoutilizzi, rischi compliance, note di ottimizzazione aggregate
 

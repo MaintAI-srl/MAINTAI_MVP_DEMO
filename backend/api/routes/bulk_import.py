@@ -64,7 +64,7 @@ ASSET_COLS: List[tuple] = [
     ("codice",                 False, "Codice identificativo asset",                        "COMP-001"),
     ("descrizione",            False, "Descrizione tecnica",                                "Compressore a vite 37kW"),
     ("criticita",              False, "Criticità: bassa / media / alta (default: media)",   "alta"),
-    ("stato",                  False, "Stato: service / fermo (default: service)",          "service"),
+    ("stato",                  False, "Stato asset: OPERATIVO / FERMO PROG. / GUASTO",      "OPERATIVO"),
     ("marca",                  False, "Marca / costruttore",                                "Atlas Copco"),
     ("modello",                False, "Modello",                                            "GA37+"),
     ("matricola",              False, "Matricola",                                          "AC-2024-001"),
@@ -81,7 +81,7 @@ ASSET_COLS: List[tuple] = [
     ("note_tecniche",          False, "Note tecniche dettagliate",                         "Olio Shell Corena"),
     ("vincoli_operativi",      False, "Vincoli operativi",                                 "Fermare prima della manutenzione"),
     ("vincoli_manutenzione",   False, "Vincoli specifici manutenzione",                    "Spegnere 2h prima"),
-    ("fermo_on_schedule",      False, "Metti in fermo al piano: SI/NO (default: NO)",      "NO"),
+    ("fermo_on_schedule",      False, "Metti in FERMO PROG. al piano: SI/NO (default: NO)", "NO"),
 ]
 
 
@@ -235,7 +235,7 @@ def _make_workbook() -> Any:
         ("", ""),
         ("  VALORI AMMESSI:", ""),
         ("  criticita",  "bassa / media / alta  (default: media se vuoto)"),
-        ("  stato",      "service / fermo  (default: service se vuoto)"),
+        ("  stato",      "OPERATIVO / FERMO PROG. / GUASTO  (default: OPERATIVO se vuoto)"),
         ("  weather_constraint", "NONE / NO_RAIN / NO_WIND / NO_FROST / OUTDOOR_ONLY / INDOOR_ONLY  (default: NONE)"),
         ("  fermo_on_schedule", "SI / NO  (default: NO se vuoto)"),
         ("  paese",      "qualsiasi stringa  (default: Italia se vuoto)"),
@@ -684,7 +684,13 @@ def _normalize_criticita(val: Optional[str]) -> str:
 
 def _normalize_stato(val: Optional[str]) -> str:
     v = (val or "service").strip().lower()
-    return v if v in ("service", "fermo") else "service"
+    if v in ("operativo", "in servizio", "in_servizio", "service"):
+        return "service"
+    if v in ("fermo", "fermo prog", "fermo prog.", "fermo programmato", "stopped"):
+        return "stopped"
+    if v in ("guasto", "fuori servizio", "oos", "out of service", "out_of_service"):
+        return "out of service"
+    return "service"
 
 
 WEATHER_VALUES = {"NONE", "NO_RAIN", "NO_WIND", "NO_FROST", "OUTDOOR_ONLY", "INDOOR_ONLY"}

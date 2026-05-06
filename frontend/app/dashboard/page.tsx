@@ -27,6 +27,7 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line,
 } from "recharts";
+import { ASSET_STATUS_OPTIONS, assetStatusLabel, normalizeAssetStatus } from "../lib/assetStatus";
 
 type ChartItem = { name: string; value: number };
 type DashboardData = {
@@ -205,7 +206,7 @@ function DowntimeTicker({ statoChangedAt, secondsFromBackend }: { statoChangedAt
 }
 
 const PRIORITY_COLORS = ["#f05252", "#f6a233", "#22d3a0", "#7d94b5"];
-const STATO_ASSET_COLORS: Record<string, string> = { service: "#10d9b0", stopped: "#f6a233", "out of service": "#f05252" };
+const STATO_ASSET_COLORS: Record<string, string> = { service: "#38d978", stopped: "#f2b84b", "out of service": "#e05252" };
 const chartTooltipStyle = { background: "var(--surface-2)", border: "1px solid rgba(91,143,255,0.2)", color: "var(--text-primary)", fontSize: 12, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" };
 
 // ── Circular Ring Progress ───────────────────────────────────────────────────
@@ -529,12 +530,12 @@ function OeeBar({ value }: { value: number }) {
 
 // ── Status Dot ───────────────────────────────────────────────────────────────
 function StatoDot({ stato }: { stato: string }) {
-  const color = STATO_ASSET_COLORS[stato] ?? "#94a3b8";
-  const label: Record<string, string> = { service: "Servizio", stopped: "Fermo", "out of service": "Guasto" };
+  const normalized = normalizeAssetStatus(stato);
+  const color = STATO_ASSET_COLORS[normalized] ?? "#94a3b8";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: `0 0 6px ${color}`, display: "inline-block", flexShrink: 0 }} />
-      <span style={{ fontSize: 12, fontWeight: 600, color }}>{label[stato] ?? stato}</span>
+      <span style={{ fontSize: 12, fontWeight: 800, color }}>{assetStatusLabel(normalized)}</span>
     </div>
   );
 }
@@ -766,11 +767,11 @@ export default function DashboardPage() {
         value: dashboard?.assets ?? "—",
         accent: "#5b8fff",
         icon: <IconBox size={15} />,
-        sub: `${assetService} servizio · ${assetStopped} fermi · ${assetOut} guasti`,
+        sub: `${assetService} OPERATIVO · ${assetStopped} FERMO PROG. · ${assetOut} GUASTO`,
       },
       {
         id: "asset_servizio",
-        label: "Asset in servizio",
+        label: "Asset OPERATIVO",
         value: assetService,
         accent: "#10d9b0",
         icon: <IconBox size={15} />,
@@ -778,15 +779,15 @@ export default function DashboardPage() {
       },
       {
         id: "asset_fermi",
-        label: "Asset fermi",
+        label: "Asset FERMO PROG.",
         value: assetStopped,
         accent: "#f6a233",
         icon: <IconActivity size={15} />,
-        sub: "Fermi programmati o temporanei",
+        sub: "Asset FERMO PROG.",
       },
       {
         id: "asset_guasti",
-        label: "Asset guasti",
+        label: "Asset GUASTO",
         value: assetOut,
         accent: "#f05252",
         icon: <IconAlert size={15} />,
@@ -886,7 +887,7 @@ export default function DashboardPage() {
         id: "asset_by_stato",
         title: "Asset per stato",
         subtitle: "Snapshot del parco macchine",
-        data: charts?.asset_by_stato ?? [],
+        data: (charts?.asset_by_stato ?? []).map((item) => ({ ...item, name: assetStatusLabel(item.name) })),
         accent: "#10d9b0",
       },
       {
@@ -1027,8 +1028,8 @@ export default function DashboardPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 2, background: "var(--border-subtle)", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--border-default)" }}>
           {[
             { label: "Asset Totali",   value: dashboard.assets,                               color: "var(--cobalt)" },
-            { label: "In Servizio",    value: dashboard.asset_stati?.service ?? 0,             color: "var(--cyan)" },
-            { label: "Fuori Servizio", value: dashboard.asset_stati?.["out of service"] ?? 0, color: "var(--red)" },
+            { label: "OPERATIVO",      value: dashboard.asset_stati?.service ?? 0,             color: "var(--cyan)" },
+            { label: "GUASTO",         value: dashboard.asset_stati?.["out of service"] ?? 0, color: "var(--red)" },
             { label: "Ticket Aperti",  value: dashboard.ticket_aperti,                        color: "var(--amber)" },
             { label: "In Corso",       value: dashboard.ticket_in_corso,                      color: "var(--violet)" },
           ].map((s, i) => (
@@ -1259,7 +1260,7 @@ export default function DashboardPage() {
       {/* ── KPI Cards */}
       {false && dashboard && (
         <div style={{ display: "none", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-          <KpiCard label="Asset totali"     value={dashboard.assets}                            accent="#5b8fff" icon={<IconBox size={15} />}      sub={`${dashboard.asset_stati?.service ?? 0} servizio · ${dashboard.asset_stati?.stopped ?? 0} fermi · ${dashboard.asset_stati?.["out of service"] ?? 0} guasti`} />
+          <KpiCard label="Asset totali"     value={dashboard.assets}                            accent="#5b8fff" icon={<IconBox size={15} />}      sub={`${dashboard.asset_stati?.service ?? 0} OPERATIVO · ${dashboard.asset_stati?.stopped ?? 0} FERMO PROG. · ${dashboard.asset_stati?.["out of service"] ?? 0} GUASTO`} />
           <KpiCard label="Tecnici attivi"   value={`${dashboard.tecnici_disponibili}/${dashboard.tecnici}`} accent="#10d9b0" icon={<IconUsers size={15} />}    sub="Disponibili oggi" />
           <KpiCard label="Ticket aperti"    value={dashboard.ticket_aperti}                     accent="#f6a233" icon={<IconTicket size={15} />}   sub={`${dashboard.ticket_in_corso} in lavorazione · ${dashboard.ticket_chiusi} chiusi`} />
           <KpiCard label="Ticket pianificati" value={dashboard.ticket_pianificati}              accent="#9b78ff" icon={<IconCalendar size={15} />} sub="Schedulati dal planner" />
@@ -1321,13 +1322,13 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Asset per Stato Operativo" subtitle="Snapshot del parco macchine" accent="#10d9b0">
+          <ChartCard title="Asset per stato" subtitle="Snapshot del parco macchine" accent="#10d9b0">
             {charts.asset_by_stato?.length ? (
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
-                  <Pie data={charts.asset_by_stato} dataKey="value" nameKey="name" innerRadius={62} outerRadius={88} paddingAngle={3} strokeWidth={0}>
+                  <Pie data={charts.asset_by_stato.map((item) => ({ ...item, name: assetStatusLabel(item.name) }))} dataKey="value" nameKey="name" innerRadius={62} outerRadius={88} paddingAngle={3} strokeWidth={0}>
                     {charts.asset_by_stato.map((entry) => (
-                      <Cell key={entry.name} fill={STATO_ASSET_COLORS[entry.name] ?? "#7d94b5"} stroke={STATO_ASSET_COLORS[entry.name] ?? "#7d94b5"} strokeWidth={1} />
+                      <Cell key={entry.name} fill={STATO_ASSET_COLORS[normalizeAssetStatus(entry.name)] ?? "#7d94b5"} stroke={STATO_ASSET_COLORS[normalizeAssetStatus(entry.name)] ?? "#7d94b5"} strokeWidth={1} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={chartTooltipStyle} />
@@ -1414,9 +1415,7 @@ export default function DashboardPage() {
             <StatusToggle size="sm" currentValue={selectedStato} onChange={(v) => { setSelectedStato(v); setPage(1); }}
               options={[
                 { value: "", label: "Tutti",    color: "var(--cobalt)" },
-                { value: "service",        label: "Servizio", color: "var(--cyan)" },
-                { value: "stopped",        label: "Fermo",    color: "var(--amber)" },
-                { value: "out of service", label: "Guasto",   color: "var(--red)" },
+                ...ASSET_STATUS_OPTIONS,
               ]} />
           </div>
         </div>

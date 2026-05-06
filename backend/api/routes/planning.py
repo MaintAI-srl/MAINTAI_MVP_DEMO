@@ -662,7 +662,7 @@ def confirm_plan(
     Conferma un piano draft:
     - Assegna plan_number progressivo per tenant (con lock per evitare race condition)
     - Aggiorna tecnico_id, planned_start, planned_finish sui ticket pianificati
-    - Imposta asset con fermo_on_schedule in stato 'Fermo'
+    - Imposta asset con fermo_on_schedule in stato tecnico 'stopped' (FERMO PROG. in UI)
     - Salva confirmed_by (username dal token)
     Tutta l'operazione è atomica: in caso di errore viene eseguito rollback completo.
     """
@@ -730,8 +730,8 @@ def confirm_plan(
                 Asset.tenant_id == tenant_id,
             ).first()
             if asset:
-                asset.stato = "Fermo"
-                logger.info("Asset %s impostato in stato Fermo", asset_id)
+                asset.stato = "stopped"
+                logger.info("Asset %s impostato in stato FERMO PROG.", asset_id)
 
         # Assegna plan_number progressivo con lock per evitare race condition
         # 1. Lock a riga sul Tenant per serializzare le conferme dello stesso tenant

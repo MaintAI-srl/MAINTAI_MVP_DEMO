@@ -67,7 +67,7 @@ const PAGE_GUIDES: Record<string, PageGuide> = {
     area: "Anagrafica tecnica",
     summary: "Qui consulti e filtri gli asset con dati tecnici, stato operativo, area e impianto.",
     actions: ["Cercare asset", "Aprire il dettaglio tecnico", "Verificare stato, vincoli e dati manutentivi"],
-    suggestions: ["Come trovo un asset?", "Dove modifico dati tecnici?", "Cosa significa asset fermo?"],
+    suggestions: ["Come trovo un asset?", "Dove modifico dati tecnici?", "Cosa significa FERMO PROG.?"],
   },
   "/asset": {
     title: "Dettaglio Asset",

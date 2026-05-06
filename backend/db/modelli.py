@@ -122,7 +122,7 @@ class Asset(Base):
 
     # Campi AI Planning
     weather_constraint = Column(String, nullable=True)   # NONE | NO_RAIN | NO_WIND | NO_FROST | OUTDOOR_ONLY | INDOOR_ONLY
-    fermo_on_schedule = Column(Boolean, default=False)   # se True: asset → FERMO alla conferma del piano
+    fermo_on_schedule = Column(Boolean, default=False)   # se True: asset -> FERMO PROG. alla conferma del piano
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
 
