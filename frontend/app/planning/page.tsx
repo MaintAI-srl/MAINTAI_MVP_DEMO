@@ -109,11 +109,10 @@ function ticketHours(ticket: TicketData | null | undefined): number {
 }
 
 function isTecnicoOperativo(tecnico: TecnicoData, dataToCheck?: string): boolean {
-  // Controlla sempre lo stato base: solo "in servizio" è pianificabile
-  const statoOk = ["in servizio", "in_servizio"].includes((tecnico.stato || "").toLowerCase());
-  if (!statoOk) return false;
-  // Se viene fornita una data specifica, controlla le assenze per quella data
-  if (dataToCheck && tecnico.assenze) {
+  // Se viene fornita una data specifica, controlla ESCLUSIVAMENTE le assenze per quella data.
+  // Ignora lo "stato" globale che potrebbe essere riferito solo ad oggi (es. "Ferie").
+  if (dataToCheck) {
+    if (!tecnico.assenze) return true;
     return !tecnico.assenze.some(a => {
       if (!a.data_inizio || !a.data_fine) return false;
       const start = a.data_inizio.split("T")[0];
@@ -121,7 +120,9 @@ function isTecnicoOperativo(tecnico: TecnicoData, dataToCheck?: string): boolean
       return dataToCheck >= start && dataToCheck <= end;
     });
   }
-  // Senza data specifica, controlla assenza_corrente
+  
+  // Senza data specifica, consideriamo solo se ha un'assenza corrente o meno.
+  // Non controlliamo lo string match di "tecnico.stato" per evitare falsi negativi sulle righe intere.
   return !tecnico.assenza_corrente;
 }
 
@@ -339,9 +340,7 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
       borderRight: "1px solid rgba(59,130,246,0.1)",
-      background: totalOperativo
-        ? "linear-gradient(90deg, #0b1628 0%, rgba(12,22,40,0.96) 100%)"
-        : "linear-gradient(90deg, rgba(48,18,22,0.92) 0%, rgba(12,22,40,0.82) 100%)",
+      background: "linear-gradient(90deg, #0b1628 0%, rgba(12,22,40,0.96) 100%)",
       position: "sticky", left: 0, zIndex: 3,
       opacity: totalOperativo ? 1 : 0.72,
     }}>
