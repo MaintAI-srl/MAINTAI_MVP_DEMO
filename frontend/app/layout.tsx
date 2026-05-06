@@ -531,7 +531,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <AppLayoutContent>{children}</AppLayoutContent>
-          <GuideBot />
+          {/* <GuideBot /> */}
         </AuthProvider>
         <Toaster
           position="bottom-right"
