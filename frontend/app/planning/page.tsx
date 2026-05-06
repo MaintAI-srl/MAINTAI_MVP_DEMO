@@ -378,7 +378,11 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
             letterSpacing: "0.06em",
             textTransform: "uppercase",
           }}>
-            Non disponibile
+            {tecnico.assenza_corrente
+              ? tecnico.assenza_corrente.tipo_assenza
+              : (tecnico.stato && tecnico.stato !== "in servizio" && tecnico.stato !== "in_servizio")
+                ? tecnico.stato
+                : "Non disponibile"}
           </div>
         )}
       </div>
@@ -450,6 +454,27 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
             </div>
           );
         })}
+        {!isTecnicoOperativo(tecnico, dateStr) && (
+          <div style={{
+            position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "repeating-linear-gradient(135deg, rgba(224,82,82,0.04), rgba(224,82,82,0.04) 4px, transparent 4px, transparent 12px)",
+            pointerEvents: "none", zIndex: 1,
+          }}>
+            <span style={{
+              fontSize: 11, color: "rgba(252,165,165,0.7)", fontWeight: 800,
+              textTransform: "uppercase", letterSpacing: "0.1em",
+              background: "rgba(13,20,35,0.7)", padding: "3px 10px", borderRadius: 4,
+            }}>
+              {(() => {
+                const assenza = tecnico.assenze?.find(a => {
+                  if (!a.data_inizio || !a.data_fine) return false;
+                  return dateStr >= a.data_inizio.split("T")[0] && dateStr <= a.data_fine.split("T")[0];
+                });
+                return assenza?.tipo_assenza ?? tecnico.stato ?? "Non disponibile";
+              })()}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -500,7 +525,13 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
       position: "relative",
     }}>
       {assenzaGiorno && (
-        <div style={{ position: "absolute", top: 2, right: 4, fontSize: 8, color: "rgba(252,165,165,0.6)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        <div style={{
+          position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)",
+          fontSize: 10, color: "#fca5a5", fontWeight: 800, textTransform: "uppercase",
+          letterSpacing: "0.08em", background: "rgba(224,82,82,0.2)",
+          border: "1px solid rgba(224,82,82,0.35)", borderRadius: 4,
+          padding: "1px 6px", whiteSpace: "nowrap", pointerEvents: "none",
+        }}>
           {assenzaGiorno.tipo_assenza}
         </div>
       )}

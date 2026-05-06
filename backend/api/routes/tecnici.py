@@ -222,3 +222,16 @@ def delete_assenza_tecnico(assenza_id: int, db: Session = Depends(get_db), tenan
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
     db.delete(assenza)
     db.commit()
+    # Dopo l'eliminazione, controlla se il tecnico ha ancora assenze attive oggi
+    # Se non ne ha, ripristina lo stato a "in servizio"
+    today = date.today()
+    day_start = datetime.combine(today, time.min)
+    day_end = datetime.combine(today, time.max)
+    has_active = db.query(TecnicoAssenza).filter(
+        TecnicoAssenza.tecnico_id == t.id,
+        TecnicoAssenza.data_inizio <= day_end,
+        TecnicoAssenza.data_fine >= day_start,
+    ).count() > 0
+    if not has_active:
+        t.stato = "in servizio"
+        db.commit()

@@ -15,9 +15,10 @@ type Assenza = {
 type Props = {
   tecnico: { id: number; nome: string; cognome?: string };
   onClose: () => void;
+  onUpdate?: () => void;
 };
 
-export default function AssenzeModal({ tecnico, onClose }: Props) {
+export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
   const [assenze, setAssenze] = useState<Assenza[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,6 +66,10 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
       setDataFine("");
       setNote("");
       loadAssenze();
+      onUpdate?.();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("maintai:data-changed"));
+      }
     } catch (err: any) {
       alert(err.message || "Errore");
     }
@@ -75,6 +80,10 @@ export default function AssenzeModal({ tecnico, onClose }: Props) {
     try {
       await apiDelete(`/tecnici/assenze/${id}`);
       loadAssenze();
+      onUpdate?.();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("maintai:data-changed"));
+      }
     } catch {
       alert("Errore di rete");
     }

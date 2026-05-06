@@ -481,7 +481,11 @@ export default function TecniciPage() {
       </div>
 
       {showAssenzeFor && (
-        <AssenzeModal tecnico={showAssenzeFor} onClose={() => setShowAssenzeFor(null)} />
+        <AssenzeModal
+          tecnico={showAssenzeFor}
+          onClose={() => setShowAssenzeFor(null)}
+          onUpdate={() => { loadTecnici(); loadStats(); }}
+        />
       )}
     </div>
   );
