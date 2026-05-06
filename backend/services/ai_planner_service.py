@@ -435,6 +435,10 @@ async def collect_planning_context(
 
         # Skill check per tecnici disponibili
         qualified_tecnici = [tc.id for tc in tecnici if _tecnico_has_skill(tc, t)]
+        
+        # Ottimizzazione token: tronca descrizione a 200 char, invia weather_by_day solo se ci sono vincoli reali
+        desc_trunc = (t.descrizione or "")[:200] if t.descrizione else None
+        weather_active = {k: v for k, v in day_constraints.items() if v is not None} if day_constraints else {}
 
         tickets_data.append({
             "id": t.id,
@@ -445,7 +449,7 @@ async def collect_planning_context(
             "durata_stimata_ore": t.durata_stimata_ore,
             "competenza_richiesta": t.competenza_richiesta,
             "fascia_oraria": t.fascia_oraria,
-            "descrizione": t.descrizione,
+            "descrizione": desc_trunc,
             "asset_id": t.asset_id,
             "asset_nome": anonymizer.mask_text(asset.nome) if asset else None,
             "asset_area": asset.area if asset else None,
@@ -453,7 +457,7 @@ async def collect_planning_context(
             "asset_fermo_on_schedule": asset.fermo_on_schedule if asset else False,
             "is_breakdown": _is_breakdown(t),
             "qualified_tecnici_ids": qualified_tecnici,
-            "weather_by_day": day_constraints,
+            "weather_violations": weather_active,  # Solo giorni con vincoli violati (riduce token)
         })
 
     locked_data = []

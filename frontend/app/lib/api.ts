@@ -39,6 +39,7 @@ const SLOW_ENDPOINTS: RegExp[] = [
 ];
 
 function timeoutForPath(path: string): number {
+  if (/\/planning\/generate/.test(path)) return 240_000;  // 4 min: cold start Render + OpenAI
   return SLOW_ENDPOINTS.some(re => re.test(path)) ? 120_000 : DEFAULT_TIMEOUT_MS;
 }
 

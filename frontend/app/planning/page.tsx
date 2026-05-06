@@ -845,6 +845,52 @@ export default function PianificazionePage() {
     } catch { /* silenzioso */ }
   }, []);
 
+  // ── Genera piano AI ─────────────────────────────────────────────────────
+  const [generandoStatus, setGenerandoStatus] = useState("Elaborazione...");
+
+  async function generateAIPlan() {
+    setGenerando(true);
+    setGenerandoStatus("Avvio backend...");
+    try {
+      // Warm-up ping: sveglia il server Render prima di fare la chiamata pesante
+      try {
+        await apiGet<unknown>("/health", { signal: AbortSignal.timeout(5000) } as any);
+        setGenerandoStatus("Analisi contesto...");
+      } catch {
+        setGenerandoStatus("Connessione backend...");
+      }
+
+      setGenerandoStatus("Felix sta pianificando...");
+      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
+        days: horizonDays,
+        mode: engineMode,
+        include_weekends: includeWeekends,
+        allow_overtime: allowOvertime,
+      });
+      const { previous_efficiency_score: prevScore, ...cleanRes } = res;
+      const newScore = res.plan_json?.efficiency_score;
+      if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
+        notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
+      } else {
+        notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
+      }
+      setPiano(cleanRes);
+      const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
+      setCurrentDate(planStart ? parseISO(planStart) : new Date());
+      await loadData(); // aggiorna il Gantt con i ticket ora pianificati
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Errore generazione piano AI";
+      if (msg.includes("troppo tempo")) {
+        notify.error("Il server OpenAI ha impiegato troppo. Riprova — il backend è ora sveglio e sarà più veloce.");
+      } else {
+        notify.error(msg);
+      }
+    } finally {
+      setGenerando(false);
+      setGenerandoStatus("Elaborazione...");
+    }
+  }
+
   const loadData = useCallback(async (background = false) => {
     if (!background) setLoading(true);
     try {
@@ -1267,7 +1313,7 @@ export default function PianificazionePage() {
             display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s",
           }}>
             {generando ? (
-              <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Elaborazione...</>
+              <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />{generandoStatus}</>
             ) : "⚡ Genera Piano AI"}
           </button>
 
