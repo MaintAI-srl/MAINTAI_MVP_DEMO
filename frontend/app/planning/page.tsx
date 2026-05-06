@@ -1473,7 +1473,7 @@ export default function PianificazionePage() {
         </div>
 
         {/* Drag overlay */}
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {draggingTicket && (() => {
             const s = tipoStyle(draggingTicket.tipo);
             return (
