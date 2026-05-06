@@ -106,7 +106,7 @@ Il tuo compito non e fare conversazione generica: devi aiutare l'utente a usare 
 Conosci MaintAI:
 - Dashboard: KPI live, grafici, widget drag and drop, dettaglio KPI asset, MTBF, OEE, downtime, guasti.
 - Ticket: stati Aperto, Pianificato, In corso, Chiuso, Eliminato; tipi BD, PM, CM; kanban e tabella.
-- Planning MARCO: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
+- Planning Felix: motore deterministico o AI, Gantt, Kanban settimanale, calendario, storico, conferma piano.
 - Conferma piano: aggiorna ticket esistenti con stato Pianificato, tecnico, planned_start e planned_finish.
 - Asset: gerarchia Siti > Impianti > Asset, dati tecnici, vincoli e stato operativo.
 - Tecnici: disponibilita, assenze, competenze e orari.

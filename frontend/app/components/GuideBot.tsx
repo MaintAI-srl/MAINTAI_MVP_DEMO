@@ -49,9 +49,9 @@ const PAGE_GUIDES: Record<string, PageGuide> = {
     suggestions: ["Come apro un ticket guasto?", "Che differenza c'e tra BD, PM e CM?", "Come cambio stato a un ticket?"],
   },
   "/planning": {
-    title: "Piano AI MARCO",
+    title: "Piano AI Felix",
     area: "Pianificazione manutenzione",
-    summary: "Qui generi piani con MARCO, analizzi Gantt/Kanban/Calendario e confermi l'assegnazione ai tecnici.",
+    summary: "Qui generi piani con Felix, analizzi Gantt/Kanban/Calendario e confermi l'assegnazione ai tecnici.",
     actions: ["Generare un piano deterministico o AI", "Valutare efficienza e motivazioni", "Confermare o consultare lo storico piani"],
     suggestions: ["Come genero un piano?", "Cosa succede quando confermo?", "Perche un ticket viene differito?"],
   },
@@ -120,7 +120,7 @@ function guideForPath(pathname: string): PageGuide {
   return prefix ? PAGE_GUIDES[prefix] : {
     title: "MaintAI",
     area: "Guida generale",
-    summary: "Felix puo guidarti tra dashboard, ticket, asset, tecnici, manuali, planning MARCO e diagnostica AI.",
+    summary: "Felix puo guidarti tra dashboard, ticket, asset, tecnici, manuali, planning Felix e diagnostica AI.",
     actions: ["Chiedere cosa fare nella pagina", "Chiedere il percorso nella sidebar", "Chiedere spiegazioni su stati, KPI o workflow"],
     suggestions: ["Cosa posso fare qui?", "Guidami nella pagina", "Qual e il prossimo passo?"],
   };
@@ -145,7 +145,7 @@ function topicSteps(pageGuide: PageGuide, question: string): string[] {
       "Apri Operazioni > Ticket dalla sidebar, oppure entra dalla scheda Asset se il ticket riguarda una macchina specifica.",
       "Premi Nuovo ticket e scegli il tipo: BD per guasto, PM per preventiva, CM per correttiva.",
       "Seleziona asset, priorita, durata stimata e descrivi il problema in modo operativo.",
-      "Salva: il ticket entra nel backlog e potra essere pianificato da MARCO.",
+      "Salva: il ticket entra nel backlog e potra essere pianificato da Felix.",
       "Controlla lo stato nella tabella o nella vista Kanban.",
     ];
   }
@@ -154,7 +154,7 @@ function topicSteps(pageGuide: PageGuide, question: string): string[] {
       "Apri Risorse > Asset e seleziona la macchina interessata.",
       "Entra nella scheda tecnica dell'asset.",
       "Cerca vincoli operativi, vincoli manutenzione, vincoli meteo, orari o note tecniche.",
-      "Aggiorna i vincoli prima di generare il piano: MARCO li usa per evitare assegnazioni non compatibili.",
+      "Aggiorna i vincoli prima di generare il piano: Felix li usa per evitare assegnazioni non compatibili.",
       "Torna in Planning e rigenera il piano se hai modificato vincoli importanti.",
     ];
   }
@@ -167,7 +167,7 @@ function topicSteps(pageGuide: PageGuide, question: string): string[] {
       "Usa quelle attivita come base per ticket PM o pianificazione preventiva.",
     ];
   }
-  if (q.includes("piano") || q.includes("marco") || q.includes("planning")) {
+  if (q.includes("piano") || q.includes("felix") || q.includes("planning")) {
     return [
       "Apri Operazioni > Pianificazione.",
       "Aggiorna i ticket se sei appena rientrato nella pagina.",
@@ -265,7 +265,7 @@ function AnimSearch() {
 function ActionPreview({ intent }: { intent: string }) {
   if (intent.includes("dashboard") || intent.includes("customize") || intent.includes("kpi")) return <AnimDashboard />;
   if (intent.includes("ticket") || intent.includes("create")) return <AnimTicket />;
-  if (intent.includes("planning") || intent.includes("piano") || intent.includes("marco")) return <AnimPlanning />;
+  if (intent.includes("planning") || intent.includes("piano") || intent.includes("felix")) return <AnimPlanning />;
   if (intent.includes("find") || intent.includes("search") || intent.includes("asset")) return <AnimSearch />;
   return null;
 }
