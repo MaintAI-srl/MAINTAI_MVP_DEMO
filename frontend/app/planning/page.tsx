@@ -485,7 +485,7 @@ export default function PianificazionePage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ── Dati piano ──────────────────────────────────────────────────────────────
-  const planJson = piano?.plan_json ?? null;
+  const planJson = piano?.plan_json ?? { planned_workorders: [], deferred_workorders: [], fermo_assets: [], global_warnings: [] };
   const effScore: number | undefined = planJson?.efficiency_score;
   const effBreakdown: EfficiencyBreakdown | undefined = planJson?.efficiency_breakdown;
 
@@ -658,7 +658,7 @@ export default function PianificazionePage() {
         is_manual_plan: true,
       });
       notify.success(`Ticket #${ticketId} pianificato`);
-      loadData();
+      await loadData();
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore salvataggio");
     }
@@ -675,12 +675,12 @@ export default function PianificazionePage() {
     setDraggingTicket(null);
     const { active, over } = event;
     if (!over) return;
-    const ticket = (active.data.current as { ticket?: TicketData })?.ticket;
-    if (!ticket) return;
 
-    // Guard: drop su area non-droppable (senza dati validi) → ignora silenziosamente
-    const dropData = over.data.current as { tecnico_id?: number; date?: string } | undefined;
-    if (!dropData?.tecnico_id || !dropData?.date) return;
+    const droppedTicket = (active.data.current as { ticket?: TicketData })?.ticket;
+    if (!droppedTicket) return;
+
+    const dropTarget = over.data.current as { tecnico_id?: number; date?: string } | undefined;
+    if (!dropTarget?.tecnico_id || !dropTarget?.date) return;
 
     let newHour = 8;
     let newMinute = 0;
@@ -696,39 +696,20 @@ export default function PianificazionePage() {
       }
     }
 
-    // Ticket non ancora pianificato (nessun tecnico e nessuna data) → pianificazione manuale
-    if (!ticket.tecnico_id && !ticket.planned_start) {
-      const startDate = new Date(
-        `${dropData.date}T${String(newHour).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}:00`,
-      );
-      const durationMs = Math.max(0.5, ticket.durata_stimata_ore || 1) * 3600000;
-      const endDate = new Date(startDate.getTime() + durationMs);
-      savePianificazioneManuale(
-        ticket.id,
-        dropData.tecnico_id,
-        dropData.date,
-        formatLocalDateTimeSeconds(startDate),
-        formatLocalDateTimeSeconds(endDate),
-      );
-      return;
-    }
+    const startDate = new Date(
+      `${dropTarget.date}T${String(newHour).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}:00`,
+    );
+    const durationMs = Math.max(0.5, droppedTicket.durata_stimata_ore || 1) * 3600000;
+    const endDate = new Date(startDate.getTime() + durationMs);
 
-    // Ticket già pianificato → move-ticket (sposta data/tecnico nel piano)
-    try {
-      await apiPost("/planning/move-ticket", {
-        ticket_id: ticket.id,
-        new_date: dropData.date,
-        new_start_hour: newHour,
-        new_start_minute: newMinute,
-        tecnico_id: dropData.tecnico_id,
-      });
-      notify.success(`Ticket #${ticket.id} spostato`);
-      await loadData();
-    } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore spostamento ticket");
-    }
+    await savePianificazioneManuale(
+      droppedTicket.id,
+      dropTarget.tecnico_id,
+      dropTarget.date,
+      formatLocalDateTimeSeconds(startDate),
+      formatLocalDateTimeSeconds(endDate),
+    );
   }
-
   // ── Navigazione data ────────────────────────────────────────────────────────
   function navigate(dir: 1 | -1) {
     const delta = view === "day" ? 1 : view === "week" ? 7 : 14;
@@ -788,6 +769,7 @@ export default function PianificazionePage() {
           <div style={{ flex: 1 }} />
 
           {/* Efficienza badge compatta — pill premium */}
+          <div style={{ display: "none" }}>
           {effScore !== undefined && (
             <span style={{
               fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
@@ -940,6 +922,10 @@ export default function PianificazionePage() {
             </button>
           )}
 
+          </div>
+
+          <span style={{ fontSize: 10, color: "#6b7280" }}>{tecnici.length} tecnici · {ganttTickets.length} in Gantt</span>
+
           {/* Refresh */}
           <button onClick={loadData} disabled={loading} title="Aggiorna" style={{
             background: "transparent", border: "1px solid rgba(55,65,81,0.8)", color: "rgba(148,163,184,0.8)",
@@ -989,7 +975,7 @@ export default function PianificazionePage() {
                 <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Nessun ticket da pianificare</div>
               ) : (
                 filteredUnscheduled.map((t) => (
-                  <UnscheduledItem key={t.id} ticket={t} onClick={() => setTicketDaPianificare(t)} />
+                  <UnscheduledItem key={t.id} ticket={t} onClick={() => setDetailTicket(t)} />
                 ))
               )}
             </div>
@@ -1076,131 +1062,11 @@ export default function PianificazionePage() {
             )}
           </div>
 
-          {/* ── PANNELLO EFFICIENZA destra collassabile ── */}
-          {(effScore !== undefined || (planJson?.deferred_workorders && planJson.deferred_workorders.length > 0)) && (
-            <div style={{
-              position: "relative",
-              display: "flex",
-              flexDirection: "row",
-              flexShrink: 0,
-            }}>
-              {/* Linguetta per aprire/chiudere */}
-              <button
-                onClick={() => setEffPanelOpen(p => !p)}
-                title={effPanelOpen ? "Chiudi pannello" : "Apri pannello efficienza"}
-                style={{
-                  position: "absolute",
-                  left: -18,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  width: 18,
-                  height: 64,
-                  background: "rgba(59,130,246,0.15)",
-                  border: "1px solid rgba(59,130,246,0.25)",
-                  borderRight: "none",
-                  borderRadius: "8px 0 0 8px",
-                  color: "#60a5fa",
-                  fontSize: 10,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  writingMode: "vertical-rl",
-                  zIndex: 20,
-                  fontWeight: 700,
-                }}
-              >
-                {effPanelOpen ? "›" : "‹"}
-              </button>
 
-              {/* Pannello contenuto */}
-              {effPanelOpen && (
-                <div style={{
-                  width: 240,
-                  borderLeft: "1px solid rgba(59,130,246,0.15)",
-                  background: "var(--surface-1)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 0,
-                  overflowY: "auto",
-                }}>
-                  {/* Header */}
-                  <div style={{
-                    padding: "10px 12px",
-                    borderBottom: "1px solid rgba(59,130,246,0.1)",
-                    fontSize: 9,
-                    letterSpacing: "0.15em",
-                    color: "rgba(148,163,184,0.6)",
-                    fontWeight: 700,
-                    textTransform: "uppercase" as const,
-                    background: "rgba(59,130,246,0.05)",
-                    flexShrink: 0,
-                  }}>
-                    Riepilogo Piano
-                  </div>
-
-                  {/* BadgeEfficienza */}
-                  {effScore !== undefined && effBreakdown && (
-                    <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid rgba(59,130,246,0.08)" }}>
-                      <BadgeEfficienza score={effScore} breakdown={effBreakdown} />
-                    </div>
-                  )}
-
-                  {/* PannelloMotivazioni */}
-                  {effScore !== undefined && planJson?.efficiency_motivations && planJson.efficiency_motivations.length > 0 && (
-                    <div style={{ padding: "10px 12px", borderBottom: "1px solid rgba(59,130,246,0.08)" }}>
-                      <PannelloMotivazioni motivations={planJson.efficiency_motivations} score={effScore} />
-                    </div>
-                  )}
-
-                  {/* Ore effettive vs teoriche (#13) */}
-                  {planJson?.plan_metadata && (
-                    planJson.plan_metadata.ore_disponibili_effettive != null ||
-                    planJson.plan_metadata.ore_assegnate != null
-                  ) && (
-                    <div style={{
-                      padding: "8px 12px",
-                      borderBottom: "1px solid rgba(59,130,246,0.08)",
-                      fontSize: 10,
-                      color: "#6b7280",
-                      fontFamily: "'IBM Plex Mono', monospace",
-                    }}>
-                      <div style={{ marginBottom: 2, color: "rgba(148,163,184,0.6)", letterSpacing: "0.08em", fontWeight: 700 }}>
-                        ORE PIANO
-                      </div>
-                      {planJson.plan_metadata.ore_assegnate != null && (
-                        <div>Assegnate: <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{planJson.plan_metadata.ore_assegnate}h</span></div>
-                      )}
-                      {planJson.plan_metadata.ore_disponibili_effettive != null && (
-                        <div>
-                          Disponibili: <span style={{ color: "#86efac", fontWeight: 600 }}>{planJson.plan_metadata.ore_disponibili_effettive}h</span>
-                          {planJson.plan_metadata.ore_disponibili_teoriche != null &&
-                           planJson.plan_metadata.ore_disponibili_teoriche !== planJson.plan_metadata.ore_disponibili_effettive && (
-                            <span style={{ color: "#4b5563", marginLeft: 4 }}>/ {planJson.plan_metadata.ore_disponibili_teoriche}h teor.</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* WO Differiti */}
-                  {planJson?.deferred_workorders && planJson.deferred_workorders.length > 0 && (
-                    <div style={{ padding: "10px 12px" }}>
-                      <DeferredWOPanel
-                        deferredWOs={planJson.deferred_workorders}
-                        allTickets={[...ganttTickets, ...unscheduledTickets]}
-                        deferredCounts={deferredCounts}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* ── STORICO PIANI ── */}
-        <div style={{
+        <div style={{ display: "none",
           borderTop: "1px solid rgba(59,130,246,0.08)",
           padding: "0 16px 24px",
           background: "linear-gradient(180deg, #060d1a 0%, #040a14 100%)",
