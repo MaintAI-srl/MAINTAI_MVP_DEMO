@@ -138,7 +138,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated) return;
     const ping = () => fetch(`${process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com"}/health`, { method: "GET", credentials: "include" }).catch(() => {});
     ping();
-    const id = setInterval(ping, 8 * 60 * 1000);
+    const id = setInterval(ping, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, [isAuthenticated]);
 

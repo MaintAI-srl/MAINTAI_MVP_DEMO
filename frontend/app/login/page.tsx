@@ -23,39 +23,56 @@ export default function LoginPage() {
   const [loading, setLoading]     = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
+  const [wakeSeconds, setWakeSeconds] = useState(0);
 
   const auth   = useAuth();
   const router = useRouter();
 
-  // Al mount: verifica subito il backend e mostra messaggio se è in avvio
+  // Al mount: sveglia aggressiva del backend — pinga ogni 4s finché non risponde
   useEffect(() => {
     let cancelled = false;
-    const check = async () => {
+    let retryInterval: ReturnType<typeof setInterval> | null = null;
+    let countInterval: ReturnType<typeof setInterval> | null = null;
+
+    const tryPing = async () => {
       try {
-        const r = await fetchWithTimeout(`${API_BASE}/health`, { method: "GET" }, 8000);
+        const r = await fetchWithTimeout(`${API_BASE}/health`, { method: "GET" }, 6000);
+        if (r.ok && !cancelled) {
+          if (retryInterval) clearInterval(retryInterval);
+          if (countInterval) clearInterval(countInterval);
+          setBackendOk(true);
+          setStatusMsg(null);
+          setWakeSeconds(0);
+        }
+      } catch { /* server ancora dormiente, continua */ }
+    };
+
+    const start = async () => {
+      try {
+        const r = await fetchWithTimeout(`${API_BASE}/health`, { method: "GET" }, 6000);
         if (!cancelled) setBackendOk(r.ok);
       } catch {
         if (!cancelled) {
           setBackendOk(false);
-          setStatusMsg("🔄 Server in avvio, attendi...");
-          // Riprova ogni 10s finché non risponde
-          const retry = setInterval(async () => {
-            try {
-              const r2 = await fetchWithTimeout(`${API_BASE}/health`, { method: "GET" }, 8000);
-              if (r2.ok && !cancelled) {
-                clearInterval(retry);
-                setBackendOk(true);
-                setStatusMsg(null);
-              }
-            } catch { /* continua */ }
-          }, 10000);
-          // Cleanup
-          return () => clearInterval(retry);
+          setStatusMsg("Server in avvio...");
+          let secs = 0;
+          countInterval = setInterval(() => {
+            if (cancelled) return;
+            secs += 1;
+            setWakeSeconds(secs);
+          }, 1000);
+          // Pinga ogni 4s — molto più reattivo del precedente 10s
+          retryInterval = setInterval(tryPing, 4000);
         }
       }
     };
-    check();
-    return () => { cancelled = true; };
+
+    start();
+    return () => {
+      cancelled = true;
+      if (retryInterval) clearInterval(retryInterval);
+      if (countInterval) clearInterval(countInterval);
+    };
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -166,7 +183,7 @@ export default function LoginPage() {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
             <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⏳</span>
-            {statusMsg}
+            {statusMsg}{wakeSeconds > 0 ? ` (${wakeSeconds}s)` : ""}
           </div>
         )}
 
