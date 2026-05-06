@@ -527,6 +527,8 @@ export default function PianificazionePage() {
   }, [planJson?.planned_workorders, unscheduledTickets]);
 
   const ganttTickets = useMemo(() => {
+    if (!piano || piano.status === "draft") return scheduledTickets;
+
     const draftWos = planJson?.planned_workorders ?? [];
     if (!draftWos.length) return scheduledTickets;
 
@@ -569,21 +571,18 @@ export default function PianificazionePage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tecniciRes, pianRes, inCorsoRes, apertiRes, planRes] = await Promise.all([
+      const [tecniciRes, activeRes, planRes] = await Promise.all([
         apiGet<TecnicoAPI[]>("/tecnici"),
-        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Pianificato"),
-        apiGet<{ items: TicketData[] }>("/tickets?limit=100&stato=In%20corso"),
-        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto"),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso"),
         apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
       ]);
 
       setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));
-      const scheduled = [
-        ...pianRes.items.filter((t) => t.planned_start != null),
-        ...inCorsoRes.items.filter((t) => t.planned_start != null),
-      ];
+      const activeTickets = activeRes.items ?? [];
+      const scheduled = activeTickets.filter((t) => t.planned_start != null);
+      const unscheduled = activeTickets.filter((t) => t.planned_start == null);
       setScheduledTickets(scheduled);
-      setUnscheduledTickets(apertiRes.items.filter((t) => t.planned_start == null));
+      setUnscheduledTickets(unscheduled);
       setPiano(planRes);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
@@ -720,7 +719,7 @@ export default function PianificazionePage() {
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * HOUR_W : days.length * cellW);
   const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
-  const visibleUnscheduledTickets = unscheduledTickets.filter((t) => !plannedDraftIds.has(t.id));
+  const visibleUnscheduledTickets = unscheduledTickets;
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
 
   const dateLabel =
