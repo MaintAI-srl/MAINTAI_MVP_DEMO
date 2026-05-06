@@ -25,6 +25,11 @@ logger = get_logger(__name__)
 STATI_VALIDI = {"Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"}
 MAX_ALLEGATO_BYTES = 20 * 1024 * 1024  # 20 MB
 MAX_FIRMA_BYTES = 5 * 1024 * 1024  # 5 MB
+ALLOWED_UPLOAD_EXTENSIONS = {
+    '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt',
+    '.mp4', '.mov', '.zip',
+}
 
 
 class BulkStatusUpdate(PydanticModel):
@@ -440,7 +445,12 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket non trovato")
 
-    ext = os.path.splitext(file.filename)[1] if file.filename else ""
+    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
+    if ext and ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo file non consentito: '{ext}'. Estensioni ammesse: {', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}",
+        )
     unique_filename = f"{uuid.uuid4()}{ext}"
     content = await file.read()
     if len(content) > MAX_ALLEGATO_BYTES:

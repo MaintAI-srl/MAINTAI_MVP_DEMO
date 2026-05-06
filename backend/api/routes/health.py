@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from backend.core.config import VERSION, BUILD_DATE, OPENAI_API_KEY
+from backend.core.config import VERSION, BUILD_DATE
 from backend.core.dependencies import get_db
 
 router = APIRouter()
@@ -34,26 +34,4 @@ def health_check(db: Session = Depends(get_db)):
         "version": VERSION,
         "build_date": BUILD_DATE,
         "database": db_status,
-        "openai": "configured" if OPENAI_API_KEY else "missing",
     }
-
-@router.get("/test-openai")
-def test_openai():
-    ai_client = get_openai_client()
-
-    print(">>> TEST OPENAI CHIAMATO")
-
-    response = ai_client.responses.create(
-        model="gpt-4.1-mini",
-        input="Rispondi solo con: ok openai"
-    )
-
-    print(">>> RESPONSE ID:", response.id)
-    print(">>> OUTPUT:", response.output_text)
-
-    return {
-        "status": "ok",
-        "output": response.output_text,
-        "response_id": response.id
-    }
-
