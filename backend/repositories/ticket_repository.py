@@ -5,14 +5,32 @@ from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.security import check_tenant_ownership
 
 
+def _resolve_hierarchy(asset: Asset | None) -> tuple[str | None, str | None]:
+    """Risale la gerarchia Asset → Impianto → Sito e restituisce (sito_name, impianto_name)."""
+    if not asset:
+        return None, None
+    impianto = asset.impianto
+    impianto_name = impianto.nome if impianto else None
+    sito_name = impianto.sito.nome if impianto and impianto.sito else None
+    return sito_name, impianto_name
+
+
 def _ticket_to_dict(t: Ticket) -> dict:
+    # Usa i campi denormalizzati se presenti, altrimenti li risolve al volo dalla gerarchia
+    stored_sito = getattr(t, "sito_name", None)
+    stored_imp  = getattr(t, "impianto_name", None)
+    if not stored_sito or not stored_imp:
+        resolved_sito, resolved_imp = _resolve_hierarchy(t.asset if t.asset else None)
+        stored_sito = stored_sito or resolved_sito
+        stored_imp  = stored_imp  or resolved_imp
     return {
         "id": t.id,
         "titolo": t.titolo,
         "asset_id": t.asset_id,
         "asset_name": t.asset.nome if t.asset else None,
         "asset_stato": t.asset.stato if t.asset else None,
-        "sito_name": (t.asset.impianto.sito.nome if t.asset and t.asset.impianto and t.asset.impianto.sito else None),
+        "sito_name": stored_sito,
+        "impianto_name": stored_imp,
         "tipo": t.tipo or "CM",
         "priorita": t.priorita,
         "stato": t.stato,
@@ -88,10 +106,25 @@ class TicketRepository:
         if getattr(data, "tecnico_id", None):
             check_tenant_ownership(db, Tecnico, data.tecnico_id, tenant_id)
 
-        if getattr(data, "asset_stato", None) is not None:
-            asset = db.query(Asset).filter(Asset.id == data.asset_id, Asset.tenant_id == tenant_id).first()
-            if asset:
-                asset.stato = data.asset_stato
+        # Risolvi gerarchia Asset→Impianto→Sito e denormalizza sul ticket
+        _asset = None
+        if getattr(data, "asset_id", None):
+            _asset = (
+                db.query(Asset)
+                .options(joinedload(Asset.impianto).joinedload(Impianto.sito))
+                .filter(Asset.id == data.asset_id, Asset.tenant_id == tenant_id)
+                .first()
+            )
+        if _asset:
+            if getattr(data, "asset_stato", None) is not None:
+                _asset.stato = data.asset_stato
+            s, i = _resolve_hierarchy(_asset)
+            dump["sito_name"] = s
+            dump["impianto_name"] = i
+        elif getattr(data, "asset_stato", None) is not None:
+            _a2 = db.query(Asset).filter(Asset.id == data.asset_id, Asset.tenant_id == tenant_id).first()
+            if _a2:
+                _a2.stato = data.asset_stato
 
         if durata_totale <= 8.0:
             ticket = Ticket(**dump)

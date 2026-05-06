@@ -182,6 +182,9 @@ def _ensure_columns() -> None:
         ("ticket", "origine_piano",                    "ALTER TABLE ticket ADD COLUMN {ifne}origine_piano VARCHAR"),
         # ticket — origine unificata (v2.5.0)
         ("ticket", "origin_type",                      "ALTER TABLE ticket ADD COLUMN {ifne}origin_type VARCHAR"),
+        # ticket — dati ereditati gerarchia Asset→Impianto→Sito (denormalizzati)
+        ("ticket", "sito_name",                        "ALTER TABLE ticket ADD COLUMN {ifne}sito_name VARCHAR"),
+        ("ticket", "impianto_name",                    "ALTER TABLE ticket ADD COLUMN {ifne}impianto_name VARCHAR"),
         # attivita_manutenzione — campi unificazione Task/Piano (v2.5.0)
         ("attivita_manutenzione", "generation_mode",         "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}generation_mode VARCHAR DEFAULT 'manual'"),
         ("attivita_manutenzione", "generate_days_before_due","ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}generate_days_before_due INTEGER DEFAULT 7"),

@@ -17,6 +17,7 @@ type Ticket = {
   asset_id: number;
   asset_name: string | null;
   sito_name?: string | null;
+  impianto_name?: string | null;
   priorita: string;
   tipo: string;
   stato: string;
@@ -1034,15 +1035,30 @@ export default function TicketPage() {
           <h1 className="page-title" style={{ marginBottom: 4 }}>Ticket</h1>
           <p className="page-subtitle" style={{ margin: 0 }}>Ticket operativi che alimentano il planner automatico.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            window.open(`${API_BASE}/export/tickets`, "_blank", "noopener,noreferrer");
-          }}
-          style={{ padding: "9px 20px", borderRadius: 8, background: "linear-gradient(135deg, #1d4ed8, #6366f1)", border: "none", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", fontSize: 13, boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}
-        >
-          <span>📊</span> Esporta Excel
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const r = await apiPost<{ updated: number; total: number }>("/tickets/sync-hierarchy", {});
+                notify.success(`Siti sincronizzati: ${r.updated} ticket aggiornati su ${r.total}`);
+                loadAttivi(page);
+              } catch { notify.error("Errore sincronizzazione siti"); }
+            }}
+            style={{ padding: "9px 16px", borderRadius: 8, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8", fontWeight: 700, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}
+          >
+            <span>🔗</span> Sincronizza Siti
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.open(`${API_BASE}/export/tickets`, "_blank", "noopener,noreferrer");
+            }}
+            style={{ padding: "9px 20px", borderRadius: 8, background: "linear-gradient(135deg, #1d4ed8, #6366f1)", border: "none", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", fontSize: 13, boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}
+          >
+            <span>📊</span> Esporta Excel
+          </button>
+        </div>
       </div>
 
 

@@ -230,6 +230,10 @@ class Ticket(Base):
     # Origine unificata (v2.5.0)
     origin_type = Column(String, nullable=True)  # manual | from_task | from_email | from_pdf_plan
 
+    # Dati ereditati dalla gerarchia Asset → Impianto → Sito (denormalizzati per query veloci)
+    sito_name = Column(String, nullable=True)
+    impianto_name = Column(String, nullable=True)
+
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
     piano_manutenzione = relationship("PianoManutenzione", back_populates="tickets")

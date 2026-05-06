@@ -13,7 +13,9 @@ from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.logging_config import get_logger
 from backend.core.exceptions import AppError
 from backend.core.logger_db import log_to_db
-from backend.db.modelli import Ticket, AttivitaManutenzione
+from backend.db.modelli import Ticket, AttivitaManutenzione, Asset, Impianto, Sito
+from sqlalchemy.orm import joinedload as _joinedload
+from backend.repositories.ticket_repository import _resolve_hierarchy
 from backend.services.condition_maintenance_service import latest_running_hours_by_asset
 
 router = APIRouter()
@@ -416,3 +418,38 @@ async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(
     ticket.firma_percorso = url
     db.commit()
     return {"url": ticket.firma_percorso}
+
+
+@router.post("/tickets/sync-hierarchy")
+def sync_ticket_hierarchy(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Backfill: popola sito_name e impianto_name su tutti i ticket del tenant
+    che non li hanno ancora, risalendo la catena Ticket→Asset→Impianto→Sito.
+    """
+    tickets = (
+        db.query(Ticket)
+        .options(
+            _joinedload(Ticket.asset)
+            .joinedload(Asset.impianto)
+            .joinedload(Impianto.sito)
+        )
+        .filter(Ticket.tenant_id == tenant_id)
+        .all()
+    )
+    updated = 0
+    for t in tickets:
+        sito, imp = _resolve_hierarchy(t.asset)
+        changed = False
+        if sito and t.sito_name != sito:
+            t.sito_name = sito
+            changed = True
+        if imp and t.impianto_name != imp:
+            t.impianto_name = imp
+            changed = True
+        if changed:
+            updated += 1
+    db.commit()
+    return {"updated": updated, "total": len(tickets)}
