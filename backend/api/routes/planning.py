@@ -38,7 +38,7 @@ def _planning_today() -> date_type:
         tz = ZoneInfo("Europe/Rome")
     except Exception:
         tz = datetime.now().astimezone().tzinfo
-    return datetime.now(tz).date()
+    return datetime.now(tz).date() + timedelta(days=1)
 
 
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────

@@ -718,7 +718,7 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
 export default function PianificazionePage() {
   // Gantt state
   const [view, setView] = useState<ViewMode>("week");
-  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [currentDate, setCurrentDate] = useState(() => addDays(new Date(), 1));
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
   const [scheduledTickets, setScheduledTickets] = useState<TicketData[]>([]);
   const [unscheduledTickets, setUnscheduledTickets] = useState<TicketData[]>([]);
@@ -1176,7 +1176,7 @@ export default function PianificazionePage() {
           {/* Date nav */}
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>‹</button>
-            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>OGGI</button>
+            <button onClick={() => setCurrentDate(addDays(new Date(), 1))} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>DOMANI</button>
             <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>›</button>
           </div>
 
@@ -1240,27 +1240,7 @@ export default function PianificazionePage() {
             </span>
           )}
 
-          <span style={{ fontSize: 10, color: "#6b7280" }}>
-            {tecnici.length} tecnici · {ganttTickets.length} in Gantt · {visibleTotals.remaining.toFixed(1)}h libere
-          </span>
-
-          {/* Engine toggle */}
-          <div style={{ display: "flex", gap: 3, fontSize: 11 }}>
-            {(["deterministic", "ai"] as EngineMode[]).map((m) => (
-              <button key={m} onClick={() => setEngineMode(m)} title={m === "deterministic" ? "Motore deterministico — istantaneo" : "Motore GPT — richiede OpenAI"} style={{
-                padding: "4px 10px", fontWeight: 600, cursor: "pointer",
-                border: engineMode === m
-                  ? (m === "ai" ? "1px solid rgba(124,58,237,0.5)" : "1px solid rgba(5,150,105,0.5)")
-                  : "1px solid transparent",
-                borderRadius: 6,
-                background: engineMode === m ? (m === "ai" ? "linear-gradient(135deg,rgba(29,78,216,0.5),rgba(124,58,237,0.5))" : "rgba(6,95,70,0.6)") : "transparent",
-                color: engineMode === m ? "#fff" : "rgba(100,116,139,0.7)", fontFamily: "inherit",
-                transition: "all 0.12s",
-              }}>
-                {m === "deterministic" ? "⚙ Engine" : "🤖 GPT"}
-              </button>
-            ))}
-          </div>
+          {/* Engine toggle Nascosto per richiesta utente */}
 
           {/* Selettore orizzonte pianificazione (#14) */}
           <div style={{ display: "flex", gap: 3 }}>
@@ -1282,37 +1262,7 @@ export default function PianificazionePage() {
             ))}
           </div>
 
-          <button
-            onClick={() => setIncludeWeekends((v) => !v)}
-            title="Include o esclude sabato e domenica dalla generazione piano"
-            style={{
-              padding: "5px 10px", fontSize: 10, fontWeight: 800,
-              borderRadius: 6,
-              border: includeWeekends ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(55,65,81,0.8)",
-              background: includeWeekends ? "rgba(6,95,70,0.45)" : "transparent",
-              color: includeWeekends ? "#86efac" : "rgba(148,163,184,0.75)",
-              cursor: "pointer", fontFamily: "inherit",
-              letterSpacing: "0.06em",
-            }}
-          >
-            {includeWeekends ? "SAB-DOM ON" : "LUN-VEN"}
-          </button>
-
-          <button
-            onClick={() => setAllowOvertime((v) => !v)}
-            title="Programma nel turno standard 08-17 o consenti estensione fino alle 21"
-            style={{
-              padding: "5px 10px", fontSize: 10, fontWeight: 800,
-              borderRadius: 6,
-              border: allowOvertime ? "1px solid rgba(245,158,11,0.5)" : "1px solid rgba(55,65,81,0.8)",
-              background: allowOvertime ? "rgba(120,53,15,0.45)" : "transparent",
-              color: allowOvertime ? "#fcd34d" : "rgba(148,163,184,0.75)",
-              cursor: "pointer", fontFamily: "inherit",
-              letterSpacing: "0.06em",
-            }}
-          >
-            {allowOvertime ? "08-21" : "08-17"}
-          </button>
+          {/* Toggle LUN-VEN e Turni Nascosti */}
 
           {/* Genera Piano AI */}
           <button onClick={generateAIPlan} disabled={generando} style={{
@@ -1382,10 +1332,6 @@ export default function PianificazionePage() {
           </button>
 
           </div>
-
-          <span style={{ fontSize: 10, color: "#6b7280" }}>
-            {tecnici.length} tecnici · {ganttTickets.length} in Gantt · {visibleTotals.remaining.toFixed(1)}h libere
-          </span>
 
           {/* Refresh */}
           <button onClick={() => loadData()} disabled={loading} title="Aggiorna" style={{
