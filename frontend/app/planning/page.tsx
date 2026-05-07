@@ -758,13 +758,14 @@ export default function PianificazionePage() {
   const [allowOvertime, setAllowOvertime] = useState(false);
 
   const [manualEval, setManualEval] = useState<{ score: number; breakdown: any } | null>(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ── Dati piano ──────────────────────────────────────────────────────────────
   const planJson = piano?.plan_json ?? { planned_workorders: [], deferred_workorders: [], fermo_assets: [], global_warnings: [] };
-  const effScore: number | undefined = planJson?.efficiency_score ?? manualEval?.score;
-  const effBreakdown: EfficiencyBreakdown | undefined = planJson?.efficiency_breakdown ?? manualEval?.breakdown;
+  const effScore: number | undefined = manualEval?.score ?? planJson?.efficiency_score;
+  const effBreakdown: EfficiencyBreakdown | undefined = manualEval?.breakdown ?? planJson?.efficiency_breakdown;
 
   // ── Lookup maps per WODetailDrawer ─────────────────────────────────────────
   const ticketMap = useMemo(() => {
@@ -894,11 +895,10 @@ export default function PianificazionePage() {
   const loadData = useCallback(async (background = false) => {
     if (!background) setLoading(true);
     try {
-      const [tecniciRes, activeRes, planRes, evalRes] = await Promise.all([
+      const [tecniciRes, activeRes, planRes] = await Promise.all([
         apiGet<TecnicoAPI[]>("/tecnici"),
         apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso"),
         apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
-        apiPost<{ efficiency_score: number; efficiency_breakdown: any }>("/planning/evaluate").catch(() => null),
       ]);
 
       setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));
@@ -908,11 +908,8 @@ export default function PianificazionePage() {
       setScheduledTickets(scheduled);
       setUnscheduledTickets(unscheduled);
       setPiano(planRes);
-      if (evalRes) {
-        setManualEval({ score: evalRes.efficiency_score, breakdown: evalRes.efficiency_breakdown });
-      }
     } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
+      if (!background) notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
     } finally {
       if (!background) setLoading(false);
     }
@@ -920,22 +917,18 @@ export default function PianificazionePage() {
 
   useEffect(() => { loadData(); loadStorico(); }, [loadData, loadStorico]);
 
-  useEffect(() => {
-    function onVisibilityChange() {
-      if (document.visibilityState === "visible") loadData(true);
+  async function requestScoreUpdate() {
+    setScoreLoading(true);
+    try {
+      const evalRes = await apiPost<{ efficiency_score: number; efficiency_breakdown: any }>("/planning/evaluate");
+      setManualEval({ score: evalRes.efficiency_score, breakdown: evalRes.efficiency_breakdown });
+      notify.success(`Score aggiornato: ${Math.round(evalRes.efficiency_score)}`);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Errore aggiornamento score");
+    } finally {
+      setScoreLoading(false);
     }
-    function onDataChanged() {
-      loadData(true);
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", onDataChanged);
-    window.addEventListener("maintai:data-changed", onDataChanged);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("focus", onDataChanged);
-      window.removeEventListener("maintai:data-changed", onDataChanged);
-    };
-  }, [loadData]);
+  }
 
   // ── Genera piano AI ─────────────────────────────────────────────────────────
   async function generateAIPlan() {
@@ -1278,6 +1271,25 @@ export default function PianificazionePage() {
             </span>
           )}
 
+          <button
+            onClick={requestScoreUpdate}
+            disabled={scoreLoading}
+            title="Calcola lo score solo quando richiesto"
+            style={{
+              background: scoreLoading ? "rgba(31,41,55,0.8)" : "rgba(31,232,255,0.10)",
+              border: "1px solid rgba(31,232,255,0.34)",
+              color: "#a6f6ff",
+              borderRadius: 8,
+              padding: "7px 12px",
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: scoreLoading ? "wait" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {scoreLoading ? "Score..." : "Aggiorna score"}
+          </button>
+
           {/* Piano status badge Nascosto */}
 
           {/* Engine toggle Nascosto per richiesta utente */}
@@ -1304,20 +1316,15 @@ export default function PianificazionePage() {
 
           {/* Toggle LUN-VEN e Turni Nascosti */}
 
-          {/* Genera Piano AI — DISATTIVATO (riattivare cambiando false → true) */}
-          {false && (
-          <button onClick={generateAIPlan} disabled={generando} style={{
-            background: generando ? "rgba(31,41,55,0.8)" : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-            border: "none", color: "#fff", borderRadius: 8, padding: "8px 20px",
-            fontSize: 12, fontWeight: 800, cursor: generando ? "not-allowed" : "pointer",
-            boxShadow: generando ? "none" : "0 0 18px rgba(99,102,241,0.45), 0 4px 12px rgba(29,78,216,0.3)",
+          {/* Genera Piano AI — DISATTIVATO (riattivare cambiando false → true) */}          <button disabled title="Funzione temporaneamente disattivata per demo" style={{
+            background: "linear-gradient(135deg, rgba(29,78,216,0.42), rgba(124,58,237,0.42))",
+            border: "1px solid rgba(165,180,252,0.22)", color: "rgba(255,255,255,0.62)", borderRadius: 8, padding: "8px 20px",
+            fontSize: 12, fontWeight: 800, cursor: "not-allowed",
+            boxShadow: "none",
             display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s",
           }}>
-            {generando ? (
-              <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />{generandoStatus}</>
-            ) : "⚡ Genera Piano AI"}
+            Genera Piano AI
           </button>
-          )}
 
           {/* Pulsante Conferma Nascosto per richiesta utente */}
 
