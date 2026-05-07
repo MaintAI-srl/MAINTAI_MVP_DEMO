@@ -296,6 +296,15 @@ async def generate_plan(
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """Genera un piano AI e lo salva come draft."""
+    # ── FEATURE FLAG: Generazione AI disattivata ─────────────────────────────
+    # Riattivare rimuovendo questo blocco o impostando AI_PLANNING_ENABLED=true
+    import os
+    if os.getenv("AI_PLANNING_ENABLED", "false").lower() != "true":
+        raise HTTPException(
+            status_code=503,
+            detail="La generazione AI del piano è temporaneamente disattivata.",
+        )
+    # ── FINE FEATURE FLAG ────────────────────────────────────────────────────
     import os
     has_openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
     planning_start_date = _planning_today()
@@ -1126,6 +1135,14 @@ async def adaptive_replanning(
 
     Multi-tenant: opera solo sui dati del tenant corrente.
     """
+    # ── FEATURE FLAG: Generazione AI disattivata ─────────────────────────────
+    import os as _os_replan
+    if _os_replan.getenv("AI_PLANNING_ENABLED", "false").lower() != "true":
+        raise HTTPException(
+            status_code=503,
+            detail="La generazione AI del piano è temporaneamente disattivata.",
+        )
+    # ── FINE FEATURE FLAG ────────────────────────────────────────────────────
     # Piano precedente (per calcolare il disruption_cost)
     prev_plan = (
         db.query(GeneratedPlan)

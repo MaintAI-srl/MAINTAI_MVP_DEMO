@@ -1304,7 +1304,8 @@ export default function PianificazionePage() {
 
           {/* Toggle LUN-VEN e Turni Nascosti */}
 
-          {/* Genera Piano AI */}
+          {/* Genera Piano AI — DISATTIVATO (riattivare cambiando false → true) */}
+          {false && (
           <button onClick={generateAIPlan} disabled={generando} style={{
             background: generando ? "rgba(31,41,55,0.8)" : "linear-gradient(135deg, #1d4ed8, #7c3aed)",
             border: "none", color: "#fff", borderRadius: 8, padding: "8px 20px",
@@ -1316,11 +1317,12 @@ export default function PianificazionePage() {
               <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #ffffff44", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />{generandoStatus}</>
             ) : "⚡ Genera Piano AI"}
           </button>
+          )}
 
           {/* Pulsante Conferma Nascosto per richiesta utente */}
 
-          {/* Ricalcola piano */}
-          {piano && (
+          {/* Ricalcola piano — DISATTIVATO (riattivare cambiando false → true) */}
+          {false && piano && (
             <button
               onClick={() => setReplanModal(true)}
               title="Ricalcola piano adattivamente"
