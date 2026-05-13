@@ -67,7 +67,7 @@ async function request<T>(
   // Supporto per il cambio contesto tenant (solo superadmin)
   const extraHeaders: Record<string, string> = {};
   if (typeof window !== "undefined") {
-    const tenantContext = localStorage.getItem("maintai_tenant_context");
+    const tenantContext = sessionStorage.getItem("maintai_tenant_context");
     if (tenantContext) {
       extraHeaders["X-Tenant-Id"] = tenantContext;
     }
@@ -156,7 +156,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
 
   const extraHeaders: Record<string, string> = {};
   if (typeof window !== "undefined") {
-    const tenantContext = localStorage.getItem("maintai_tenant_context");
+    const tenantContext = sessionStorage.getItem("maintai_tenant_context");
     if (tenantContext) {
       extraHeaders["X-Tenant-Id"] = tenantContext;
     }

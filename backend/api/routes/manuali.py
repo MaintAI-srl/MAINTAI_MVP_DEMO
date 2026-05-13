@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends, Query
+from fastapi import APIRouter, Request, UploadFile, File, Form, Depends, Query
 from pydantic import BaseModel as PydanticModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.exceptions import AppError
 from backend.core.logging_config import get_logger
+from backend.core.rate_limiter import limiter
 from backend.db.modelli import Manuale, AttivitaManutenzione, Asset
 from backend.services.pdf_service import smart_read_pdf
 from backend.services.ai.manuals_ai_service import salva_manuale_db, parse_manual_with_ai
@@ -20,7 +21,9 @@ MAX_MANUALE_BYTES = 25 * 1024 * 1024  # 25 MB
 
 
 @router.post("/manuali/upload")
+@limiter.limit("3/minute")
 async def upload_manuale(
+    request: Request,
     file: UploadFile = File(...),
     asset_id: int | None = Form(None),
     new_asset_name: str | None = Form(None),
@@ -46,9 +49,16 @@ async def upload_manuale(
         if resolved_asset_id:
             check_tenant_ownership(db, Asset, resolved_asset_id, tenant_id)
 
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise AppError(status_code=400, message="Solo file PDF consentiti.")
+
     content = await file.read()
     if not content:
         raise AppError(status_code=400, message="File vuoto.")
+
+    if not content.startswith(b"%PDF-"):
+        raise AppError(status_code=400, message="Il file non è un PDF valido.")
+
     if len(content) > MAX_MANUALE_BYTES:
         raise AppError(
             status_code=413,

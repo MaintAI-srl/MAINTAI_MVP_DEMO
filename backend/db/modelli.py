@@ -50,9 +50,11 @@ class RevokedToken(Base):
     """Tabella per tenere traccia dei jti revocati a seguito del logout."""
     __tablename__ = "revoked_tokens"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     jti = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime, default=_utcnow)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    user_id = Column(Integer, nullable=True)
 
 
 class Sito(Base):

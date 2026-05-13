@@ -1,9 +1,10 @@
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from backend.core import storage
-from backend.core.database import SessionLocal
-from backend.db.modelli import Ticket, TicketAllegato
+from backend.core.database import SessionLocal, current_tenant_id
+from backend.db.modelli import Ticket, TicketAllegato, RevokedToken, SystemLog
 
 logger = logging.getLogger("retention_service")
 
@@ -49,16 +50,35 @@ def cleanup_old_deleted_tickets(db: Session, max_age_days: int = 30):
 async def run_retention_job():
     """Loop di background per la pulizia giornaliera."""
     import asyncio
-    # Esegui ogni 24 ore
-    INTERVAL = 86400 
+    INTERVAL = 86400
     while True:
         try:
             db = SessionLocal()
             try:
                 cleanup_old_deleted_tickets(db)
+
+                try:
+                    db.query(RevokedToken).filter(
+                        RevokedToken.expires_at != None,
+                        RevokedToken.expires_at < datetime.now(timezone.utc)
+                    ).delete(synchronize_session=False)
+                    db.commit()
+                except Exception as e:
+                    logger.error("Errore pulizia revoked_tokens: %s", e)
+                    db.rollback()
+
+                try:
+                    log_retention_days = int(os.getenv("LOG_RETENTION_DAYS", "90"))
+                    cutoff_logs = datetime.now(timezone.utc) - timedelta(days=log_retention_days)
+                    db.query(SystemLog).filter(SystemLog.timestamp < cutoff_logs).delete(synchronize_session=False)
+                    db.commit()
+                except Exception as e:
+                    logger.error("Errore pulizia system_logs: %s", e)
+                    db.rollback()
+
             finally:
                 db.close()
         except Exception as e:
             logger.error(f"Errore nel retention job: {e}")
-            
+
         await asyncio.sleep(INTERVAL)

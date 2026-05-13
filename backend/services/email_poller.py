@@ -5,7 +5,7 @@ import logging
 from html import unescape
 from sqlalchemy.orm import Session
 from imap_tools import MailBox, AND
-from backend.core.database import SessionLocal
+from backend.core.database import SessionLocal, current_tenant_id
 from backend.db.modelli import EmailConfig, Ticket, TicketAllegato, Tenant
 from backend.core.security import decrypt_data
 from backend.core.logger_db import db_info, db_error
@@ -46,6 +46,7 @@ def _safe_attachment_name(filename: str | None) -> str:
     return safe or "allegato_sconosciuto"
 
 def parse_and_create_tickets(db: Session, config: EmailConfig):
+    current_tenant_id.set(config.tenant_id)
     try:
         # Decifratura password se necessario (supporto legacy per password in chiaro)
         imap_pass = decrypt_data(config.password) if config.is_encrypted else config.password
@@ -143,6 +144,8 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
         err_msg = f"Errore IMAP - tenant {config.tenant_id} ({safe_account}): {str(e)}"
         logger.error(err_msg)
         db_error("EMAIL_POLLER", err_msg, {"error": str(e)}, config.tenant_id)
+    finally:
+        current_tenant_id.set(None)
 
 def check_all_mailboxes():
     db = SessionLocal()
@@ -153,7 +156,14 @@ def check_all_mailboxes():
             .filter(EmailConfig.active == True, Tenant.is_active == True)
             .all()
         )
-        for config in active_configs:
-            parse_and_create_tickets(db, config)
     finally:
         db.close()
+
+    for config in active_configs:
+        db_tenant = SessionLocal()
+        try:
+            parse_and_create_tickets(db_tenant, config)
+        except Exception as e:
+            logger.error("email_poller: errore tenant %s: %s", config.tenant_id, e)
+        finally:
+            db_tenant.close()

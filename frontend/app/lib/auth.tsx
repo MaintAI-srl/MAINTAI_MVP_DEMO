@@ -125,7 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("maintai:unauthorized", handle);
   }, [logout]);
 
-  if (loading) return null;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0a0f1e]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+    </div>
+  );
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>

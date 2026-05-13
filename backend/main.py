@@ -84,8 +84,6 @@ _DEFAULT_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
-    "http://192.168.1.222:3000",
-    "http://192.168.1.222:3001",
     # produzione web
     "https://maintai.vercel.app",
     "https://maintai-frontend.vercel.app",
@@ -521,12 +519,10 @@ async def lifespan(app: FastAPI):
         print("✅ logging configured")
         init_backend()
         print("✅ backend initialized")
-        _run_alembic_upgrade()  
+        _run_alembic_upgrade()
         print("✅ migrations checked")
-        init_db()               
+        init_db()
         print("✅ main db initialized")
-        _ensure_columns()       
-        print("✅ ensure_columns (post-init) done")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
         traceback.print_exc()

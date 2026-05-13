@@ -1,7 +1,8 @@
 from datetime import timedelta, datetime, timezone, time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from backend.core.rate_limiter import limiter
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel as PydanticModel
@@ -409,7 +410,8 @@ import csv
 from fastapi.responses import StreamingResponse
 
 @router.get("/export/tickets")
-def export_tickets_csv(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+@limiter.limit("5/minute")
+def export_tickets_csv(request: Request, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     data = ticket_repository.get_paginated(db, tenant_id=tenant_id, page=1, limit=10000)
     items = data.get("items", [])
 
@@ -440,7 +442,8 @@ from backend.db.modelli import TicketAllegato
 from backend.core import storage
 
 @router.post("/tickets/{ticket_id}/allegati")
-async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+@limiter.limit("10/minute")
+async def upload_ticket_allegato(request: Request, ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket non trovato")

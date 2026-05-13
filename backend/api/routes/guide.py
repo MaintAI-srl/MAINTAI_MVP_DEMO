@@ -1,14 +1,17 @@
+import logging
 import os
 from typing import Any
 
 import openai
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from backend.core.logger_db import db_info
+from backend.core.rate_limiter import limiter
 from backend.core.security import get_current_user_payload
 
 router = APIRouter(prefix="/guide", tags=["guide"])
+logger = logging.getLogger(__name__)
 
 
 class ChatMessage(BaseModel):
@@ -194,7 +197,9 @@ def _fallback_answer(req: GuideRequest) -> str:
 
 
 @router.post("/chat")
+@limiter.limit("20/minute")
 async def guide_chat(
+    request: Request,
     req: GuideRequest,
     payload: dict = Depends(get_current_user_payload),
 ):
@@ -231,5 +236,6 @@ async def guide_chat(
         answer = response.choices[0].message.content or _fallback_answer(req)
         db_info("GUIDE", f"Felix utilizzato da {payload.get('sub')} su {ctx.path or 'pagina sconosciuta'}")
         return {"content": answer}
-    except Exception:
+    except Exception as exc:
+        logger.warning("guide/chat OpenAI error: %s", exc)
         return {"content": _fallback_answer(req)}

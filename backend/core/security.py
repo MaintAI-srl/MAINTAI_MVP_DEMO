@@ -31,7 +31,7 @@ if not _jwt_secret_raw:
 
 SECRET_KEY: str = _jwt_secret_raw
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 giorni
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24)))
 
 
 # ── ENCRYPTION_KEY ────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ except Exception as _fernet_exc:
 
 COOKIE_NAME = "maintai_jwt"
 COOKIE_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60  # secondi
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() == "true"
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").strip().lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 

@@ -50,9 +50,23 @@ class GeneratePlanRequest(BaseModel):
     include_weekends: bool = False
     allow_overtime: bool = False
 
+    @field_validator("days")
+    @classmethod
+    def validate_days(cls, v: int) -> int:
+        if v < 1 or v > 90:
+            raise ValueError("Il numero di giorni deve essere tra 1 e 90.")
+        return v
+
 
 class DeauthorizeRequest(BaseModel):
     reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def reason_not_empty(cls, v: str) -> str:
+        if len(v.strip()) < 10:
+            raise ValueError("Il motivo di deautorizzazione deve avere almeno 10 caratteri.")
+        return v.strip()
 
 
 class MoveTicketRequest(BaseModel):
@@ -171,10 +185,11 @@ def _batch_completion_pct(plans: List[GeneratedPlan], db: Session) -> Dict[int, 
     # Tutti gli id univoci da cercare
     all_wo_ids = list({wid for ids in plan_wo_map.values() for wid in ids})
 
-    # Una sola query: ticket chiusi tra tutti i WO id (tenant non necessario se wo_ids sono già filtrati per tenant)
+    tenant_ids = list({p.tenant_id for p in plans if p.tenant_id})
     chiusi_rows = db.query(Ticket.id).filter(
         Ticket.id.in_(all_wo_ids),
         Ticket.stato == "Chiuso",
+        Ticket.tenant_id.in_(tenant_ids) if tenant_ids else True,
     ).all()
     chiusi_set = {row[0] for row in chiusi_rows}
 
@@ -202,6 +217,13 @@ def _validate_and_fix_plan(
     Controlla: tecnico/data mancanti, date fuori orizzonte, overflow ore giornaliere.
     Sposta i WO invalidati in deferred con reason_code VALIDATION_ERROR.
     """
+    raw_score = plan_json.get("efficiency_score")
+    if raw_score is not None:
+        try:
+            plan_json["efficiency_score"] = max(0, min(100, float(raw_score)))
+        except (TypeError, ValueError):
+            plan_json["efficiency_score"] = 0
+
     planned = plan_json.get("planned_workorders", [])
     valid = []
     invalid_wo_ids = []
@@ -211,8 +233,17 @@ def _validate_and_fix_plan(
 
     for wo in planned:
         tech_id = wo.get("technician_id")
+        if tech_id is None:
+            logger.warning("_validate_and_fix_plan: technician_id None per wo_id=%s", wo.get("wo_id"))
         wo_date_str = wo.get("planned_date")
-        duration = float(wo.get("duration_hours", 0))
+        raw_dur = wo.get("duration_hours", 0)
+        try:
+            duration = float(raw_dur)
+        except (TypeError, ValueError):
+            duration = 0.0
+        if duration <= 0:
+            duration = 1.0
+            wo["duration_hours"] = 1.0
 
         if not tech_id or not wo_date_str:
             invalid_wo_ids.append(wo.get("wo_id"))
@@ -661,7 +692,9 @@ def evaluate_manual_plan(
 
 
 @router.post("/confirm/{plan_id}")
+@limiter.limit("5/minute")
 def confirm_plan(
+    request: Request,
     plan_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -783,7 +816,9 @@ def confirm_plan(
 
 
 @router.post("/deauthorize/{plan_id}")
+@limiter.limit("5/minute")
 def deauthorize_plan(
+    request: Request,
     plan_id: int,
     data: DeauthorizeRequest,
     db: Session = Depends(get_db),
@@ -1191,7 +1226,7 @@ async def adaptive_replanning(
 
     if "error" in new_plan_json:
         msg = new_plan_json["error"]
-        db_error(db, "PLANNING", f"adaptive_replanning: errore bridge — {msg}", tenant_id=tenant_id)
+        db_error("PLANNING", f"adaptive_replanning: errore bridge — {msg}", tenant_id=tenant_id)
         raise HTTPException(status_code=500, detail=f"Errore motore deterministico: {msg}")
 
     # Salva come nuovo draft

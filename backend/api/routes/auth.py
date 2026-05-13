@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -115,10 +115,11 @@ def logout(
     jti = payload.get("jti")
     if jti:
         from backend.db.modelli import RevokedToken
-        # Aggiunge in blacklist
         existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
         if not existing:
-            db.add(RevokedToken(jti=jti))
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            user_id = payload.get("userid") or payload.get("user_id")
+            db.add(RevokedToken(jti=jti, expires_at=expires_at, user_id=user_id))
             db.commit()
 
     response.delete_cookie(

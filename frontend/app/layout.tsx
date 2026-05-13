@@ -350,11 +350,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                   outline: "none",
                   fontFamily: "var(--font-body)",
                 }}
-                defaultValue={typeof window !== "undefined" ? (localStorage.getItem("maintai_tenant_context") || "") : ""}
+                defaultValue={typeof window !== "undefined" ? (sessionStorage.getItem("maintai_tenant_context") || "") : ""}
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (val) localStorage.setItem("maintai_tenant_context", val);
-                  else localStorage.removeItem("maintai_tenant_context");
+                  if (val) sessionStorage.setItem("maintai_tenant_context", val);
+                  else sessionStorage.removeItem("maintai_tenant_context");
                   window.location.reload();
                 }}
               >
