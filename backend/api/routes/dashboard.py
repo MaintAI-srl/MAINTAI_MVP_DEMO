@@ -1,7 +1,8 @@
 from datetime import date, timedelta, datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, case, distinct
+from sqlalchemy import func, case, distinct, text
 from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
@@ -313,6 +314,113 @@ def dashboard_charts(db: Session = Depends(get_db), tenant_id: int = Depends(get
                 for k in by_stato_asset.keys()
             }.items()
         ],
+    }
+
+
+@router.get("/dashboard/kpi-avanzati")
+def dashboard_kpi_avanzati(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+    """
+    M1.3 / M2.1 — KPI avanzati per dashboard PMI:
+    - top_asset_critici: top 5 asset per frequenza guasti ultimi 90gg
+    - backlog_per_tipo: count ticket Aperti/Pianificati per tipo BD/PM/CM
+    - trend_backlog_7gg: array [{data, count}] ultimi 7 giorni ticket aperti (creati)
+    - costo_fermo_evitato_mese: somma durata*costo_orario_fermo per ticket PM/CM chiusi questo mese
+    """
+    now = datetime.now(timezone.utc)
+    cutoff_90 = now - timedelta(days=90)
+    inizio_mese = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    # ── Top 5 asset critici (per frequenza guasti ultimi 90gg) ──────────────
+    top_guasti = (
+        db.query(
+            Ticket.asset_id,
+            func.count(Ticket.id).label("n_guasti"),
+        )
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.tipo.in_(["BD", "CM"]),
+            Ticket.created_at >= cutoff_90,
+            Ticket.deleted_at.is_(None),
+        )
+        .group_by(Ticket.asset_id)
+        .order_by(func.count(Ticket.id).desc())
+        .limit(5)
+        .all()
+    )
+
+    top_asset_critici = []
+    for row in top_guasti:
+        if not row.asset_id:
+            continue
+        asset = db.query(Asset).filter(Asset.id == row.asset_id, Asset.tenant_id == tenant_id).first()
+        if asset:
+            top_asset_critici.append({
+                "asset_id": asset.id,
+                "nome": asset.nome,
+                "codice": asset.codice or "",
+                "criticita": asset.criticita,
+                "n_guasti": row.n_guasti,
+                "costo_orario_fermo": getattr(asset, "costo_orario_fermo", None),
+            })
+
+    # ── Backlog per tipo (Aperti + Pianificati) ──────────────────────────────
+    backlog_rows = (
+        db.query(Ticket.tipo, func.count(Ticket.id).label("cnt"))
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato.in_(["Aperto", "Pianificato"]),
+            Ticket.deleted_at.is_(None),
+        )
+        .group_by(Ticket.tipo)
+        .all()
+    )
+    backlog_per_tipo = {"BD": 0, "PM": 0, "CM": 0}
+    for row in backlog_rows:
+        if row.tipo in backlog_per_tipo:
+            backlog_per_tipo[row.tipo] = row.cnt
+
+    # ── Trend backlog ultimi 7 giorni (ticket creati) ────────────────────────
+    today = date.today()
+    trend_backlog_7gg = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+        cnt = (
+            db.query(func.count(Ticket.id))
+            .filter(
+                Ticket.tenant_id == tenant_id,
+                Ticket.created_at >= day_start,
+                Ticket.created_at < day_end,
+                Ticket.deleted_at.is_(None),
+            )
+            .scalar() or 0
+        )
+        trend_backlog_7gg.append({"data": day.strftime("%d/%m"), "count": cnt})
+
+    # ── Costo fermo evitato questo mese (ticket PM/CM chiusi × costo_orario_fermo) ──
+    ticket_pm_cm_chiusi = (
+        db.query(Ticket)
+        .options(joinedload(Ticket.asset))
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.tipo.in_(["PM", "CM"]),
+            Ticket.stato == "Chiuso",
+            Ticket.updated_at >= inizio_mese,
+            Ticket.deleted_at.is_(None),
+        )
+        .all()
+    )
+    costo_fermo_evitato_mese = 0.0
+    for t in ticket_pm_cm_chiusi:
+        if t.asset and getattr(t.asset, "costo_orario_fermo", None) and t.durata_stimata_ore:
+            costo_fermo_evitato_mese += t.durata_stimata_ore * t.asset.costo_orario_fermo
+
+    return {
+        "top_asset_critici": top_asset_critici,
+        "backlog_per_tipo": backlog_per_tipo,
+        "trend_backlog_7gg": trend_backlog_7gg,
+        "costo_fermo_evitato_mese": round(costo_fermo_evitato_mese, 2),
     }
 
 

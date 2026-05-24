@@ -139,8 +139,14 @@ class Asset(Base):
     vincoli_operativi = Column(Text, nullable=True)
     vincoli_manutenzione = Column(Text, nullable=True)
     note_tecniche = Column(Text, nullable=True)
-    criticita = Column(String, default="media")
+    criticita = Column(String, nullable=True)  # A | B | C | null (classificazione critica)
     posizione_fisica = Column(String, nullable=True)
+
+    # M2.1 — Costo fermo asset (€/ora)
+    costo_orario_fermo = Column(Float, nullable=True)
+
+    # M2.2 — Predisposizione ricambi (codice per futura integrazione modulo esterno)
+    codice_ricambio_esterno = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
@@ -233,6 +239,10 @@ class Ticket(Base):
     # Dati ereditati dalla gerarchia Asset → Impianto → Sito (denormalizzati per query veloci)
     sito_name = Column(String, nullable=True)
     impianto_name = Column(String, nullable=True)
+
+    # M2.2 — Predisposizione ricambi
+    ricambio_note = Column(Text, nullable=True)        # nota libera ricambio usato
+    in_attesa_ricambio = Column(Boolean, default=False) # flag "bloccato in attesa ricambio"
 
     asset = relationship("Asset", back_populates="tickets")
     tecnico = relationship("Tecnico")
@@ -566,3 +576,60 @@ class DiagnosticLearning(Base):
     created_at = Column(DateTime, default=_utcnow)
 
     failure_mode = relationship("FailureMode")
+
+
+# ─── M4 / M5 — Knowledge & Compliance ────────────────────────────────────────
+
+class Procedura(Base):
+    """Procedura operativa breve collegata a un asset (ispezione, LOTO, sostituzione…)."""
+    __tablename__ = "procedure"
+
+    id = Column(Integer, primary_key=True)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    titolo = Column(String, nullable=False)
+    tipo = Column(String, default="ispezione")  # ispezione | sostituzione | taratura | loto | emergenza
+    passi = Column(Text, default="[]")           # JSON array di stringhe
+    revisione = Column(Integer, default=1)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class NotaAsset(Base):
+    """Nota tecnica senior su un asset — upsert (una sola nota per asset)."""
+    __tablename__ = "note_asset"
+
+    id = Column(Integer, primary_key=True)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    testo = Column(Text, nullable=False)
+    autore = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class CheckPrimoLivello(Base):
+    """Checklist di ispezione per operatori non autenticati (accesso via public_token)."""
+    __tablename__ = "check_primo_livello"
+
+    id = Column(Integer, primary_key=True)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    public_token = Column(String, nullable=False, unique=True, index=True)  # UUID per accesso pubblico
+    voci = Column(Text, default="[]")  # JSON: [{label, descrizione}]
+    created_at = Column(DateTime, default=_utcnow)
+
+
+class Attestato(Base):
+    """Attestato di formazione / qualifica collegato a un tecnico."""
+    __tablename__ = "attestati"
+
+    id = Column(Integer, primary_key=True)
+    tecnico_id = Column(Integer, ForeignKey("tecnici.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tipo_corso = Column(String, nullable=False)
+    ente_certificatore = Column(String, nullable=True)
+    data_conseguimento = Column(Date, nullable=True)
+    data_scadenza = Column(Date, nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)

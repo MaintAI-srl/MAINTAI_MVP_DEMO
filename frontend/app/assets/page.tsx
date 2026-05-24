@@ -28,6 +28,10 @@ type Asset = {
   weather_sunny_required?: boolean;
   weather_max_wind_kmh?: number;
   weather_max_rain_mm?: number;
+  // M1.2
+  criticita?: string | null;
+  // M2.1
+  costo_orario_fermo?: number | null;
 };
 
 export default function AssetsPage() {
@@ -211,6 +215,25 @@ export default function AssetsPage() {
       accessorKey: "impianto_nome",
       header: "Impianto",
       meta: { filterVariant: "text" },
+    },
+    {
+      accessorKey: "criticita",
+      header: "Criticita'",
+      cell: ({ getValue }) => {
+        const v = getValue<string | null>();
+        if (!v) return <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>—</span>;
+        const mapABC: Record<string, { bg: string; color: string }> = {
+          A: { bg: "#ef444420", color: "#ef4444" },
+          B: { bg: "#f9730020", color: "#f97316" },
+          C: { bg: "#22c55e20", color: "#22c55e" },
+        };
+        const style = mapABC[v] || { bg: "#94a3b820", color: "#94a3b8" };
+        return (
+          <span style={{ background: style.bg, color: style.color, border: `1px solid ${style.color}55`, borderRadius: "999px", padding: "2px 8px", fontSize: 11, fontWeight: 700, letterSpacing: "0.5px" }}>
+            {mapABC[v] ? `Crit. ${v}` : v}
+          </span>
+        );
+      },
     },
     {
       id: "meteo",

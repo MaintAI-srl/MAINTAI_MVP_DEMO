@@ -1,5 +1,5 @@
 /**
- * MaintAI Service Worker v2.2
+ * MaintAI Service Worker v2.3
  *
  * Strategia: Network-First per dati offline selezionati.
  * HTML e bundle Next.js devono restare sempre freschi per gli update Vercel.
@@ -13,10 +13,12 @@
  * Cachea per uso offline (tecnico sul campo):
  * - GET /tickets (ultimo snapshot)
  * - GET /assets (catalogo asset)
+ * - GET /storico/* (storico interventi asset — mobile)
+ * - GET /assets/{id}/kpi (KPI asset)
  * - GET /tecnici/me (profilo tecnico)
  */
 
-const CACHE_NAME = "maintai-api-v2.2";
+const CACHE_NAME = "maintai-api-v2.3";
 
 // La shell Next/Vercel non viene precachata: deve aggiornarsi a ogni deploy.
 const APP_SHELL = [];
@@ -25,6 +27,7 @@ const APP_SHELL = [];
 const CACHEABLE_API_PATTERNS = [
   /\/tickets\?/,
   /\/assets$/,
+  /\/assets\/\d+\/kpi/,
   /\/tecnici\/me/,
   /\/scadenze\/imminenti/,
 ];

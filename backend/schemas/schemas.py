@@ -35,8 +35,12 @@ class AssetCreate(BaseModel):
     vincoli_operativi: Optional[str] = None
     vincoli_manutenzione: Optional[str] = None
     note_tecniche: Optional[str] = None
-    criticita: Optional[str] = "media"
+    criticita: Optional[str] = None  # A | B | C | null
     posizione_fisica: Optional[str] = None
+    # M2.1
+    costo_orario_fermo: Optional[float] = None
+    # M2.2
+    codice_ricambio_esterno: Optional[str] = None
 
     def effective_nome(self) -> str:
         return self.nome or self.name or ""
@@ -72,6 +76,10 @@ class AssetUpdate(BaseModel):
     note_tecniche: Optional[str] = None
     criticita: Optional[str] = None
     posizione_fisica: Optional[str] = None
+    # M2.1
+    costo_orario_fermo: Optional[float] = None
+    # M2.2
+    codice_ricambio_esterno: Optional[str] = None
 
 
 class AssetResponse(BaseModel):
@@ -106,8 +114,12 @@ class AssetResponse(BaseModel):
     vincoli_operativi: Optional[str] = None
     vincoli_manutenzione: Optional[str] = None
     note_tecniche: Optional[str] = None
-    criticita: Optional[str] = "media"
+    criticita: Optional[str] = None
     posizione_fisica: Optional[str] = None
+    # M2.1
+    costo_orario_fermo: Optional[float] = None
+    # M2.2
+    codice_ricambio_esterno: Optional[str] = None
 
 
 

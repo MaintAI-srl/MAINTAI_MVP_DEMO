@@ -43,6 +43,10 @@ try:
     from backend.api.routes.conditions import router as conditions_router
     from backend.api.routes.failure_engine import router as failure_engine_router
     from backend.api.routes.guide import router as guide_router
+    from backend.api.routes.procedure import router as procedure_router
+    from backend.api.routes.note_asset import router as note_asset_router
+    from backend.api.routes.check_primo_livello import router as check_pl_router
+    from backend.api.routes.attestati import router as attestati_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -207,7 +211,112 @@ def _ensure_columns() -> None:
         ("failure_modes", "is_global",    "ALTER TABLE failure_modes ADD COLUMN {ifne}is_global BOOLEAN DEFAULT TRUE"),
         # failure_analysis — spiegazione AI (v3.2.0)
         ("failure_analysis", "ai_explanation", "ALTER TABLE failure_analysis ADD COLUMN {ifne}ai_explanation TEXT"),
+        # M1.2 — Asset criticità A/B/C (prima era stringa generica)
+        # (campo già esistente, solo assicuriamo il tipo corretto — nessuna ALTER necessaria)
+        # M2.1 — Asset costo fermo (€/ora)
+        ("asset", "costo_orario_fermo",       "ALTER TABLE asset ADD COLUMN {ifne}costo_orario_fermo FLOAT"),
+        # M2.2 — Asset codice ricambio esterno
+        ("asset", "codice_ricambio_esterno",   "ALTER TABLE asset ADD COLUMN {ifne}codice_ricambio_esterno VARCHAR"),
+        # M2.2 — Ticket predisposizione ricambi
+        ("ticket", "ricambio_note",            "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_note TEXT"),
+        ("ticket", "in_attesa_ricambio",       "ALTER TABLE ticket ADD COLUMN {ifne}in_attesa_ricambio BOOLEAN DEFAULT FALSE"),
     ]
+
+    # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)
+    procedure_pg = """
+        CREATE TABLE IF NOT EXISTS procedure (
+            id SERIAL PRIMARY KEY,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            titolo VARCHAR NOT NULL,
+            tipo VARCHAR DEFAULT 'ispezione',
+            passi TEXT DEFAULT '[]',
+            revisione INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    procedure_sqlite = """
+        CREATE TABLE IF NOT EXISTS procedure (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            titolo VARCHAR NOT NULL,
+            tipo VARCHAR DEFAULT 'ispezione',
+            passi TEXT DEFAULT '[]',
+            revisione INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    note_asset_pg = """
+        CREATE TABLE IF NOT EXISTS note_asset (
+            id SERIAL PRIMARY KEY,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            testo TEXT NOT NULL,
+            autore VARCHAR,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    note_asset_sqlite = """
+        CREATE TABLE IF NOT EXISTS note_asset (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            testo TEXT NOT NULL,
+            autore VARCHAR,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    check_pl_pg = """
+        CREATE TABLE IF NOT EXISTS check_primo_livello (
+            id SERIAL PRIMARY KEY,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            public_token VARCHAR NOT NULL UNIQUE,
+            voci TEXT DEFAULT '[]',
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    check_pl_sqlite = """
+        CREATE TABLE IF NOT EXISTS check_primo_livello (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL REFERENCES asset(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            public_token VARCHAR NOT NULL UNIQUE,
+            voci TEXT DEFAULT '[]',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    attestati_pg = """
+        CREATE TABLE IF NOT EXISTS attestati (
+            id SERIAL PRIMARY KEY,
+            tecnico_id INTEGER NOT NULL REFERENCES tecnici(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            tipo_corso VARCHAR NOT NULL,
+            ente_certificatore VARCHAR,
+            data_conseguimento DATE,
+            data_scadenza DATE,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    attestati_sqlite = """
+        CREATE TABLE IF NOT EXISTS attestati (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tecnico_id INTEGER NOT NULL REFERENCES tecnici(id),
+            tenant_id INTEGER REFERENCES tenants(id),
+            tipo_corso VARCHAR NOT NULL,
+            ente_certificatore VARCHAR,
+            data_conseguimento DATE,
+            data_scadenza DATE,
+            note TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
 
     # system_logs — tabella intera
     sl_pg = """
@@ -500,6 +609,11 @@ def _ensure_columns() -> None:
         _exec_ddl(fm_pg if pg else fm_sqlite, "failure_modes CREATE")
         _exec_ddl(fa_pg if pg else fa_sqlite, "failure_analysis CREATE")
         _exec_ddl(dl_pg if pg else dl_sqlite, "diagnostic_learning CREATE")
+        # M4 / M5 — nuove tabelle knowledge & compliance
+        _exec_ddl(procedure_pg if pg else procedure_sqlite, "procedure CREATE")
+        _exec_ddl(note_asset_pg if pg else note_asset_sqlite, "note_asset CREATE")
+        _exec_ddl(check_pl_pg if pg else check_pl_sqlite, "check_primo_livello CREATE")
+        _exec_ddl(attestati_pg if pg else attestati_sqlite, "attestati CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:
@@ -639,6 +753,10 @@ app.include_router(desktop_update_router)
 app.include_router(conditions_router)
 app.include_router(failure_engine_router)
 app.include_router(guide_router)
+app.include_router(procedure_router)
+app.include_router(note_asset_router)
+app.include_router(check_pl_router)
+app.include_router(attestati_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.

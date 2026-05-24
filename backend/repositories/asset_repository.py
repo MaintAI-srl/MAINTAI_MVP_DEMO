@@ -61,8 +61,10 @@ def _to_dict(asset: Asset) -> dict:
         "vincoli_operativi": asset.vincoli_operativi,
         "vincoli_manutenzione": asset.vincoli_manutenzione,
         "note_tecniche": asset.note_tecniche,
-        "criticita": asset.criticita or "media",
+        "criticita": asset.criticita,  # A | B | C | null
         "posizione_fisica": asset.posizione_fisica,
+        "costo_orario_fermo": asset.costo_orario_fermo,
+        "codice_ricambio_esterno": getattr(asset, "codice_ricambio_esterno", None),
         "tenant_id": asset.tenant_id,
     }
 
@@ -86,6 +88,8 @@ _NEW_ANAGRAFICA_FIELDS = [
     "matricola", "numero_serie", "fornitore", "data_acquisto",
     "data_scadenza_garanzia", "vincoli_operativi", "vincoli_manutenzione",
     "note_tecniche", "criticita", "posizione_fisica",
+    # M2.1/M2.2
+    "costo_orario_fermo", "codice_ricambio_esterno",
 ]
 
 
@@ -160,8 +164,10 @@ class AssetRepository:
             vincoli_operativi=data.vincoli_operativi,
             vincoli_manutenzione=data.vincoli_manutenzione,
             note_tecniche=data.note_tecniche,
-            criticita=data.criticita or "media",
+            criticita=data.criticita,
             posizione_fisica=data.posizione_fisica,
+            costo_orario_fermo=getattr(data, "costo_orario_fermo", None),
+            codice_ricambio_esterno=getattr(data, "codice_ricambio_esterno", None),
             tenant_id=tenant_id,
         )
 

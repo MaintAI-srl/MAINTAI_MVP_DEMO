@@ -34,6 +34,11 @@ type Ticket = {
   diagnosi_eseguita?: boolean;
   is_manual_plan?: boolean;
   created_at?: string | null;
+  // M2.1
+  costo_fermo_stimato?: number | null;
+  // M2.2
+  ricambio_note?: string | null;
+  in_attesa_ricambio?: boolean;
 };
 
 type Asset = { id: number; name: string };
@@ -244,6 +249,12 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
   const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
 
+  // M2.2 — Ricambi
+  const [ricambioNote, setRicambioNote] = useState(ticket.ricambio_note ?? "");
+  const [inAttesaRicambio, setInAttesaRicambio] = useState(ticket.in_attesa_ricambio ?? false);
+  const [ricambiOpen, setRicambiOpen] = useState(!!(ticket.in_attesa_ricambio || ticket.ricambio_note));
+  const [savingRicambio, setSavingRicambio] = useState(false);
+
   // Auto-calcolo fine pianificata — usa helper locale per evitare bug timezone
   useEffect(() => {
     if (plannedStart && durataOre) {
@@ -336,6 +347,22 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
     } finally { setSaving(false); }
   }
 
+  async function saveRicambio() {
+    setSavingRicambio(true);
+    try {
+      await apiPost(`/tickets/${ticket.id}/ricambio-usato`, {
+        ricambio_note: ricambioNote.trim() || null,
+        in_attesa_ricambio: inAttesaRicambio,
+      });
+      notify.success("Ricambio aggiornato.");
+      onSaved();
+    } catch {
+      notify.error("Errore nel salvataggio ricambio.");
+    } finally {
+      setSavingRicambio(false);
+    }
+  }
+
   function handleSave() {
     // Pianificato richiede data obbligatoriamente
     if (stato === "Pianificato" && !plannedStart) {
@@ -400,6 +427,13 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
                 </button>
               ))}
             </div>
+            {/* M2.1 — Badge costo fermo stimato */}
+            {ticket.costo_fermo_stimato != null && ticket.costo_fermo_stimato > 0 && (
+              <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.30)", color: "#fbbf24", fontSize: 12, fontWeight: 700 }}>
+                <span>⚠</span>
+                Fermo stimato: €{ticket.costo_fermo_stimato.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -474,6 +508,81 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           <div style={{ padding: "8px", background: "var(--border-subtle)", borderRadius: 12, border: "1px dashed var(--border-default)" }}>
             <UploadAllegati ticketId={ticket.id} />
           </div>
+        </div>
+
+        {/* M2.2 — Sezione Ricambi collassabile */}
+        <div style={{ marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => setRicambiOpen(o => !o)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 16px", borderRadius: ricambiOpen ? "8px 8px 0 0" : 8,
+              background: inAttesaRicambio ? "rgba(239,68,68,0.08)" : "var(--border-subtle)",
+              border: inAttesaRicambio ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border-default)",
+              color: inAttesaRicambio ? "#fca5a5" : "var(--text-soft)",
+              cursor: "pointer", fontWeight: 700, fontSize: 12, textAlign: "left",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>🔧</span>
+              Ricambi
+              {inAttesaRicambio && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(239,68,68,0.18)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", fontWeight: 800 }}>IN ATTESA</span>
+              )}
+            </span>
+            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{ricambiOpen ? "▲" : "▼"}</span>
+          </button>
+          {ricambiOpen && (
+            <div style={{ padding: "16px", background: "var(--border-subtle)", border: "1px solid var(--border-default)", borderTop: "none", borderRadius: "0 0 8px 8px", display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Toggle in attesa ricambio */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={inAttesaRicambio}
+                  onClick={() => setInAttesaRicambio(v => !v)}
+                  style={{
+                    width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", flexShrink: 0,
+                    background: inAttesaRicambio ? "#ef4444" : "#334155",
+                    position: "relative", transition: "background 0.2s",
+                  }}
+                >
+                  <span style={{
+                    position: "absolute", top: 2, left: inAttesaRicambio ? 20 : 2,
+                    width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                    transition: "left 0.2s",
+                  }} />
+                </button>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: inAttesaRicambio ? "#fca5a5" : "var(--text-soft)" }}>In attesa ricambio</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Il ticket è bloccato in attesa di un ricambio</div>
+                </div>
+              </div>
+              {/* Note ricambio */}
+              <div>
+                <label style={{ ...modalLabel, marginBottom: 6 }}>Note ricambio</label>
+                <textarea
+                  value={ricambioNote}
+                  onChange={e => setRicambioNote(e.target.value)}
+                  rows={3}
+                  placeholder="Es. Guarnizione flangia DN50 — codice fornitore X123..."
+                  style={{ width: "100%", background: "#0d1829", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                />
+              </div>
+              {/* Pulsante salva ricambi */}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={saveRicambio}
+                  disabled={savingRicambio}
+                  style={{ padding: "7px 20px", borderRadius: 7, background: savingRicambio ? "var(--border-subtle)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", color: "#000", fontWeight: 700, fontSize: 12, cursor: savingRicambio ? "not-allowed" : "pointer" }}
+                >
+                  {savingRicambio ? "Salvataggio…" : "Salva Ricambi"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -907,11 +1016,12 @@ export default function TicketPage() {
       cell: ({ row }) => {
         const t = row.original;
         return (
-          <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
             <span style={{ ...getTipoStyle(t.tipo), fontSize: 10, padding: "2px 7px", borderRadius: 4, fontWeight: 700, letterSpacing: "0.04em" }}>{t.tipo}</span>
-            {t.diagnosi_eseguita && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>AI</span>}
-            {t.parent_id && <span style={{ marginLeft: 5, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)", fontWeight: 700 }}>↳#{t.parent_id}</span>}
-          </>
+            {t.diagnosi_eseguita && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>AI</span>}
+            {t.parent_id && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)", fontWeight: 700 }}>↳#{t.parent_id}</span>}
+            {t.in_attesa_ricambio && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.35)", fontWeight: 800 }}>RICAMBIO</span>}
+          </div>
         );
       },
     },

@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
+import QuickTicketModal from "./components/QuickTicketModal";
 import GuideBot from "./components/GuideBot";
 import { VERSION } from "./lib/version";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
@@ -22,7 +23,7 @@ import {
   LayoutDashboard, CalendarClock, ClipboardList, Factory,
   Users, Wrench, CalendarDays, Building, UploadCloud,
   ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
-  Activity, Cpu, Zap, BrainCircuit, Settings, Gauge
+  Activity, Cpu, Zap, BrainCircuit, Settings, Gauge, ShieldCheck
 } from "lucide-react";
 
 // Fonts now loaded above individually
@@ -50,6 +51,7 @@ const NAV = [
       { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
       { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} /> },
       { href: "/condizioni", label: "Dati Misure Asset",   icon: <Gauge size={14} strokeWidth={1.8} /> },
+      { href: "/compliance", label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, adminOnly: true },
     ],
   },
   {
@@ -84,6 +86,8 @@ const PAGE_LABELS: Record<string, string> = {
   "/admin/email":        "Email to Ticket",
   "/admin/utenti":       "Gestione Utenti",
   "/profilo":            "Mio Profilo",
+  "/compliance":         "Scadenzario Attestati",
+  "/storico":            "Storico Interventi",
 };
 
 function GlobalOfflineIndicator() {
@@ -206,14 +210,26 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Pagine pubbliche (nessun redirect al login)
+  const isPublicPage = pathname === "/login" || pathname.startsWith("/check/");
+
   useEffect(() => {
-    if (!isAuthenticated && pathname !== "/login") {
+    if (!isAuthenticated && !isPublicPage) {
       router.push("/login");
     }
-  }, [isAuthenticated, pathname, router]);
+  }, [isAuthenticated, pathname, router, isPublicPage]);
 
-  if (!isAuthenticated || pathname === "/login") {
+  if (!isAuthenticated || isPublicPage) {
     return <main style={{ height: "100vh", width: "100vw" }}>{children}</main>;
+  }
+
+  // Layout mobile-first per storico interventi — full screen, no sidebar
+  if (pathname.startsWith("/storico/")) {
+    return (
+      <div style={{ minHeight: "100dvh", background: "#0a0f1e", color: "#f1f5f9" }}>
+        {children}
+      </div>
+    );
   }
 
   // Layout dedicato per la pagina mobile tecnici — full-screen, no sidebar
@@ -532,6 +548,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <AppLayoutContent>{children}</AppLayoutContent>
           {/* <GuideBot /> */}
+          <QuickTicketModal />
         </AuthProvider>
         <Toaster
           position="bottom-right"
