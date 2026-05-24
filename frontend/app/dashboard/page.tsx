@@ -68,6 +68,16 @@ type KpiAssetItem = {
   downtime_seconds?: number | null;
 };
 type KpiAsset = { assets: KpiAssetItem[]; aggregati: { avg_mtbf_giorni: number; avg_oee_pct: number } };
+
+// M1.3 / M2.1
+type TopAssetCritico = { asset_id: number; nome: string; codice: string; criticita: string | null; n_guasti: number; costo_orario_fermo: number | null };
+type KpiAvanzati = {
+  top_asset_critici: TopAssetCritico[];
+  backlog_per_tipo: { BD: number; PM: number; CM: number };
+  trend_backlog_7gg: { data: string; count: number }[];
+  costo_fermo_evitato_mese: number;
+};
+
 type KpiOptionId =
   | "asset_totali"
   | "asset_servizio"
@@ -672,6 +682,7 @@ export default function DashboardPage() {
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
   const [trend, setTrend] = useState<TrendData | null>(null);
   const [kpiAsset, setKpiAsset] = useState<(KpiAsset & { total: number; page: number; pages: number }) | null>(null);
+  const [kpiAvanzati, setKpiAvanzati] = useState<KpiAvanzati | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -708,14 +719,16 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadInitial() {
       try {
-        const [dashboardData, chartsData, trendData] = await Promise.all([
+        const [dashboardData, chartsData, trendData, kpiAvanzatiData] = await Promise.all([
           apiGet<DashboardData>("/dashboard"),
           apiGet<DashboardCharts>("/dashboard/charts"),
           apiGet<TrendData>("/dashboard/trends").catch(() => null),
+          apiGet<KpiAvanzati>("/dashboard/kpi-avanzati").catch(() => null),
         ]);
         if (dashboardData) { setDashboard(dashboardData); if (dashboardData.areas) setAreas(dashboardData.areas); }
         if (chartsData) setCharts(chartsData);
         if (trendData) setTrend(trendData);
+        if (kpiAvanzatiData) setKpiAvanzati(kpiAvanzatiData);
         setLastUpdate(new Date());
       } catch { notify.error("Errore di connessione al backend."); }
       finally { setLoading(false); }
@@ -1254,6 +1267,83 @@ export default function DashboardPage() {
           </DndContext>
         </div>
       ) : null}
+
+      {/* ── KPI Avanzati PMI (M1.3 + M2.1) */}
+      {kpiAvanzati && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+
+            {/* Backlog per tipo */}
+            <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#94a3b8", marginBottom: 16 }}>Backlog Aperti per Tipo</div>
+              <div style={{ display: "flex", gap: 12, justifyContent: "space-around" }}>
+                {([["BD", "#ef4444"], ["PM", "#22c55e"], ["CM", "#f59e0b"]] as [string, string][]).map(([tipo, color]) => (
+                  <div key={tipo} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, color }}>{kpiAvanzati.backlog_per_tipo[tipo as keyof typeof kpiAvanzati.backlog_per_tipo]}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", background: color + "22", color, border: `1px solid ${color}44`, borderRadius: 6, padding: "2px 10px", marginTop: 4 }}>{tipo}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Trend backlog 7gg */}
+            <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#94a3b8", marginBottom: 12 }}>Ticket Aperti — Ultimi 7 giorni</div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
+                {kpiAvanzati.trend_backlog_7gg.map((item, i) => {
+                  const max = Math.max(...kpiAvanzati.trend_backlog_7gg.map(t => t.count), 1);
+                  const h = Math.max((item.count / max) * 52, 4);
+                  const isToday = i === kpiAvanzati.trend_backlog_7gg.length - 1;
+                  return (
+                    <div key={item.data} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                      <div style={{ width: "100%", height: `${h}px`, background: isToday ? "#5b8fff" : "#5b8fff44", borderRadius: "3px 3px 0 0", transition: "height 0.3s" }} title={`${item.data}: ${item.count}`} />
+                      <div style={{ fontSize: 9, color: "#64748b", whiteSpace: "nowrap" }}>{item.data}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Costo fermo evitato */}
+            {kpiAvanzati.costo_fermo_evitato_mese > 0 && (
+              <div style={{ background: "var(--grad-card)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#22c55e", marginBottom: 8 }}>Costo Fermo Evitato (mese)</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: "#22c55e" }}>€{kpiAvanzati.costo_fermo_evitato_mese.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Somma interventi PM/CM chiusi questo mese × costo/h asset</div>
+              </div>
+            )}
+          </div>
+
+          {/* Top 5 Asset Critici */}
+          {kpiAvanzati.top_asset_critici.length > 0 && (
+            <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#94a3b8", marginBottom: 14 }}>Top 5 Asset Critici — Guasti 90gg</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {kpiAvanzati.top_asset_critici.map((a, i) => {
+                  const mapABC: Record<string, string> = { A: "#ef4444", B: "#f97316", C: "#22c55e" };
+                  const critColor = a.criticita ? (mapABC[a.criticita] || "#94a3b8") : "#94a3b8";
+                  return (
+                    <div key={a.asset_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < kpiAvanzati.top_asset_critici.length - 1 ? "1px solid var(--border-default)" : "none" }}>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1f2937", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#94a3b8", flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{a.nome}</span>
+                        {a.codice && <span style={{ marginLeft: 6, fontSize: 10, color: "#94a3b8" }}>({a.codice})</span>}
+                      </div>
+                      {a.criticita && (
+                        <span style={{ background: critColor + "22", color: critColor, border: `1px solid ${critColor}44`, borderRadius: "999px", padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>
+                          {["A","B","C"].includes(a.criticita) ? `Crit. ${a.criticita}` : a.criticita}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: a.n_guasti > 3 ? "#ef4444" : "#f59e0b", minWidth: 60, textAlign: "right" }}>{a.n_guasti} guasti</span>
+                      <a href={`/asset?id=${a.asset_id}`} style={{ fontSize: 10, color: "#5b8fff", textDecoration: "none", border: "1px solid #5b8fff44", borderRadius: 4, padding: "2px 8px", flexShrink: 0 }}>Dettaglio</a>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── KPI Cards */}
       {false && dashboard && (

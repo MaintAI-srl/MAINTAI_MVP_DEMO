@@ -61,6 +61,15 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "origine_piano": getattr(t, "origine_piano", None),
         "tenant_id": t.tenant_id,
         "created_at": t.created_at.isoformat() if t.created_at else None,
+        # M2.2 — Predisposizione ricambi
+        "ricambio_note": getattr(t, "ricambio_note", None),
+        "in_attesa_ricambio": bool(getattr(t, "in_attesa_ricambio", False)),
+        # M2.1 — Costo fermo stimato (calcolato se asset ha costo_orario_fermo)
+        "costo_fermo_stimato": (
+            round((t.durata_stimata_ore or 0) * t.asset.costo_orario_fermo, 2)
+            if t.asset and getattr(t.asset, "costo_orario_fermo", None) and t.durata_stimata_ore
+            else None
+        ),
     }
 
 
@@ -240,7 +249,13 @@ class TicketRepository:
             from datetime import datetime, timezone
             ts = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
             prefix = ticket.descrizione.strip() + "\n\n" if ticket.descrizione else ""
-            ticket.descrizione = f"{prefix}📢 Nota vocale [{ts}]:\n{data.note_vocali}"
+            ticket.descrizione = f"{prefix}Nota vocale [{ts}]:\n{data.note_vocali}"
+
+        # M2.2 — Predisposizione ricambi
+        if getattr(data, "ricambio_note", None) is not None:
+            ticket.ricambio_note = data.ricambio_note
+        if getattr(data, "in_attesa_ricambio", None) is not None:
+            ticket.in_attesa_ricambio = data.in_attesa_ricambio
 
         db.commit()
         db.refresh(ticket)

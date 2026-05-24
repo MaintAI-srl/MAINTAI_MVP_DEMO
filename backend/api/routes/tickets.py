@@ -240,6 +240,66 @@ def sync_ticket_hierarchy(
     return {"updated": updated, "total": len(tickets)}
 
 
+class QuickTicketCreate(PydanticModel):
+    """M1.1 — Ticket rapido da campo: soli 3 campi obbligatori."""
+    asset_id: int
+    descrizione: str
+    tipo: str = "BD"  # BD | PM | CM
+
+
+@router.post("/tickets/quick", status_code=201)
+def create_quick_ticket(
+    data: QuickTicketCreate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    payload: dict = Depends(get_current_user_payload),
+):
+    """
+    M1.1 — Crea un ticket rapido da campo in < 30 secondi.
+    Valori di default: stato=Aperto, priorita=Media, durata=1h, fascia_oraria=mattina.
+    """
+    from backend.db.modelli import Asset as AssetModel
+    asset = db.query(AssetModel).filter(
+        AssetModel.id == data.asset_id,
+        AssetModel.tenant_id == tenant_id,
+    ).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset non trovato")
+
+    # Tipo validazione
+    if data.tipo not in {"BD", "PM", "CM"}:
+        raise HTTPException(status_code=400, detail="Tipo non valido. Usa BD, PM o CM.")
+
+    ticket = Ticket(
+        titolo=data.descrizione[:200] if data.descrizione else f"Ticket rapido - {asset.nome}",
+        asset_id=data.asset_id,
+        tipo=data.tipo,
+        priorita="Media",
+        stato="Aperto",
+        durata_stimata_ore=1.0,
+        fascia_oraria="mattina",
+        descrizione=data.descrizione,
+        tenant_id=tenant_id,
+        sito_name=None,
+        impianto_name=None,
+    )
+    # Denormalizza gerarchia
+    if asset.impianto:
+        ticket.impianto_name = asset.impianto.nome
+        if asset.impianto.sito:
+            ticket.sito_name = asset.impianto.sito.nome
+
+    username = payload.get("sub") or payload.get("username") or payload.get("email")
+    if username:
+        ticket.created_by = username
+
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+    log_to_db("INFO", "TICKETS", f"Ticket rapido #{ticket.id} creato da '{username}' su asset {asset.nome}", tenant_id=tenant_id)
+    return _ticket_to_dict(ticket)
+
+
 @router.post("/tickets")
 def create_ticket(
     data: TicketCreate,
@@ -402,6 +462,38 @@ def update_ticket(
         db.commit()
 
     return result
+
+
+class RicambioUsatoRequest(PydanticModel):
+    """M2.2 — Aggiorna i dati ricambio su un ticket."""
+    ricambio_note: Optional[str] = None
+    in_attesa_ricambio: Optional[bool] = None
+
+
+@router.post("/tickets/{ticket_id}/ricambio-usato", tags=["integration-future"])
+def registra_ricambio_usato(
+    ticket_id: int,
+    data: RicambioUsatoRequest,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    M2.2 — Salva note ricambio e flag attesa sul ticket.
+    Predisposizione integrazione modulo ricambi esterno.
+    """
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+
+    if data.ricambio_note is not None:
+        ticket.ricambio_note = data.ricambio_note
+    if data.in_attesa_ricambio is not None:
+        ticket.in_attesa_ricambio = data.in_attesa_ricambio
+
+    db.commit()
+    db.refresh(ticket)
+    log_to_db("INFO", "TICKETS", f"Ticket #{ticket_id}: ricambio aggiornato — attesa={ticket.in_attesa_ricambio}", tenant_id=tenant_id)
+    return _ticket_to_dict(ticket)
 
 
 import io

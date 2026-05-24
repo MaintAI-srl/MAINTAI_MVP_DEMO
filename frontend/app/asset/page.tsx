@@ -25,13 +25,32 @@ interface SitoNode {
 }
 interface AssetDetail {
   id: number; nome: string; codice?: string; area?: string; stato: string;
-  criticita: string; descrizione?: string; impianto_id?: number;
+  criticita?: string | null; descrizione?: string; impianto_id?: number;
   impianto_nome?: string; sito_id?: number; sito_nome?: string;
   marca?: string; modello?: string; matricola?: string; numero_serie?: string;
   fornitore?: string; anno_installazione?: number; anno_produzione?: number;
   data_acquisto?: string; data_scadenza_garanzia?: string;
   vincoli_operativi?: string; vincoli_manutenzione?: string; note_tecniche?: string;
   posizione_fisica?: string; piani_manutenzione?: PianoItem[]; tickets?: TicketItem[];
+  // M2.1
+  costo_orario_fermo?: number | null;
+  // M2.2
+  codice_ricambio_esterno?: string | null;
+}
+
+interface AssetKpi {
+  asset_id: number; asset_nome: string;
+  mtbf_giorni: number | null; mttr_ore: number | null;
+  n_guasti_90gg: number; disponibilita_pct: number | null;
+  n_guasti_totali: number;
+}
+interface Procedura {
+  id: number; asset_id: number; titolo: string; tipo: string;
+  passi: string[]; revisione: number; created_at?: string; updated_at?: string;
+}
+interface NotaAsset {
+  id: number; asset_id: number; testo: string;
+  autore?: string; created_at?: string; updated_at?: string;
 }
 interface PianoItem { id: number; descrizione: string; frequenza_giorni: number; durata_ore: number; priorita: string; prossima_scadenza?: string; }
 interface TicketItem { id: number; titolo: string; stato: string; priorita: string; tipo: string; created_at?: string; }
@@ -39,12 +58,17 @@ type SelectionType = "sito" | "impianto" | "asset" | null;
 
 // ─── Chips & helpers ──────────────────────────────────────────────────────────
 
-function CriticitaChip({ valore }: { valore: string }) {
-  const map: Record<string, string> = { bassa: "var(--green)", media: "var(--amber)", alta: "#f97316", critica: "var(--red)" };
-  const color = map[valore] || "var(--text-secondary)";
+function CriticitaChip({ valore }: { valore?: string | null }) {
+  if (!valore) return <span style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px" }}>Non classificato</span>;
+  // Nuovi valori A/B/C (M1.2)
+  const mapABC: Record<string, string> = { A: "#ef4444", B: "#f97316", C: "#22c55e" };
+  // Vecchi valori legacy
+  const mapLegacy: Record<string, string> = { bassa: "#22c55e", media: "#f59e0b", alta: "#f97316", critica: "#ef4444" };
+  const color = mapABC[valore] || mapLegacy[valore.toLowerCase()] || "#94a3b8";
+  const label = mapABC[valore] ? `Criticità ${valore}` : valore;
   return (
     <span style={{ background: color + "22", color, border: `1px solid ${color}55`, borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-      {valore}
+      {label}
     </span>
   );
 }
@@ -471,18 +495,50 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 }) {
   const [detail, setDetail] = useState<AssetDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"anagrafica" | "vincoli" | "piani" | "documenti" | "ticket">("anagrafica");
+  const [tab, setTab] = useState<"anagrafica" | "vincoli" | "piani" | "documenti" | "ticket" | "kpi" | "procedure" | "nota_senior">("anagrafica");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<AssetDetail>>({});
   const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-
+  const [kpi, setKpi] = useState<AssetKpi | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+  // Procedure
+  const [procedure, setProcedure] = useState<Procedura[]>([]);
+  const [procLoading, setProcLoading] = useState(false);
+  const [procExpanded, setProcExpanded] = useState<Set<number>>(new Set());
+  const [procNuovaForm, setProcNuovaForm] = useState<{ show: boolean; titolo: string; tipo: string; passiRaw: string }>({ show: false, titolo: "", tipo: "ispezione", passiRaw: "" });
+  const [procEditId, setProcEditId] = useState<number | null>(null);
+  const [procEditForm, setProcEditForm] = useState<{ titolo: string; tipo: string; passiRaw: string }>({ titolo: "", tipo: "ispezione", passiRaw: "" });
+  const [procSaving, setProcSaving] = useState(false);
+  // Nota senior
+  const [notaSenior, setNotaSenior] = useState<NotaAsset | null | undefined>(undefined);
+  const [notaLoading, setNotaLoading] = useState(false);
+  const [notaEditing, setNotaEditing] = useState(false);
+  const [notaTesto, setNotaTesto] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try { const data = await apiGet<AssetDetail>(`/assets/${assetId}/dettaglio-completo`); setDetail(data); setEditForm(data); } catch { } finally { setLoading(false); }
   }, [assetId]);
   useEffect(() => { load(); }, [load]);
+
+  const loadKpi = useCallback(async () => {
+    setKpiLoading(true);
+    try { const data = await apiGet<AssetKpi>(`/assets/${assetId}/kpi`); setKpi(data); } catch { } finally { setKpiLoading(false); }
+  }, [assetId]);
+  useEffect(() => { if (tab === "kpi") loadKpi(); }, [tab, loadKpi]);
+
+  const loadProcedure = useCallback(async () => {
+    setProcLoading(true);
+    try { const data = await apiGet<Procedura[]>(`/assets/${assetId}/procedure`); setProcedure(data); } catch { } finally { setProcLoading(false); }
+  }, [assetId]);
+  useEffect(() => { if (tab === "procedure") loadProcedure(); }, [tab, loadProcedure]);
+
+  const loadNotaSenior = useCallback(async () => {
+    setNotaLoading(true);
+    try { const data = await apiGet<NotaAsset | null>(`/assets/${assetId}/nota-senior`); setNotaSenior(data); setNotaTesto(data?.testo ?? ""); } catch { } finally { setNotaLoading(false); }
+  }, [assetId]);
+  useEffect(() => { if (tab === "nota_senior") loadNotaSenior(); }, [tab, loadNotaSenior]);
 
   const saveEdit = async () => {
     if (!detail) return; setSaving(true);
@@ -506,7 +562,16 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>Caricamento...</div>;
   if (!detail) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>Asset non trovato</div>;
 
-  const tabs = [{ id: "anagrafica", label: "Anagrafica" }, { id: "vincoli", label: "Vincoli & Note" }, { id: "piani", label: "Piani Manut." }, { id: "documenti", label: "Documenti" }, { id: "ticket", label: "Ticket" }] as const;
+  const tabs = [
+    { id: "anagrafica", label: "Anagrafica" },
+    { id: "vincoli", label: "Vincoli & Note" },
+    { id: "kpi", label: "KPI Operativi" },
+    { id: "piani", label: "Piani Manut." },
+    { id: "documenti", label: "Documenti" },
+    { id: "ticket", label: "Ticket" },
+    { id: "procedure", label: "Procedure" },
+    { id: "nota_senior", label: "Nota Senior" },
+  ] as const;
   const upd = (k: keyof AssetDetail) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setEditForm(p => ({ ...p, [k]: e.target.value }));
 
   return (
@@ -532,7 +597,30 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
           </div>
         </div>
         {!editing
-          ? <div style={{ display: "flex", gap: "8px" }}>
+          ? <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                style={{ ...btnSecondary, fontSize: "11px", padding: "6px 10px", display: "flex", alignItems: "center", gap: "4px" }}
+                title="Stampa e incolla sulla macchina — scansiona per vedere lo storico"
+                onClick={() => {
+                  const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
+                  const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;
+                  const link = document.createElement("a");
+                  link.href = `${API_BASE}/assets/${detail.id}/qrcode${token ? `?token=${token}` : ""}`;
+                  // Usa fetch per avere l'Authorization header
+                  fetch(`${API_BASE}/assets/${detail.id}/qrcode`, {
+                    credentials: "include",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                  }).then(r => r.blob()).then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    link.href = url;
+                    link.download = `qr-asset-${detail.id}.png`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }).catch(() => alert("Errore download QR code"));
+                }}
+              >
+                📥 QR
+              </button>
               <button style={btnPrimary} onClick={() => setEditing(true)}>Modifica</button>
               <button style={btnDanger} onClick={onElimina}>Elimina</button>
             </div>
@@ -543,9 +631,9 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
         }
       </div>
 
-      <div style={{ display: "flex", gap: "2px", borderBottom: "1px solid var(--border)", marginBottom: "20px" }}>
+      <div style={{ display: "flex", gap: "2px", borderBottom: "1px solid var(--border)", marginBottom: "20px", overflowX: "auto" }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "8px 12px", fontSize: "12px", fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? "var(--blue)" : "var(--text-secondary)", borderBottom: tab === t.id ? "2px solid var(--blue)" : "2px solid transparent", marginBottom: "-1px" }}>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "8px 12px", fontSize: "12px", fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? "var(--blue)" : "var(--text-secondary)", borderBottom: tab === t.id ? "2px solid var(--blue)" : "2px solid transparent", marginBottom: "-1px", whiteSpace: "nowrap" }}>
             {t.label}
           </button>
         ))}
@@ -566,11 +654,19 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             <FormField label="Data acquisto"><input style={inputStyle} type="date" value={editForm.data_acquisto || ""} onChange={upd("data_acquisto")} /></FormField>
             <FormField label="Scadenza garanzia"><input style={inputStyle} type="date" value={editForm.data_scadenza_garanzia || ""} onChange={upd("data_scadenza_garanzia")} /></FormField>
             <FormField label="Posizione fisica"><input style={inputStyle} value={editForm.posizione_fisica || ""} onChange={upd("posizione_fisica")} /></FormField>
-            <FormField label="Criticita'">
-              <select style={inputStyle} value={editForm.criticita || "media"} onChange={upd("criticita")}>
-                <option value="bassa">Bassa</option><option value="media">Media</option>
-                <option value="alta">Alta</option><option value="critica">Critica</option>
+            <FormField label="Criticita' (A/B/C)">
+              <select style={inputStyle} value={editForm.criticita || ""} onChange={upd("criticita")}>
+                <option value="">Non classificato</option>
+                <option value="A">A — Critica (alta priorita')</option>
+                <option value="B">B — Importante</option>
+                <option value="C">C — Standard</option>
               </select>
+            </FormField>
+            <FormField label="Costo orario fermo (euro/h)">
+              <input style={inputStyle} type="number" min={0} step={0.01} value={editForm.costo_orario_fermo ?? ""} onChange={e => setEditForm(p => ({ ...p, costo_orario_fermo: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="Es. 500" />
+            </FormField>
+            <FormField label="Codice ricambio esterno">
+              <input style={inputStyle} value={editForm.codice_ricambio_esterno || ""} onChange={upd("codice_ricambio_esterno")} placeholder="Codice per integrazione futura" />
             </FormField>
             <FormField label="Stato">
               <select style={inputStyle} value={editForm.stato || "service"} onChange={upd("stato")}>
@@ -593,6 +689,10 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             <DetailRow label="Data acquisto" value={detail.data_acquisto} />
             <DetailRow label="Scadenza garanzia" value={detail.data_scadenza_garanzia} />
             <DetailRow label="Posizione fisica" value={detail.posizione_fisica} />
+            {detail.costo_orario_fermo !== null && detail.costo_orario_fermo !== undefined && (
+              <DetailRow label="Costo orario fermo" value={`€${detail.costo_orario_fermo}/h`} />
+            )}
+            {detail.codice_ricambio_esterno && <DetailRow label="Codice ricambio esterno" value={detail.codice_ricambio_esterno} />}
             {detail.descrizione && <DetailRow label="Descrizione" value={detail.descrizione} />}
           </>
         )
@@ -612,6 +712,59 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {tab === "kpi" && (
+        <div>
+          {kpiLoading && <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Calcolo KPI...</div>}
+          {!kpiLoading && kpi && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+                <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
+                  <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.mtbf_giorni !== null ? "#22c55e" : "var(--text-secondary)" }}>
+                    {kpi.mtbf_giorni !== null ? `${kpi.mtbf_giorni}gg` : "N/D"}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>MTBF</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Media giorni fra guasti</div>
+                </div>
+                <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
+                  <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.mttr_ore !== null ? "#f59e0b" : "var(--text-secondary)" }}>
+                    {kpi.mttr_ore !== null ? `${kpi.mttr_ore}h` : "N/D"}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>MTTR</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Media ore per riparazione</div>
+                </div>
+                <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
+                  <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.n_guasti_90gg > 3 ? "#ef4444" : kpi.n_guasti_90gg > 0 ? "#f59e0b" : "#22c55e" }}>
+                    {kpi.n_guasti_90gg}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Guasti 90gg</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Ultimi 90 giorni</div>
+                </div>
+                <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
+                  <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.disponibilita_pct !== null ? (kpi.disponibilita_pct >= 90 ? "#22c55e" : kpi.disponibilita_pct >= 75 ? "#f59e0b" : "#ef4444") : "var(--text-secondary)" }}>
+                    {kpi.disponibilita_pct !== null ? `${kpi.disponibilita_pct}%` : "N/D"}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Disponibilita'</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>MTBF / (MTBF + MTTR/24)</div>
+                </div>
+              </div>
+              {kpi.n_guasti_90gg < 2 && (
+                <div style={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                  MTBF e MTTR richiedono almeno 2 guasti chiusi (BD/CM). Con {kpi.n_guasti_90gg} guasto registrato i valori saranno disponibili dopo il secondo intervento.
+                </div>
+              )}
+              {detail && detail.costo_orario_fermo && kpi.mttr_ore && (
+                <div style={{ background: "#1c1917", border: "1px solid #f97316", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", color: "#f97316" }}>
+                  Costo medio per fermo stimato: <strong>€{(kpi.mttr_ore * detail.costo_orario_fermo).toFixed(2)}</strong> per intervento ({kpi.mttr_ore}h × €{detail.costo_orario_fermo}/h)
+                </div>
+              )}
+            </>
+          )}
+          {!kpiLoading && !kpi && (
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Nessun dato disponibile</div>
+          )}
         </div>
       )}
 

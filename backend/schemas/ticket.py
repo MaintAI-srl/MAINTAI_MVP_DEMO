@@ -39,6 +39,9 @@ class TicketUpdate(BaseModel):
     piano_manutenzione_id: int | None = None
     origine_piano: str | None = None
     note_vocali: str | None = Field(default=None, max_length=10000)  # Note vocali trascritte da mobile
+    # M2.2 — Predisposizione ricambi
+    ricambio_note: str | None = Field(default=None, max_length=2000)
+    in_attesa_ricambio: bool | None = None
 
 
 class TicketResponse(BaseModel):
@@ -64,3 +67,6 @@ class TicketResponse(BaseModel):
     is_manual_plan: bool = False
     piano_manutenzione_id: int | None = None
     origine_piano: str | None = None
+    # M2.2 — Predisposizione ricambi
+    ricambio_note: str | None = None
+    in_attesa_ricambio: bool = False
