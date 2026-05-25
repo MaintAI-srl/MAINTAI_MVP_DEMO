@@ -29,6 +29,9 @@ frontend/.env.production
 # Build scripts temporanei
 docs/_build_*.py
 
+# Script di debug/scratch — non vanno in produzione
+backend/scratch/
+
 # OS
 .DS_Store
 Thumbs.db

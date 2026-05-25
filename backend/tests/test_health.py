@@ -26,5 +26,6 @@ def test_health(client):
     data = response.json()
     assert data["status"] in ("ok", "degraded")
     assert data["database"] == "ok"
-    assert "openai" in data
+    # "openai" rimosso da /health per sicurezza (commit 697b746)
+    assert "openai" not in data
     assert data["version"] == VERSION
