@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.logger_db import db_info
-from backend.db.modelli import Asset, CheckPrimoLivello
+from backend.db.modelli import Asset, CheckPrimoLivello, Ticket
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +128,65 @@ def get_check_public(
     asset_nome = asset.nome if asset else f"Asset #{check.asset_id}"
 
     return _serialize(check, asset_nome=asset_nome)
+
+
+class SegnalazioneBody(BaseModel):
+    descrizione: str
+    operatore: Optional[str] = None  # nome operatore (facoltativo, non autenticato)
+
+
+@router.post("/check/public/{public_token}/segnala", status_code=201)
+def segnala_anomalia_pubblica(
+    public_token: str,
+    body: SegnalazioneBody,
+    db: Session = Depends(get_db),
+):
+    """
+    Endpoint PUBBLICO — crea un ticket BD dall'operatore di produzione via QR.
+    Non richiede autenticazione: usa il tenant_id del check record.
+    """
+    from datetime import datetime, timezone
+
+    check = db.query(CheckPrimoLivello).filter(
+        CheckPrimoLivello.public_token == public_token,
+    ).first()
+    if not check:
+        raise HTTPException(status_code=404, detail="Checklist non trovata")
+
+    if not body.descrizione or not body.descrizione.strip():
+        raise HTTPException(status_code=422, detail="La descrizione è obbligatoria")
+
+    asset = db.query(Asset).filter(Asset.id == check.asset_id).first()
+    asset_nome = asset.nome if asset else f"Asset #{check.asset_id}"
+    operatore_label = body.operatore.strip() if body.operatore and body.operatore.strip() else "Operatore"
+
+    titolo = f"[CHECK] Anomalia segnalata su {asset_nome}"
+    descrizione = (
+        f"Segnalazione da operatore di produzione ({operatore_label}) via checklist QR.\n\n"
+        f"{body.descrizione.strip()}"
+    )
+
+    ticket = Ticket(
+        titolo=titolo,
+        descrizione=descrizione,
+        asset_id=check.asset_id,
+        tenant_id=check.tenant_id,
+        tipo="BD",
+        priorita="Alta",
+        stato="Aperto",
+        durata_stimata_ore=1.0,
+        origin_type="check_public",
+        created_by=operatore_label,
+    )
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+
+    db_info(
+        "CHECK_PL",
+        f"Anomalia segnalata su asset {check.asset_id} via check pubblico (token={public_token[:8]}…)",
+        {"tenant_id": check.tenant_id, "ticket_id": ticket.id},
+    )
+    logger.info("Ticket BD #%s creato da check pubblico token %s", ticket.id, public_token[:8])
+
+    return {"ticket_id": ticket.id, "messaggio": f"Segnalazione ricevuta — Ticket #{ticket.id} aperto"}

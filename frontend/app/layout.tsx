@@ -51,12 +51,12 @@ const NAV = [
       { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
       { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} /> },
       { href: "/condizioni", label: "Dati Misure Asset",   icon: <Gauge size={14} strokeWidth={1.8} /> },
-      { href: "/compliance", label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, adminOnly: true },
     ],
   },
   {
     section: "IMPOSTAZIONI",
     items: [
+      { href: "/compliance",        label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, adminOnly: true },
       { href: "/admin/tenants",     label: "Clienti",          icon: <Building size={14} strokeWidth={1.8} />,    superadminOnly: true },
       { href: "/admin/bulk-import", label: "Import Massivo",   icon: <UploadCloud size={14} strokeWidth={1.8} />, adminOnly: true },
       { href: "/admin/logs",        label: "Log di Sistema",   icon: <ScrollText size={14} strokeWidth={1.8} />,  adminOnly: true },

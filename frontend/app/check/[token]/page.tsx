@@ -32,7 +32,11 @@ export default function CheckPubblicoPage() {
   const [checkati, setCheckati] = useState<Set<number>>(new Set());
   const [showSegnala, setShowSegnala] = useState(false);
   const [descrizioneAnomalia, setDescrizioneAnomalia] = useState("");
+  const [operatoreNome, setOperatoreNome] = useState("");
   const [invioOk, setInvioOk] = useState(false);
+  const [invioLoading, setInvioLoading] = useState(false);
+  const [ticketCreato, setTicketCreato] = useState<number | null>(null);
+  const [invioError, setInvioError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -205,6 +209,25 @@ export default function CheckPubblicoPage() {
                 <div style={{ fontSize: "16px", fontWeight: 700, color: "#f87171", marginBottom: "12px" }}>
                   Descrivi l&apos;anomalia riscontrata
                 </div>
+                {/* Campo nome operatore */}
+                <input
+                  type="text"
+                  value={operatoreNome}
+                  onChange={e => setOperatoreNome(e.target.value)}
+                  placeholder="Il tuo nome (facoltativo)"
+                  style={{
+                    width: "100%",
+                    background: "#111827",
+                    border: "1px solid #4b5563",
+                    borderRadius: "8px",
+                    color: "#f1f5f9",
+                    padding: "12px",
+                    fontSize: "16px",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                    marginBottom: "10px",
+                  }}
+                />
                 <textarea
                   value={descrizioneAnomalia}
                   onChange={e => setDescrizioneAnomalia(e.target.value)}
@@ -224,33 +247,62 @@ export default function CheckPubblicoPage() {
                     marginBottom: "12px",
                   }}
                 />
+                {invioError && (
+                  <div style={{ color: "#f87171", fontSize: "13px", marginBottom: "10px" }}>
+                    ⚠️ {invioError}
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button
-                    onClick={() => setShowSegnala(false)}
+                    onClick={() => { setShowSegnala(false); setInvioError(null); }}
+                    disabled={invioLoading}
                     style={{ flex: 1, background: "#111827", color: "#94a3b8", border: "1px solid #374151", borderRadius: "8px", padding: "14px", fontSize: "15px", cursor: "pointer", minHeight: "50px" }}
                   >
                     Annulla
                   </button>
                   <button
-                    onClick={() => {
-                      // Senza auth: mostra messaggio di contatto
-                      setInvioOk(true);
+                    onClick={async () => {
+                      if (!descrizioneAnomalia.trim()) return;
+                      setInvioLoading(true);
+                      setInvioError(null);
+                      try {
+                        const res = await fetch(`${API_BASE}/check/public/${token}/segnala`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            descrizione: descrizioneAnomalia.trim(),
+                            operatore: operatoreNome.trim() || undefined,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({}));
+                          throw new Error(err.detail ?? "Errore invio segnalazione");
+                        }
+                        const data = await res.json();
+                        setTicketCreato(data.ticket_id ?? null);
+                        setInvioOk(true);
+                      } catch (e: unknown) {
+                        const msg = e instanceof Error ? e.message : "Errore di rete";
+                        setInvioError(msg);
+                      } finally {
+                        setInvioLoading(false);
+                      }
                     }}
-                    disabled={!descrizioneAnomalia.trim()}
+                    disabled={!descrizioneAnomalia.trim() || invioLoading}
                     style={{
                       flex: 2,
-                      background: descrizioneAnomalia.trim() ? "#dc2626" : "#374151",
+                      background: descrizioneAnomalia.trim() && !invioLoading ? "#dc2626" : "#374151",
                       color: "#fff",
                       border: "none",
                       borderRadius: "8px",
                       padding: "14px",
                       fontSize: "15px",
                       fontWeight: 700,
-                      cursor: descrizioneAnomalia.trim() ? "pointer" : "not-allowed",
+                      cursor: descrizioneAnomalia.trim() && !invioLoading ? "pointer" : "not-allowed",
                       minHeight: "50px",
                     }}
                   >
-                    Invia segnalazione
+                    {invioLoading ? "Invio in corso..." : "Invia segnalazione"}
                   </button>
                 </div>
               </div>
@@ -266,7 +318,10 @@ export default function CheckPubblicoPage() {
               Segnalazione ricevuta
             </div>
             <div style={{ fontSize: "14px", color: "#86efac", lineHeight: 1.5 }}>
-              Il responsabile manutenzione è stato avvisato.
+              {ticketCreato
+                ? <>Ticket <strong style={{ color: "#4ade80" }}>#{ticketCreato}</strong> aperto — il responsabile è stato avvisato.</>
+                : "Il responsabile manutenzione è stato avvisato."
+              }
               {descrizioneAnomalia && (
                 <div style={{ marginTop: "8px", fontStyle: "italic", opacity: 0.8 }}>
                   &ldquo;{descrizioneAnomalia}&rdquo;
