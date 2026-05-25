@@ -1,189 +1,200 @@
 /**
- * MaintAI Service Worker v2.3
+ * MaintAI Service Worker v3.0
  *
- * Strategia: Network-First per dati offline selezionati.
- * HTML e bundle Next.js devono restare sempre freschi per gli update Vercel.
- * Per le API: cache-then-network solo per GET su endpoint specifici (ticket, assets).
- *
- * NON cachea:
- * - POST/PUT/PATCH/DELETE (mutazioni)
- * - Endpoint di autenticazione
- * - Endpoint AI/planning (dati sempre freschi)
+ * Strategie cache:
+ *   - HTML / bundle Next.js → Network-only (sempre aggiornati dal deploy Vercel)
+ *   - API GET selezionate   → Network-First con fallback cache (offline tecnico)
+ *   - Push notifications    → riceve messaggi push dal backend, mostra notifiche native
  *
  * Cachea per uso offline (tecnico sul campo):
- * - GET /tickets (ultimo snapshot)
- * - GET /assets (catalogo asset)
- * - GET /storico/* (storico interventi asset — mobile)
- * - GET /assets/{id}/kpi (KPI asset)
- * - GET /tecnici/me (profilo tecnico)
+ *   - GET /tickets (snapshot interventi)
+ *   - GET /assets  (catalogo asset)
+ *   - GET /assets/{id}/kpi, /assets/{id}/storico, /storico/*
+ *   - GET /tecnici/me (profilo)
+ *   - GET /scadenze/imminenti
+ *   - GET /mobile (shell app tecnico)
+ *
+ * NON cachea mai:
+ *   - POST/PUT/PATCH/DELETE
+ *   - Autenticazione
+ *   - AI/planning (dati sempre freschi)
  */
 
-const CACHE_NAME = "maintai-api-v2.3";
+const CACHE_NAME = "maintai-v3.0";
 
-// La shell Next/Vercel non viene precachata: deve aggiornarsi a ogni deploy.
-const APP_SHELL = [];
-
-// Pattern di URL API che possono essere cachati per uso offline
 const CACHEABLE_API_PATTERNS = [
-  /\/tickets\?/,
-  /\/assets$/,
-  /\/assets\/\d+\/kpi/,
-  /\/tecnici\/me/,
+  /\/tickets(\?|$)/,
+  /\/assets(\?|$)/,
+  /\/assets\/\d+(\/kpi|\/storico|\/check-primo-livello|$)/,
+  /\/storico\//,
+  /\/tecnici\/me(\?|$)/,
   /\/scadenze\/imminenti/,
 ];
 
-// Pattern da NON cachare mai
 const NEVER_CACHE_PATTERNS = [
   /\/auth\//,
   /\/planning\//,
   /\/diagnostic/,
   /\/problem-analysis/,
   /\/manuali\/\d+\/analisi/,
+  /\/emergency\//,
   /\/ws\//,
+  /\/report\//,
 ];
 
+// ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
-  console.log("[MaintAI SW] Installing v2.2...");
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => APP_SHELL.length ? cache.addAll(APP_SHELL) : Promise.resolve())
-      .catch((err) => console.warn("[MaintAI SW] Pre-cache parziale:", err))
-  );
+  console.log("[MaintAI SW] v3.0 installing...");
   self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then(() => {}));
 });
 
+// ── Activate — pulisce cache obsolete ────────────────────────────────────────
 self.addEventListener("activate", (event) => {
-  console.log("[MaintAI SW] Activating v2.2...");
-  // Pulizia vecchie cache
+  console.log("[MaintAI SW] v3.0 activating...");
   event.waitUntil(
     caches.keys()
-      .then((keys) => {
-        return Promise.all(
-          keys
-            .filter((k) => k !== CACHE_NAME)
-            .map((k) => {
-              console.log("[MaintAI SW] Eliminata cache obsoleta:", k);
-              return caches.delete(k);
-            })
-        );
-      })
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== CACHE_NAME).map((k) => {
+          console.log("[MaintAI SW] Cache obsoleta rimossa:", k);
+          return caches.delete(k);
+        })
+      ))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: "window" }))
-      .then((clients) => {
-        clients.forEach((client) => {
-          if ("navigate" in client) client.navigate(client.url);
-        });
-      })
   );
 });
 
+// ── Fetch — Network-First per API cacheabili ──────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Solo GET
   if (request.method !== "GET") return;
-
-  // Ignora richieste non-http (chrome-extension, ecc.)
   if (!url.protocol.startsWith("http")) return;
 
-  // HTML e asset build Next.js devono sempre arrivare dalla rete/Vercel.
-  // Questo evita che la desktop shell resti bloccata su un vecchio bundle JS.
+  // HTML e bundle Next.js: sempre dalla rete
   if (
     request.mode === "navigate" ||
     request.destination === "document" ||
     url.pathname === "/" ||
     url.pathname.startsWith("/_next/")
   ) {
-    event.respondWith(fetch(request, { cache: "no-store" }));
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => offlinePage()));
     return;
   }
 
-  // API calls
-  if (url.pathname.startsWith("/api/") || url.origin !== self.location.origin) {
-    // Controlla se è un endpoint che non va mai cachato
-    if (NEVER_CACHE_PATTERNS.some((p) => p.test(url.pathname))) {
-      return;
-    }
-
-    // Controlla se è un endpoint cacheabile
+  // API cacheabili
+  const isApi = !url.pathname.startsWith("/_next/") && (
+    url.origin !== self.location.origin || url.pathname.startsWith("/api/")
+  );
+  if (isApi) {
+    if (NEVER_CACHE_PATTERNS.some((p) => p.test(url.pathname))) return;
     if (CACHEABLE_API_PATTERNS.some((p) => p.test(url.pathname + url.search))) {
       event.respondWith(networkFirstWithCache(request));
       return;
     }
-
-    // API non cachabile: pass-through
-    return;
+    return; // pass-through
   }
 
-  // Risorse statiche minori: pass-through, niente cache persistente.
-  event.respondWith(fetch(request));
+  // Risorse statiche (immagini, font, ecc.)
+  event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
 
-/**
- * Network-First: prova la rete, se fallisce serve dalla cache.
- * Se la rete risponde, aggiorna la cache per il prossimo utilizzo offline.
- */
 async function networkFirstWithCache(request) {
   try {
-    const networkResponse = await fetch(request);
-
-    // Salva in cache solo risposte valide
-    if (networkResponse.ok) {
+    const res = await fetch(request);
+    if (res.ok) {
       const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
+      cache.put(request, res.clone());
     }
-
-    return networkResponse;
-  } catch (err) {
-    // Rete non disponibile: cerca nella cache
+    return res;
+  } catch {
     const cached = await caches.match(request);
     if (cached) {
-      console.log("[MaintAI SW] Offline — servito da cache:", request.url);
+      console.log("[MaintAI SW] Offline — da cache:", request.url);
       return cached;
     }
-
-    // Nessuna cache disponibile: ritorna risposta offline personalizzata
-    if (request.headers.get("Accept")?.includes("text/html")) {
-      return new Response(
-        `<!DOCTYPE html>
-        <html lang="it">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>MaintAI — Offline</title>
-          <style>
-            body {
-              margin: 0; padding: 40px; font-family: system-ui, sans-serif;
-              background: #020617; color: #e2e8f0; display: flex;
-              flex-direction: column; align-items: center; justify-content: center;
-              min-height: 100vh; text-align: center;
-            }
-            .icon { font-size: 48px; margin-bottom: 16px; }
-            h1 { font-size: 20px; margin: 0 0 8px; color: #60a5fa; }
-            p { font-size: 14px; color: #94a3b8; max-width: 360px; line-height: 1.5; }
-            button {
-              margin-top: 24px; padding: 12px 24px; background: #3b82f6;
-              color: white; border: none; border-radius: 8px; font-size: 14px;
-              font-weight: 600; cursor: pointer;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="icon">📡</div>
-          <h1>Connessione assente</h1>
-          <p>MaintAI non riesce a raggiungere il server. Verifica la connessione e riprova.</p>
-          <button onclick="location.reload()">Riprova</button>
-        </body>
-        </html>`,
-        { headers: { "Content-Type": "text/html" }, status: 503 }
-      );
-    }
-
-    // Per API calls senza cache: errore JSON
     return new Response(
-      JSON.stringify({ error: true, message: "Dispositivo offline — dati non disponibili nella cache locale." }),
-      { headers: { "Content-Type": "application/json" }, status: 503 }
+      JSON.stringify({ error: true, offline: true, message: "Dispositivo offline — dati non disponibili nella cache locale." }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
     );
   }
 }
+
+function offlinePage() {
+  return new Response(
+    `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MaintAI — Offline</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#020617;color:#e2e8f0;font-family:system-ui,sans-serif;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;
+         min-height:100dvh;text-align:center;padding:32px 20px;gap:16px}
+    .icon{font-size:52px}
+    h1{font-size:22px;font-weight:800;color:#60a5fa}
+    p{font-size:14px;color:#94a3b8;max-width:340px;line-height:1.6}
+    button{margin-top:8px;padding:14px 32px;background:#2563eb;color:#fff;
+           border:none;border-radius:10px;font-size:15px;font-weight:700;
+           cursor:pointer;letter-spacing:.02em}
+    .badge{font-size:11px;color:#475569;margin-top:24px;letter-spacing:.08em;text-transform:uppercase}
+  </style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h1>Connessione assente</h1>
+  <p>MaintAI non riesce a raggiungere il server.<br>
+     I tuoi dati in cache sono ancora disponibili se li hai visitati di recente.</p>
+  <button onclick="location.reload()">↺ Riprova</button>
+  <div class="badge">MaintAI — Sistema di Gestione Manutenzione</div>
+</body>
+</html>`,
+    { status: 503, headers: { "Content-Type": "text/html" } }
+  );
+}
+
+// ── Push Notifications ────────────────────────────────────────────────────────
+self.addEventListener("push", (event) => {
+  let data = { title: "MaintAI", body: "Nuovo aggiornamento disponibile.", tag: "maintai-generic" };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch {}
+
+  const options = {
+    body: data.body,
+    tag: data.tag ?? "maintai-generic",
+    icon: "/logo.png",
+    badge: "/logo.png",
+    vibrate: data.tag === "emergenza" ? [500, 150, 500, 150, 800] : [200, 100, 200],
+    requireInteraction: data.tag === "emergenza", // emergenza rimane finché non viene toccata
+    data: { url: data.url ?? "/mobile", tag: data.tag },
+    actions: data.tag === "emergenza"
+      ? [{ action: "open", title: "🚨 Apri emergenza" }]
+      : [{ action: "open", title: "Apri" }],
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url ?? "/mobile";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Porta in primo piano un tab già aperto se esiste
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.focus();
+          client.navigate(targetUrl);
+          return;
+        }
+      }
+      // Altrimenti apri nuova finestra
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
+});

@@ -1,15 +1,19 @@
 {
+  "id": "maintai-enterprise-v3",
   "name": "MaintAI Enterprise",
   "short_name": "MaintAI",
-  "description": "Piattaforma enterprise per la gestione operativa della manutenzione",
+  "description": "Piattaforma enterprise per la gestione operativa della manutenzione industriale",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#020617",
-  "theme_color": "#3b82f6",
+  "theme_color": "#0a0f1e",
   "lang": "it",
+  "dir": "ltr",
   "categories": ["productivity", "business", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/logo.png",
@@ -26,16 +30,35 @@
   ],
   "shortcuts": [
     {
+      "name": "App Tecnico",
+      "short_name": "Tecnico",
+      "description": "Interventi, emergenze e piano odierno",
+      "url": "/mobile",
+      "icons": [{ "src": "/logo.png", "sizes": "96x96" }]
+    },
+    {
       "name": "I miei Ticket",
       "short_name": "Ticket",
+      "description": "Visualizza e gestisci i ticket",
       "url": "/ticket",
       "icons": [{ "src": "/logo.png", "sizes": "96x96" }]
     },
     {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "url": "/dashboard",
+      "name": "Piano AI Felix",
+      "short_name": "Piano",
+      "description": "Pianificazione manutenzione AI",
+      "url": "/planning",
       "icons": [{ "src": "/logo.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "label": "Dashboard KPI",
+      "form_factor": "wide"
+    },
+    {
+      "label": "App Tecnico Mobile",
+      "form_factor": "narrow"
     }
   ]
 }

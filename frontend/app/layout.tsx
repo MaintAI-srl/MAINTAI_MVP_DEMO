@@ -148,16 +148,16 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [isAuthenticated]);
 
+  // Registra il Service Worker per PWA offline e notifiche push
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations()
-        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
-        .then(() => {
-          if ("caches" in window) {
-            return caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
-          }
+      navigator.serviceWorker.register("/sw.js", { scope: "/" })
+        .then((reg) => {
+          console.log("[MaintAI SW] Registrato:", reg.scope);
+          // Controlla aggiornamenti in background
+          reg.update().catch(() => {});
         })
-        .catch((err) => { console.warn("[MaintAI] Pulizia Service Worker/cache fallita:", err); });
+        .catch((err) => { console.warn("[MaintAI SW] Registrazione fallita:", err); });
     }
   }, []);
 
@@ -544,6 +544,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#3b82f6" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="MaintAI" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="MaintAI" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
