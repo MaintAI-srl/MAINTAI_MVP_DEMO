@@ -23,7 +23,7 @@ import {
   LayoutDashboard, CalendarClock, ClipboardList, Factory,
   Users, Wrench, CalendarDays, Building, UploadCloud,
   ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
-  Activity, Cpu, Zap, BrainCircuit, Settings, Gauge, ShieldCheck
+  Activity, Cpu, Zap, BrainCircuit, Settings, Gauge, ShieldCheck, TrendingUp
 } from "lucide-react";
 
 // Fonts now loaded above individually
@@ -56,6 +56,7 @@ const NAV = [
   {
     section: "IMPOSTAZIONI",
     items: [
+      { href: "/report/economico",   label: "Report Economico",      icon: <TrendingUp size={14} strokeWidth={1.8} />,  adminOnly: true },
       { href: "/compliance",        label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, adminOnly: true },
       { href: "/admin/tenants",     label: "Clienti",          icon: <Building size={14} strokeWidth={1.8} />,    superadminOnly: true },
       { href: "/admin/bulk-import", label: "Import Massivo",   icon: <UploadCloud size={14} strokeWidth={1.8} />, adminOnly: true },
@@ -87,6 +88,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/admin/utenti":       "Gestione Utenti",
   "/profilo":            "Mio Profilo",
   "/compliance":         "Scadenzario Attestati",
+  "/report/economico":   "Report Economico",
   "/storico":            "Storico Interventi",
 };
 

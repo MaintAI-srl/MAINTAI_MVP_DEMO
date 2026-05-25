@@ -47,6 +47,7 @@ try:
     from backend.api.routes.note_asset import router as note_asset_router
     from backend.api.routes.check_primo_livello import router as check_pl_router
     from backend.api.routes.attestati import router as attestati_router
+    from backend.api.routes.report import router as report_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -757,6 +758,7 @@ app.include_router(procedure_router)
 app.include_router(note_asset_router)
 app.include_router(check_pl_router)
 app.include_router(attestati_router)
+app.include_router(report_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
