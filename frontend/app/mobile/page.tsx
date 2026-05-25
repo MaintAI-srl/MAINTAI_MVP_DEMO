@@ -28,11 +28,47 @@ type Ticket = {
 
 function prioritaColor(p: string): string {
   switch (p?.toLowerCase()) {
+    case "emergenza": return "#ff2d2d";
     case "alta":  return "#f87171";
     case "media": return "#fbbf24";
     case "bassa": return "#34d399";
     default:      return "#94a3b8";
   }
+}
+
+// ── Allarme sonoro + vibrazione per emergenze ────────────────────────────────
+function playEmergencyAlarm() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+    const ctx = new Ctx();
+    const beep = (startTime: number, freq: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.55, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.05);
+    };
+    const t = ctx.currentTime;
+    beep(t,        1047, 0.22); // Do5
+    beep(t + 0.28, 784,  0.22); // Sol4
+    beep(t + 0.56, 1047, 0.22);
+    beep(t + 0.84, 784,  0.22);
+    beep(t + 1.12, 1319, 0.45); // Mi5 — nota finale lunga
+  } catch { /* AudioContext non supportato */ }
+}
+
+function triggerEmergencyAlert(titolo: string) {
+  playEmergencyAlarm();
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate([500, 150, 500, 150, 800]);
+  }
+  notify.error(`🚨 EMERGENZA: ${titolo}`, "EMERGENZA");
 }
 
 function tipoLabel(t: string): { icon: string; label: string; color: string } {
@@ -695,6 +731,9 @@ export default function MobileHomePage() {
   const [pianoDiOggi, setPianoDiOggi] = useState<Ticket[]>([]);
   const [loadingPiano, setLoadingPiano] = useState(false);
 
+  // Traccia ID emergenze già viste — evita falsi allarmi al primo caricamento
+  const seenEmergencyIds = useRef<Set<number>>(new Set());
+
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
@@ -704,13 +743,21 @@ export default function MobileHomePage() {
       .catch(() => { setTecnicoId(-1); setLoading(false); });
   }, [user, mounted]);
 
-  const loadTickets = useCallback(async () => {
+  const loadTickets = useCallback(async (isInitialLoad = false) => {
     if (tecnicoId === null || !mounted) return;
     if (tecnicoId === -1) { setLoading(false); return; }
     try {
       const d = await apiGet<any>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
       const items: Ticket[] = d.items ?? [];
       setTickets(items);
+      // Primo caricamento: segna tutte le emergenze come già viste (nessun allarme)
+      if (isInitialLoad) {
+        items.forEach(t => {
+          if (t.priorita?.toLowerCase() === "emergenza") {
+            seenEmergencyIds.current.add(t.id);
+          }
+        });
+      }
       // Se c'è un ticket in corso e nessuna vista attiva, apri automaticamente
       const inCorso = items.find(t => t.stato === "In corso");
       if (inCorso && !activeView) setActiveView(inCorso);
@@ -720,7 +767,27 @@ export default function MobileHomePage() {
     setLoading(false);
   }, [tecnicoId, mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { loadTickets(); }, [loadTickets]);
+  useEffect(() => { loadTickets(true); }, [loadTickets]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Polling 30s per nuove emergenze assegnate ─────────────────────────────
+  useEffect(() => {
+    if (tecnicoId === null || tecnicoId === -1 || !mounted) return;
+    const poll = async () => {
+      try {
+        const d = await apiGet<any>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
+        const items: Ticket[] = d.items ?? [];
+        items.forEach(t => {
+          if (t.priorita?.toLowerCase() === "emergenza" && !seenEmergencyIds.current.has(t.id)) {
+            seenEmergencyIds.current.add(t.id);
+            triggerEmergencyAlert(t.titolo);
+          }
+        });
+        setTickets(items);
+      } catch { /* silenzioso — non disturbare il tecnico con errori di rete */ }
+    };
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [tecnicoId, mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (tid: number, newStato: string) => {
     try {
@@ -1274,6 +1341,31 @@ export default function MobileHomePage() {
           </div>
         </div>
       )}
+
+      {/* Banner EMERGENZE attive — priorità massima */}
+      {tickets.filter(t => t.priorita?.toLowerCase() === "emergenza" && t.stato !== "Chiuso").map(t => (
+        <button key={t.id} onClick={() => setActiveView(t)}
+          style={{
+            display: "flex", alignItems: "center", gap: 12, width: "100%",
+            margin: "0 0 0 0", padding: "14px 20px", cursor: "pointer",
+            background: "linear-gradient(90deg, rgba(239,68,68,0.18) 0%, rgba(239,68,68,0.08) 100%)",
+            border: "none", borderTop: "2px solid #ef4444", borderBottom: "2px solid rgba(239,68,68,0.4)",
+            textAlign: "left",
+            animation: "pulse-bg 1.2s ease-in-out infinite",
+          }}>
+          <div style={{ fontSize: 26, flexShrink: 0 }}>🚨</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 13, color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              EMERGENZA ASSEGNATA
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#fff", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {t.titolo}
+            </div>
+            {t.asset_name && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 1 }}>{t.asset_name}</div>}
+          </div>
+          <span style={{ color: "#ef4444", fontSize: 20, fontWeight: 900, flexShrink: 0 }}>→</span>
+        </button>
+      ))}
 
       {/* 2 PULSANTONI */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "12px 16px", gap: 12 }}>
