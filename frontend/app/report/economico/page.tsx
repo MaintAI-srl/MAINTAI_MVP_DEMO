@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useAuth } from "@/app/lib/auth";
-import { notify } from "@/app/lib/toast";
+import { notify } from "@/lib/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
 
