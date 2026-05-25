@@ -135,6 +135,8 @@ class TecnicoCreate(BaseModel):
     orario_fine: Optional[str] = "17:00"
     limitazioni_orarie: Optional[str] = None
     utente_id: Optional[int] = None
+    telefono: Optional[str] = None
+    sede_indirizzo: Optional[str] = None
 
 
 class TecnicoUpdate(BaseModel):
@@ -147,6 +149,8 @@ class TecnicoUpdate(BaseModel):
     orario_fine: Optional[str] = None
     limitazioni_orarie: Optional[str] = None
     utente_id: Optional[int] = None  # collega account utente al profilo tecnico (mobile access)
+    telefono: Optional[str] = None
+    sede_indirizzo: Optional[str] = None
 
 
 class TecnicoResponse(BaseModel):

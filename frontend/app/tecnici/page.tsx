@@ -18,6 +18,8 @@ type Tecnico = {
   orario_inizio: string;
   orario_fine: string;
   limitazioni_orarie: string;
+  telefono?: string | null;
+  sede_indirizzo?: string | null;
   utente_id?: number | null;
   utente_username?: string | null;
 };
@@ -92,6 +94,8 @@ export default function TecniciPage() {
   const [orarioInizio, setOrarioInizio] = useState("08:00");
   const [orarioFine, setOrarioFine] = useState("17:00");
   const [limitazioniOrarie, setLimitazioniOrarie] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [sedeIndirizzo, setSedeIndirizzo] = useState("");
   const [utenteId, setUtenteId] = useState<number | null>(null);
 
   const [editId, setEditId] = useState<number | null>(null);
@@ -178,7 +182,7 @@ export default function TecniciPage() {
   function resetForm() {
     setNome(""); setCognome(""); setSkill(""); setOre(8);
     setStatoCampo("in servizio"); setOrarioInizio("08:00"); setOrarioFine("17:00");
-    setLimitazioniOrarie(""); setUtenteId(null);
+    setLimitazioniOrarie(""); setTelefono(""); setSedeIndirizzo(""); setUtenteId(null);
   }
 
   function startEdit(t: Tecnico) {
@@ -186,6 +190,7 @@ export default function TecniciPage() {
     setNome(t.nome); setCognome(t.cognome || ""); setSkill(t.skill); setOre(t.ore_giornaliere);
     setStatoCampo(t.stato || "in servizio"); setOrarioInizio(t.orario_inizio || "08:00");
     setOrarioFine(t.orario_fine || "17:00"); setLimitazioniOrarie(t.limitazioni_orarie || "");
+    setTelefono(t.telefono || ""); setSedeIndirizzo(t.sede_indirizzo || "");
     setUtenteId(t.utente_id ?? null);
   }
 
@@ -200,6 +205,8 @@ export default function TecniciPage() {
         nome, cognome, skill, ore_giornaliere: ore,
         stato: statoCampo, orario_inizio: orarioInizio,
         orario_fine: orarioFine, limitazioni_orarie: limitazioniOrarie,
+        telefono: telefono || null,
+        sede_indirizzo: sedeIndirizzo || null,
         utente_id: utenteId,
       };
       const path = editId !== null ? `/tecnici/${editId}` : `/tecnici`;
@@ -358,6 +365,14 @@ export default function TecniciPage() {
             <div className={`${styles.field} ${styles.span2}`} style={{ display: "flex", flexDirection: "column" }}>
               <label className={styles.label}>Limitazioni orarie</label>
               <input className={styles.input} value={limitazioniOrarie} onChange={e => setLimitazioniOrarie(e.target.value)} placeholder="Es. no turno notturno, solo mattina" />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Telefono</label>
+              <input className={styles.input} value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Es. +39 333 1234567" />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Sede / Indirizzo</label>
+              <input className={styles.input} value={sedeIndirizzo} onChange={e => setSedeIndirizzo(e.target.value)} placeholder="Es. Via Roma 1, Milano" title="Usato dalla mappa emergenze per localizzare il tecnico" />
             </div>
             {isAdmin && (
               <div className={`${styles.field} ${styles.span2}`} style={{ display: "flex", flexDirection: "column" }}>

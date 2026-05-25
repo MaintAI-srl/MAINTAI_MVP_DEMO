@@ -224,6 +224,70 @@ def get_asset_qrcode(
     )
 
 
+@router.get("/assets/{asset_id}/qr")
+def get_asset_qr_json(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Restituisce il QR code PNG come base64.
+    Se non è stato ancora generato (asset pre-esistenti), lo genera al volo e lo salva.
+    Response: { asset_id, asset_code, asset_nome, qr_b64 }
+    """
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset non trovato")
+
+    qr_b64 = getattr(asset, "qr_code_b64", None)
+    if not qr_b64:
+        # Genera e salva on-demand per asset precedenti
+        try:
+            from backend.services.qr_service import generate_asset_qr_base64
+            qr_b64 = generate_asset_qr_base64(asset_id)
+            asset.qr_code_b64 = qr_b64
+            db.commit()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Errore generazione QR: {exc}")
+
+    return {
+        "asset_id": asset_id,
+        "asset_code": asset.codice or "",
+        "asset_nome": asset.nome or "",
+        "qr_b64": qr_b64,
+    }
+
+
+@router.get("/assets/{asset_id}/qr/print")
+def get_asset_qr_png(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Restituisce il QR code come immagine PNG binaria.
+    Usato dalla pagina di stampa /print/asset-qr/{assetId}.
+    """
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset non trovato")
+
+    try:
+        from backend.services.qr_service import generate_asset_qr_png
+        png_bytes = generate_asset_qr_png(asset_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Errore generazione QR: {exc}")
+
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'inline; filename="qr-asset-{asset_id}.png"',
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
+
+
 @router.get("/assets/{asset_id}/ricambi-suggeriti", tags=["integration-future"])
 def get_ricambi_suggeriti(
     asset_id: int,

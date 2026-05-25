@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { API_BASE, apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { SkeletonTable } from "../components/Skeleton";
@@ -11,6 +12,9 @@ import { DataTable, dateRangeFilterFn, type ColumnDef } from "@/components/ui/da
 import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
+
+// Lazy load mappa emergenze (Leaflet, solo client-side)
+const EmergencyMap = dynamic(() => import("../components/EmergencyMap"), { ssr: false });
 
 type Ticket = {
   id: number;
@@ -65,6 +69,7 @@ function statoStyle(s: string): React.CSSProperties {
 
 function getPrioritaStyle(p: string): React.CSSProperties {
   switch (p?.toLowerCase()) {
+    case "emergenza": return { color: "#fff", background: "rgba(239,68,68,0.90)", border: "1px solid #ef4444" };
     case "alta":  return { color: "#fca5a5", background: "rgba(239,68,68,0.10)",  border: "1px solid rgba(239,68,68,0.22)" };
     case "media": return { color: "#fcd34d", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.22)" };
     case "bassa": return { color: "#94a3b8", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
@@ -1028,7 +1033,7 @@ export default function TicketPage() {
     {
       accessorKey: "priorita",
       header: "Priorità",
-      meta: { filterVariant: "select", options: ["Alta", "Media", "Bassa"] },
+      meta: { filterVariant: "select", options: ["Emergenza", "Alta", "Media", "Bassa"] },
       cell: ({ getValue }) => {
         const p = getValue<string>();
         return <span style={{ ...getPrioritaStyle(p), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{p}</span>;
@@ -1271,9 +1276,10 @@ export default function TicketPage() {
             <label className="label">Priorità</label>
             <ButtonPicker
               options={[
-                { value: "Alta",  label: "Alta",  color: "#ef4444" },
-                { value: "Media", label: "Media", color: "#f59e0b" },
-                { value: "Bassa", label: "Bassa", color: "#22c55e" },
+                { value: "Emergenza", label: "EMERG.", color: "#ef4444" },
+                { value: "Alta",      label: "Alta",   color: "#fca5a5" },
+                { value: "Media",     label: "Media",  color: "#f59e0b" },
+                { value: "Bassa",     label: "Bassa",  color: "#22c55e" },
               ]}
               value={priorita}
               onChange={setPriorita}
@@ -1550,6 +1556,32 @@ export default function TicketPage() {
                 onClose={() => setDetailTicket(null)}
                 onSaved={handleSaved}
               />
+
+              {/* Sezione mappa emergenze — visibile solo per priorità Emergenza */}
+              {detailTicket.priorita === "Emergenza" && (
+                <div style={{ marginTop: "24px", borderTop: "1px solid rgba(239,68,68,0.3)", paddingTop: "20px" }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px",
+                  }}>
+                    <div style={{ width: "10px", height: "10px", background: "#ef4444", borderRadius: "50%", boxShadow: "0 0 8px rgba(239,68,68,0.7)" }} />
+                    <div style={{ fontWeight: 800, fontSize: "15px", color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Mappa Tecnici Vicini
+                    </div>
+                  </div>
+                  <EmergencyMap
+                    ticketId={detailTicket.id}
+                    onAssign={async (tecnicoId) => {
+                      try {
+                        await apiPut(`/tickets/${detailTicket.id}`, { tecnico_id: tecnicoId });
+                        notify.success("Tecnico assegnato al ticket");
+                        handleSaved();
+                      } catch {
+                        notify.error("Errore nell'assegnazione del tecnico");
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </>
           )}
         </SheetContent>

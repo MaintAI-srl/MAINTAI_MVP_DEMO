@@ -48,6 +48,7 @@ try:
     from backend.api.routes.check_primo_livello import router as check_pl_router
     from backend.api.routes.attestati import router as attestati_router
     from backend.api.routes.report import router as report_router
+    from backend.api.routes.emergency import router as emergency_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -221,6 +222,11 @@ def _ensure_columns() -> None:
         # M2.2 — Ticket predisposizione ricambi
         ("ticket", "ricambio_note",            "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_note TEXT"),
         ("ticket", "in_attesa_ricambio",       "ALTER TABLE ticket ADD COLUMN {ifne}in_attesa_ricambio BOOLEAN DEFAULT FALSE"),
+        # QR Code per asset (base64 PNG)
+        ("asset", "qr_code_b64",               "ALTER TABLE asset ADD COLUMN {ifne}qr_code_b64 TEXT"),
+        # Tecnico — telefono e sede per mappa emergenze
+        ("tecnici", "telefono",                "ALTER TABLE tecnici ADD COLUMN {ifne}telefono VARCHAR"),
+        ("tecnici", "sede_indirizzo",          "ALTER TABLE tecnici ADD COLUMN {ifne}sede_indirizzo VARCHAR"),
     ]
 
     # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)
@@ -759,6 +765,7 @@ app.include_router(note_asset_router)
 app.include_router(check_pl_router)
 app.include_router(attestati_router)
 app.include_router(report_router)
+app.include_router(emergency_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.

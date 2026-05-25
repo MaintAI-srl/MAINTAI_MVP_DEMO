@@ -65,6 +65,7 @@ def _to_dict(asset: Asset) -> dict:
         "posizione_fisica": asset.posizione_fisica,
         "costo_orario_fermo": asset.costo_orario_fermo,
         "codice_ricambio_esterno": getattr(asset, "codice_ricambio_esterno", None),
+        "qr_code_b64": getattr(asset, "qr_code_b64", None),
         "tenant_id": asset.tenant_id,
     }
 
@@ -174,6 +175,18 @@ class AssetRepository:
         db.add(asset)
         db.commit()
         db.refresh(asset)
+
+        # Genera e salva il QR code PNG in base64
+        try:
+            from backend.services.qr_service import generate_asset_qr_base64
+            asset.qr_code_b64 = generate_asset_qr_base64(asset.id)
+            db.commit()
+            db.refresh(asset)
+        except Exception as _qr_err:
+            # Non bloccare la creazione se il QR fallisce
+            import logging
+            logging.getLogger(__name__).warning("QR generation failed for asset %s: %s", asset.id, _qr_err)
+
         result = self.get_by_id(db, asset.id, tenant_id)
         if result:
             result["codice_auto_generated"] = auto_generated

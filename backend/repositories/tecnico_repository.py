@@ -20,6 +20,8 @@ class TecnicoRepository:
             "orario_inizio": tecnico.orario_inizio or "08:00",
             "orario_fine": tecnico.orario_fine or "17:00",
             "limitazioni_orarie": tecnico.limitazioni_orarie or "",
+            "telefono": getattr(tecnico, "telefono", None) or "",
+            "sede_indirizzo": getattr(tecnico, "sede_indirizzo", None) or "",
             "utente_id": tecnico.utente_id,
             "utente_username": utente_username,
             "tenant_id": tecnico.tenant_id,
@@ -76,6 +78,8 @@ class TecnicoRepository:
             orario_fine=data.orario_fine or "17:00",
             limitazioni_orarie=data.limitazioni_orarie,
             utente_id=data.utente_id,
+            telefono=getattr(data, "telefono", None),
+            sede_indirizzo=getattr(data, "sede_indirizzo", None),
             tenant_id=tenant_id,
         )
         db.add(tecnico)
@@ -110,6 +114,10 @@ class TecnicoRepository:
             tecnico.limitazioni_orarie = data.limitazioni_orarie
         if "utente_id" in data.model_fields_set:
             tecnico.utente_id = data.utente_id  # None = scollega
+        if data.telefono is not None:
+            tecnico.telefono = data.telefono
+        if data.sede_indirizzo is not None:
+            tecnico.sede_indirizzo = data.sede_indirizzo
         db.commit()
         db.refresh(tecnico)
         # Ricarica con utente per popolare utente_username

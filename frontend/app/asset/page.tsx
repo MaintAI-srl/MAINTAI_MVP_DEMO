@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
 import StatusToggle from "../components/StatusToggle";
 import { ASSET_STATUS_OPTIONS, assetStatusLabel, assetStatusStyle } from "../lib/assetStatus";
+
+// Lazy load del componente QR (client-only, niente SSR necessario ma usiamo dynamic per uniformità)
+const AssetQRCodeLazy = dynamic(() => import("../components/AssetQRCode"), { ssr: false });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -495,7 +499,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 }) {
   const [detail, setDetail] = useState<AssetDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"anagrafica" | "vincoli" | "piani" | "documenti" | "ticket" | "kpi" | "procedure" | "nota_senior">("anagrafica");
+  const [tab, setTab] = useState<"anagrafica" | "vincoli" | "piani" | "documenti" | "ticket" | "kpi" | "procedure" | "nota_senior" | "qr">("anagrafica");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<AssetDetail>>({});
   const [saving, setSaving] = useState(false);
@@ -571,6 +575,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
     { id: "ticket", label: "Ticket" },
     { id: "procedure", label: "Procedure" },
     { id: "nota_senior", label: "Nota Senior" },
+    { id: "qr", label: "QR Code" },
   ] as const;
   const upd = (k: keyof AssetDetail) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setEditForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -600,24 +605,10 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
           ? <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
                 style={{ ...btnSecondary, fontSize: "11px", padding: "6px 10px", display: "flex", alignItems: "center", gap: "4px" }}
-                title="Stampa e incolla sulla macchina — scansiona per vedere lo storico"
-                onClick={() => {
-                  const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
-                  const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;
-                  fetch(`${API_BASE}/assets/${detail.id}/qrcode`, {
-                    credentials: "include",
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                  }).then(r => r.blob()).then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = `qr-asset-${detail.id}.svg`;
-                    link.click();
-                    URL.revokeObjectURL(url);
-                  }).catch(() => alert("Errore download QR code"));
-                }}
+                title="Stampa QR code — incolla sulla macchina per accesso rapido"
+                onClick={() => setTab("qr")}
               >
-                📥 QR
+                QR Code
               </button>
               <button style={btnPrimary} onClick={() => setEditing(true)}>Modifica</button>
               <button style={btnDanger} onClick={onElimina}>Elimina</button>
@@ -994,6 +985,20 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Tab QR Code ─────────────────────────────────────────────────── */}
+      {tab === "qr" && (
+        <div>
+          <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-primary)", marginBottom: "16px" }}>
+            QR Code Asset
+          </div>
+          <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "20px", lineHeight: 1.6 }}>
+            Incolla questo QR sull&apos;asset fisico. Scansionando il codice si apre direttamente
+            la scheda dell&apos;asset nel sistema MaintAI.
+          </div>
+          <AssetQRCodeLazy assetId={detail.id} assetCode={detail.codice} assetNome={detail.nome} />
         </div>
       )}
     </div>

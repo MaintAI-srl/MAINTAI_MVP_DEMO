@@ -148,6 +148,9 @@ class Asset(Base):
     # M2.2 — Predisposizione ricambi (codice per futura integrazione modulo esterno)
     codice_ricambio_esterno = Column(String, nullable=True)
 
+    # QR Code PNG base64 (generato alla creazione / rigenerabile via endpoint)
+    qr_code_b64 = Column(Text, nullable=True)
+
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
@@ -173,6 +176,8 @@ class Tecnico(Base):
     orario_inizio = Column(String, nullable=True, default="08:00")
     orario_fine = Column(String, nullable=True, default="17:00")
     limitazioni_orarie = Column(Text, nullable=True)
+    telefono = Column(String, nullable=True)
+    sede_indirizzo = Column(String, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     utente = relationship("Utente")
