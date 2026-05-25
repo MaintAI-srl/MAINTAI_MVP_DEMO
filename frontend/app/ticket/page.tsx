@@ -710,6 +710,7 @@ export default function TicketPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number; statoCorrente: string } | null>(null);
   const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
+  const [showEmergencyMap, setShowEmergencyMap] = useState(false);
   const [pianificaModal, setPianificaModal] = useState<{ onConfirm: (date: string) => void } | null>(null);
   const [eliminaModal, setEliminaModal] = useState<{ onConfirm: (reason: string) => void } | null>(null);
 
@@ -1534,6 +1535,20 @@ export default function TicketPage() {
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{detailTicket.priorita}</span>
+                  {detailTicket.priorita === "Emergenza" && (
+                    <button
+                      onClick={() => setShowEmergencyMap(true)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "4px 12px", borderRadius: 8, border: "1px solid #ef4444",
+                        background: "rgba(239,68,68,0.12)", color: "#f87171",
+                        fontWeight: 800, fontSize: 12, cursor: "pointer",
+                        animation: "pulse-border 1.5s infinite",
+                      }}
+                    >
+                      🗺️ Mappa Tecnici
+                    </button>
+                  )}
                   {detailTicket.sito_name && (
                     <span style={{ fontSize: 12, color: "#a6f6ff", fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: "rgba(31,232,255,0.10)", border: "1px solid rgba(31,232,255,0.22)" }}>
                       Sito: {detailTicket.sito_name}
@@ -1557,35 +1572,67 @@ export default function TicketPage() {
                 onSaved={handleSaved}
               />
 
-              {/* Sezione mappa emergenze — visibile solo per priorità Emergenza */}
-              {detailTicket.priorita === "Emergenza" && (
-                <div style={{ marginTop: "24px", borderTop: "1px solid rgba(239,68,68,0.3)", paddingTop: "20px" }}>
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px",
-                  }}>
-                    <div style={{ width: "10px", height: "10px", background: "#ef4444", borderRadius: "50%", boxShadow: "0 0 8px rgba(239,68,68,0.7)" }} />
-                    <div style={{ fontWeight: 800, fontSize: "15px", color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      Mappa Tecnici Vicini
-                    </div>
-                  </div>
-                  <EmergencyMap
-                    ticketId={detailTicket.id}
-                    onAssign={async (tecnicoId) => {
-                      try {
-                        await apiPut(`/tickets/${detailTicket.id}`, { tecnico_id: tecnicoId });
-                        notify.success("Tecnico assegnato al ticket");
-                        handleSaved();
-                      } catch {
-                        notify.error("Errore nell'assegnazione del tecnico");
-                      }
-                    }}
-                  />
-                </div>
-              )}
+              {/* Mappa emergenze spostata in Dialog dedicato — vedi sotto */}
             </>
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Dialog mappa emergenze — si apre cliccando "🗺️ Mappa Tecnici" nell'header */}
+      {showEmergencyMap && detailTicket && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(0,0,0,0.75)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "16px",
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowEmergencyMap(false); }}
+        >
+          <div style={{
+            background: "#0a0f1e", border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: 16, width: "100%", maxWidth: 1100,
+            maxHeight: "90vh", overflow: "hidden",
+            display: "flex", flexDirection: "column",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+          }}>
+            {/* Header dialog */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 24px", borderBottom: "1px solid rgba(239,68,68,0.2)",
+              flexShrink: 0,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 10, height: 10, background: "#ef4444", borderRadius: "50%", boxShadow: "0 0 8px rgba(239,68,68,0.7)" }} />
+                <span style={{ fontWeight: 800, fontSize: 16, color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Mappa Tecnici — {detailTicket.titolo}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowEmergencyMap(false)}
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                ×
+              </button>
+            </div>
+            {/* Body scrollabile */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+              <EmergencyMap
+                ticketId={detailTicket.id}
+                onAssign={async (tecnicoId) => {
+                  try {
+                    await apiPut(`/tickets/${detailTicket.id}`, { tecnico_id: tecnicoId });
+                    notify.success("Tecnico assegnato al ticket");
+                    setShowEmergencyMap(false);
+                    handleSaved();
+                  } catch {
+                    notify.error("Errore nell'assegnazione del tecnico");
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal pianificazione rapida (cambi stato → Pianificato) */}
       {pianificaModal && (

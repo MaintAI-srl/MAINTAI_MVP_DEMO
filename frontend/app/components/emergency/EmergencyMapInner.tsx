@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 
@@ -161,7 +161,7 @@ export default function EmergencyMapInner({
         const polyColor = POLYLINE_COLORS[idx] ?? "#94a3b8";
 
         return (
-          <div key={tec.tecnico_id}>
+          <React.Fragment key={tec.tecnico_id}>
             {/* Polyline tratteggiata verso emergenza (solo top-3 con coords note) */}
             {isTop3 && emergenza.lat !== null && emergenza.lon !== null && (
               <Polyline
@@ -205,7 +205,7 @@ export default function EmergencyMapInner({
                 </div>
               </Popup>
             </Marker>
-          </div>
+          </React.Fragment>
         );
       })}
     </MapContainer>
