@@ -13,6 +13,7 @@ type AssetResult = { id: number; name: string; impianto_nome?: string; sito_nome
 type Ticket = {
   id: number;
   titolo: string;
+  asset_id?: number;
   asset_name: string;
   priorita: string;
   stato: string;
@@ -50,72 +51,7 @@ function fmtDate(iso?: string | null): string {
     + " " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
 
-// ── Safety checklist mock per tipo asset ──────────────────────────────────────
-function getSafetyChecklist(assetName: string, tipo: string): { id: number; text: string }[] {
-  const name = (assetName || "").toLowerCase();
-  if (name.includes("pompa") || name.includes("pump")) {
-    return [
-      { id: 1, text: "Verifica che la pompa sia in stato FERMO PROG." },
-      { id: 2, text: "Chiudi valvola aspirazione e mandata" },
-      { id: 3, text: "Applica blocco/targhetta (LOTO) sul quadro" },
-      { id: 4, text: "Sfoga la pressione residua nel corpo pompa" },
-      { id: 5, text: "Indossa DPI: guanti, occhiali, scarpe antinfortunistiche" },
-    ];
-  }
-  if (name.includes("motore") || name.includes("motor")) {
-    return [
-      { id: 1, text: "Seziona l'alimentazione elettrica al quadro" },
-      { id: 2, text: "Applica blocco/targhetta (LOTO) sull'interruttore" },
-      { id: 3, text: "Verifica assenza tensione con il tester" },
-      { id: 4, text: "Attendi raffreddamento carcassa (min. 10 min)" },
-      { id: 5, text: "Indossa DPI: guanti isolanti, occhiali" },
-    ];
-  }
-  if (name.includes("quadro") || name.includes("panel") || name.includes("mcc")) {
-    return [
-      { id: 1, text: "Seziona l'alimentazione principale" },
-      { id: 2, text: "Applica LOTO sul sezionatore" },
-      { id: 3, text: "Verifica assenza tensione su tutti i morsetti" },
-      { id: 4, text: "Indossa guanti isolanti classe adeguata" },
-      { id: 5, text: "Tieni a portata di mano l'estintore CO₂" },
-    ];
-  }
-  if (name.includes("compressor")) {
-    return [
-      { id: 1, text: "Ferma il compressore e attendi sfogo pressione" },
-      { id: 2, text: "Seziona alimentazione elettrica (LOTO)" },
-      { id: 3, text: "Chiudi valvola di intercettazione aria" },
-      { id: 4, text: "Sfoga il serbatoio tramite valvola di scarico" },
-      { id: 5, text: "Indossa DPI: occhiali, guanti, protezioni uditive" },
-    ];
-  }
-  if (name.includes("nastro") || name.includes("conveyor")) {
-    return [
-      { id: 1, text: "Ferma il nastro e applica LOTO sul motoriduttore" },
-      { id: 2, text: "Verifica assenza di materiale sul nastro" },
-      { id: 3, text: "Blocca meccanicamente il nastro (cunei)" },
-      { id: 4, text: "Indossa DPI: guanti, occhiali, scarpe antinfortunistiche" },
-      { id: 5, text: "Segnala area di lavoro con nastro/barriere" },
-    ];
-  }
-  // Generica per tipo intervento
-  if (tipo === "BD") {
-    return [
-      { id: 1, text: "Metti in sicurezza l'area intorno all'asset" },
-      { id: 2, text: "Verifica assenza di rischi immediati (fumo, perdite, calore)" },
-      { id: 3, text: "Seziona l'alimentazione se presente rischio elettrico" },
-      { id: 4, text: "Indossa DPI appropriati per il tipo di guasto" },
-      { id: 5, text: "Informa il responsabile prima di intervenire" },
-    ];
-  }
-  return [
-    { id: 1, text: "Leggi il permesso di lavoro prima di iniziare" },
-    { id: 2, text: "Verifica che l'area sia sgombra da personale non autorizzato" },
-    { id: 3, text: "Indossa i DPI previsti dalla procedura" },
-    { id: 4, text: "Applica LOTO se l'intervento lo richiede" },
-    { id: 5, text: "Segnala eventuali anomalie al responsabile" },
-  ];
-}
+// getSafetyChecklist rimossa — i dati vengono dal DB (CheckPrimoLivello per asset)
 
 // ── Orologio corrente grande ──────────────────────────────────────────────────
 function LiveClock() {
@@ -195,7 +131,27 @@ function ActiveWorkView({
   onStatusChange: (id: number, stato: string) => Promise<void>;
 }) {
   const tipo = tipoLabel(ticket.tipo);
-  const checklist = getSafetyChecklist(ticket.asset_name, ticket.tipo);
+
+  // Checklist reale dal DB (CheckPrimoLivello dell'asset)
+  const [checklist, setChecklist] = useState<{ id: number; text: string }[]>([]);
+  const [checklistLoading, setChecklistLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ticket.asset_id) { setChecklistLoading(false); return; }
+    apiGet<{ voci?: { label: string; descrizione?: string }[] } | null>(
+      `/assets/${ticket.asset_id}/check`
+    )
+      .then(data => {
+        const voci = data?.voci ?? [];
+        setChecklist(voci.map((v, i) => ({
+          id: i + 1,
+          text: v.descrizione ? `${v.label} — ${v.descrizione}` : v.label,
+        })));
+      })
+      .catch(() => setChecklist([]))
+      .finally(() => setChecklistLoading(false));
+  }, [ticket.asset_id]);
+
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [paused, setPaused] = useState(false);
   const [pausedAt, setPausedAt] = useState(0);
@@ -205,7 +161,8 @@ function ActiveWorkView({
   const [transcript, setTranscript] = useState("");
   const [savingVoice, setSavingVoice] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const allChecked = checked.size === checklist.length;
+  // allChecked: vero se tutte le voci sono flaggate O se non ci sono voci da verificare
+  const allChecked = checklist.length === 0 || checked.size === checklist.length;
 
   function toggle(id: number) {
     setChecked(prev => {
@@ -388,58 +345,73 @@ function ActiveWorkView({
             </div>
           )}
 
-          {/* Safety Checklist */}
+          {/* Safety Checklist — dati reali da CheckPrimoLivello */}
           <div style={{
             background: allChecked ? "rgba(52,211,153,0.04)" : "rgba(239,68,68,0.04)",
-            border: `2px solid ${allChecked ? "rgba(52,211,153,0.30)" : "rgba(239,68,68,0.40)"}`,
+            border: `2px solid ${allChecked ? "rgba(52,211,153,0.30)" : checklist.length === 0 ? "rgba(100,116,139,0.30)" : "rgba(239,68,68,0.40)"}`,
             borderRadius: 14, padding: "10px 8px",
             transition: "border-color 0.3s, background 0.3s",
             flexShrink: 0,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
               <span style={{ fontSize: 16 }}>🦺</span>
-              <span style={{ fontSize: 10, fontWeight: 900, color: allChecked ? "#34d399" : "#f87171", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              <span style={{ fontSize: 10, fontWeight: 900, color: allChecked ? "#34d399" : checklist.length === 0 ? "#94a3b8" : "#f87171", letterSpacing: "0.1em", textTransform: "uppercase" }}>
                 Safety
               </span>
-              <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-mono)" }}>
-                {checked.size}/{checklist.length}
-              </span>
+              {checklist.length > 0 && (
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-mono)" }}>
+                  {checked.size}/{checklist.length}
+                </span>
+              )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {checklist.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => toggle(item.id)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    background: checked.has(item.id) ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
-                    border: `2px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.12)"}`,
-                    borderRadius: 12, padding: "11px 10px",
-                    cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-                    minHeight: 54, width: "100%",
-                  }}
-                >
-                  <span style={{
-                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                    background: checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.06)",
-                    border: `3px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.20)"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 18, color: "#fff", fontWeight: 900, transition: "all 0.15s",
-                  }}>
-                    {checked.has(item.id) ? "✓" : ""}
-                  </span>
-                  <span style={{
-                    fontSize: 12, lineHeight: 1.3,
-                    color: checked.has(item.id) ? "#86efac" : "#e2e8f0",
-                    textDecoration: checked.has(item.id) ? "line-through" : "none",
-                    fontWeight: checked.has(item.id) ? 500 : 700, transition: "all 0.15s",
-                  }}>
-                    {item.text}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {allChecked && (
+
+            {checklistLoading ? (
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textAlign: "center", padding: "12px 0" }}>
+                Caricamento checklist...
+              </div>
+            ) : checklist.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#64748b", padding: "8px 4px", lineHeight: 1.5 }}>
+                Nessuna checklist configurata per questo asset.<br />
+                <span style={{ color: "#475569" }}>Rispettare le procedure aziendali e indossare i DPI previsti.</span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {checklist.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => toggle(item.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      background: checked.has(item.id) ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
+                      border: `2px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.12)"}`,
+                      borderRadius: 12, padding: "11px 10px",
+                      cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+                      minHeight: 54, width: "100%",
+                    }}
+                  >
+                    <span style={{
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                      background: checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.06)",
+                      border: `3px solid ${checked.has(item.id) ? "#34d399" : "rgba(255,255,255,0.20)"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 18, color: "#fff", fontWeight: 900, transition: "all 0.15s",
+                    }}>
+                      {checked.has(item.id) ? "✓" : ""}
+                    </span>
+                    <span style={{
+                      fontSize: 12, lineHeight: 1.3,
+                      color: checked.has(item.id) ? "#86efac" : "#e2e8f0",
+                      textDecoration: checked.has(item.id) ? "line-through" : "none",
+                      fontWeight: checked.has(item.id) ? 500 : 700, transition: "all 0.15s",
+                    }}>
+                      {item.text}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {allChecked && checklist.length > 0 && (
               <div style={{ fontSize: 11, color: "#34d399", fontWeight: 800, textAlign: "center", paddingTop: 8 }}>
                 ✅ SICUREZZA VERIFICATA
               </div>
