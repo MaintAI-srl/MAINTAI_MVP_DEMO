@@ -6,6 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useAuth } from "@/app/lib/auth";
+import { apiGet } from "@/app/lib/api";
 import { notify } from "@/lib/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
@@ -70,7 +71,7 @@ function CustomTooltip({ active, payload, label }: any) {
 // ─── Pagina ───────────────────────────────────────────────────────────────────
 
 export default function ReportEconomicoPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [data, setData] = useState<ReportData | null>(null);
@@ -86,26 +87,20 @@ export default function ReportEconomicoPage() {
   }, [user, router]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
     setLoading(true);
-    fetch(`${API_BASE}/report/economico?mesi=${mesi}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => {
-        if (!r.ok) throw new Error("Errore caricamento report");
-        return r.json();
-      })
+    apiGet<ReportData>(`/report/economico?mesi=${mesi}`)
       .then(setData)
-      .catch(err => notify.error(err.message))
+      .catch(err => notify.error(err instanceof Error ? err.message : "Errore caricamento report"))
       .finally(() => setLoading(false));
-  }, [token, mesi]);
+  }, [user, mesi]);
 
   const handleExportExcel = async () => {
-    if (!token) return;
     setExporting(true);
     try {
+      const jwt = typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
       const res = await fetch(`${API_BASE}/report/economico/export`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!res.ok) throw new Error("Errore export Excel");
       const blob = await res.blob();
@@ -115,8 +110,8 @@ export default function ReportEconomicoPage() {
       a.download = `maintai_report_economico_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      notify.error(err.message);
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore export");
     } finally {
       setExporting(false);
     }

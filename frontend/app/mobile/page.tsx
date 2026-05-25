@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import UploadAllegati from "../components/UploadAllegati";
 import Skeleton from "../components/Skeleton";
 import VoiceRecorder from "../components/VoiceRecorder";
+import QrScanner from "../components/QrScanner";
 
 type AssetResult = { id: number; name: string; impianto_nome?: string; sito_nome?: string; codice?: string };
 
@@ -161,6 +162,10 @@ function ActiveWorkView({
   const [transcript, setTranscript] = useState("");
   const [savingVoice, setSavingVoice] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // QR close flow: "idle" → "scanning" → "confirm" → (close)
+  const [closeState, setCloseState] = useState<"idle" | "scanning" | "confirm">("idle");
+  const [qrScannedValue, setQrScannedValue] = useState("");
   // allChecked: vero se tutte le voci sono flaggate O se non ci sono voci da verificare
   const allChecked = checklist.length === 0 || checked.size === checklist.length;
 
@@ -188,7 +193,13 @@ function ActiveWorkView({
       notify.warning("Completa la Safety Checklist prima di terminare.", "SAFETY");
       return;
     }
-    await onStatusChange(ticket.id, "Chiuso");
+    // Richiede scansione QR asset per registrare la presenza fisica
+    if (ticket.asset_id) {
+      setCloseState("scanning");
+    } else {
+      // Nessun asset collegato → chiusura diretta
+      await onStatusChange(ticket.id, "Chiuso");
+    }
   }
 
   function handlePausa() {
@@ -218,6 +229,79 @@ function ActiveWorkView({
       minHeight: "100%",
       background: "#060d1a",
     }}>
+
+      {/* ── QR Scanner per chiusura ─────────────────────────────────────────── */}
+      {closeState === "scanning" && (
+        <QrScanner
+          title="Verifica Presenza 📍"
+          subtitle="Scansiona il QR code sull'asset per chiudere"
+          onScan={(val) => { setQrScannedValue(val); setCloseState("confirm"); }}
+          onCancel={() => setCloseState("idle")}
+        />
+      )}
+
+      {/* ── Modal conferma chiusura dopo QR ─────────────────────────────────── */}
+      {closeState === "confirm" && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9998,
+          background: "rgba(0,0,0,0.88)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: 24,
+        }}>
+          <div style={{
+            background: "#111827", borderRadius: 22, padding: "28px 24px",
+            width: "100%", maxWidth: 360,
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 52, marginBottom: 12 }}>✅</div>
+              <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", marginBottom: 6 }}>QR Verificato</div>
+              <div style={{ fontSize: 11, color: "#34d399", fontWeight: 700, letterSpacing: "0.05em", marginBottom: 12 }}>
+                📍 PRESENZA FISICA CONFERMATA
+              </div>
+              <div style={{
+                fontSize: 11, color: "rgba(255,255,255,0.3)",
+                background: "rgba(255,255,255,0.04)", borderRadius: 8,
+                padding: "6px 10px", wordBreak: "break-all", fontFamily: "var(--font-mono)",
+              }}>
+                {qrScannedValue.length > 48
+                  ? qrScannedValue.substring(0, 48) + "…"
+                  : qrScannedValue}
+              </div>
+            </div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: 22, lineHeight: 1.5 }}>
+              La scansione è registrata.<br />Vuoi chiudere l&apos;intervento?
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setCloseState("idle")}
+                style={{
+                  flex: 1, padding: 14, borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
+                  color: "#94a3b8", fontWeight: 700, cursor: "pointer", fontSize: 14,
+                }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={async () => {
+                  setCloseState("idle");
+                  await onStatusChange(ticket.id, "Chiuso");
+                }}
+                style={{
+                  flex: 2, padding: 14, borderRadius: 12,
+                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  border: "none", color: "#fff", fontWeight: 900, cursor: "pointer", fontSize: 15,
+                  boxShadow: "0 6px 20px rgba(16,185,129,0.4)",
+                }}
+              >
+                ✅ CHIUDI INTERVENTO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Top bar compatta ── */}
       <div style={{
@@ -602,6 +686,9 @@ export default function MobileHomePage() {
   const [nuovoPriorita, setNuovoPriorita] = useState<"Alta"|"Media"|"Bassa">("Alta");
   const [nuovoDesc, setNuovoDesc] = useState("");
   const [savingTicket, setSavingTicket] = useState(false);
+  // Ticket Vocale — metodo di input
+  const [voiceQrInputMethod, setVoiceQrInputMethod] = useState<"voice" | "qr">("voice");
+  const [showVoiceQrScan, setShowVoiceQrScan] = useState(false);
   // Piano Odierno
   const [dpiChecked, setDpiChecked] = useState<Record<string, boolean>>({});
   const [dpiConfirmed, setDpiConfirmed] = useState(false);
@@ -707,6 +794,63 @@ export default function MobileHomePage() {
     setManualAssets(assets ?? []);
   }
 
+  async function handleQrScanForTicket(value: string) {
+    let assets: AssetResult[] = [];
+
+    // 1. Prova a parsare come URL → cerca per token /check/{token} o /assets/{id}
+    try {
+      const url = new URL(value);
+      const parts = url.pathname.split("/").filter(Boolean);
+      // Pattern: /check/{token}
+      if (parts[0] === "check" && parts[1]) {
+        try {
+          const data = await apiGet<{ asset_id?: number } | null>(`/check/public/${parts[1]}`);
+          if (data?.asset_id) {
+            const asset = await apiGet<AssetResult>(`/assets/${data.asset_id}`);
+            if (asset) assets = [asset];
+          }
+        } catch { /* ignore */ }
+      }
+      // Pattern: /assets/{id}
+      if (assets.length === 0) {
+        const ai = parts.indexOf("assets");
+        if (ai !== -1 && parts[ai + 1] && /^\d+$/.test(parts[ai + 1])) {
+          try {
+            const asset = await apiGet<AssetResult>(`/assets/${parts[ai + 1]}`);
+            if (asset) assets = [asset];
+          } catch { /* ignore */ }
+        }
+      }
+      // Ultimo segmento come query
+      if (assets.length === 0) {
+        const last = parts[parts.length - 1];
+        if (last) assets = await searchAssetsByQuery(last);
+      }
+    } catch {
+      // Non è un URL — cerca direttamente
+    }
+
+    // 2. Ricerca testo completo
+    if (assets.length === 0) {
+      assets = await searchAssetsByQuery(value);
+    }
+
+    // 3. Prova come ID numerico
+    if (assets.length === 0 && /^\d+$/.test(value.trim())) {
+      try {
+        const asset = await apiGet<AssetResult>(`/assets/${value.trim()}`);
+        if (asset) assets = [asset];
+      } catch { /* ignore */ }
+    }
+
+    if (assets.length > 0) {
+      setFoundAssets(assets);
+      setVoiceStep("confirm_asset");
+    } else {
+      notify.error("QR non riconosciuto — nessun asset trovato.", "QR");
+    }
+  }
+
   async function saveTicketVocale() {
     if (!selectedAsset) return;
     setSavingTicket(true);
@@ -757,9 +901,27 @@ export default function MobileHomePage() {
   function TicketVocaleView() {
     return (
       <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+
+        {/* QR Scanner per identificazione asset */}
+        {showVoiceQrScan && (
+          <QrScanner
+            title="Identifica Asset 📦"
+            subtitle="Inquadra il QR code sull'asset da segnalare"
+            onScan={async (val) => {
+              setShowVoiceQrScan(false);
+              await handleQrScanForTicket(val);
+            }}
+            onCancel={() => setShowVoiceQrScan(false)}
+          />
+        )}
+
         {/* Header */}
         <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <button onClick={() => { setHomeView("home"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setSelectedAsset(null); }}
+          <button
+            onClick={() => {
+              if (showVoiceQrScan) { setShowVoiceQrScan(false); return; }
+              setHomeView("home"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setSelectedAsset(null);
+            }}
             style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
           <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>🎙️ Apri Ticket Vocale</span>
         </div>
@@ -768,35 +930,96 @@ export default function MobileHomePage() {
 
           {/* STEP: listen */}
           {voiceStep === "listen" && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, paddingTop: 20 }}>
-              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", fontSize: 15, lineHeight: 1.5 }}>
-                Premi il microfono e pronuncia<br/>il nome dell&apos;asset da segnalare
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, paddingTop: 8 }}>
+
+              {/* Toggle metodo input */}
+              <div style={{ display: "flex", gap: 0, background: "rgba(255,255,255,0.06)", borderRadius: 12, padding: 4, width: "100%" }}>
+                <button
+                  onClick={() => setVoiceQrInputMethod("voice")}
+                  style={{
+                    flex: 1, padding: "12px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+                    fontWeight: 800, fontSize: 14, transition: "all 0.15s",
+                    background: voiceQrInputMethod === "voice" ? "rgba(99,102,241,0.30)" : "transparent",
+                    color: voiceQrInputMethod === "voice" ? "#a5b4fc" : "rgba(255,255,255,0.35)",
+                  }}
+                >
+                  🎙️ Voce / Testo
+                </button>
+                <button
+                  onClick={() => setVoiceQrInputMethod("qr")}
+                  style={{
+                    flex: 1, padding: "12px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+                    fontWeight: 800, fontSize: 14, transition: "all 0.15s",
+                    background: voiceQrInputMethod === "qr" ? "rgba(34,197,94,0.20)" : "transparent",
+                    color: voiceQrInputMethod === "qr" ? "#86efac" : "rgba(255,255,255,0.35)",
+                  }}
+                >
+                  📷 QR Code
+                </button>
               </div>
-              <VoiceRecorder onTranscript={handleVoiceTranscript} />
-              {voiceTranscript && (
-                <div style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 12, padding: "12px 16px", width: "100%", color: "#a5b4fc", fontSize: 14 }}>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Trascritto:</div>
-                  {voiceTranscript}
-                </div>
+
+              {/* ── Modalità VOCE / TESTO ── */}
+              {voiceQrInputMethod === "voice" && (
+                <>
+                  <div style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", fontSize: 15, lineHeight: 1.5 }}>
+                    Premi il microfono e pronuncia<br/>il nome dell&apos;asset da segnalare
+                  </div>
+                  <VoiceRecorder onTranscript={handleVoiceTranscript} />
+                  {voiceTranscript && (
+                    <div style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 12, padding: "12px 16px", width: "100%", color: "#a5b4fc", fontSize: 14 }}>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Trascritto:</div>
+                      {voiceTranscript}
+                    </div>
+                  )}
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>— oppure cerca manualmente —</div>
+                  <div style={{ width: "100%", display: "flex", gap: 8 }}>
+                    <input
+                      value={manualSearch}
+                      onChange={e => handleManualSearch(e.target.value)}
+                      placeholder="Cerca asset per nome..."
+                      style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#fff", padding: "12px 16px", fontSize: 14, outline: "none" }}
+                    />
+                  </div>
+                  {manualAssets.length > 0 && (
+                    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                      {manualAssets.map(a => (
+                        <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
+                          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 16px", color: "#fff", cursor: "pointer", textAlign: "left" }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
+                          {a.sito_nome && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{a.sito_nome}{a.impianto_nome ? ` · ${a.impianto_nome}` : ""}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>— oppure cerca manualmente —</div>
-              <div style={{ width: "100%", display: "flex", gap: 8 }}>
-                <input
-                  value={manualSearch}
-                  onChange={e => handleManualSearch(e.target.value)}
-                  placeholder="Cerca asset per nome..."
-                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#fff", padding: "12px 16px", fontSize: 14, outline: "none" }}
-                />
-              </div>
-              {manualAssets.length > 0 && (
-                <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
-                  {manualAssets.map(a => (
-                    <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 16px", color: "#fff", cursor: "pointer", textAlign: "left" }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
-                      {a.sito_nome && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{a.sito_nome}{a.impianto_nome ? ` · ${a.impianto_nome}` : ""}</div>}
-                    </button>
-                  ))}
+
+              {/* ── Modalità QR CODE ── */}
+              {voiceQrInputMethod === "qr" && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, width: "100%", paddingTop: 8 }}>
+                  <div style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", fontSize: 15, lineHeight: 1.5 }}>
+                    Scansiona il QR code sull&apos;asset<br/>per identificarlo automaticamente
+                  </div>
+                  <button
+                    onClick={() => setShowVoiceQrScan(true)}
+                    style={{
+                      width: "100%", padding: "28px 20px", borderRadius: 18,
+                      border: "2px dashed rgba(34,197,94,0.45)",
+                      background: "rgba(34,197,94,0.06)",
+                      color: "#86efac", cursor: "pointer",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <span style={{ fontSize: 56 }}>📷</span>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontWeight: 900, fontSize: 18, letterSpacing: "0.5px" }}>APRI SCANNER QR</div>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>Richiede accesso alla fotocamera</div>
+                    </div>
+                  </button>
+                  <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, textAlign: "center" }}>
+                    Funziona con Chrome, Edge e Safari 17+
+                  </div>
                 </div>
               )}
             </div>
@@ -1055,7 +1278,7 @@ export default function MobileHomePage() {
       {/* 2 PULSANTONI */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "12px 16px", gap: 12 }}>
         <button
-          onClick={() => { setHomeView("ticket_vocale"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setManualSearch(""); setManualAssets([]); setSelectedAsset(null); setNuovoDesc(""); }}
+          onClick={() => { setHomeView("ticket_vocale"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setManualSearch(""); setManualAssets([]); setSelectedAsset(null); setNuovoDesc(""); setVoiceQrInputMethod("voice"); setShowVoiceQrScan(false); }}
           style={{ flex: 1, minHeight: 140, borderRadius: 20, border: "1.5px solid rgba(99,102,241,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, position: "relative", overflow: "hidden",
             background: "linear-gradient(145deg, #1e1b4b 0%, #0f0c29 60%, #1a1040 100%)",
             boxShadow: "0 8px 32px rgba(99,102,241,0.2)",
