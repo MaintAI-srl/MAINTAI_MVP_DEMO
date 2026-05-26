@@ -31,6 +31,7 @@ interface DataTableProps<TData> {
   onRowClick?: (row: TData) => void;
   getRowProps?: (row: TData) => React.HTMLAttributes<HTMLTableRowElement>;
   enableColumnFilters?: boolean;
+  onFiltersChange?: (filters: ColumnFiltersState) => void;
 }
 
 const filterSelectStyle: React.CSSProperties = {
@@ -157,6 +158,7 @@ export function DataTable<TData>({
   onRowClick,
   getRowProps,
   enableColumnFilters = false,
+  onFiltersChange,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -171,7 +173,11 @@ export function DataTable<TData>({
     getFilteredRowModel: getFilteredRowModel(),
     filterFns: { dateRange: dateRangeFilterFn } as any,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: (updater) => {
+      const next = typeof updater === "function" ? updater(columnFilters) : updater;
+      setColumnFilters(next);
+      onFiltersChange?.(next);
+    },
     onRowSelectionChange: (updater) => {
       const next = typeof updater === "function" ? updater(rowSelection) : updater;
       setRowSelection(next);

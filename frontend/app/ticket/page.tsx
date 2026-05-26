@@ -788,6 +788,39 @@ export default function TicketPage() {
   const [pageArch, setPageArch] = useState(1);
   const LIMIT = 10;
 
+  // Full-load per filtri colonna (quando un filtro è attivo carichiamo tutti i ticket
+  // e lasciamo che DataTable impagini lato client)
+  const [allTicketsForFilter, setAllTicketsForFilter] = useState<Ticket[] | null>(null);
+  const [loadingAllFilter, setLoadingAllFilter] = useState(false);
+
+  async function handleFiltersChange(filters: import("@tanstack/react-table").ColumnFiltersState) {
+    const hasActive = filters.some(f => {
+      if (!f.value && f.value !== 0) return false;
+      if (typeof f.value === "string") return f.value.length > 0;
+      if (typeof f.value === "object" && f.value !== null) {
+        const fv = f.value as Record<string, unknown>;
+        return !!fv.preset && fv.preset !== "";
+      }
+      return false;
+    });
+
+    if (hasActive) {
+      if (allTicketsForFilter === null && !loadingAllFilter) {
+        setLoadingAllFilter(true);
+        try {
+          const d = await apiGet<PagedResult>(`/tickets?page=1&limit=2000&stato=${STATI_ATTIVI.join(",")}`);
+          setAllTicketsForFilter(d.items ?? []);
+        } catch {
+          notify.error("Errore caricamento ticket per filtro.");
+        } finally {
+          setLoadingAllFilter(false);
+        }
+      }
+    } else {
+      setAllTicketsForFilter(null);
+    }
+  }
+
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number; statoCorrente: string } | null>(null);
@@ -1490,15 +1523,22 @@ export default function TicketPage() {
 
           {tableOpen && (
             <>
+              {loadingAllFilter && (
+                <div style={{ fontSize: 12, color: "#818cf8", padding: "8px 4px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #818cf8", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                  Caricamento completo per filtro…
+                </div>
+              )}
               <DataTable
-                data={tickets}
+                data={allTicketsForFilter ?? tickets}
                 columns={ticketColumns}
                 enableColumnFilters
-                manualPagination
-                pageCount={result?.pages ?? 1}
-                pageIndex={page - 1}
-                onPageChange={(p) => setPage(p + 1)}
-                emptyMessage="Nessun ticket attivo"
+                onFiltersChange={handleFiltersChange}
+                manualPagination={allTicketsForFilter === null}
+                pageCount={allTicketsForFilter === null ? (result?.pages ?? 1) : undefined}
+                pageIndex={allTicketsForFilter === null ? page - 1 : undefined}
+                onPageChange={allTicketsForFilter === null ? (p) => setPage(p + 1) : undefined}
+                emptyMessage={loadingAllFilter ? "Caricamento…" : "Nessun ticket attivo"}
                 onRowClick={(t) => { markSeen(t.id); setDetailTicket(t); }}
                 getRowProps={(t) => ({
                   onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },

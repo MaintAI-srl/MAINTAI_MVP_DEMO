@@ -105,7 +105,19 @@ function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOve
   );
 }
 
-function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket[] }) {
+function KanbanColumn({
+  stato,
+  tickets,
+  totalCount,
+  search,
+  onSearchChange,
+}: {
+  stato: string;
+  tickets: KanbanTicket[];
+  totalCount: number;
+  search: string;
+  onSearchChange: (s: string) => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: stato });
   const colors = COL_COLORS[stato];
 
@@ -118,7 +130,7 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
           : "var(--bg-card)",
         border: `${isOver ? "2px" : "1px"} solid ${isOver ? colors.header : "var(--border)"}`,
         borderRadius: 16,
-        padding: "20px 16px",
+        padding: "16px 14px",
         display: "flex",
         flexDirection: "column",
         gap: 12,
@@ -129,19 +141,44 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
         boxShadow: isOver ? `0 0 32px ${colors.header}44, inset 0 0 20px ${colors.header}11` : "none",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, position: "sticky", top: 0, background: "inherit", zIndex: 10, paddingBottom: 8 }}>
-        <span style={{ width: 10, height: 10, borderRadius: "50%", background: colors.header, boxShadow: `0 0 10px ${colors.header}40` }} />
-        <span style={{ fontWeight: 800, fontSize: 14, color: colors.header, textTransform: "uppercase", letterSpacing: "0.5px" }}>{stato}</span>
-        <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "rgba(255,255,255,0.08)", padding: "2px 10px", borderRadius: 20 }}>
-          {tickets.length}
-        </span>
+      {/* Header sticky */}
+      <div style={{ position: "sticky", top: 0, background: "inherit", zIndex: 10, paddingBottom: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* Title row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: colors.header, boxShadow: `0 0 8px ${colors.header}50`, flexShrink: 0 }} />
+          <span style={{ fontWeight: 800, fontSize: 13, color: colors.header, textTransform: "uppercase", letterSpacing: "0.5px" }}>{stato}</span>
+          <span style={{
+            marginLeft: "auto", fontSize: 11, fontWeight: 700,
+            color: search && tickets.length < totalCount ? colors.header : "var(--text-muted)",
+            background: "rgba(255,255,255,0.07)", padding: "2px 9px", borderRadius: 20,
+          }}>
+            {tickets.length}{search && tickets.length < totalCount ? `/${totalCount}` : ""}
+          </span>
+        </div>
+        {/* Search input */}
+        <input
+          type="text"
+          value={search}
+          onChange={e => onSearchChange(e.target.value)}
+          placeholder={`Filtra…`}
+          onClick={e => e.stopPropagation()}
+          style={{
+            width: "100%", fontSize: 11, padding: "5px 10px",
+            background: search ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.025)",
+            border: `1px solid ${search ? colors.header + "66" : "rgba(255,255,255,0.08)"}`,
+            borderRadius: 6, color: "var(--text-primary)",
+            outline: "none", boxSizing: "border-box" as const,
+            transition: "border-color 0.15s, background 0.15s",
+          }}
+        />
       </div>
+
       {isOver && (
         <div style={{
           fontSize: 12, fontWeight: 700, textAlign: "center",
           color: colors.header, padding: "10px 0",
           border: `2px dashed ${colors.header}88`,
-          borderRadius: 10, marginBottom: 8,
+          borderRadius: 10, marginBottom: 4,
           background: `${colors.bg}`,
           animation: "pulse 1s ease-in-out infinite",
         }}>
@@ -149,8 +186,8 @@ function KanbanColumn({ stato, tickets }: { stato: string; tickets: KanbanTicket
         </div>
       )}
       {tickets.length === 0 && !isOver ? (
-        <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", padding: "40px 0", fontStyle: "italic", border: "1px dashed var(--border)", borderRadius: 12 }}>
-          Nessun ticket {stato.toLowerCase()}
+        <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", padding: "32px 0", fontStyle: "italic", border: "1px dashed var(--border)", borderRadius: 12 }}>
+          {search ? `Nessun ticket corrisponde a "${search}"` : `Nessun ticket ${stato.toLowerCase()}`}
         </div>
       ) : (
         tickets.map(t => <KanbanCard key={t.id} ticket={t} />)
@@ -287,6 +324,7 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
   const [pianificaRequest, setPianificaRequest] = useState<{ ticketId: number; durataOre: number } | null>(null);
   const [activeTicket, setActiveTicket] = useState<KanbanTicket | null>(null);
   const [tecnici, setTecnici] = useState<Tecnico[]>([]);
+  const [colSearch, setColSearch] = useState<Record<string, string>>({});
 
   useEffect(() => { setLocal(tickets); }, [tickets]);
   useEffect(() => {
@@ -365,12 +403,32 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     "Chiuso":      local.filter(t => t.stato === "Chiuso"),
   };
 
+  // Applica ricerca per colonna
+  const byStatoFiltered: Record<string, KanbanTicket[]> = {};
+  for (const stato of COLS) {
+    const q = (colSearch[stato] ?? "").toLowerCase().trim();
+    const all = byStato[stato];
+    byStatoFiltered[stato] = q
+      ? all.filter(t =>
+          [t.titolo, t.asset_name ?? "", t.sito_name ?? "", t.priorita ?? ""]
+            .some(f => f.toLowerCase().includes(q))
+        )
+      : all;
+  }
+
   return (
     <>
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveTicket(null)}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           {COLS.map(stato => (
-            <KanbanColumn key={stato} stato={stato} tickets={byStato[stato]} />
+            <KanbanColumn
+              key={stato}
+              stato={stato}
+              tickets={byStatoFiltered[stato]}
+              totalCount={byStato[stato].length}
+              search={colSearch[stato] ?? ""}
+              onSearchChange={(s) => setColSearch(prev => ({ ...prev, [stato]: s }))}
+            />
           ))}
         </div>
 
