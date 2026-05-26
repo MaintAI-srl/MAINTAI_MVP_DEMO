@@ -120,8 +120,8 @@ function addHoursToDatetimeLocal(dtLocal: string, hours: number): string {
 const dtInput: React.CSSProperties = { background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
 const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", display: "block", marginBottom: 5 };
 
-// ── Modal: richiesta data pianificazione ─────────────────────────────────────
-function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string) => void; onCancel: () => void }) {
+// ── Modal: richiesta data pianificazione + tecnico obbligatorio ──────────────
+function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string, tecnicoId: number) => void; onCancel: () => void }) {
   const getISO = (days: number, hours: number) => {
     const d = new Date();
     d.setDate(d.getDate() + days);
@@ -129,6 +129,14 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
     return d.toISOString().slice(0, 16);
   };
   const [date, setDate] = useState(getISO(0, 8));
+  const [tecnicoId, setTecnicoId] = useState<number | null>(null);
+  const [tecnici, setTecnici] = useState<{ id: number; nome: string; cognome: string; specializzazione?: string }[]>([]);
+
+  useEffect(() => {
+    apiGet<{ items?: { id: number; nome: string; cognome: string; specializzazione?: string }[] }>("/tecnici?limit=200")
+      .then(d => setTecnici(d.items ?? (Array.isArray(d) ? d as any : [])))
+      .catch(() => {});
+  }, []);
 
   const presets = [
     { label: "Oggi 08:00", d: 0, h: 8 },
@@ -137,26 +145,58 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
     { label: "Lunedì prox", d: (8 - new Date().getDay()) % 7 || 7, h: 8 },
   ];
 
+  const canConfirm = !!date && !!tecnicoId;
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 16, padding: "28px", width: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
-        <div style={{ fontWeight: 800, fontSize: 17, color: "#a78bfa", marginBottom: 6 }}>Pianifica intervento</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Seleziona data e ora di inizio — lo stato cambierà in <strong style={{ color: "#a78bfa" }}>Pianificato</strong>.</div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 20, padding: "32px 28px", width: 440, boxShadow: "0 40px 100px rgba(0,0,0,0.8)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, justifyContent: "center" }}>
+          <span style={{ fontSize: 22 }}>📅</span>
+          <div style={{ fontWeight: 900, fontSize: 18, color: "#a78bfa" }}>Pianifica intervento</div>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 22, textAlign: "center" }}>Imposta data e assegna il tecnico responsabile</div>
+
+        {/* Presets */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Accesso rapido</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
           {presets.map(p => (
             <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
-              style={{ fontSize: 10, padding: "5px 10px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
+              style={{ fontSize: 10, padding: "6px 12px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
               {p.label}
             </button>
           ))}
         </div>
+
+        {/* Data */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 14px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box" }} />
-        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
-          <button disabled={!date} onClick={() => date && onConfirm(date)}
-            style={{ padding: "8px 24px", background: "linear-gradient(135deg,#a78bfa,#7c3aed)", color: "#fff", border: "none", borderRadius: 8, cursor: date ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13, opacity: date ? 1 : 0.5 }}>
-            Conferma Pianificazione
+          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "11px 14px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box", marginBottom: 20 }} />
+
+        {/* Tecnico — OBBLIGATORIO */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
+          Assegna tecnico <span style={{ color: "#f87171" }}>*</span>
+        </div>
+        <select value={tecnicoId ?? ""} onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
+          style={{
+            width: "100%", background: "rgba(255,255,255,0.04)", borderRadius: 10,
+            border: tecnicoId ? "1.5px solid rgba(167,139,250,0.5)" : "1.5px solid rgba(248,113,113,0.4)",
+            color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
+            padding: "11px 14px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box",
+          }}>
+          <option value="">— Seleziona tecnico —</option>
+          {tecnici.map(t => (
+            <option key={t.id} value={t.id}>{t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}</option>
+          ))}
+        </select>
+        {!tecnicoId && (
+          <div style={{ fontSize: 11, color: "#f87171", marginTop: 5 }}>⚠ Il tecnico è obbligatorio per pianificare</div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(date, tecnicoId!)}
+            style={{ flex: 2, padding: "12px", background: canConfirm ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(167,139,250,0.1)", color: canConfirm ? "#fff" : "rgba(167,139,250,0.4)", border: "none", borderRadius: 10, cursor: canConfirm ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, transition: "all 0.2s" }}>
+            ✓ Conferma pianificazione
           </button>
         </div>
       </div>
@@ -711,8 +751,26 @@ export default function TicketPage() {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; ticketId: number; statoCorrente: string } | null>(null);
   const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
   const [showEmergencyMap, setShowEmergencyMap] = useState(false);
-  const [pianificaModal, setPianificaModal] = useState<{ onConfirm: (date: string) => void } | null>(null);
+  const [pianificaModal, setPianificaModal] = useState<{ onConfirm: (date: string, tecnicoId: number) => void } | null>(null);
   const [eliminaModal, setEliminaModal] = useState<{ onConfirm: (reason: string) => void } | null>(null);
+
+  // Traccia ticket già aperti per badge "NEW"
+  const [seenTicketIds, setSeenTicketIds] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("maintai_seen_tickets");
+      if (saved) setSeenTicketIds(new Set(JSON.parse(saved) as number[]));
+    } catch {}
+  }, []);
+  function markSeen(id: number) {
+    setSeenTicketIds(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      try { localStorage.setItem("maintai_seen_tickets", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
 
   // New ticket form
   const [titolo, setTitolo] = useState("");
@@ -727,7 +785,6 @@ export default function TicketPage() {
   const [plannedFinish, setPlannedFinish] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [showNuovoTicket, setShowNuovoTicket] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [tableOpen, setTableOpen] = useState(true);
 
   useEffect(() => {
@@ -816,13 +873,13 @@ export default function TicketPage() {
       const t = tickets.find(t => t.id === ticketId) || archivioItems.find(t => t.id === ticketId);
       const durataOre = t?.durata_stimata_ore || 1;
       setPianificaModal({
-        onConfirm: async (plannedDate: string) => {
+        onConfirm: async (plannedDate: string, tecnicoId: number) => {
           setPianificaModal(null);
           setUpdatingId(ticketId);
           try {
             const start = new Date(plannedDate).toISOString();
             const end = new Date(new Date(plannedDate).getTime() + durataOre * 3600000).toISOString();
-            await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, is_manual_plan: true });
+            await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, tecnico_id: tecnicoId, is_manual_plan: true });
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
           } catch (err) { statusUpdateError(err); }
           finally { setUpdatingId(null); }
@@ -866,11 +923,11 @@ export default function TicketPage() {
     if (selectedIds.size === 0) return;
     if (nuovoStato === "Pianificato") {
       setPianificaModal({
-        onConfirm: async (plannedDate: string) => {
+        onConfirm: async (plannedDate: string, tecnicoId: number) => {
           setPianificaModal(null);
           try {
             const start = new Date(plannedDate).toISOString();
-            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start, is_manual_plan: true });
+            await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start, tecnico_id: tecnicoId, is_manual_plan: true });
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
           } catch (err) { statusUpdateError(err, "Errore aggiornamento bulk."); }
@@ -931,29 +988,6 @@ export default function TicketPage() {
   const tickets = result?.items ?? [];
   const archivioItems = archivio?.items ?? [];
 
-  const filteredTickets = searchQuery.trim()
-    ? tickets.filter(t => {
-        const q = searchQuery.toLowerCase();
-        const dateStr = (iso: string | null | undefined) =>
-          iso ? new Date(iso).toLocaleDateString("it-IT") : "";
-        return [
-          t.titolo,
-          t.asset_name ?? "",
-          t.sito_name ?? "",
-          String(t.id),
-          t.tipo,
-          t.priorita,
-          t.stato,
-          t.fascia_oraria,
-          t.descrizione ?? "",
-          dateStr(t.created_at),
-          dateStr(t.planned_start),
-          dateStr(t.planned_finish),
-          dateStr(t.execution_finish),
-        ].some(field => field.toLowerCase().includes(q));
-      })
-    : tickets;
-
   const ticketColumns: ColumnDef<Ticket>[] = [
     {
       id: "select",
@@ -996,13 +1030,30 @@ export default function TicketPage() {
     {
       accessorKey: "created_at",
       header: "Creato il",
-      cell: ({ getValue }) => {
+      cell: ({ getValue, row }) => {
         const v = getValue<string>();
         if (!v) return <span style={{ color: "var(--text-disabled)" }}>—</span>;
+        const isNew = !seenTicketIds.has(row.original.id);
         return (
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            {new Date(v).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+              {new Date(v).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+            {isNew && (
+              <span style={{
+                fontSize: 9, fontWeight: 900, padding: "1px 5px", borderRadius: 10,
+                background: "#fbbf24", color: "#000",
+                border: "1.5px solid #000",
+                lineHeight: 1.4,
+                letterSpacing: "0.04em",
+                boxShadow: "0 0 0 1.5px #fbbf24, 0 1px 4px rgba(0,0,0,0.4)",
+                animation: "pulse-bg 2s ease-in-out infinite",
+                flexShrink: 0,
+              }}>
+                NEW
+              </span>
+            )}
+          </div>
         );
       },
       filterFn: dateRangeFilterFn,
@@ -1397,47 +1448,16 @@ export default function TicketPage() {
 
           {tableOpen && (
             <>
-              {/* Search bar */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
-                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14, pointerEvents: "none" }}>🔍</span>
-                  <input
-                    type="text"
-                    placeholder="Cerca per titolo, sito, asset o ID..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={{
-                      width: "100%", padding: "7px 12px 7px 32px",
-                      background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
-                      borderRadius: 7, color: "var(--text-primary)", fontSize: 13, outline: "none",
-                      boxSizing: "border-box",
-                      borderColor: searchQuery ? "rgba(99,102,241,0.5)" : undefined,
-                      transition: "border-color 0.15s",
-                    }}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}
-                    >×</button>
-                  )}
-                </div>
-                {searchQuery && (
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    {filteredTickets.length} risultat{filteredTickets.length === 1 ? "o" : "i"}
-                  </span>
-                )}
-              </div>
-
               <DataTable
-                data={filteredTickets}
+                data={tickets}
                 columns={ticketColumns}
+                enableColumnFilters
                 manualPagination
                 pageCount={result?.pages ?? 1}
                 pageIndex={page - 1}
                 onPageChange={(p) => setPage(p + 1)}
                 emptyMessage="Nessun ticket attivo"
-                onRowClick={(t) => setDetailTicket(t)}
+                onRowClick={(t) => { markSeen(t.id); setDetailTicket(t); }}
                 getRowProps={(t) => ({
                   onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
                   style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },
@@ -1461,7 +1481,7 @@ export default function TicketPage() {
             pageIndex={pageArch - 1}
             onPageChange={(p) => setPageArch(p + 1)}
             emptyMessage="Nessun ticket archiviato"
-            onRowClick={(t) => setDetailTicket(t)}
+            onRowClick={(t) => { markSeen(t.id); setDetailTicket(t); }}
             getRowProps={(t) => ({
               onContextMenu: (e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, ticketId: t.id, statoCorrente: t.stato }); },
               style: { background: selectedIds.has(t.id) ? "rgba(99,102,241,0.08)" : undefined },

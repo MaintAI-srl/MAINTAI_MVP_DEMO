@@ -113,40 +113,8 @@ export default function QuickTicketModal() {
            (a.codice || "").toLowerCase().includes(s);
   });
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        title="Nuovo ticket rapido (N)"
-        aria-label="Apri ticket rapido"
-        style={{
-          position: "fixed",
-          bottom: 28,
-          right: 28,
-          width: 52,
-          height: 52,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #3b82f6, #2563eb)",
-          color: "#fff",
-          border: "2px solid #60a5fa",
-          fontSize: 26,
-          fontWeight: 700,
-          cursor: "pointer",
-          zIndex: 9000,
-          boxShadow: "0 4px 24px rgba(59,130,246,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          lineHeight: 1,
-          transition: "transform 0.15s, box-shadow 0.15s",
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 32px rgba(59,130,246,0.7)"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 24px rgba(59,130,246,0.5)"; }}
-      >
-        +
-      </button>
-    );
-  }
+  // FAB rimosso — usa shortcut N o il pulsante QUICK TICKET nella topbar
+  if (!open) return null;
 
   return (
     <>

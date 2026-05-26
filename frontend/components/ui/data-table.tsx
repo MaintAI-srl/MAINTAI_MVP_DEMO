@@ -187,7 +187,7 @@ export function DataTable<TData>({
         : { pagination }),
     },
     ...(manualPagination
-      ? { manualPagination: true, manualFiltering: true, pageCount: pageCount ?? -1 }
+      ? { manualPagination: true, pageCount: pageCount ?? -1 }
       : {
           getPaginationRowModel: getPaginationRowModel(),
           onPaginationChange: setPagination,

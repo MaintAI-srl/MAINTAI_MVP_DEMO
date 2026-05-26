@@ -229,11 +229,10 @@ function ActiveWorkView({
       notify.warning("Completa la Safety Checklist prima di terminare.", "SAFETY");
       return;
     }
-    // Richiede scansione QR asset per registrare la presenza fisica
+    // Propone scansione QR ma non è obbligatoria
     if (ticket.asset_id) {
       setCloseState("scanning");
     } else {
-      // Nessun asset collegato → chiusura diretta
       await onStatusChange(ticket.id, "Chiuso");
     }
   }
@@ -268,12 +267,31 @@ function ActiveWorkView({
 
       {/* ── QR Scanner per chiusura ─────────────────────────────────────────── */}
       {closeState === "scanning" && (
-        <QrScanner
-          title="Verifica Presenza 📍"
-          subtitle="Scansiona il QR code sull'asset per chiudere"
-          onScan={(val) => { setQrScannedValue(val); setCloseState("confirm"); }}
-          onCancel={() => setCloseState("idle")}
-        />
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column" }}>
+          <QrScanner
+            title="Verifica Presenza 📍"
+            subtitle="Scansiona il QR code sull'asset per chiudere"
+            onScan={(val) => { setQrScannedValue(val); setCloseState("confirm"); }}
+            onCancel={() => setCloseState("idle")}
+          />
+          {/* Pulsante skip QR — chiusura diretta senza scansione */}
+          <div style={{
+            position: "absolute", bottom: 32, left: 0, right: 0,
+            display: "flex", justifyContent: "center", zIndex: 10001,
+          }}>
+            <button
+              onClick={async () => { setCloseState("idle"); await onStatusChange(ticket.id, "Chiuso"); }}
+              style={{
+                padding: "12px 28px", borderRadius: 12,
+                background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,255,255,0.2)",
+                color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              Chiudi senza QR
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Modal conferma chiusura dopo QR ─────────────────────────────────── */}
