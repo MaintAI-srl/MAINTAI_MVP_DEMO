@@ -132,7 +132,7 @@ def _validate_planning_capacity(db: Session, data: TicketUpdate, ticket: Ticket,
 @router.get("/tickets")
 def get_tickets(
     page: int = Query(1, ge=1),
-    limit: int = Query(25, ge=1, le=200),
+    limit: int = Query(25, ge=1, le=2000),
     stato: Optional[str] = Query(None),
     tecnico_id: Optional[int] = Query(None),
     piano_id: Optional[int] = Query(None),
