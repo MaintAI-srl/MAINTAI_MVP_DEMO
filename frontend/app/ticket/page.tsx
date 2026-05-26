@@ -38,6 +38,8 @@ type Ticket = {
   diagnosi_eseguita?: boolean;
   is_manual_plan?: boolean;
   created_at?: string | null;
+  tecnico_id?: number | null;
+  tecnico_name?: string | null;
   // M2.1
   costo_fermo_stimato?: number | null;
   // M2.2
@@ -294,6 +296,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [plannedFinish, setPlannedFinish] = useState(toDatetimeLocal(ticket.planned_finish));
   const [durataOre, setDurataOre] = useState(ticket.durata_stimata_ore || 1);
 
+  // Tecnico assegnato — obbligatorio quando stato = Pianificato
+  const [tecnicoId, setTecnicoId] = useState<number | null>(ticket.tecnico_id ?? null);
+  const [tecnicoList, setTecnicoList] = useState<{ id: number; nome: string; cognome: string; specializzazione?: string }[]>([]);
+  useEffect(() => {
+    apiGet<{ items?: { id: number; nome: string; cognome: string; specializzazione?: string }[] }>("/tecnici?limit=200")
+      .then(d => setTecnicoList(d.items ?? (Array.isArray(d) ? d as any : [])))
+      .catch(() => {});
+  }, []);
+
   // M2.2 — Ricambi
   const [ricambioNote, setRicambioNote] = useState(ticket.ricambio_note ?? "");
   const [inAttesaRicambio, setInAttesaRicambio] = useState(ticket.in_attesa_ricambio ?? false);
@@ -376,8 +387,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       if (as) body.asset_stato = as;
       if (elimNoteOverride) body.eliminazione_note = elimNoteOverride;
 
-      if (stato === "Pianificato") body.is_manual_plan = true;
-      if (stato === "Aperto") body.is_manual_plan = false;
+      if (stato === "Pianificato") { body.is_manual_plan = true; body.tecnico_id = tecnicoId; }
+      if (stato === "Aperto") { body.is_manual_plan = false; body.tecnico_id = null; }
 
       body.planned_start = plannedStart ? new Date(plannedStart).toISOString() : null;
       body.planned_finish = plannedFinish ? new Date(plannedFinish).toISOString() : null;
@@ -409,9 +420,13 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   }
 
   function handleSave() {
-    // Pianificato richiede data obbligatoriamente
+    // Pianificato richiede data + tecnico obbligatoriamente
     if (stato === "Pianificato" && !plannedStart) {
       notify.error("Inserisci la data di inizio pianificazione per portare il ticket in 'Pianificato'.");
+      return;
+    }
+    if (stato === "Pianificato" && !tecnicoId) {
+      notify.error("Assegna un tecnico per portare il ticket in 'Pianificato'.");
       return;
     }
     // Validazione date: fine non può precedere inizio
@@ -496,6 +511,33 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           {stato === "Pianificato" && !plannedStart && (
             <div style={{ fontSize: 11, color: "#f87171", marginTop: 8 }}>La data di inizio è obbligatoria per lo stato Pianificato.</div>
           )}
+
+          {/* Tecnico assegnato — obbligatorio per Pianificato */}
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+              Tecnico assegnato
+              {stato === "Pianificato" && <span style={{ color: "#f87171", fontWeight: 800 }}>*</span>}
+            </label>
+            <select
+              value={tecnicoId ?? ""}
+              onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
+              style={{
+                ...dtInput,
+                borderColor: stato === "Pianificato" && !tecnicoId ? "rgba(248,113,113,0.5)" : undefined,
+                color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
+              }}
+            >
+              <option value="">— Nessun tecnico assegnato —</option>
+              {tecnicoList.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}
+                </option>
+              ))}
+            </select>
+            {stato === "Pianificato" && !tecnicoId && (
+              <div style={{ fontSize: 11, color: "#f87171", marginTop: 4 }}>⚠ Tecnico obbligatorio per pianificare</div>
+            )}
+          </div>
         </div>
 
         <div style={{ marginBottom: 32 }}>
