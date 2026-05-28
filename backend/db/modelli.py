@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone, date
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, event, Table
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, LargeBinary, event, Table
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -411,6 +411,25 @@ class EmailConfig(Base):
 
     tenant = relationship("Tenant")
     default_asset = relationship("Asset")
+
+
+class AssetDocumento(Base):
+    """Documenti allegati a un Asset (manuali, schemi, esplosi, certificati, ecc.)."""
+    __tablename__ = "asset_documenti"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
+    nome = Column(String, nullable=False)
+    tipo = Column(String, nullable=False)  # Esploso / Manuale / Schema / Certificato / Altro
+    filename = Column(String, nullable=False)
+    content_type = Column(String)
+    file_data = Column(LargeBinary, nullable=False)
+    esploso_analisi = Column(Text, nullable=True)  # JSON string con parti identificate da GPT-4o
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    asset = relationship("Asset")
+    tenant = relationship("Tenant")
 
 
 class PianoManutenzione(Base):

@@ -5,7 +5,7 @@ from backend.core.database import engine, Base
 from backend.db.modelli import (  # noqa: F401
     Tenant, Sito, Impianto, Asset, Tecnico, Ticket,
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
-    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan, RevokedToken,
+    Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan, RevokedToken, AssetDocumento,
     FailureMode, FailureAnalysis, DiagnosticLearning,
     Procedura, NotaAsset, CheckPrimoLivello, Attestato,
 )
