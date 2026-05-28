@@ -228,6 +228,8 @@ def _ensure_columns() -> None:
         # Tecnico — telefono e sede per mappa emergenze
         ("tecnici", "telefono",                "ALTER TABLE tecnici ADD COLUMN {ifne}telefono VARCHAR"),
         ("tecnici", "sede_indirizzo",          "ALTER TABLE tecnici ADD COLUMN {ifne}sede_indirizzo VARCHAR"),
+        # asset_documenti — immagine AI generata da gpt-image-1
+        ("asset_documenti", "esploso_immagine", "ALTER TABLE asset_documenti ADD COLUMN {ifne}esploso_immagine BLOB"),
     ]
 
     # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)

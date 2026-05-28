@@ -67,6 +67,7 @@ interface AssetDocumento {
   filename: string;
   content_type?: string;
   ha_analisi: boolean;
+  ha_immagine_ai: boolean;
   esploso_analisi?: EsplosoParteItem[] | null;
   created_at?: string;
 }
@@ -547,9 +548,9 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   const [docUploadShow, setDocUploadShow] = useState(false);
   const [docUploadForm, setDocUploadForm] = useState<{ nome: string; tipo: string; file: File | null }>({ nome: "", tipo: "Manuale", file: null });
   const [docUploading, setDocUploading] = useState(false);
-  const [docAnalizzando, setDocAnalizzando] = useState<number | null>(null);
+  const [docGenerando, setDocGenerando] = useState<number | null>(null);
   const [docEsplosoView, setDocEsplosoView] = useState<AssetDocumento | null>(null);
-  const [docEsplosoHover, setDocEsplosoHover] = useState<number | null>(null);
+  const [infograficaImgUrl, setInfograficaImgUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -580,6 +581,28 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
     try { const data = await apiGet<AssetDocumento[]>(`/assets/${assetId}/documenti`); setDocumenti(data); } catch { } finally { setDocLoading(false); }
   }, [assetId]);
   useEffect(() => { if (tab === "documenti") loadDocumenti(); }, [tab, loadDocumenti]);
+
+  // Carica immagine AI infografica come blob URL (JWT-authenticated)
+  useEffect(() => {
+    if (!docEsplosoView?.ha_immagine_ai) {
+      setInfograficaImgUrl(null);
+      return;
+    }
+    let revoked = false;
+    const token = localStorage.getItem("maintai_jwt");
+    fetch(`${API_BASE}/assets/${assetId}/documenti/${docEsplosoView.id}/immagine-ai`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.blob())
+      .then(b => {
+        if (!revoked) setInfograficaImgUrl(URL.createObjectURL(b));
+      })
+      .catch(() => {});
+    return () => {
+      revoked = true;
+      setInfograficaImgUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+    };
+  }, [docEsplosoView, assetId]);
 
   const saveEdit = async () => {
     if (!detail) return; setSaving(true);
@@ -877,63 +900,79 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             </ModalOverlay>
           )}
 
-          {/* ── Visualizzatore esploso ── */}
-          {docEsplosoView && docEsplosoView.esploso_analisi && (
-            <ModalOverlay onClose={() => { setDocEsplosoView(null); setDocEsplosoHover(null); }}>
-              <div style={{ minWidth: "min(900px, 95vw)", maxWidth: "95vw" }}>
-                <ModalTitle onClose={() => { setDocEsplosoView(null); setDocEsplosoHover(null); }}>
-                  Esploso — {docEsplosoView.nome}
-                </ModalTitle>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "16px", maxHeight: "65vh", overflow: "hidden" }}>
-                  {/* Immagine con overlay */}
-                  {docEsplosoView.content_type?.startsWith("image/") ? (
-                    <div style={{ position: "relative", overflow: "hidden", borderRadius: "8px", background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
-                      <img
-                        src={`${API_BASE}/assets/${assetId}/documenti/${docEsplosoView.id}/file`}
-                        alt={docEsplosoView.nome}
-                        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-                        crossOrigin="use-credentials"
-                      />
-                      {/* SVG overlay con cerchi numerati */}
-                      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-                        {docEsplosoView.esploso_analisi.map((p) => {
-                          const cx = `${p.posizione_x * 100}%`;
-                          const cy = `${p.posizione_y * 100}%`;
-                          const isHover = docEsplosoHover === p.numero;
-                          return (
-                            <g key={p.numero}>
-                              <circle cx={cx} cy={cy} r={isHover ? 18 : 13} fill={p.colore + "cc"} stroke={p.colore} strokeWidth={isHover ? 3 : 2} />
-                              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize={isHover ? 12 : 10} fontWeight="bold">{p.numero}</text>
-                            </g>
-                          );
-                        })}
-                      </svg>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "13px" }}>
-                      Anteprima non disponibile per PDF
-                    </div>
-                  )}
-                  {/* Pannello parti */}
-                  <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "4px" }}>{docEsplosoView.esploso_analisi.length} Parti identificate</div>
-                    {docEsplosoView.esploso_analisi.map((p) => (
-                      <div key={p.numero}
-                        onMouseEnter={() => setDocEsplosoHover(p.numero)}
-                        onMouseLeave={() => setDocEsplosoHover(null)}
-                        style={{ background: docEsplosoHover === p.numero ? "var(--bg-surface)" : "var(--bg-elevated)", border: `1px solid ${docEsplosoHover === p.numero ? p.colore : "var(--border)"}`, borderRadius: "8px", padding: "8px 10px", cursor: "default", transition: "all 0.15s" }}>
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "2px" }}>
-                          <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: p.colore, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>{p.numero}</span>
-                          <span style={{ fontSize: "13px", fontWeight: 600 }}>{p.nome}</span>
-                          <span style={{ fontSize: "10px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "1px 6px", color: "var(--text-secondary)", flexShrink: 0 }}>{p.categoria}</span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "30px" }}>{p.descrizione}</div>
-                      </div>
-                    ))}
+          {/* ── Visualizzatore infografica AI ── */}
+          {docEsplosoView && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setDocEsplosoView(null)}>
+              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "12px", padding: "28px", minWidth: "min(900px, 95vw)", maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto", zIndex: 9999 }} onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+                    {docEsplosoView.nome} — Infografica AI
+                  </h2>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    {/* Pulsante rigenera */}
+                    <button
+                      disabled={docGenerando === docEsplosoView.id}
+                      style={{ ...btnSecondary, padding: "5px 12px", fontSize: "12px", color: "#8b5cf6", borderColor: "#8b5cf655" }}
+                      onClick={async () => {
+                        setDocGenerando(docEsplosoView.id);
+                        try {
+                          await apiPost(`/assets/${assetId}/documenti/${docEsplosoView.id}/genera-infografica`);
+                          notify.success("Infografica rigenerata.");
+                          const updated = await apiGet<AssetDocumento[]>(`/assets/${assetId}/documenti`);
+                          setDocumenti(updated);
+                          const updatedDoc = updated.find(d => d.id === docEsplosoView.id);
+                          if (updatedDoc) setDocEsplosoView(updatedDoc);
+                        } catch (e: unknown) {
+                          notify.error(e instanceof Error ? e.message : "Errore rigenerazione");
+                        } finally {
+                          setDocGenerando(null);
+                        }
+                      }}
+                    >
+                      {docGenerando === docEsplosoView.id ? "Generazione..." : "Rigenera"}
+                    </button>
+                    <button onClick={() => setDocEsplosoView(null)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--text-secondary)", lineHeight: 1 }}>×</button>
                   </div>
                 </div>
+
+                {/* Immagine infografica AI */}
+                <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "200px" }}>
+                  {infograficaImgUrl ? (
+                    <img
+                      src={infograficaImgUrl}
+                      alt={`Infografica AI — ${docEsplosoView.nome}`}
+                      style={{ maxHeight: "55vh", width: "100%", objectFit: "contain", display: "block" }}
+                    />
+                  ) : (
+                    <div style={{ padding: "40px", color: "var(--text-secondary)", fontSize: "13px", textAlign: "center" }}>
+                      {docGenerando === docEsplosoView.id ? "Generazione infografica AI in corso..." : "Caricamento immagine..."}
+                    </div>
+                  )}
+                </div>
+
+                {/* Griglia parti */}
+                {docEsplosoView.esploso_analisi && docEsplosoView.esploso_analisi.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.5px" }}>
+                      {docEsplosoView.esploso_analisi.length} Parti identificate
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                      {docEsplosoView.esploso_analisi.map((p) => (
+                        <div key={p.numero} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px" }}>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px" }}>
+                            <span style={{ width: "24px", height: "24px", borderRadius: "50%", background: p.colore, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>{p.numero}</span>
+                            <span style={{ fontSize: "13px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nome}</span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "32px", marginBottom: "4px" }}>{p.descrizione}</div>
+                          <span style={{ marginLeft: "32px", fontSize: "10px", background: p.colore + "22", color: p.colore, border: `1px solid ${p.colore}55`, borderRadius: "4px", padding: "1px 6px", fontWeight: 600 }}>{p.categoria}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </ModalOverlay>
+            </div>
           )}
 
           {/* ── Lista documenti ── */}
@@ -960,33 +999,39 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                         <span style={{ fontWeight: 600, fontSize: "13px" }}>{doc.nome}</span>
                         <span style={{ fontSize: "10px", background: tipoColore + "22", color: tipoColore, border: `1px solid ${tipoColore}55`, borderRadius: "4px", padding: "1px 7px", fontWeight: 700 }}>{doc.tipo}</span>
                         {doc.ha_analisi && <span style={{ fontSize: "10px", background: "#8b5cf622", color: "#8b5cf6", border: "1px solid #8b5cf655", borderRadius: "4px", padding: "1px 7px" }}>Analisi AI</span>}
+                      {doc.ha_immagine_ai && <span style={{ fontSize: "10px", background: "#06b6d422", color: "#06b6d4", border: "1px solid #06b6d455", borderRadius: "4px", padding: "1px 7px" }}>Infografica AI</span>}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>{doc.filename} · {doc.created_at?.split("T")[0]}</div>
                     </div>
                     <div style={{ display: "flex", gap: "6px", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {/* Visualizza esploso */}
-                      {doc.tipo === "Esploso" && doc.ha_analisi && (
-                        <button style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#8b5cf6", borderColor: "#8b5cf655" }} onClick={() => setDocEsplosoView(doc)}>
-                          Vista esplosa
-                        </button>
-                      )}
-                      {/* Analizza esploso */}
+                      {/* Visualizza / Genera infografica AI */}
                       {doc.tipo === "Esploso" && (
-                        <button style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px" }} disabled={docAnalizzando === doc.id} onClick={async () => {
-                          setDocAnalizzando(doc.id);
-                          try {
-                            type AnalisiResult = { parti: EsplosoParteItem[]; n_parti: number };
-                            const res = await apiPost<AnalisiResult>(`/assets/${assetId}/documenti/${doc.id}/analizza-esploso`);
-                            notify.success(`Analisi completata: ${res.n_parti} parti identificate.`);
-                            await loadDocumenti();
-                          } catch (e: unknown) {
-                            notify.error(e instanceof Error ? e.message : "Errore analisi AI");
-                          } finally {
-                            setDocAnalizzando(null);
-                          }
-                        }}>
-                          {docAnalizzando === doc.id ? "Analisi..." : doc.ha_analisi ? "Rigenera analisi" : "Analizza esploso"}
-                        </button>
+                        doc.ha_immagine_ai ? (
+                          <button style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#06b6d4", borderColor: "#06b6d455" }} onClick={() => setDocEsplosoView(doc)}>
+                            Vedi Infografica
+                          </button>
+                        ) : (
+                          <button
+                            style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#8b5cf6", borderColor: "#8b5cf655" }}
+                            disabled={docGenerando === doc.id}
+                            onClick={async () => {
+                              setDocGenerando(doc.id);
+                              notify.info("Generazione infografica AI in corso... (30-60s)");
+                              try {
+                                type GenResult = { ok: boolean; n_parti: number };
+                                const res = await apiPost<GenResult>(`/assets/${assetId}/documenti/${doc.id}/genera-infografica`);
+                                notify.success(`Infografica generata: ${res.n_parti} parti identificate.`);
+                                await loadDocumenti();
+                              } catch (e: unknown) {
+                                notify.error(e instanceof Error ? e.message : "Errore generazione infografica");
+                              } finally {
+                                setDocGenerando(null);
+                              }
+                            }}
+                          >
+                            {docGenerando === doc.id ? "Generazione..." : "Genera Infografica AI"}
+                          </button>
+                        )
                       )}
                       {/* Scarica */}
                       <a href={`${API_BASE}/assets/${assetId}/documenti/${doc.id}/file`} target="_blank" rel="noopener noreferrer" style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
