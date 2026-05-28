@@ -1446,14 +1446,78 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-danger {
-  background: rgba(240,82,82,0.10);
-  color: #f87171;
-  border-color: rgba(240,82,82,0.22);
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(239,68,68,0.35), 0 1px 3px rgba(0,0,0,0.3);
 }
 .btn-danger:hover {
-  background: rgba(240,82,82,0.18);
-  border-color: rgba(240,82,82,0.40);
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  box-shadow: 0 6px 24px rgba(239,68,68,0.50), 0 2px 6px rgba(0,0,0,0.3);
   transform: translateY(-1px);
+}
+
+/* ─── PAGE TABS — Underline style ───────────────────────────── */
+.page-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.page-tabs button {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+  letter-spacing: -0.01em;
+}
+.page-tabs button:hover {
+  color: var(--text-primary);
+}
+.page-tabs button.active {
+  color: #5b8fff;
+  font-weight: 700;
+  border-bottom-color: #5b8fff;
+}
+
+/* Pill tabs (segmented control) */
+.pill-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 5px 6px;
+  width: fit-content;
+  margin-bottom: 16px;
+}
+.pill-tabs button {
+  padding: 6px 18px;
+  border-radius: 7px;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: transparent;
+  transition: all 0.15s;
+}
+.pill-tabs button.active {
+  background: linear-gradient(135deg, #3a6ff5 0%, #6366f1 100%);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(91,143,255,0.40);
+}
+.pill-tabs button:hover:not(.active) {
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 /* Quick action buttons */
@@ -1894,16 +1958,23 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 2px 8px rgba(40,120,168,0.24);
 }
 
-:root[data-theme='light'] .btn-danger,
+:root[data-theme='light'] .btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(239,68,68,0.30), 0 1px 3px rgba(0,0,0,0.15);
+}
+
+:root[data-theme='light'] .btn-danger:hover {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  box-shadow: 0 6px 20px rgba(239,68,68,0.40), 0 2px 6px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
 :root[data-theme='light'] .alert-error {
   background: rgba(224,82,82,0.10);
   border-color: rgba(224,82,82,0.28);
   color: #e05252;
-}
-
-:root[data-theme='light'] .btn-danger:hover {
-  background: rgba(224,82,82,0.16);
-  border-color: rgba(224,82,82,0.42);
 }
 
 :root[data-theme='light'] .btn-action-start:hover {

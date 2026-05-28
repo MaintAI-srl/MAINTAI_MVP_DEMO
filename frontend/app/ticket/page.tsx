@@ -1490,9 +1490,9 @@ export default function TicketPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "6px 8px", width: "fit-content" }}>
+      <div className="pill-tabs">
         {(["attivi", "archivio"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: "5px 16px", borderRadius: 5, border: "none", fontSize: 12, cursor: "pointer", fontWeight: 600, background: tab === t ? "rgba(99,102,241,0.25)" : "transparent", color: tab === t ? "#a5b4fc" : "rgba(148,163,184,0.6)", transition: "all 0.15s" }}>
+          <button key={t} onClick={() => setTab(t)} className={tab === t ? "active" : ""}>
             {t === "attivi" ? `Attivi (${result?.total ?? 0})` : `Archivio (${archivio?.total ?? 0})`}
           </button>
         ))}
