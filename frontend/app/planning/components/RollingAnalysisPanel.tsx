@@ -254,7 +254,7 @@ export default function RollingAnalysisPanel() {
                 onClick={() => setFilterZone(key)}
                 style={{
                   background: filterZone === key ? "#1d4ed8" : "var(--border-strong)",
-                  border: "1px solid #374151",
+                  border: "1px solid var(--border-default)",
                   color: filterZone === key ? "#fff" : "#9ca3af",
                   borderRadius: 6,
                   padding: "5px 10px",
@@ -276,7 +276,7 @@ export default function RollingAnalysisPanel() {
                   onClick={() => setFilterStatus(key)}
                   style={{
                     background: filterStatus === key ? (key === "NOT_READY" ? "#7f1d1d" : key === "READY" ? "#14532d" : "#1d4ed8") : "var(--border-strong)",
-                    border: "1px solid #374151",
+                    border: "1px solid var(--border-default)",
                     color: filterStatus === key ? "#fff" : "#9ca3af",
                     borderRadius: 6,
                     padding: "5px 10px",

@@ -111,8 +111,8 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
           onClick={() => onDateChange(prevDay(selectedDate))}
           style={{
             background: "var(--border-strong)",
-            border: "1px solid #374151",
-            color: "#9ca3af",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-muted)",
             borderRadius: 6,
             padding: "6px 12px",
             cursor: "pointer",
@@ -128,8 +128,8 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
           onClick={() => onDateChange(nextDay(selectedDate))}
           style={{
             background: "var(--border-strong)",
-            border: "1px solid #374151",
-            color: "#9ca3af",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-muted)",
             borderRadius: 6,
             padding: "6px 12px",
             cursor: "pointer",
@@ -420,13 +420,13 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
             <div style={{ fontSize: 12, color: "#e2e8f0", marginBottom: 4 }}>
               {ticket?.titolo ?? "—"}
             </div>
-            <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>
               Asset: {ticket?.asset_name ?? "—"}
             </div>
-            <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>
               Orario: {tooltip.wo.planned_start_time} → {tooltip.wo.planned_end_time}
             </div>
-            <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
               Durata: {tooltip.wo.duration_hours?.toFixed(1)}h
             </div>
             {tooltip.wo.motivation && (

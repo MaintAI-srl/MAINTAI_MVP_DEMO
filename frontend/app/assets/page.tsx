@@ -227,7 +227,7 @@ export default function AssetsPage() {
           B: { bg: "#f9730020", color: "#f97316" },
           C: { bg: "#22c55e20", color: "#22c55e" },
         };
-        const style = mapABC[v] || { bg: "#94a3b820", color: "#94a3b8" };
+        const style = mapABC[v] || { bg: "#94a3b820", color: "var(--text-muted)" };
         return (
           <span style={{ background: style.bg, color: style.color, border: `1px solid ${style.color}55`, borderRadius: "999px", padding: "2px 8px", fontSize: 11, fontWeight: 700, letterSpacing: "0.5px" }}>
             {mapABC[v] ? `Crit. ${v}` : v}

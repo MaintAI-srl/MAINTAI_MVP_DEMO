@@ -27,7 +27,7 @@ interface TecnicoOption {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function scadenzaColor(giorni?: number | null): { bg: string; color: string; label: string } {
-  if (giorni === null || giorni === undefined) return { bg: "#1f2937", color: "#94a3b8", label: "Nessuna scadenza" };
+  if (giorni === null || giorni === undefined) return { bg: "#1f2937", color: "var(--text-muted)", label: "Nessuna scadenza" };
   if (giorni < 0) return { bg: "#7f1d1d", color: "#fca5a5", label: `Scaduto ${Math.abs(giorni)}gg fa` };
   if (giorni <= 30) return { bg: "#7f1d1d", color: "#ef4444", label: `${giorni}gg` };
   if (giorni <= 60) return { bg: "#431407", color: "#f97316", label: `${giorni}gg` };
@@ -90,12 +90,12 @@ function ModalAggiungiAttestato({
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center" }}
       onClick={onClose}>
-      <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: "12px", padding: "28px", width: "90%", maxWidth: "520px", maxHeight: "85vh", overflowY: "auto" }}
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", borderRadius: "12px", padding: "28px", width: "90%", maxWidth: "520px", maxHeight: "85vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>Nuovo Attestato</h2>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px", color: "#94a3b8" }}>×</button>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--text-muted)" }}>×</button>
         </div>
 
         <div style={{ display: "grid", gap: "14px" }}>
@@ -140,22 +140,22 @@ function ModalAggiungiAttestato({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{label}</label>
+      <label style={{ display: "block", fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{label}</label>
       {children}
     </div>
   );
 }
 
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", background: "#1f2937", border: "1px solid #374151",
-  borderRadius: "6px", color: "#f1f5f9", fontSize: "14px", boxSizing: "border-box",
+  width: "100%", padding: "9px 12px", background: "#1f2937", border: "1px solid var(--border-default)",
+  borderRadius: "6px", color: "var(--text-primary)", fontSize: "14px", boxSizing: "border-box",
 };
 const btnPri: React.CSSProperties = {
   background: "#1d4ed8", color: "#fff", border: "none", borderRadius: "8px",
   padding: "10px 20px", cursor: "pointer", fontSize: "14px", fontWeight: 600,
 };
 const btnSec: React.CSSProperties = {
-  background: "transparent", color: "#f1f5f9", border: "1px solid #374151",
+  background: "transparent", color: "var(--text-primary)", border: "1px solid var(--border-default)",
   borderRadius: "8px", padding: "10px 20px", cursor: "pointer", fontSize: "14px",
 };
 
@@ -216,7 +216,7 @@ export default function CompliancePage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "#f1f5f9" }}>Scadenzario Attestati</h1>
+          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "var(--text-primary)" }}>Scadenzario Attestati</h1>
           <div style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
             Attestati in scadenza nei prossimi 90 giorni · {attestati.length} totale
           </div>
@@ -236,15 +236,15 @@ export default function CompliancePage() {
       )}
 
       {loading && (
-        <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8", fontSize: "16px" }}>
+        <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)", fontSize: "16px" }}>
           Caricamento...
         </div>
       )}
 
       {!loading && attestati.length === 0 && (
-        <div style={{ textAlign: "center", padding: "60px", background: "#111827", borderRadius: "12px", border: "1px solid #1f2937" }}>
+        <div style={{ textAlign: "center", padding: "60px", background: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border-default)" }}>
           <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
-          <div style={{ fontSize: "18px", color: "#94a3b8", marginBottom: "8px" }}>Nessun attestato in scadenza</div>
+          <div style={{ fontSize: "18px", color: "var(--text-muted)", marginBottom: "8px" }}>Nessun attestato in scadenza</div>
           <div style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
             Gli attestati che scadono nei prossimi 90 giorni appariranno qui
           </div>
@@ -253,9 +253,9 @@ export default function CompliancePage() {
       )}
 
       {!loading && attestati.length > 0 && (
-        <div style={{ background: "#111827", borderRadius: "12px", border: "1px solid #1f2937", overflow: "hidden" }}>
+        <div style={{ background: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border-default)", overflow: "hidden" }}>
           {/* Intestazione tabella */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "12px 16px", background: "#0f172a", borderBottom: "1px solid #1f2937", fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "12px 16px", background: "#0f172a", borderBottom: "1px solid var(--border-default)", fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             <div>Tecnico</div>
             <div>Tipo Corso</div>
             <div>Ente</div>
@@ -267,11 +267,11 @@ export default function CompliancePage() {
           {attestati.map(a => {
             const sc = scadenzaColor(a.giorni_mancanti);
             return (
-              <div key={a.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "13px 16px", borderBottom: "1px solid #1f2937", alignItems: "center", fontSize: "14px" }}>
+              <div key={a.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "13px 16px", borderBottom: "1px solid var(--border-default)", alignItems: "center", fontSize: "14px" }}>
                 <div style={{ fontWeight: 600, color: "#e2e8f0" }}>{a.tecnico_nome}</div>
                 <div style={{ color: "#cbd5e1" }}>{a.tipo_corso}</div>
-                <div style={{ color: "#94a3b8", fontSize: "13px" }}>{a.ente_certificatore ?? "—"}</div>
-                <div style={{ color: "#94a3b8", fontSize: "13px" }}>{formatDate(a.data_conseguimento)}</div>
+                <div style={{ color: "var(--text-muted)", fontSize: "13px" }}>{a.ente_certificatore ?? "—"}</div>
+                <div style={{ color: "var(--text-muted)", fontSize: "13px" }}>{formatDate(a.data_conseguimento)}</div>
                 <div style={{ color: "#cbd5e1", fontSize: "13px" }}>{formatDate(a.data_scadenza)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span style={{
@@ -313,9 +313,9 @@ export default function CompliancePage() {
 
 function SummaryCard({ label, count, color }: { label: string; count: number; color: string }) {
   return (
-    <div style={{ background: "#111827", border: `1px solid ${color}44`, borderRadius: "10px", padding: "16px", textAlign: "center" }}>
+    <div style={{ background: "var(--surface-2)", border: `1px solid ${color}44`, borderRadius: "10px", padding: "16px", textAlign: "center" }}>
       <div style={{ fontSize: "28px", fontWeight: 800, color }}>{count}</div>
-      <div style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>{label}</div>
+      <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>{label}</div>
     </div>
   );
 }

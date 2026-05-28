@@ -1275,7 +1275,7 @@ export default function DashboardPage() {
 
             {/* Backlog per tipo */}
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#94a3b8", marginBottom: 16 }}>Backlog Aperti per Tipo</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 16 }}>Backlog Aperti per Tipo</div>
               <div style={{ display: "flex", gap: 12, justifyContent: "space-around" }}>
                 {([["BD", "#ef4444"], ["PM", "#22c55e"], ["CM", "#f59e0b"]] as [string, string][]).map(([tipo, color]) => (
                   <div key={tipo} style={{ textAlign: "center" }}>
@@ -1288,7 +1288,7 @@ export default function DashboardPage() {
 
             {/* Trend backlog 7gg */}
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#94a3b8", marginBottom: 12 }}>Ticket Aperti — Ultimi 7 giorni</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 12 }}>Ticket Aperti — Ultimi 7 giorni</div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
                 {kpiAvanzati.trend_backlog_7gg.map((item, i) => {
                   const max = Math.max(...kpiAvanzati.trend_backlog_7gg.map(t => t.count), 1);
@@ -1309,7 +1309,7 @@ export default function DashboardPage() {
               <div style={{ background: "var(--grad-card)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
                 <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#22c55e", marginBottom: 8 }}>Costo Fermo Evitato (mese)</div>
                 <div style={{ fontSize: 36, fontWeight: 800, color: "#22c55e" }}>€{kpiAvanzati.costo_fermo_evitato_mese.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Somma interventi PM/CM chiusi questo mese × costo/h asset</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Somma interventi PM/CM chiusi questo mese × costo/h asset</div>
               </div>
             )}
           </div>
@@ -1317,17 +1317,17 @@ export default function DashboardPage() {
           {/* Top 5 Asset Critici */}
           {kpiAvanzati.top_asset_critici.length > 0 && (
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#94a3b8", marginBottom: 14 }}>Top 5 Asset Critici — Guasti 90gg</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 14 }}>Top 5 Asset Critici — Guasti 90gg</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {kpiAvanzati.top_asset_critici.map((a, i) => {
                   const mapABC: Record<string, string> = { A: "#ef4444", B: "#f97316", C: "#22c55e" };
                   const critColor = a.criticita ? (mapABC[a.criticita] || "#94a3b8") : "#94a3b8";
                   return (
                     <div key={a.asset_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < kpiAvanzati.top_asset_critici.length - 1 ? "1px solid var(--border-default)" : "none" }}>
-                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1f2937", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#94a3b8", flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1f2937", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>{i + 1}</div>
                       <div style={{ flex: 1 }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{a.nome}</span>
-                        {a.codice && <span style={{ marginLeft: 6, fontSize: 10, color: "#94a3b8" }}>({a.codice})</span>}
+                        {a.codice && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--text-muted)" }}>({a.codice})</span>}
                       </div>
                       {a.criticita && (
                         <span style={{ background: critColor + "22", color: critColor, border: `1px solid ${critColor}44`, borderRadius: "999px", padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>

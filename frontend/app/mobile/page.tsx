@@ -77,7 +77,7 @@ function tipoLabel(t: string): { icon: string; label: string; color: string } {
     case "PM":  return { icon: "📋", label: "Preventiva",  color: "#34d399" };
     case "CM":  return { icon: "⚙️", label: "Correttiva",  color: "#fbbf24" };
     case "ISP": return { icon: "🔍", label: "Ispezione",   color: "#60a5fa" };
-    default:    return { icon: "◷",  label: t,              color: "#94a3b8" };
+    default:    return { icon: "◷",  label: t,              color: "var(--text-muted)" };
   }
 }
 
@@ -283,7 +283,7 @@ function ActiveWorkView({
               onClick={async () => { setCloseState("idle"); await onStatusChange(ticket.id, "Chiuso"); }}
               style={{
                 padding: "12px 28px", borderRadius: 12,
-                background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(0,0,0,0.75)", border: "1px solid var(--border-default)",
                 color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, cursor: "pointer",
                 backdropFilter: "blur(8px)",
               }}
@@ -303,9 +303,9 @@ function ActiveWorkView({
           padding: 24,
         }}>
           <div style={{
-            background: "#111827", borderRadius: 22, padding: "28px 24px",
+            background: "var(--surface-2)", borderRadius: 22, padding: "28px 24px",
             width: "100%", maxWidth: 360,
-            border: "1px solid rgba(255,255,255,0.10)",
+            border: "1px solid var(--border-default)",
             boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
           }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
@@ -316,7 +316,7 @@ function ActiveWorkView({
               </div>
               <div style={{
                 fontSize: 11, color: "rgba(255,255,255,0.3)",
-                background: "rgba(255,255,255,0.04)", borderRadius: 8,
+                background: "var(--surface-3)", borderRadius: 8,
                 padding: "6px 10px", wordBreak: "break-all", fontFamily: "var(--font-mono)",
               }}>
                 {qrScannedValue.length > 48
@@ -332,8 +332,8 @@ function ActiveWorkView({
                 onClick={() => setCloseState("idle")}
                 style={{
                   flex: 1, padding: 14, borderRadius: 12,
-                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
-                  color: "#94a3b8", fontWeight: 700, cursor: "pointer", fontSize: 14,
+                  background: "var(--surface-3)", border: "1px solid var(--border-default)",
+                  color: "var(--text-muted)", fontWeight: 700, cursor: "pointer", fontSize: 14,
                 }}
               >
                 Annulla
@@ -361,19 +361,19 @@ function ActiveWorkView({
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         padding: "10px 0 8px",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        borderBottom: "1px solid var(--border-default)",
         marginBottom: 10, flexShrink: 0,
       }}>
         <button onClick={onClose} style={{
-          background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
+          background: "var(--surface-3)", border: "1px solid var(--border-default)",
           borderRadius: 10, width: 36, height: 36, fontSize: 16, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", flexShrink: 0,
         }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {ticket.titolo}
           </div>
-          <div style={{ fontSize: 10, color: "#94a3b8" }}>{ticket.asset_name}</div>
+          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{ticket.asset_name}</div>
         </div>
         <div style={{
           fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
@@ -394,10 +394,10 @@ function ActiveWorkView({
 
           {/* Titolo e asset — grandi */}
           <div style={{
-            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+            background: "var(--surface-1)", border: "1px solid var(--border-default)",
             borderRadius: 14, padding: "12px",
           }}>
-            <div style={{ fontSize: "clamp(15px, 4vw, 19px)", fontWeight: 900, color: "#f1f5f9", lineHeight: 1.25, marginBottom: 4 }}>
+            <div style={{ fontSize: "clamp(15px, 4vw, 19px)", fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.25, marginBottom: 4 }}>
               {ticket.titolo}
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#90b8ff" }}>{ticket.asset_name}</div>
@@ -562,7 +562,7 @@ function ActiveWorkView({
 
           {/* Orologio */}
           <div style={{
-            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+            background: "var(--surface-1)", border: "1px solid var(--border-default)",
             borderRadius: 14, padding: "14px 10px", textAlign: "center",
           }}>
             <LiveClock />
@@ -585,7 +585,7 @@ function ActiveWorkView({
               { label: "⏹ Fine",   value: ticket.planned_finish, color: "#34d399" },
             ].map(item => (
               <div key={item.label} style={{
-                background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}25`,
+                background: "var(--surface-1)", border: `1px solid ${item.color}25`,
                 borderLeft: `3px solid ${item.color}`, borderRadius: 10, padding: "8px 10px",
               }}>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 3 }}>
@@ -985,7 +985,7 @@ export default function MobileHomePage() {
 
   function TicketVocaleView() {
     return (
-      <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: "100dvh", background: "var(--surface-0)", display: "flex", flexDirection: "column" }}>
 
         {/* QR Scanner per identificazione asset */}
         {showVoiceQrScan && (
@@ -1001,13 +1001,13 @@ export default function MobileHomePage() {
         )}
 
         {/* Header */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid var(--border-default)" }}>
           <button
             onClick={() => {
               if (showVoiceQrScan) { setShowVoiceQrScan(false); return; }
               setHomeView("home"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setSelectedAsset(null);
             }}
-            style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
+            style={{ background: "var(--surface-3)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
           <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>🎙️ Apri Ticket Vocale</span>
         </div>
 
@@ -1018,7 +1018,7 @@ export default function MobileHomePage() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, paddingTop: 8 }}>
 
               {/* Toggle metodo input */}
-              <div style={{ display: "flex", gap: 0, background: "rgba(255,255,255,0.06)", borderRadius: 12, padding: 4, width: "100%" }}>
+              <div style={{ display: "flex", gap: 0, background: "var(--surface-3)", borderRadius: 12, padding: 4, width: "100%" }}>
                 <button
                   onClick={() => setVoiceQrInputMethod("voice")}
                   style={{
@@ -1062,14 +1062,14 @@ export default function MobileHomePage() {
                       value={manualSearch}
                       onChange={e => handleManualSearch(e.target.value)}
                       placeholder="Cerca asset per nome..."
-                      style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#fff", padding: "12px 16px", fontSize: 14, outline: "none" }}
+                      style={{ flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 10, color: "#fff", padding: "12px 16px", fontSize: 14, outline: "none" }}
                     />
                   </div>
                   {manualAssets.length > 0 && (
                     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
                       {manualAssets.map(a => (
                         <button key={a.id} onClick={() => { setSelectedAsset(a); setVoiceStep("form"); }}
-                          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 16px", color: "#fff", cursor: "pointer", textAlign: "left" }}>
+                          style={{ background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "12px 16px", color: "#fff", cursor: "pointer", textAlign: "left" }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
                           {a.sito_nome && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{a.sito_nome}{a.impianto_nome ? ` · ${a.impianto_nome}` : ""}</div>}
                         </button>
@@ -1114,11 +1114,11 @@ export default function MobileHomePage() {
           {voiceStep === "confirm_asset" && foundAssets.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+                <div style={{ flex: 1, height: 1, background: "var(--surface-3)" }} />
                 <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>
                   {foundAssets.length} asset trovati per &ldquo;{voiceTranscript}&rdquo;
                 </span>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+                <div style={{ flex: 1, height: 1, background: "var(--surface-3)" }} />
               </div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
                 Tocca l&apos;asset corretto per procedere
@@ -1144,7 +1144,7 @@ export default function MobileHomePage() {
                 </button>
               ))}
               <button onClick={() => { setVoiceStep("listen"); setFoundAssets([]); setVoiceTranscript(""); }}
-                style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer", padding: "10px", marginTop: 4 }}>
+                style={{ background: "none", border: "1px solid var(--border-default)", borderRadius: 10, color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer", padding: "10px", marginTop: 4 }}>
                 ← Riprova ricerca
               </button>
             </div>
@@ -1189,7 +1189,7 @@ export default function MobileHomePage() {
               <div>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Descrizione (opzionale)</div>
                 <textarea value={nuovoDesc} onChange={e => setNuovoDesc(e.target.value)} rows={3} placeholder="Note sull'intervento..."
-                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#fff", padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
+                  style={{ width: "100%", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 10, color: "#fff", padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
               </div>
 
               <button onClick={saveTicketVocale} disabled={savingTicket}
@@ -1205,11 +1205,11 @@ export default function MobileHomePage() {
 
   function PianoOdiernoView() {
     return (
-      <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: "100dvh", background: "var(--surface-0)", display: "flex", flexDirection: "column" }}>
         {/* Header */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid var(--border-default)" }}>
           <button onClick={() => { setHomeView("home"); setDpiConfirmed(false); setDpiChecked({}); }}
-            style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
+            style={{ background: "var(--surface-3)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
           <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>📋 Piano Odierno</span>
         </div>
 
@@ -1281,7 +1281,7 @@ export default function MobileHomePage() {
                 <div key={t.id}>
                   {startTime && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 6, fontWeight: 700 }}>{startTime}{endTime ? `–${endTime}` : ""}</div>}
                   <button onClick={() => setActiveView(t)}
-                    style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, padding: "16px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14 }}>
+                    style={{ width: "100%", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 14, padding: "16px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 44, height: 44, borderRadius: 12, background: `${tipoInfo.color}18`, border: `1.5px solid ${tipoInfo.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
                       {tipoInfo.icon}
                     </div>
@@ -1336,7 +1336,7 @@ export default function MobileHomePage() {
 
   // ── Home ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100dvh", background: "#0a0f1e", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100dvh", background: "var(--surface-0)", display: "flex", flexDirection: "column" }}>
       {/* Header compatto */}
       <div style={{ padding: "16px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
@@ -1346,7 +1346,7 @@ export default function MobileHomePage() {
           </div>
         </div>
         <button onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }} disabled={refreshing}
-          style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "8px 12px", cursor: refreshing ? "wait" : "pointer", fontSize: 16 }}>↻</button>
+          style={{ background: "var(--surface-3)", border: "none", color: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "8px 12px", cursor: refreshing ? "wait" : "pointer", fontSize: 16 }}>↻</button>
       </div>
 
       {/* Banner no profilo */}

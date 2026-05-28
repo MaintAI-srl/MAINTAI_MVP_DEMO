@@ -98,7 +98,7 @@ function PreviewTable({ rows, title }: { rows: Record<string, string>[]; title: 
   const cols = Object.keys(rows[0]).filter(k => k !== "_row");
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", marginBottom: 6, textTransform: "uppercase" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>
         {title} — prime {rows.length} righe
       </div>
       <div style={{ overflowX: "auto" }}>
@@ -107,7 +107,7 @@ function PreviewTable({ rows, title }: { rows: Record<string, string>[]; title: 
             <tr>
               {cols.map(c => (
                 <th key={c} style={{
-                  background: "#1e293b", color: "#9ca3af",
+                  background: "#1e293b", color: "var(--text-muted)",
                   padding: "5px 10px", textAlign: "left",
                   border: "1px solid var(--border-strong)", whiteSpace: "nowrap",
                   fontWeight: 700, fontSize: 10, textTransform: "uppercase",
@@ -288,7 +288,7 @@ export default function BulkImportPage() {
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
               1. Scarica il template Excel
             </div>
-            <p style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 20 }}>
               Il file contiene tre fogli: <strong style={{ color: "#e2e8f0" }}>SITI</strong>,{" "}
               <strong style={{ color: "#e2e8f0" }}>IMPIANTI</strong> e{" "}
               <strong style={{ color: "#e2e8f0" }}>ASSET</strong>.{" "}
@@ -359,7 +359,7 @@ export default function BulkImportPage() {
 
             {/* Selezione tenant */}
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>
+              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 600 }}>
                 TENANT DESTINATARIO *
               </label>
               {loadingTenants ? (
@@ -369,7 +369,7 @@ export default function BulkImportPage() {
                   value={tenantId ?? ""}
                   onChange={e => setTenantId(Number(e.target.value) || null)}
                   style={{
-                    width: "100%", background: "var(--border-strong)", border: "1px solid #374151",
+                    width: "100%", background: "var(--border-strong)", border: "1px solid var(--border-default)",
                     color: "#f9fafb", borderRadius: 8, padding: "10px 12px",
                     fontSize: 13,
                   }}
@@ -386,7 +386,7 @@ export default function BulkImportPage() {
 
             {/* Upload file */}
             <div style={{ marginBottom: 24 }}>
-              <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 600 }}>
+              <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 600 }}>
                 FILE EXCEL (.xlsx) *
               </label>
               <div
@@ -433,8 +433,8 @@ export default function BulkImportPage() {
               <button
                 onClick={() => setStep(1)}
                 style={{
-                  background: "var(--border-strong)", border: "1px solid #374151",
-                  color: "#9ca3af", borderRadius: 8, padding: "10px 18px",
+                  background: "var(--border-strong)", border: "1px solid var(--border-default)",
+                  color: "var(--text-muted)", borderRadius: 8, padding: "10px 18px",
                   fontSize: 13, cursor: "pointer",
                 }}
               >← Indietro</button>
@@ -443,7 +443,7 @@ export default function BulkImportPage() {
                 disabled={!file || !tenantId || previewing}
                 style={{
                   background: !file || !tenantId ? "var(--border-strong)" : "linear-gradient(135deg,#1d4ed8,#7c3aed)",
-                  border: "1px solid #374151",
+                  border: "1px solid var(--border-default)",
                   color: !file || !tenantId ? "#4b5563" : "#fff",
                   borderRadius: 8, padding: "10px 20px",
                   fontSize: 13, fontWeight: 700,
@@ -539,8 +539,8 @@ export default function BulkImportPage() {
               <button
                 onClick={() => { setStep(2); setPreview(null); }}
                 style={{
-                  background: "var(--border-strong)", border: "1px solid #374151",
-                  color: "#9ca3af", borderRadius: 8, padding: "10px 18px",
+                  background: "var(--border-strong)", border: "1px solid var(--border-default)",
+                  color: "var(--text-muted)", borderRadius: 8, padding: "10px 18px",
                   fontSize: 13, cursor: "pointer",
                 }}
               >← Modifica file</button>
@@ -600,8 +600,8 @@ export default function BulkImportPage() {
               onClick={() => { setStep(1); setFile(null); setPreview(null); setResult(null); setTenantId(null); }}
               style={{
                 marginTop: 24,
-                background: "var(--border-strong)", border: "1px solid #374151",
-                color: "#9ca3af", borderRadius: 8, padding: "10px 20px",
+                background: "var(--border-strong)", border: "1px solid var(--border-default)",
+                color: "var(--text-muted)", borderRadius: 8, padding: "10px 20px",
                 fontSize: 13, cursor: "pointer",
               }}
             >

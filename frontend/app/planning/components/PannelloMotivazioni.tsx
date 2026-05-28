@@ -55,7 +55,7 @@ export default function PannelloMotivazioni({ motivations, score }: Props) {
                 <span style={{ fontSize: 12, fontWeight: 700, color: colore }}>
                   ⚠ {m.componente}
                 </span>
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
                   {m.valore.toFixed(0)}% (target {m.target}%)
                 </span>
               </div>

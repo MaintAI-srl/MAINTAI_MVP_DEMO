@@ -844,7 +844,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 </div>
               </div>
               {kpi.n_guasti_90gg < 2 && (
-                <div style={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                <div style={{ background: "#1f2937", border: "1px solid var(--border-default)", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
                   MTBF e MTTR richiedono almeno 2 guasti chiusi (BD/CM). Con {kpi.n_guasti_90gg} guasto registrato i valori saranno disponibili dopo il secondo intervento.
                 </div>
               )}
@@ -947,7 +947,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
           {/* ── Visualizzatore immagine esploso ── */}
           {viewerDoc && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.80)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewerDoc(null)}>
-              <div style={{ background: "#0a0f1e", border: "1px solid var(--border-strong)", borderRadius: "12px", padding: "24px", width: "min(960px, 95vw)", maxHeight: "92vh", overflowY: "auto", zIndex: 9999 }} onClick={e => e.stopPropagation()}>
+              <div style={{ background: "var(--surface-0)", border: "1px solid var(--border-strong)", borderRadius: "12px", padding: "24px", width: "min(960px, 95vw)", maxHeight: "92vh", overflowY: "auto", zIndex: 9999 }} onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
                   <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "var(--text-primary)" }}>{viewerDoc.nome}</h2>

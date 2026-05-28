@@ -54,7 +54,7 @@ const STATI = ["Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"];
 const STATI_ATTIVI = ["Aperto", "Pianificato", "In corso"];
 const STATI_ARCHIVIO = ["Chiuso", "Eliminato"];
 const ASSET_STATE_OPTIONS = [
-  { value: "", label: "Mantieni", color: "#94a3b8" },
+  { value: "", label: "Mantieni", color: "var(--text-muted)" },
   ...ASSET_STATUS_OPTIONS,
 ];
 
@@ -64,7 +64,7 @@ function statoStyle(s: string): React.CSSProperties {
     case "pianificato": return { color: "#c4b5fd", background: "rgba(139,92,246,0.10)", border: "1px solid rgba(139,92,246,0.22)" };
     case "in corso":    return { color: "#67e8f9", background: "rgba(6,182,212,0.10)",   border: "1px solid rgba(6,182,212,0.22)" };
     case "chiuso":      return { color: "#86efac", background: "rgba(34,197,94,0.10)",   border: "1px solid rgba(34,197,94,0.22)" };
-    case "eliminato":   return { color: "#94a3b8", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
+    case "eliminato":   return { color: "var(--text-muted)", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
     default:            return { color: "var(--text-secondary)", background: "rgba(156,163,175,0.1)", border: "1px solid rgba(156,163,175,0.3)" };
   }
 }
@@ -74,7 +74,7 @@ function getPrioritaStyle(p: string): React.CSSProperties {
     case "emergenza": return { color: "#fff", background: "rgba(239,68,68,0.90)", border: "1px solid #ef4444" };
     case "alta":  return { color: "#fca5a5", background: "rgba(239,68,68,0.10)",  border: "1px solid rgba(239,68,68,0.22)" };
     case "media": return { color: "#fcd34d", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.22)" };
-    case "bassa": return { color: "#94a3b8", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
+    case "bassa": return { color: "var(--text-muted)", background: "rgba(100,116,139,0.10)", border: "1px solid rgba(100,116,139,0.20)" };
     default:      return { color: "var(--text-secondary)", background: "rgba(156,163,175,0.1)", border: "1px solid rgba(156,163,175,0.3)" };
   }
 }
@@ -119,7 +119,7 @@ function addHoursToDatetimeLocal(dtLocal: string, hours: number): string {
   return `${end.getFullYear()}-${_pad(end.getMonth() + 1)}-${_pad(end.getDate())}T${_pad(end.getHours())}:${_pad(end.getMinutes())}`;
 }
 
-const dtInput: React.CSSProperties = { background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "dark" };
+const dtInput: React.CSSProperties = { background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "7px 11px", fontSize: 12, width: "100%", outline: "none", colorScheme: "light dark" };
 const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", display: "block", marginBottom: 5 };
 
 // ── Modal: richiesta data pianificazione + tecnico obbligatorio ──────────────
@@ -172,7 +172,7 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
         {/* Data */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "11px 14px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box", marginBottom: 20 }} />
+          style={{ width: "100%", background: "var(--surface-3)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "11px 14px", fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box", marginBottom: 20 }} />
 
         {/* Tecnico — OBBLIGATORIO */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
@@ -180,7 +180,7 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
         </div>
         <select value={tecnicoId ?? ""} onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
           style={{
-            width: "100%", background: "rgba(255,255,255,0.04)", borderRadius: 10,
+            width: "100%", background: "var(--surface-3)", borderRadius: 10,
             border: tecnicoId ? "1.5px solid rgba(167,139,250,0.5)" : "1.5px solid rgba(248,113,113,0.4)",
             color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
             padding: "11px 14px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box",
@@ -654,7 +654,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
                   onChange={e => setRicambioNote(e.target.value)}
                   rows={3}
                   placeholder="Es. Guarnizione flangia DN50 — codice fornitore X123..."
-                  style={{ width: "100%", background: "#0d1829", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                  style={{ width: "100%", background: "var(--surface-2)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
                 />
               </div>
               {/* Pulsante salva ricambi */}
@@ -698,7 +698,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}
           onClick={(e) => { if (e.target === e.currentTarget) { setShowEliminaDialog(false); setEliminaNote(""); } }}
         >
-          <div style={{ width: "min(420px, calc(100vw - 32px))", background: "#0d1829", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
+          <div style={{ width: "min(420px, calc(100vw - 32px))", background: "var(--surface-2)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#f87171", fontWeight: 700 }}>Eliminazione ticket #{ticket.id}</div>
             <h3 id="elimina-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>Motivo eliminazione</h3>
             <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
@@ -732,7 +732,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowAssetDialog(false); }}
         >
-          <div style={{ width: "min(420px, calc(100vw - 32px))", background: "#0d1829", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
+          <div style={{ width: "min(420px, calc(100vw - 32px))", background: "var(--surface-2)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#3b82f6", fontWeight: 700 }}>Chiusura ticket #{ticket.id}</div>
             <h3 id="asset-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>
               Verifica Stato Asset
@@ -1508,7 +1508,7 @@ export default function TicketPage() {
             onClick={() => setTableOpen(o => !o)}
             style={{
               display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
-              background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-default)",
+              background: "var(--surface-1)", border: "1px solid var(--border-default)",
               borderRadius: 10, cursor: "pointer", color: "var(--text-primary)",
               fontSize: 13, fontWeight: 700, width: "100%", marginBottom: 8,
               transition: "background 0.15s",
@@ -1623,7 +1623,7 @@ export default function TicketPage() {
 
       {/* Detail modal */}
       <Sheet open={!!detailTicket} onOpenChange={(o) => { if (!o) setDetailTicket(null); }}>
-        <SheetContent side="right" style={{ width: "min(100vw, 580px)", maxWidth: "100vw", overflowX: "hidden", background: "var(--surface-1)", borderLeft: "1px solid rgba(255,255,255,0.08)", overflowY: "auto", padding: "24px" }}>
+        <SheetContent side="right" style={{ width: "min(100vw, 580px)", maxWidth: "100vw", overflowX: "hidden", background: "var(--surface-1)", borderLeft: "1px solid var(--border-default)", overflowY: "auto", padding: "24px" }}>
           {detailTicket && (
             <>
               <SheetHeader style={{ marginBottom: 24, padding: 0, gap: 12 }}>
@@ -1691,7 +1691,7 @@ export default function TicketPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowEmergencyMap(false); }}
         >
           <div style={{
-            background: "#0a0f1e", border: "1px solid rgba(239,68,68,0.3)",
+            background: "var(--surface-0)", border: "1px solid rgba(239,68,68,0.3)",
             borderRadius: 16, width: "100%", maxWidth: 1100,
             maxHeight: "90vh", overflow: "hidden",
             display: "flex", flexDirection: "column",
@@ -1711,7 +1711,7 @@ export default function TicketPage() {
               </div>
               <button
                 onClick={() => setShowEmergencyMap(false)}
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}
+                style={{ background: "var(--surface-3)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 ×
               </button>

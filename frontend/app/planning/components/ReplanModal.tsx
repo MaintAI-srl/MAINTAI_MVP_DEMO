@@ -177,12 +177,12 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
         {/* Nota informativa */}
         <div style={{
           background: "var(--border-strong)",
-          border: "1px solid #374151",
+          border: "1px solid var(--border-default)",
           borderRadius: 8,
           padding: "10px 14px",
           marginBottom: 22,
           fontSize: 11,
-          color: "#9ca3af",
+          color: "var(--text-muted)",
           lineHeight: 1.6,
         }}>
           I ticket pianificati manualmente e quelli in corso non verranno toccati dal ricalcolo.
@@ -196,8 +196,8 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
             style={{
               flex: 1,
               background: "var(--border-strong)",
-              border: "1px solid #374151",
-              color: "#9ca3af",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-muted)",
               borderRadius: 8,
               padding: "10px 0",
               cursor: "pointer",

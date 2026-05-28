@@ -135,7 +135,7 @@ export default function ImpiantiPage() {
             { label: "Con coordinate", value: impianti.filter(i => i.latitude).length, color: "#34d399" },
             { label: "Senza descrizione", value: impianti.filter(i => !i.descrizione).length, color: "#fbbf24" },
           ].map(k => (
-            <div key={k.label} style={{ background: "var(--border-subtle)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
+            <div key={k.label} style={{ background: "var(--border-subtle)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
               <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{k.label}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
             </div>
@@ -190,7 +190,7 @@ export default function ImpiantiPage() {
         </div>
 
         {/* Lista */}
-        <div style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "22px 24px" }}>
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: 14, padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>Impianti registrati</h2>
             <span style={{ fontSize: 11, background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{impianti.length}</span>

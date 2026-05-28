@@ -157,8 +157,8 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
     width: "100%",
     maxWidth: 680,
     margin: "0 auto",
-    border: "1px solid #374151",
-    background: "#0a0f1e",
+    border: "1px solid var(--border-default)",
+    background: "var(--surface-0)",
     fontFamily: "'IBM Plex Mono', 'Courier New', monospace",
   };
 
@@ -169,7 +169,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
     padding: "10px 16px",
     borderBottom: open ? "1px solid #374151" : "none",
     cursor: "pointer",
-    background: "#111827",
+    background: "var(--surface-2)",
     userSelect: "none",
   };
 
@@ -179,7 +179,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
       <div style={headerStyle} onClick={() => setOpen(o => !o)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 11, letterSpacing: "0.15em", color: "#6366f1", fontWeight: 700 }}>FIE</span>
-          <span style={{ fontSize: 11, letterSpacing: "0.12em", color: "#9ca3af" }}>FAILURE INTELLIGENCE ENGINE</span>
+          <span style={{ fontSize: 11, letterSpacing: "0.12em", color: "var(--text-muted)" }}>FAILURE INTELLIGENCE ENGINE</span>
         </div>
         <span style={{ fontSize: 12, color: "#6b7280" }}>{open ? "▲" : "▼"}</span>
       </div>
@@ -194,7 +194,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
               onChange={e => setSymptoms(e.target.value)}
               placeholder="Descrivi i sintomi: rumore, vibrazione, temperatura, perdite, errori..."
               rows={3}
-              style={{ background: "#111827", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", resize: "vertical", outline: "none" }}
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", resize: "vertical", outline: "none" }}
             />
           </div>
 
@@ -204,7 +204,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
               <select
                 value={assetType}
                 onChange={e => setAssetType(e.target.value)}
-                style={{ width: "100%", background: "#111827", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                style={{ width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", outline: "none" }}
               >
                 <option value="">— Auto-detect dall&apos;asset —</option>
                 {ASSET_TYPES.map(at => (
@@ -233,9 +233,9 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
           {result && !analyzing && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {/* Sintesi */}
-              <div style={{ background: "#111827", border: "1px solid #1f2937", padding: "10px 14px" }}>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", padding: "10px 14px" }}>
                 <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280", marginBottom: 6 }}>ANALISI AI — {result.asset_type_used.toUpperCase()}</div>
-                <div style={{ fontSize: 12, color: "#e5e7eb", lineHeight: 1.5, marginBottom: 6 }}>{result.most_probable_cause || result.explanation || "Nessuna causa identificata."}</div>
+                <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, marginBottom: 6 }}>{result.most_probable_cause || result.explanation || "Nessuna causa identificata."}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 10, color: "#6b7280" }}>Confidenza:</span>
                   <span style={{ fontSize: 10, color: result.confidence_score >= 0.7 ? "#22c55e" : result.confidence_score >= 0.4 ? "#f59e0b" : "#ef4444" }}>
@@ -255,25 +255,25 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                   {/* Top 3 failure modes */}
                   <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>TOP 3 FAILURE MODES IDENTIFICATI</div>
                   {result.failure_modes_ranked.map((fm, i) => (
-                    <div key={fm.failure_mode_id} style={{ border: "1px solid #1f2937", background: "#111827", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div key={fm.failure_mode_id} style={{ border: "1px solid var(--border-default)", background: "var(--surface-2)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>#{i + 1}</span>
-                          <span style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 600 }}>{fm.failure_mode}</span>
+                          <span style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }}>{fm.failure_mode}</span>
                         </div>
                         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                           <RpnBadge cls={fm.rpn_class} rpn={fm.rpn} />
                           <span style={{ fontSize: 10, color: "#22c55e" }}>{Math.round(fm.probability_score)}%</span>
                         </div>
                       </div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                         <span style={{ color: "#6b7280" }}>Componente: </span>{fm.component}
                         {fm.mtbf_hours != null && fm.mtbf_hours > 0 && (
                           <span style={{ marginLeft: 12, color: "#6b7280" }}>MTBF: {fm.mtbf_hours.toLocaleString("it-IT")}h</span>
                         )}
                       </div>
                       {fm.failure_cause && (
-                        <div style={{ fontSize: 11, color: "#9ca3af", borderLeft: "2px solid #374151", paddingLeft: 8 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", borderLeft: "2px solid #374151", paddingLeft: 8 }}>
                           <span style={{ color: "#6b7280" }}>Causa: </span>{fm.failure_cause}
                         </div>
                       )}
@@ -297,7 +297,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                       <select
                         value={selectedFmId === "other" ? "other" : String(selectedFmId)}
                         onChange={e => setSelectedFmId(e.target.value === "other" ? "other" : parseInt(e.target.value, 10))}
-                        style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                        style={{ width: "100%", background: "var(--surface-0)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", outline: "none" }}
                       >
                         {result.failure_modes_ranked.map(fm => (
                           <option key={fm.failure_mode_id} value={fm.failure_mode_id}>
@@ -315,7 +315,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                         onChange={e => setRealCause(e.target.value)}
                         placeholder="Descrivi la causa effettiva riscontrata..."
                         rows={2}
-                        style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                        style={{ width: "100%", background: "var(--surface-0)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
                       />
                     </div>
 
@@ -326,7 +326,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                         onChange={e => setActionTaken(e.target.value)}
                         placeholder="Descrivi l'intervento eseguito..."
                         rows={2}
-                        style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                        style={{ width: "100%", background: "var(--surface-0)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
                       />
                     </div>
 
@@ -339,7 +339,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                           onChange={e => setResolutionTime(e.target.value)}
                           placeholder="0"
                           min={0}
-                          style={{ width: "100%", background: "#0a0f1e", border: "1px solid #374151", color: "#e5e7eb", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                          style={{ width: "100%", background: "var(--surface-0)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
                         />
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 2 }}>
@@ -430,7 +430,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
           placeholder="Cerca per #ID, descrizione o asset..."
           style={{
             width: "100%", padding: "10px 12px 10px 36px", boxSizing: "border-box",
-            background: "var(--bg-surface)", border: "1px solid #374151",
+            background: "var(--bg-surface)", border: "1px solid var(--border-default)",
             color: "var(--text-primary)", fontSize: 13, outline: "none",
             fontFamily: "inherit", borderColor: query ? "rgba(99,102,241,0.5)" : undefined,
           }}
@@ -441,7 +441,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
       </div>
 
       {/* Risultati */}
-      <div style={{ width: "100%", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 0, border: "1px solid #374151", maxHeight: 380, overflowY: "auto" }}>
+      <div style={{ width: "100%", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 0, border: "1px solid var(--border-default)", maxHeight: 380, overflowY: "auto" }}>
         {loading ? (
           <div style={{ padding: "24px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>Caricamento...</div>
         ) : filtered.length === 0 ? (
@@ -476,7 +476,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
             {/* Badge tipo + priorità */}
             <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
               <TipoBadge tipo={t.tipo} />
-              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 3, fontWeight: 700, color: t.priorita === "Alta" ? "#ef4444" : t.priorita === "Media" ? "#f59e0b" : "#22c55e", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 3, fontWeight: 700, color: t.priorita === "Alta" ? "#ef4444" : t.priorita === "Media" ? "#f59e0b" : "#22c55e", background: "var(--surface-3)", border: "1px solid var(--border-default)" }}>
                 {t.priorita}
               </span>
             </div>
@@ -600,7 +600,7 @@ function DiagnosticContent() {
           {/* Bottone cambia ticket */}
           <button
             onClick={resetToSelect}
-            style={{ background: "transparent", border: "1px solid #374151", color: "var(--text-muted)", padding: "3px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
+            style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", padding: "3px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
             title="Scegli altro ticket"
           >
             ← CAMBIA
@@ -622,7 +622,7 @@ function DiagnosticContent() {
           <div style={{ ...styles.startScreen, gap: 20 }}>
             <div style={styles.startIcon}>⬡</div>
             {selectedTicket && (
-              <div style={{ background: "var(--bg-surface)", border: "1px solid #374151", padding: "12px 20px", textAlign: "center", maxWidth: 480 }}>
+              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", padding: "12px 20px", textAlign: "center", maxWidth: 480 }}>
                 <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", marginBottom: 6 }}>TICKET SELEZIONATO</div>
                 <div style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600, marginBottom: 4 }}>{selectedTicket.titolo}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedTicket.asset_name} · <TipoBadge tipo={selectedTicket.tipo} /></div>
@@ -739,7 +739,7 @@ const styles: Record<string, React.CSSProperties> = {
   gridBg:        { position: "fixed", inset: 0, backgroundImage: `linear-gradient(var(--border-subtle) 1px, transparent 1px), linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px)`, backgroundSize: "40px 40px", pointerEvents: "none", zIndex: 0 },
   header:        { position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-strong)", background: "var(--bg-surface)" },
   headerLeft:    { display: "flex", alignItems: "center", gap: "12px" },
-  badge:         { fontSize: "10px", letterSpacing: "0.15em", background: "var(--border)", border: "1px solid #374151", padding: "3px 8px", color: "var(--text-muted)" },
+  badge:         { fontSize: "10px", letterSpacing: "0.15em", background: "var(--border)", border: "1px solid var(--border-default)", padding: "3px 8px", color: "var(--text-muted)" },
   headerTitle:   { fontSize: "12px", letterSpacing: "0.2em", color: "var(--text-secondary)", fontWeight: 600 },
   statusDot:     { display: "flex", alignItems: "center", gap: "8px" },
   dot:           { width: "8px", height: "8px", borderRadius: "50%", display: "inline-block" },
@@ -751,12 +751,12 @@ const styles: Record<string, React.CSSProperties> = {
   startIcon:     { fontSize: "48px", color: "var(--border-strong)", lineHeight: 1 },
   startTitle:    { fontSize: "14px", letterSpacing: "0.2em", color: "var(--text-secondary)", margin: 0 },
   startSub:      { fontSize: "13px", color: "var(--text-disabled)", maxWidth: "400px", lineHeight: 1.6, margin: 0 },
-  startBtn:      { marginTop: "8px", background: "transparent", border: "1px solid #374151", color: "var(--text-primary)", padding: "10px 28px", fontSize: "12px", letterSpacing: "0.2em", cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit" },
+  startBtn:      { marginTop: "8px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "10px 28px", fontSize: "12px", letterSpacing: "0.2em", cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit" },
   spinner:       { width: "32px", height: "32px", border: "2px solid var(--border-strong)", borderTop: "2px solid #6b7280", borderRadius: "50%", animation: "spin 1s linear infinite" },
   msgRow:        { display: "flex", alignItems: "flex-start" },
   aiBubbleWrap:  { display: "flex", gap: "12px", maxWidth: "85%", alignItems: "flex-start" },
-  aiAvatar:      { width: "32px", height: "32px", background: "var(--border)", border: "1px solid #374151", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", letterSpacing: "0.1em", color: "var(--text-muted)", flexShrink: 0, marginTop: "4px" },
-  aiBubble:      { background: "var(--bg-surface)", border: "1px solid #374151", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", borderLeft: "3px solid" },
+  aiAvatar:      { width: "32px", height: "32px", background: "var(--border)", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", letterSpacing: "0.1em", color: "var(--text-muted)", flexShrink: 0, marginTop: "4px" },
+  aiBubble:      { background: "var(--bg-surface)", border: "1px solid var(--border-default)", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", borderLeft: "3px solid" },
   typeTag:       { fontSize: "9px", letterSpacing: "0.15em", padding: "3px 8px", border: "1px solid", alignSelf: "flex-start", fontWeight: 600 },
   bubbleContent: { fontSize: "14px", lineHeight: 1.6, margin: 0, color: "var(--text-primary)" },
   bubbleDetail:  { fontSize: "12px", lineHeight: 1.5, margin: 0, color: "var(--text-muted)", borderLeft: "2px solid var(--border-strong)", paddingLeft: "10px" },
@@ -769,13 +769,13 @@ const styles: Record<string, React.CSSProperties> = {
   actionNum:     { color: "var(--border-strong)", flexShrink: 0, fontWeight: 600 },
   timestamp:     { fontSize: "10px", color: "var(--border-strong)", alignSelf: "flex-end" },
   userBubbleWrap:{ display: "flex", gap: "12px", maxWidth: "70%", alignItems: "flex-start" },
-  userBubble:    { background: "var(--border)", border: "1px solid #374151", padding: "12px 16px", display: "flex", flexDirection: "column", gap: "6px" },
+  userBubble:    { background: "var(--border)", border: "1px solid var(--border-default)", padding: "12px 16px", display: "flex", flexDirection: "column", gap: "6px" },
   userText:      { fontSize: "14px", lineHeight: 1.5, margin: 0, color: "var(--text-primary)" },
   timestampUser: { fontSize: "10px", color: "var(--text-disabled)", alignSelf: "flex-end" },
-  userAvatar:    { width: "32px", height: "32px", background: "var(--border)", border: "1px solid #374151", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", letterSpacing: "0.1em", color: "var(--text-disabled)", flexShrink: 0, marginTop: "4px" },
+  userAvatar:    { width: "32px", height: "32px", background: "var(--border)", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", letterSpacing: "0.1em", color: "var(--text-disabled)", flexShrink: 0, marginTop: "4px" },
   footer:        { position: "relative", zIndex: 1, borderTop: "1px solid var(--border-strong)", background: "var(--bg-surface)", padding: "16px 24px" },
   inputWrap:     { display: "flex", gap: "12px", maxWidth: "800px", margin: "0 auto", alignItems: "flex-end" },
-  textarea:      { flex: 1, background: "var(--bg-base)", border: "1px solid #374151", color: "var(--text-primary)", padding: "10px 14px", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace", resize: "none", outline: "none", lineHeight: 1.5 },
-  sendBtn:       { background: "var(--border)", border: "1px solid #374151", color: "var(--text-primary)", width: "44px", height: "44px", fontSize: "18px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, transition: "all 0.15s" },
+  textarea:      { flex: 1, background: "var(--bg-base)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "10px 14px", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace", resize: "none", outline: "none", lineHeight: 1.5 },
+  sendBtn:       { background: "var(--border)", border: "1px solid var(--border-default)", color: "var(--text-primary)", width: "44px", height: "44px", fontSize: "18px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, transition: "all 0.15s" },
   concludedBar:  { maxWidth: "800px", margin: "0 auto", textAlign: "center", fontSize: "11px", letterSpacing: "0.15em", color: "var(--amber)", padding: "8px 0" },
 };

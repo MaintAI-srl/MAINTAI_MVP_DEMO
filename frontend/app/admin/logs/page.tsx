@@ -130,7 +130,7 @@ export default function AdminLogsPage() {
         fontFamily: "'IBM Plex Mono', monospace",
         fontSize: "12px",
         lineHeight: "1.6",
-        color: "#e5e7eb",
+        color: "var(--text-primary)",
         boxShadow: "inset 0 2px 10px rgba(0,0,0,0.5)"
       }}>
         {loading && logs.length === 0 ? (

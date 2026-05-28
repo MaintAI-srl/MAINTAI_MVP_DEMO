@@ -91,10 +91,10 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
   return (
     <div style={{
       padding: 16, background: "#0f172a", borderRadius: 16,
-      border: "1px solid rgba(255,255,255,0.08)",
+      border: "1px solid var(--border-default)",
     }}>
       <div style={{
-        fontSize: 12, color: "#94a3b8", marginBottom: 10,
+        fontSize: 12, color: "var(--text-muted)", marginBottom: 10,
         textAlign: "center", fontWeight: 700, letterSpacing: "0.08em",
         textTransform: "uppercase",
       }}>
@@ -143,8 +143,8 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
           onClick={clear}
           style={{
             flex: 1, padding: "12px 0",
-            background: "transparent", border: "1px solid #374151",
-            color: "#9ca3af", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+            background: "transparent", border: "1px solid var(--border-default)",
+            color: "var(--text-muted)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}
         >
           PULISCI
@@ -153,8 +153,8 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
           onClick={onCancel}
           style={{
             flex: 1, padding: "12px 0",
-            background: "transparent", border: "1px solid #374151",
-            color: "#9ca3af", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+            background: "transparent", border: "1px solid var(--border-default)",
+            color: "var(--text-muted)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}
         >
           ANNULLA

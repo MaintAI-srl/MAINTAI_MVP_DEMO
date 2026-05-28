@@ -631,7 +631,7 @@ function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: 
         </div>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb", lineHeight: 1.4 }}>{ticket.titolo}</div>
-          {ticket.descrizione && <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8, lineHeight: 1.6 }}>{ticket.descrizione}</div>}
+          {ticket.descrizione && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.6 }}>{ticket.descrizione}</div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {rows.map(([label, value]) => (
@@ -680,7 +680,7 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
 
         <div style={{ flex: 1, padding: "28px", display: "flex", flexDirection: "column", gap: 20 }}>
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO</label>
             <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
               {tecnici.map((t) => (
                 <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t)}>
@@ -690,11 +690,11 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>DATA</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>DATA</label>
             <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>ORA INIZIO</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>ORA INIZIO</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {SLOT_PRESETS.map((p) => (
                 <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#334155"}`, background: oraInizio === p.h ? "rgba(59,130,246,0.15)" : "#1e293b", color: oraInizio === p.h ? "#60a5fa" : "#94a3b8", fontWeight: oraInizio === p.h ? 700 : 500 }}>
@@ -705,8 +705,8 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
           </div>
         </div>
 
-        <div style={{ padding: "20px 28px", borderTop: "1px solid #1e293b", background: "rgba(15,23,42,0.9)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid #334155", color: "#9ca3af", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Annulla</button>
+        <div style={{ padding: "20px 28px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid #334155", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Annulla</button>
           <button
             onClick={() => {
               const pad = (n: number) => String(n).padStart(2, "0");
@@ -1212,7 +1212,7 @@ export default function PianificazionePage() {
           whiteSpace: "nowrap",
         }}>
           {/* View toggle */}
-          <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(59,130,246,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 2, background: "var(--surface-3)", border: "1px solid rgba(59,130,246,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
             {(["day", "week", "2week"] as ViewMode[]).map((v) => (
               <button key={v} onClick={() => setView(v)} style={{
                 padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em",
@@ -1237,20 +1237,20 @@ export default function PianificazionePage() {
           </div>
 
           {/* Controlli Zoom */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid rgba(255,255,255,0.08)", paddingLeft: 12, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid var(--border-default)", paddingLeft: 12, flexShrink: 0 }}>
             <button
               onClick={() => setZoom(z => Math.max(0.8, z - 0.2))}
-              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#9ca3af", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
               title="Zoom Out"
             >
               -
             </button>
-            <span style={{ fontSize: 11, color: "#9ca3af", minWidth: 32, textAlign: "center", fontWeight: 600 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", minWidth: 32, textAlign: "center", fontWeight: 600 }}>
               {Math.round(zoom * 100)}%
             </span>
             <button
               onClick={() => setZoom(z => Math.min(2.0, z + 0.2))}
-              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#9ca3af", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
               title="Zoom In"
             >
               +
@@ -1312,7 +1312,7 @@ export default function PianificazionePage() {
           {/* Engine toggle Nascosto per richiesta utente */}
 
           {/* Selettore orizzonte pianificazione */}
-          <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 2, background: "var(--surface-3)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
             {[7, 14, 30].map((d) => (
               <button
                 key={d}
@@ -1625,7 +1625,7 @@ export default function PianificazionePage() {
             <span style={{ fontSize: 11, fontWeight: 800, color: tipoStyle(hoverTooltip.ticket.tipo).text, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {hoverTooltip.ticket.tipo} · #{hoverTooltip.ticket.id}
             </span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>
               {ticketHours(hoverTooltip.ticket)}h
             </span>
           </div>
@@ -1638,7 +1638,7 @@ export default function PianificazionePage() {
               : hoverTooltip.ticket.descrizione || "Nessuna descrizione."}
           </div>
           {(hoverTooltip.ticket.asset_name || hoverTooltip.ticket.impianto_name || hoverTooltip.ticket.sito_name) && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: 10, color: "#94a3b8" }}>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-default)", fontSize: 10, color: "var(--text-muted)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ color: "#64748b" }}>📍</span> 
                 {hoverTooltip.ticket.sito_name} › {hoverTooltip.ticket.impianto_name}

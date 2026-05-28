@@ -70,7 +70,7 @@ function statusForDays(days: number | null, row?: ScadenzaRow) {
     if (row.condition_remaining_hours === null || row.condition_remaining_hours === undefined) return { label: "Senza lettura", color: "#f6a233", bg: "rgba(246,162,51,0.12)", border: "rgba(246,162,51,0.34)" };
     return { label: "Ore residue", color: "#10d9b0", bg: "rgba(16,217,176,0.10)", border: "rgba(16,217,176,0.26)" };
   }
-  if (days === null) return { label: "Da configurare", color: "#94a3b8", bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.24)" };
+  if (days === null) return { label: "Da configurare", color: "var(--text-muted)", bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.24)" };
   if (days < 0) return { label: "Scaduta", color: "#f05252", bg: "rgba(240,82,82,0.12)", border: "rgba(240,82,82,0.34)" };
   if (days <= 7) return { label: "Critica", color: "#f6a233", bg: "rgba(246,162,51,0.12)", border: "rgba(246,162,51,0.34)" };
   if (days <= 30) return { label: "Prossima", color: "#5b8fff", bg: "var(--cobalt-dim)", border: "rgba(91,143,255,0.30)" };
@@ -241,7 +241,7 @@ export default function ScadenzePage() {
           gap: 16,
           padding: "14px 16px",
           borderBottom: "1px solid var(--border-subtle)",
-          background: "rgba(255,255,255,0.018)",
+          background: "var(--surface-1)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             {filterItems.map(item => {

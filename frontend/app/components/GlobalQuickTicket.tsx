@@ -103,7 +103,7 @@ export default function GlobalQuickTicket() {
             
             {/* Titolo */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Titolo *</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Titolo *</label>
               <input 
                 type="text" 
                 value={titolo} 
@@ -125,7 +125,7 @@ export default function GlobalQuickTicket() {
 
             {/* Asset */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset Principale</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset Principale</label>
               <select 
                 value={assetId} 
                 onChange={e => setAssetId(e.target.value)} 
@@ -147,7 +147,7 @@ export default function GlobalQuickTicket() {
             {/* Modalità One-Click / Priorità / Tipo */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tipo</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tipo</label>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {["BD", "CM"].map(t => (
                     <button 
@@ -175,7 +175,7 @@ export default function GlobalQuickTicket() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Priorità</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Priorità</label>
                 <select 
                   value={priorita} 
                   onChange={e => setPriorita(e.target.value)} 
@@ -198,10 +198,10 @@ export default function GlobalQuickTicket() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Stato asset</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Stato asset</label>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {[
-                  { value: "", label: "Mantieni", color: "#94a3b8" },
+                  { value: "", label: "Mantieni", color: "var(--text-muted)" },
                   ...ASSET_STATUS_OPTIONS,
                 ].map((s) => (
                   <button
@@ -232,8 +232,8 @@ export default function GlobalQuickTicket() {
             
           </div>
 
-          <div style={{ padding: "20px 24px", borderTop: "1px solid #1e293b", background: "rgba(15,23,42,0.9)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} style={{ color: "#94a3b8" }}>Annulla</Button>
+          <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} style={{ color: "var(--text-muted)" }}>Annulla</Button>
             <Button type="submit" disabled={loading} style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)", fontWeight: 700, padding: "0 24px" }}>
               {loading ? "Creazione..." : "Salva Ticket Ora"}
             </Button>

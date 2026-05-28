@@ -256,14 +256,14 @@ function ReassignModal({
           Ticket #{woId} · Doppio clic nel piano per modificare
         </div>
 
-        <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>
+        <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
           Nuovo tecnico
         </label>
         <select
           value={selected}
           onChange={e => setSelected(Number(e.target.value))}
           style={{
-            width: "100%", background: "var(--border-strong)", border: "1px solid #374151",
+            width: "100%", background: "var(--border-strong)", border: "1px solid var(--border-default)",
             color: "#f9fafb", borderRadius: 6, padding: "8px 10px",
             fontSize: 13, marginBottom: 16,
           }}
@@ -277,8 +277,8 @@ function ReassignModal({
 
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{
-            flex: 1, background: "var(--border-strong)", border: "1px solid #374151",
-            color: "#9ca3af", borderRadius: 6, padding: "9px 0",
+            flex: 1, background: "var(--border-strong)", border: "1px solid var(--border-default)",
+            color: "var(--text-muted)", borderRadius: 6, padding: "9px 0",
             cursor: "pointer", fontSize: 13,
           }}>Annulla</button>
           <button
@@ -330,7 +330,7 @@ export default function KanbanSettimanale({
             prev.setDate(prev.getDate() - 7);
             onWeekChange(prev);
           }}
-          style={{ background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
+          style={{ background: "var(--border-strong)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
         >‹</button>
 
         <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", minWidth: 200, textAlign: "center" }}>
@@ -343,7 +343,7 @@ export default function KanbanSettimanale({
             next.setDate(next.getDate() + 7);
             onWeekChange(next);
           }}
-          style={{ background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
+          style={{ background: "var(--border-strong)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 14 }}
         >›</button>
 
         <button

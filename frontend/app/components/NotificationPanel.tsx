@@ -153,7 +153,7 @@ export default function NotificationPanel() {
                           <span style={{ fontSize: 10, fontWeight: 800, color: s.urgenza === "alta" ? "#f87171" : "#818cf8", textTransform: "uppercase", letterSpacing: ".07em" }}>
                             {s.asset_nome}
                           </span>
-                          <span style={{ fontSize: 10, color: "#94a3b8" }}>
+                          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
                             {new Date(s.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
                           </span>
                         </div>

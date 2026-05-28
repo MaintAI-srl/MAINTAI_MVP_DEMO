@@ -136,7 +136,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, logout, user } = useAuth();
   const [time, setTime] = useState("");
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Keep-alive: pinga il backend ogni 8 minuti per evitare cold start su Render free tier
@@ -193,7 +193,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const local = localStorage.getItem("maintai_theme");
-    if (local) setTheme(local);
+    const nextTheme = local === "dark" || local === "light" ? local : "light";
+    setTheme(nextTheme);
+    document.documentElement.setAttribute("data-theme", nextTheme);
   }, []);
 
   const toggleTheme = () => {
@@ -228,7 +230,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   // Layout mobile-first per storico interventi — full screen, no sidebar
   if (pathname.startsWith("/storico/")) {
     return (
-      <div style={{ minHeight: "100dvh", background: "#0a0f1e", color: "#f1f5f9" }}>
+      <div style={{ minHeight: "100dvh", background: "var(--surface-0)", color: "var(--text-primary)" }}>
         {children}
       </div>
     );
@@ -260,7 +262,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "var(--text-muted)", fontSize: 16, lineHeight: 1 }}
               title={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
             >
-              {theme === "dark" ? "☀️" : "🌙"}
+              {theme === "dark" ? <Sun size={16} strokeWidth={1.8} /> : <Moon size={16} strokeWidth={1.8} />}
             </button>
             <button
               onClick={logout}
@@ -530,7 +532,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     (function() {
       try {
         var t = localStorage.getItem('maintai_theme');
-        if (t) document.documentElement.setAttribute('data-theme', t);
+        document.documentElement.setAttribute('data-theme', (t === 'dark' || t === 'light') ? t : 'light');
       } catch(e) {}
     })();
   `;
@@ -541,7 +543,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <title>MaintAI — Centro di Controllo</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#3b82f6" />
+        <meta name="theme-color" content="#f5f7fb" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="MaintAI" />

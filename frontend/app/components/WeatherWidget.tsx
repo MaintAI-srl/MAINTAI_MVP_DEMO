@@ -134,7 +134,7 @@ export default function WeatherWidget() {
   const getWeatherUI = (code: number, size = 16) => {
     if (code === 0) return { icon: <Sun size={size} />, color: "#fbbf24", shadow: "0 0 10px rgba(251,191,36,0.4)" };
     if ([1, 2, 3].includes(code)) return { icon: <CloudSun size={size} />, color: "#fcd34d", shadow: "0 0 10px rgba(252,211,77,0.3)" };
-    if ([45, 48].includes(code)) return { icon: <CloudFog size={size} />, color: "#94a3b8", shadow: "0 0 10px rgba(148,163,184,0.3)" };
+    if ([45, 48].includes(code)) return { icon: <CloudFog size={size} />, color: "var(--text-muted)", shadow: "0 0 10px rgba(148,163,184,0.3)" };
     if ([51, 53, 55].includes(code)) return { icon: <CloudDrizzle size={size} />, color: "#22d3ee", shadow: "0 0 10px rgba(34,211,238,0.4)" };
     if ([61, 63, 65, 80, 81, 82].includes(code)) return { icon: <CloudRain size={size} />, color: "#3b82f6", shadow: "0 0 10px rgba(59,130,246,0.4)" };
     if ([71, 73, 75, 85, 86].includes(code)) return { icon: <CloudSnow size={size} />, color: "#e0e7ff", shadow: "0 0 10px rgba(224,231,255,0.4)" };

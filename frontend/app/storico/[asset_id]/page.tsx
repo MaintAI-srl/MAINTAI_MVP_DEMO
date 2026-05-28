@@ -77,7 +77,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
   return (
     <div
       style={{
-        background: "#111827",
+        background: "var(--surface-2)",
         borderRadius: "12px",
         border: `1px solid ${color}33`,
         borderLeft: `4px solid ${color}`,
@@ -114,10 +114,10 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
               {ticket.priorita}
             </span>
           </div>
-          <div style={{ fontSize: "16px", fontWeight: 600, color: "#f1f5f9", lineHeight: 1.3 }}>
+          <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3 }}>
             {ticket.titolo}
           </div>
-          <div style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>
+          <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>
             #{ticket.id} · {formatDate(ticket.created_at)}
           </div>
         </div>
@@ -135,7 +135,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
             {ticket.closed_by && <Kv label="Chiuso da" value={ticket.closed_by} />}
           </div>
           {ticket.descrizione && (
-            <div style={{ background: "#0a0f1e", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", color: "#94a3b8", lineHeight: 1.5 }}>
+            <div style={{ background: "var(--surface-0)", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {ticket.descrizione}
             </div>
           )}
@@ -201,15 +201,15 @@ export default function StoricoAssetPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0f1e", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#94a3b8", fontSize: "16px" }}>Caricamento storico...</div>
+      <div style={{ minHeight: "100vh", background: "var(--surface-0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "var(--text-muted)", fontSize: "16px" }}>Caricamento storico...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0f1e", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+      <div style={{ minHeight: "100vh", background: "var(--surface-0)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "32px", marginBottom: "12px" }}>⚠️</div>
           <div style={{ color: "#ef4444", fontSize: "16px", marginBottom: "16px" }}>{error}</div>
@@ -225,13 +225,13 @@ export default function StoricoAssetPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0f1e", color: "#f1f5f9" }}>
+    <div style={{ minHeight: "100vh", background: "var(--surface-0)", color: "var(--text-primary)" }}>
       {/* Header */}
-      <div style={{ background: "#111827", borderBottom: "1px solid #1f2937", padding: "16px", position: "sticky", top: 0, zIndex: 100 }}>
+      <div style={{ background: "var(--surface-2)", borderBottom: "1px solid var(--border-default)", padding: "16px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
           <button
             onClick={() => router.back()}
-            style={{ background: "#1f2937", border: "none", borderRadius: "8px", padding: "8px 12px", color: "#94a3b8", cursor: "pointer", fontSize: "16px", minHeight: "44px", minWidth: "44px" }}
+            style={{ background: "#1f2937", border: "none", borderRadius: "8px", padding: "8px 12px", color: "var(--text-muted)", cursor: "pointer", fontSize: "16px", minHeight: "44px", minWidth: "44px" }}
             aria-label="Torna indietro"
           >
             ←
@@ -242,7 +242,7 @@ export default function StoricoAssetPage() {
               {asset?.impianto_nome && `${asset.impianto_nome} › `}
               Storico
             </div>
-            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#f1f5f9" }}>
+            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>
               🔧 {asset?.nome ?? `Asset #${assetId}`}
             </h1>
           </div>
@@ -271,7 +271,7 @@ export default function StoricoAssetPage() {
           </Link>
           <button
             onClick={loadData}
-            style={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "10px", padding: "12px 14px", color: "#94a3b8", cursor: "pointer", fontSize: "18px", minHeight: "48px", minWidth: "48px" }}
+            style={{ background: "#1f2937", border: "1px solid var(--border-default)", borderRadius: "10px", padding: "12px 14px", color: "var(--text-muted)", cursor: "pointer", fontSize: "18px", minHeight: "48px", minWidth: "48px" }}
             title="Aggiorna"
           >
             ↻
@@ -291,9 +291,9 @@ export default function StoricoAssetPage() {
             key={f.id}
             onClick={() => setFiltroTipo(f.id)}
             style={{
-              background: filtroTipo === f.id ? "#1e3a5f" : "#111827",
-              color: filtroTipo === f.id ? "#60a5fa" : "#94a3b8",
-              border: `1px solid ${filtroTipo === f.id ? "#1e40af" : "#374151"}`,
+              background: filtroTipo === f.id ? "var(--cobalt-dim)" : "var(--surface-2)",
+              color: filtroTipo === f.id ? "var(--cobalt)" : "var(--text-muted)",
+              border: `1px solid ${filtroTipo === f.id ? "var(--cobalt-border)" : "var(--border-default)"}`,
               borderRadius: "999px",
               padding: "8px 16px",
               fontSize: "13px",
@@ -318,7 +318,7 @@ export default function StoricoAssetPage() {
         {ticketsFiltrati.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 16px" }}>
             <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
-            <div style={{ fontSize: "18px", color: "#94a3b8", marginBottom: "8px" }}>
+            <div style={{ fontSize: "18px", color: "var(--text-muted)", marginBottom: "8px" }}>
               {tickets.length === 0
                 ? "Nessun intervento registrato"
                 : "Nessun intervento per questo filtro"}

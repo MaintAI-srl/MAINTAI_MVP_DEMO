@@ -261,7 +261,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
               <div
                 style={{
                   fontSize: 12,
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   lineHeight: 1.6,
                   fontStyle: "italic",
                   whiteSpace: "pre-wrap",

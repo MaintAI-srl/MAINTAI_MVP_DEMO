@@ -126,7 +126,7 @@ export default function PrintAssetQR() {
       {/* URL */}
       <div style={{
         fontSize: "11px",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         textAlign: "center",
         maxWidth: "500px",
         wordBreak: "break-all",

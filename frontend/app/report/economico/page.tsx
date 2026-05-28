@@ -55,10 +55,10 @@ function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "#1f2937", border: "1px solid #374151", borderRadius: "8px",
+      background: "#1f2937", border: "1px solid var(--border-default)", borderRadius: "8px",
       padding: "10px 14px", fontSize: "13px",
     }}>
-      <p style={{ color: "#94a3b8", marginBottom: "6px", fontWeight: 600 }}>{label}</p>
+      <p style={{ color: "var(--text-muted)", marginBottom: "6px", fontWeight: 600 }}>{label}</p>
       {payload.map((p: any) => (
         <p key={p.name} style={{ color: p.color, margin: "2px 0" }}>
           {p.name}: <strong>{fmt(p.value)}</strong>
@@ -120,7 +120,7 @@ export default function ReportEconomicoPage() {
   if (loading) {
     return (
       <div style={pageWrap}>
-        <div style={{ color: "#94a3b8", textAlign: "center", paddingTop: "60px" }}>
+        <div style={{ color: "var(--text-muted)", textAlign: "center", paddingTop: "60px" }}>
           Caricamento report...
         </div>
       </div>
@@ -138,7 +138,7 @@ export default function ReportEconomicoPage() {
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "28px" }}>
         <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#f1f5f9", margin: 0 }}>
+          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
             📊 Report Economico Manutenzione
           </h1>
           <p style={{ color: "#64748b", fontSize: "13px", margin: "4px 0 0" }}>
@@ -152,7 +152,7 @@ export default function ReportEconomicoPage() {
             value={mesi}
             onChange={e => setMesi(Number(e.target.value))}
             style={{
-              background: "#1f2937", color: "#f1f5f9", border: "1px solid #374151",
+              background: "#1f2937", color: "var(--text-primary)", border: "1px solid var(--border-default)",
               borderRadius: "8px", padding: "8px 12px", fontSize: "13px", cursor: "pointer",
             }}
           >
@@ -252,7 +252,7 @@ export default function ReportEconomicoPage() {
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend
-                wrapperStyle={{ fontSize: "12px", color: "#94a3b8" }}
+                wrapperStyle={{ fontSize: "12px", color: "var(--text-muted)" }}
                 formatter={(v) => v === "evitato" ? "Evitato" : "Subito"}
               />
               <Bar dataKey="evitato" name="evitato" fill="#22c55e" radius={[3, 3, 0, 0]} />
@@ -270,19 +270,19 @@ export default function ReportEconomicoPage() {
             <thead>
               <tr style={{ borderBottom: "1px solid #374151" }}>
                 {["Asset", "Costo subito", "Ticket BD", "€/ora fermo"].map(h => (
-                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#94a3b8", fontWeight: 600 }}>{h}</th>
+                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.top_asset.map((a, i) => (
                 <tr key={a.asset_id} style={{
-                  borderBottom: "1px solid #1f2937",
-                  background: i % 2 === 0 ? "transparent" : "#111827",
+                  borderBottom: "1px solid var(--border-default)",
+                  background: i % 2 === 0 ? "transparent" : "var(--surface-1)",
                 }}>
-                  <td style={{ padding: "10px 12px", color: "#f1f5f9", fontWeight: 500 }}>{a.nome}</td>
+                  <td style={{ padding: "10px 12px", color: "var(--text-primary)", fontWeight: 500 }}>{a.nome}</td>
                   <td style={{ padding: "10px 12px", color: "#ef4444", fontWeight: 700 }}>{fmt(a.costo_subito)}</td>
-                  <td style={{ padding: "10px 12px", color: "#94a3b8" }}>{a.ticket_bd}</td>
+                  <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{a.ticket_bd}</td>
                   <td style={{ padding: "10px 12px", color: "#64748b" }}>
                     {a.costo_orario_fermo > 0 ? `${a.costo_orario_fermo.toFixed(0)} €/h` : "—"}
                   </td>
@@ -296,8 +296,8 @@ export default function ReportEconomicoPage() {
       {/* ── Nota metodologica ── */}
       <div style={{
         marginTop: "24px", padding: "14px 16px",
-        background: "#111827", borderRadius: "10px",
-        border: "1px solid #1f2937", fontSize: "12px", color: "#4b5563",
+        background: "var(--surface-2)", borderRadius: "10px",
+        border: "1px solid var(--border-default)", fontSize: "12px", color: "#4b5563",
         lineHeight: 1.7,
       }}>
         <strong style={{ color: "#6b7280" }}>Metodologia di calcolo</strong><br />
@@ -334,7 +334,7 @@ function KpiCard({
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
         <span style={{ fontSize: "22px" }}>{icon}</span>
         <div>
-          <div style={{ fontSize: "12px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+          <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
           <div style={{ fontSize: "11px", color: "#4b5563" }}>{sublabel}</div>
         </div>
       </div>
@@ -353,8 +353,8 @@ const pageWrap: React.CSSProperties = {
 };
 
 const sectionCard: React.CSSProperties = {
-  background: "#111827",
-  border: "1px solid #1f2937",
+  background: "var(--surface-2)",
+  border: "1px solid var(--border-default)",
   borderRadius: "12px",
   padding: "20px",
 };
@@ -362,7 +362,7 @@ const sectionCard: React.CSSProperties = {
 const sectionTitle: React.CSSProperties = {
   fontSize: "14px",
   fontWeight: 700,
-  color: "#94a3b8",
+  color: "var(--text-muted)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   marginBottom: "16px",

@@ -61,7 +61,7 @@ export default function CheckPubblicoPage() {
   if (loading) {
     return (
       <div style={pageStyle}>
-        <div style={{ color: "#94a3b8", fontSize: "18px", textAlign: "center" }}>
+        <div style={{ color: "var(--text-muted)", fontSize: "18px", textAlign: "center" }}>
           Caricamento checklist...
         </div>
       </div>
@@ -74,7 +74,7 @@ export default function CheckPubblicoPage() {
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
           <div style={{ fontSize: "18px", color: "#f87171", marginBottom: "8px" }}>Checklist non trovata</div>
-          <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+          <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
             Il codice QR potrebbe essere scaduto o non valido.
             <br />Contatta il responsabile manutenzione.
           </div>
@@ -89,8 +89,8 @@ export default function CheckPubblicoPage() {
     <div style={pageStyle}>
       {/* Header */}
       <div style={{
-        background: "#111827",
-        borderBottom: "1px solid #1f2937",
+        background: "var(--surface-2)",
+        borderBottom: "1px solid var(--border-default)",
         padding: "20px 16px",
         textAlign: "center",
         position: "sticky",
@@ -100,7 +100,7 @@ export default function CheckPubblicoPage() {
         <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>
           Checklist Operatore
         </div>
-        <div style={{ fontSize: "22px", fontWeight: 800, color: "#f1f5f9" }}>
+        <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)" }}>
           🔧 {data.asset_nome}
         </div>
         {tuttiCheckati && (
@@ -113,7 +113,7 @@ export default function CheckPubblicoPage() {
       {/* Lista voci */}
       <div style={{ padding: "16px" }}>
         {data.voci.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8", fontSize: "16px" }}>
+          <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)", fontSize: "16px" }}>
             Nessun punto di controllo configurato.
             <br />Contatta il responsabile manutenzione.
           </div>
@@ -128,8 +128,8 @@ export default function CheckPubblicoPage() {
                 onClick={() => toggleCheck(idx)}
                 style={{
                   width: "100%",
-                  background: checkati.has(idx) ? "#052e16" : "#111827",
-                  border: `2px solid ${checkati.has(idx) ? "#16a34a" : "#374151"}`,
+                  background: checkati.has(idx) ? "var(--green-dim)" : "var(--surface-2)",
+                  border: `2px solid ${checkati.has(idx) ? "#16a34a" : "var(--border-default)"}`,
                   borderRadius: "12px",
                   padding: "16px",
                   marginBottom: "10px",
@@ -172,7 +172,7 @@ export default function CheckPubblicoPage() {
                     {voce.label}
                   </div>
                   {voce.descrizione && (
-                    <div style={{ fontSize: "14px", color: "#94a3b8", marginTop: "4px", lineHeight: 1.4 }}>
+                    <div style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px", lineHeight: 1.4 }}>
                       {voce.descrizione}
                     </div>
                   )}
@@ -217,10 +217,10 @@ export default function CheckPubblicoPage() {
                   placeholder="Il tuo nome (facoltativo)"
                   style={{
                     width: "100%",
-                    background: "#111827",
+                    background: "var(--surface-2)",
                     border: "1px solid #4b5563",
                     borderRadius: "8px",
-                    color: "#f1f5f9",
+                    color: "var(--text-primary)",
                     padding: "12px",
                     fontSize: "16px",
                     fontFamily: "inherit",
@@ -234,10 +234,10 @@ export default function CheckPubblicoPage() {
                   placeholder="Es. Rumore anomalo, perdita d'olio, temperatura elevata..."
                   style={{
                     width: "100%",
-                    background: "#111827",
+                    background: "var(--surface-2)",
                     border: "1px solid #4b5563",
                     borderRadius: "8px",
-                    color: "#f1f5f9",
+                    color: "var(--text-primary)",
                     padding: "12px",
                     fontSize: "16px",
                     minHeight: "100px",
@@ -256,7 +256,7 @@ export default function CheckPubblicoPage() {
                   <button
                     onClick={() => { setShowSegnala(false); setInvioError(null); }}
                     disabled={invioLoading}
-                    style={{ flex: 1, background: "#111827", color: "#94a3b8", border: "1px solid #374151", borderRadius: "8px", padding: "14px", fontSize: "15px", cursor: "pointer", minHeight: "50px" }}
+                    style={{ flex: 1, background: "var(--surface-2)", color: "var(--text-muted)", border: "1px solid var(--border-default)", borderRadius: "8px", padding: "14px", fontSize: "15px", cursor: "pointer", minHeight: "50px" }}
                   >
                     Annulla
                   </button>
@@ -312,7 +312,7 @@ export default function CheckPubblicoPage() {
 
         {/* Conferma invio */}
         {invioOk && (
-          <div style={{ background: "#052e16", border: "2px solid #16a34a", borderRadius: "12px", padding: "20px", marginTop: "24px", textAlign: "center" }}>
+          <div style={{ background: "var(--green-dim)", border: "2px solid #16a34a", borderRadius: "12px", padding: "20px", marginTop: "24px", textAlign: "center" }}>
             <div style={{ fontSize: "36px", marginBottom: "8px" }}>✅</div>
             <div style={{ fontSize: "18px", fontWeight: 700, color: "#22c55e", marginBottom: "8px" }}>
               Segnalazione ricevuta
@@ -342,8 +342,8 @@ export default function CheckPubblicoPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#0a0f1e",
-  color: "#f1f5f9",
+  background: "var(--surface-0)",
+  color: "var(--text-primary)",
   maxWidth: "480px",
   margin: "0 auto",
   display: "flex",

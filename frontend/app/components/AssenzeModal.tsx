@@ -138,7 +138,7 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
           {loading ? (
             <div style={{ textAlign: "center", padding: 20, color: "var(--text-soft)" }}>Caricamento in corso...</div>
           ) : assenze.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 30, background: "rgba(255,255,255,0.01)", borderRadius: 12, border: "1px dashed var(--border-default)", color: "var(--text-soft)" }}>Nessuna assenza programmata.</div>
+            <div style={{ textAlign: "center", padding: 30, background: "var(--surface-1)", borderRadius: 12, border: "1px dashed var(--border-default)", color: "var(--text-soft)" }}>Nessuna assenza programmata.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto" }}>
               {assenze.sort((a,b) => new Date(a.data_inizio).getTime() - new Date(b.data_inizio).getTime()).map(ass => {

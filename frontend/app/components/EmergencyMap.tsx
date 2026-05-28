@@ -18,7 +18,7 @@ const EmergencyMapInner = dynamic(
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#111827",
+        background: "var(--surface-2)",
         borderRadius: "10px",
         color: "#6b7280",
         fontSize: "13px",
@@ -90,7 +90,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
   if (loading) {
     return (
       <div style={{
-        background: "#111827",
+        background: "var(--surface-2)",
         border: "1px solid rgba(239,68,68,0.3)",
         borderRadius: "12px",
         padding: "24px",
@@ -144,7 +144,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
         <div>
           <div style={{ fontWeight: 700, fontSize: "13px", color: "#f87171" }}>EMERGENZA — {emergenza.sito || "Sito non specificato"}</div>
           {emergenza.asset_nome && (
-            <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
               Asset: {emergenza.asset_nome}
             </div>
           )}
@@ -188,8 +188,8 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                 key={tec.tecnico_id}
                 onClick={() => setActiveTecnicoId(isActive ? null : tec.tecnico_id)}
                 style={{
-                  background: isActive ? "rgba(34,197,94,0.08)" : "#111827",
-                  border: isActive ? `1px solid ${rankColor}55` : "1px solid #1f2937",
+                  background: isActive ? "var(--green-dim)" : "var(--surface-2)",
+                  border: isActive ? `1px solid ${rankColor}55` : "1px solid var(--border-default)",
                   borderLeft: `3px solid ${rankColor}`,
                   borderRadius: "8px",
                   padding: "12px 14px",
@@ -282,8 +282,8 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                       key={tec.tecnico_id}
                       onClick={() => setActiveTecnicoId(tec.tecnico_id === activeTecnicoId ? null : tec.tecnico_id)}
                       style={{
-                        background: "#111827",
-                        border: "1px solid #1f2937",
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border-default)",
                         borderRadius: "6px",
                         padding: "10px 12px",
                         marginBottom: "6px",
@@ -304,7 +304,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                         </span>
                       </div>
                       {tec.distanza_km !== null && (
-                        <div style={{ fontSize: "12px", color: "#94a3b8" }}>{tec.distanza_km} km</div>
+                        <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{tec.distanza_km} km</div>
                       )}
                     </div>
                   );
@@ -315,7 +315,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
         </div>
 
         {/* Colonna destra: mappa */}
-        <div style={{ height: "420px", borderRadius: "10px", overflow: "hidden", border: "1px solid #1f2937" }}>
+        <div style={{ height: "420px", borderRadius: "10px", overflow: "hidden", border: "1px solid var(--border-default)" }}>
           <EmergencyMapInner
             emergenza={emergenza}
             tecnici={tutti_tecnici}

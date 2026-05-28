@@ -84,12 +84,12 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
           marginBottom: 12,
         }}>
           <button onClick={prevMese} style={{
-            background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af",
+            background: "var(--border-strong)", border: "1px solid var(--border-default)", color: "var(--text-muted)",
             borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 14,
           }}>‹</button>
           <span style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb" }}>{meseLabel}</span>
           <button onClick={nextMese} style={{
-            background: "var(--border-strong)", border: "1px solid #374151", color: "#9ca3af",
+            background: "var(--border-strong)", border: "1px solid var(--border-default)", color: "var(--text-muted)",
             borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 14,
           }}>›</button>
         </div>
@@ -237,7 +237,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
               style={{
                 background: "none",
                 border: "none",
-                color: "#9ca3af",
+                color: "var(--text-muted)",
                 cursor: "pointer",
                 fontSize: 16,
                 lineHeight: 1,
@@ -277,7 +277,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
                     <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>
                       {ticket?.titolo ?? "—"}
                     </div>
-                    <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>
                       {ticket?.asset_name ?? "—"}
                     </div>
                     <div style={{ fontSize: 10, color: "#6b7280" }}>

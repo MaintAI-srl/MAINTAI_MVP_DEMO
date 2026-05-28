@@ -130,7 +130,7 @@ export default function QuickTicketModal() {
         bottom: 90,
         right: 28,
         width: "min(420px, calc(100vw - 32px))",
-        background: "#111827",
+        background: "var(--surface-2)",
         border: "1px solid #1e293b",
         borderRadius: 14,
         boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(59,130,246,0.15)",
@@ -145,7 +145,7 @@ export default function QuickTicketModal() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 9.5, background: "#1e293b", color: "#64748b", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontFamily: "monospace" }}>N</span>
-            <button onClick={handleClose} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 20, lineHeight: 1, padding: "2px 6px" }}>×</button>
+            <button onClick={handleClose} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 20, lineHeight: 1, padding: "2px 6px" }}>×</button>
           </div>
         </div>
 
@@ -164,7 +164,7 @@ export default function QuickTicketModal() {
 
           {/* Tipo */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Tipo intervento</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Tipo intervento</div>
             <div style={{ display: "flex", gap: 6 }}>
               {(["BD", "PM", "CM"] as const).map(t => (
                 <button
@@ -188,7 +188,7 @@ export default function QuickTicketModal() {
 
           {/* Asset */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Asset *</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Asset *</div>
             <input
               type="text"
               value={assetSearch}
@@ -214,7 +214,7 @@ export default function QuickTicketModal() {
 
           {/* Descrizione */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Descrizione *</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Descrizione *</div>
             <textarea
               ref={descRef}
               value={descrizione}
@@ -228,7 +228,7 @@ export default function QuickTicketModal() {
 
           {/* Actions */}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-            <button type="button" onClick={handleClose} style={{ background: "transparent", color: "#94a3b8", border: "1px solid #334155", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13 }}>
+            <button type="button" onClick={handleClose} style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid #334155", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13 }}>
               Annulla
             </button>
             <button

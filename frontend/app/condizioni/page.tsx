@@ -106,7 +106,7 @@ export default function CondizioniPage() {
   }, [items]);
 
   return (
-    <div style={{ minHeight: "100%", background: "#060a12", padding: "28px 32px 38px", color: "var(--text-primary)" }}>
+    <div style={{ minHeight: "100%", background: "var(--surface-0)", padding: "28px 32px 38px", color: "var(--text-primary)" }}>
       <header style={{ display: "flex", justifyContent: "space-between", gap: 24, alignItems: "flex-start", marginBottom: 22 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#10d9b0", fontWeight: 800, marginBottom: 7 }}>

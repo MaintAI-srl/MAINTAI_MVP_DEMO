@@ -150,7 +150,7 @@ function KanbanColumn({
           <span style={{
             marginLeft: "auto", fontSize: 11, fontWeight: 700,
             color: search && tickets.length < totalCount ? colors.header : "var(--text-muted)",
-            background: "rgba(255,255,255,0.07)", padding: "2px 9px", borderRadius: 20,
+            background: "var(--surface-3)", padding: "2px 9px", borderRadius: 20,
           }}>
             {tickets.length}{search && tickets.length < totalCount ? `/${totalCount}` : ""}
           </span>
@@ -267,7 +267,7 @@ function KanbanPianificaModal({
         {/* Data */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
         <input type="datetime-local" value={date} onChange={e => handleDateChange(e.target.value)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "dark", boxSizing: "border-box", marginBottom: 24 }} />
+          style={{ width: "100%", background: "var(--surface-3)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box", marginBottom: 24 }} />
 
         {/* Tecnico — OBBLIGATORIO */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
@@ -277,7 +277,7 @@ function KanbanPianificaModal({
           value={tecnicoId ?? ""}
           onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
           style={{
-            width: "100%", background: "rgba(255,255,255,0.04)", borderRadius: 10,
+            width: "100%", background: "var(--surface-3)", borderRadius: 10,
             border: tecnicoId ? "1.5px solid rgba(167,139,250,0.5)" : "1.5px solid rgba(248,113,113,0.4)",
             color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
             padding: "12px 16px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box", marginBottom: 8,
@@ -301,7 +301,7 @@ function KanbanPianificaModal({
         {/* Azioni */}
         <div style={{ display: "flex", gap: 12 }}>
           <button onClick={onCancel}
-            style={{ flex: 1, padding: "13px", background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+            style={{ flex: 1, padding: "13px", background: "var(--surface-3)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
             Annulla
           </button>
           <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(date, tecnicoId)}

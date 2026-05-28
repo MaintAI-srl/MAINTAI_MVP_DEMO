@@ -36,9 +36,9 @@ interface DataTableProps<TData> {
 
 const filterSelectStyle: React.CSSProperties = {
   width: "100%", fontSize: 11, padding: "3px 6px",
-  background: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
+  background: "var(--surface-2)", border: "1px solid var(--border-accent)",
   borderRadius: 4, color: "var(--text-muted)",
-  cursor: "pointer", outline: "none", colorScheme: "dark",
+  cursor: "pointer", outline: "none", colorScheme: "light dark",
 };
 
 /** Calcola {from, to} Date da un preset stringa */
@@ -234,7 +234,7 @@ export function DataTable<TData>({
 
             {/* Filter row */}
             {enableColumnFilters && table.getHeaderGroups().map((headerGroup) => (
-              <tr key={`filter-${headerGroup.id}`} style={{ background: "rgba(255,255,255,0.02)" }}>
+              <tr key={`filter-${headerGroup.id}`} style={{ background: "var(--surface-3)" }}>
                 {headerGroup.headers.map((header) => {
                   const meta = (header.column.columnDef.meta as any);
                   const filterVariant = meta?.filterVariant as string | undefined;
@@ -253,8 +253,8 @@ export function DataTable<TData>({
                           onChange={(e) => header.column.setFilterValue(e.target.value || undefined)}
                           style={{
                             width: "100%", fontSize: 11, padding: "3px 6px",
-                            background: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
-                            borderRadius: 4, color: filterValue ? "#a5b4fc" : "var(--text-muted)",
+                            background: "var(--surface-2)", border: "1px solid var(--border-accent)",
+                            borderRadius: 4, color: filterValue ? "var(--text-accent)" : "var(--text-muted)",
                             cursor: "pointer", outline: "none",
                           }}
                         >
@@ -277,7 +277,7 @@ export function DataTable<TData>({
                           placeholder="Filtra…"
                           style={{
                             width: "100%", fontSize: 11, padding: "3px 6px",
-                            background: "rgba(15,23,42,0.8)", border: "1px solid rgba(99,102,241,0.3)",
+                            background: "var(--surface-2)", border: "1px solid var(--border-accent)",
                             borderRadius: 4, color: "var(--text-primary)",
                             outline: "none", boxSizing: "border-box",
                           }}

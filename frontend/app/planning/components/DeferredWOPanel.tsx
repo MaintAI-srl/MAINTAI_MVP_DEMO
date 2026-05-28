@@ -95,8 +95,8 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
             onChange={(e) => setFilterCode(e.target.value)}
             style={{
               background: "var(--surface-1)",
-              border: "1px solid #374151",
-              color: "#9ca3af",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-muted)",
               borderRadius: 4,
               padding: "2px 6px",
               fontSize: 11,
@@ -151,7 +151,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
                     {ticket.tipo}
                   </span>
                 )}
-                <span style={{ fontSize: 12, color: "#9ca3af" }}>#{d.wo_id}</span>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>#{d.wo_id}</span>
                 {ticket && (
                   <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {ticket.titolo}

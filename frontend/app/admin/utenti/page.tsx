@@ -24,7 +24,7 @@ const RUOLO_COLORS: Record<string, { color: string; bg: string }> = {
 };
 
 function ruoloBadge(ruolo: string) {
-  const c = RUOLO_COLORS[ruolo] ?? { color: "#94a3b8", bg: "rgba(148,163,184,.1)" };
+  const c = RUOLO_COLORS[ruolo] ?? { color: "var(--text-muted)", bg: "rgba(148,163,184,.1)" };
   return {
     color: c.color, background: c.bg,
     border: `1px solid ${c.color}40`,

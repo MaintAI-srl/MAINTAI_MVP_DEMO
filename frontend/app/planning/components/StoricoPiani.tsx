@@ -134,12 +134,12 @@ function ModaleDeautorizza({
         <div style={{ fontSize: 15, fontWeight: 700, color: "#fca5a5", marginBottom: 4 }}>
           Deautorizza Piano
         </div>
-        <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 20 }}>
           {piano.plan_label ?? `Piano #${piano.id}`} — questa azione è irreversibile
         </div>
 
         <div>
-          <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6 }}>
+          <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
             Motivo deautorizzazione *
           </label>
           <textarea
@@ -150,7 +150,7 @@ function ModaleDeautorizza({
             style={{
               width: "100%",
               background: "var(--border-strong)",
-              border: "1px solid #374151",
+              border: "1px solid var(--border-default)",
               color: "#f9fafb",
               borderRadius: 6,
               padding: "10px 12px",
@@ -165,7 +165,7 @@ function ModaleDeautorizza({
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           <button onClick={onClose} style={{
             flex: 1, background: "var(--border-strong)",
-            border: "1px solid #374151", color: "#9ca3af",
+            border: "1px solid var(--border-default)", color: "var(--text-muted)",
             borderRadius: 6, padding: "9px 0",
             cursor: "pointer", fontSize: 13,
           }}>Annulla</button>
@@ -227,7 +227,7 @@ function RigaPiano({
             : "—"}
         </td>
         <td style={tdStyle}>
-          <span style={{ color: "#9ca3af" }}>{piano.confirmed_by ?? "—"}</span>
+          <span style={{ color: "var(--text-muted)" }}>{piano.confirmed_by ?? "—"}</span>
         </td>
         <td style={{ ...tdStyle, textAlign: "center" }}>
           <span style={{ color: "#f9fafb", fontWeight: 700 }}>{piano.wo_count ?? 0}</span>
@@ -282,7 +282,7 @@ function RigaPiano({
                 </div>
                 {planned.slice(0, 10).map((wo: any) => (
                   <div key={wo.wo_id} style={{
-                    fontSize: 11, color: "#9ca3af", marginBottom: 4,
+                    fontSize: 11, color: "var(--text-muted)", marginBottom: 4,
                     display: "flex", gap: 8,
                   }}>
                     <span style={{ color: "#4b5563" }}>#{wo.wo_id}</span>
@@ -301,7 +301,7 @@ function RigaPiano({
                   NON PIANIFICATI ({deferred.length})
                 </div>
                 {deferred.slice(0, 6).map((d: any) => (
-                  <div key={d.wo_id} style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
+                  <div key={d.wo_id} style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
                     <span style={{ color: "#4b5563" }}>#{d.wo_id}</span>{" "}
                     <span style={{ fontStyle: "italic", color: "#6b7280" }}>{d.reason}</span>
                   </div>
@@ -317,21 +317,21 @@ function RigaPiano({
                   DETTAGLI
                 </div>
                 {piano.confirmed_at && (
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
                     Confermato: <span style={{ color: "#f9fafb" }}>
                       {new Date(piano.confirmed_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}
                     </span>
                   </div>
                 )}
                 {piano.scadenza && (
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
                     Scadenza: <span style={{ color: new Date(piano.scadenza) < new Date() ? "#fca5a5" : "#86efac", fontWeight: 600 }}>
                       {new Date(piano.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                     </span>
                   </div>
                 )}
                 {piano.completion_pct !== null && piano.completion_pct !== undefined && (
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
                     Completamento:{" "}
                     <span style={{
                       color: piano.completion_pct >= 80 ? "#86efac" : piano.completion_pct >= 40 ? "#fcd34d" : "#60a5fa",
@@ -340,14 +340,14 @@ function RigaPiano({
                   </div>
                 )}
                 {piano.deauthorized_at && (
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
                     Deautorizzato: <span style={{ color: "#fca5a5" }}>
                       {new Date(piano.deauthorized_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}
                     </span>
                   </div>
                 )}
                 {piano.deauthorized_by && (
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
                     Da: <span style={{ color: "#fca5a5" }}>{piano.deauthorized_by}</span>
                   </div>
                 )}
@@ -431,8 +431,8 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
           onClick={onRefresh}
           style={{
             background: "transparent",
-            border: "1px solid #374151",
-            color: "#9ca3af",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-muted)",
             borderRadius: 6,
             padding: "5px 10px",
             cursor: "pointer",

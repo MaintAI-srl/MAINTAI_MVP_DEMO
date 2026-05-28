@@ -228,7 +228,7 @@ export default function QrScanner({
           style={{
             background: "rgba(255,255,255,0.15)",
             backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255,255,255,0.2)",
+            border: "1px solid var(--border-default)",
             color: "#fff",
             borderRadius: 8,
             padding: "8px 14px",
@@ -281,7 +281,7 @@ export default function QrScanner({
             </div>
           )}
           {!hasDetector && (
-            <div style={{ color: "#94a3b8", fontSize: 14, textAlign: "center" }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 14, textAlign: "center" }}>
               Scanner QR non supportato su questo browser.<br />
               Inserisci il codice asset manualmente:
             </div>
@@ -297,8 +297,8 @@ export default function QrScanner({
             bottom: 0,
             left: 0,
             right: 0,
-            background: "#111827",
-            borderTop: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--surface-2)",
+            borderTop: "1px solid var(--border-default)",
             padding: "20px",
           }}
         >
@@ -322,8 +322,8 @@ export default function QrScanner({
               autoFocus
               style={{
                 flex: 1,
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "var(--surface-3)",
+                border: "1px solid var(--border-default)",
                 borderRadius: 10,
                 color: "#fff",
                 padding: "12px 14px",

@@ -71,14 +71,14 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
             <span style={{ fontSize: 18, fontWeight: 800, color: bg, lineHeight: 1 }}>
               {score.toFixed(0)}
             </span>
-            <span style={{ fontSize: 10, color: "#9ca3af" }}>/ 100</span>
+            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>/ 100</span>
           </div>
         </div>
 
         {/* Label */}
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: bg }}>{label}</div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
             Efficienza piano corrente
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
                   fontSize: 11,
                   marginBottom: 3,
                 }}>
-                  <span style={{ color: "#9ca3af" }}>{lbl}</span>
+                  <span style={{ color: "var(--text-muted)" }}>{lbl}</span>
                   <span style={{ color: c, fontWeight: 600 }}>{valore.toFixed(0)}%</span>
                 </div>
                 <div style={{

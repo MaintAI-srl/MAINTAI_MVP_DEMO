@@ -196,7 +196,7 @@ export default function LoginPage() {
               disabled={loading}
               style={{
                 width: "100%", padding: "12px",
-                background: "var(--bg-base)", border: "1px solid #374151",
+                background: "var(--bg-base)", border: "1px solid var(--border-default)",
                 borderRadius: "8px", color: "white", outline: "none",
                 fontSize: "15px", boxSizing: "border-box",
                 opacity: loading ? 0.6 : 1,
@@ -211,7 +211,7 @@ export default function LoginPage() {
               disabled={loading}
               style={{
                 width: "100%", padding: "12px",
-                background: "var(--bg-base)", border: "1px solid #374151",
+                background: "var(--bg-base)", border: "1px solid var(--border-default)",
                 borderRadius: "8px", color: "white", outline: "none",
                 fontSize: "15px", boxSizing: "border-box",
                 opacity: loading ? 0.6 : 1,
