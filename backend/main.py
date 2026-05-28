@@ -49,6 +49,7 @@ try:
     from backend.api.routes.attestati import router as attestati_router
     from backend.api.routes.report import router as report_router
     from backend.api.routes.emergency import router as emergency_router
+    from backend.api.routes.asset_documenti import router as asset_documenti_router
     from backend.core.config import init_backend
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
@@ -607,6 +608,36 @@ def _ensure_columns() -> None:
             )
         """
 
+        # asset_documenti — documenti e esplosi allegati agli asset
+        ad_pg = """
+            CREATE TABLE IF NOT EXISTS asset_documenti (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                asset_id INTEGER NOT NULL REFERENCES asset(id),
+                nome VARCHAR NOT NULL,
+                tipo VARCHAR NOT NULL,
+                filename VARCHAR NOT NULL,
+                content_type VARCHAR,
+                file_data BYTEA NOT NULL,
+                esploso_analisi TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """
+        ad_sqlite = """
+            CREATE TABLE IF NOT EXISTS asset_documenti (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                asset_id INTEGER NOT NULL REFERENCES asset(id),
+                nome VARCHAR NOT NULL,
+                tipo VARCHAR NOT NULL,
+                filename VARCHAR NOT NULL,
+                content_type VARCHAR,
+                file_data BLOB NOT NULL,
+                esploso_analisi TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+
         # 1. Crea le tabelle complete se non esistono
         _exec_ddl(sl_pg if pg else sl_sqlite, "system_logs CREATE")
         _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
@@ -621,6 +652,7 @@ def _ensure_columns() -> None:
         _exec_ddl(note_asset_pg if pg else note_asset_sqlite, "note_asset CREATE")
         _exec_ddl(check_pl_pg if pg else check_pl_sqlite, "check_primo_livello CREATE")
         _exec_ddl(attestati_pg if pg else attestati_sqlite, "attestati CREATE")
+        _exec_ddl(ad_pg if pg else ad_sqlite, "asset_documenti CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:
@@ -766,6 +798,7 @@ app.include_router(check_pl_router)
 app.include_router(attestati_router)
 app.include_router(report_router)
 app.include_router(emergency_router)
+app.include_router(asset_documenti_router)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.

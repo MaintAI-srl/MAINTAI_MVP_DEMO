@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiDelete, API_BASE } from "../lib/api";
+import { notify } from "@/lib/toast";
 import StatusToggle from "../components/StatusToggle";
 import { ASSET_STATUS_OPTIONS, assetStatusLabel, assetStatusStyle } from "../lib/assetStatus";
 
@@ -58,6 +59,27 @@ interface NotaAsset {
 }
 interface PianoItem { id: number; descrizione: string; frequenza_giorni: number; durata_ore: number; priorita: string; prossima_scadenza?: string; }
 interface TicketItem { id: number; titolo: string; stato: string; priorita: string; tipo: string; created_at?: string; }
+
+interface AssetDocumento {
+  id: number;
+  nome: string;
+  tipo: string;
+  filename: string;
+  content_type?: string;
+  ha_analisi: boolean;
+  esploso_analisi?: EsplosoParteItem[] | null;
+  created_at?: string;
+}
+interface EsplosoParteItem {
+  numero: number;
+  nome: string;
+  descrizione: string;
+  colore: string;
+  posizione_x: number;
+  posizione_y: number;
+  categoria: string;
+}
+
 type SelectionType = "sito" | "impianto" | "asset" | null;
 
 // ─── Chips & helpers ──────────────────────────────────────────────────────────
@@ -519,6 +541,15 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   const [notaLoading, setNotaLoading] = useState(false);
   const [notaEditing, setNotaEditing] = useState(false);
   const [notaTesto, setNotaTesto] = useState("");
+  // Documenti asset
+  const [documenti, setDocumenti] = useState<AssetDocumento[]>([]);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docUploadShow, setDocUploadShow] = useState(false);
+  const [docUploadForm, setDocUploadForm] = useState<{ nome: string; tipo: string; file: File | null }>({ nome: "", tipo: "Manuale", file: null });
+  const [docUploading, setDocUploading] = useState(false);
+  const [docAnalizzando, setDocAnalizzando] = useState<number | null>(null);
+  const [docEsplosoView, setDocEsplosoView] = useState<AssetDocumento | null>(null);
+  const [docEsplosoHover, setDocEsplosoHover] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -543,6 +574,12 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
     try { const data = await apiGet<NotaAsset | null>(`/assets/${assetId}/nota-senior`); setNotaSenior(data); setNotaTesto(data?.testo ?? ""); } catch { } finally { setNotaLoading(false); }
   }, [assetId]);
   useEffect(() => { if (tab === "nota_senior") loadNotaSenior(); }, [tab, loadNotaSenior]);
+
+  const loadDocumenti = useCallback(async () => {
+    setDocLoading(true);
+    try { const data = await apiGet<AssetDocumento[]>(`/assets/${assetId}/documenti`); setDocumenti(data); } catch { } finally { setDocLoading(false); }
+  }, [assetId]);
+  useEffect(() => { if (tab === "documenti") loadDocumenti(); }, [tab, loadDocumenti]);
 
   const saveEdit = async () => {
     if (!detail) return; setSaving(true);
@@ -776,11 +813,203 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       )}
 
       {tab === "documenti" && (
-        <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
-          <div style={{ fontSize: "32px", marginBottom: "8px" }}>📄</div>
-          <div>Nessun documento caricato</div>
-          <div style={{ fontSize: "12px", marginTop: "4px" }}>Manuale · Schema elettrico · Datasheet · Certificato · Altro</div>
-          <button style={{ ...btnPrimary, marginTop: "16px", fontSize: "12px" }}>+ Carica documento</button>
+        <div>
+          {/* ── Header ── */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>Documenti Asset</div>
+            <button style={{ ...btnPrimary, fontSize: "12px", padding: "6px 12px" }} onClick={() => { setDocUploadShow(true); setDocUploadForm({ nome: "", tipo: "Manuale", file: null }); }}>
+              + Carica documento
+            </button>
+          </div>
+
+          {/* ── Modal upload ── */}
+          {docUploadShow && (
+            <ModalOverlay onClose={() => setDocUploadShow(false)}>
+              <ModalTitle onClose={() => setDocUploadShow(false)}>Carica documento</ModalTitle>
+              <FormField label="Nome documento *">
+                <input style={inputStyle} value={docUploadForm.nome} onChange={e => setDocUploadForm(p => ({ ...p, nome: e.target.value }))} placeholder="Es. Manuale utente pompa" />
+              </FormField>
+              <FormField label="Tipo *">
+                <select style={inputStyle} value={docUploadForm.tipo} onChange={e => setDocUploadForm(p => ({ ...p, tipo: e.target.value }))}>
+                  <option value="Esploso">Esploso (vista esplosa)</option>
+                  <option value="Manuale">Manuale</option>
+                  <option value="Schema elettrico">Schema elettrico</option>
+                  <option value="Datasheet">Datasheet</option>
+                  <option value="Certificato">Certificato</option>
+                  <option value="Altro">Altro</option>
+                </select>
+              </FormField>
+              <FormField label="File (PDF, PNG, JPG) *">
+                <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ ...inputStyle, padding: "6px 8px" }}
+                  onChange={e => {
+                    const f = e.target.files?.[0] ?? null;
+                    setDocUploadForm(p => ({ ...p, file: f, nome: p.nome || (f ? f.name.replace(/\.[^.]+$/, "") : "") }));
+                  }}
+                />
+              </FormField>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
+                <button style={btnSecondary} onClick={() => setDocUploadShow(false)}>Annulla</button>
+                <button style={btnPrimary} disabled={docUploading || !docUploadForm.nome.trim() || !docUploadForm.file} onClick={async () => {
+                  if (!docUploadForm.file || !docUploadForm.nome.trim()) return;
+                  setDocUploading(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append("nome", docUploadForm.nome.trim());
+                    fd.append("tipo", docUploadForm.tipo);
+                    fd.append("file", docUploadForm.file);
+                    const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;
+                    const headers: Record<string, string> = {};
+                    if (token) headers["Authorization"] = `Bearer ${token}`;
+                    const tenantCtx = typeof window !== "undefined" ? localStorage.getItem("maintai_tenant_context") : null;
+                    if (tenantCtx) headers["X-Tenant-Id"] = tenantCtx;
+                    const res = await fetch(`${API_BASE}/assets/${assetId}/documenti`, { method: "POST", body: fd, credentials: "include", headers });
+                    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.detail || "Errore upload"); }
+                    notify.success("Documento caricato con successo.");
+                    setDocUploadShow(false);
+                    await loadDocumenti();
+                  } catch (e: unknown) {
+                    notify.error(e instanceof Error ? e.message : "Errore upload");
+                  } finally {
+                    setDocUploading(false);
+                  }
+                }}>{docUploading ? "Caricamento..." : "Carica"}</button>
+              </div>
+            </ModalOverlay>
+          )}
+
+          {/* ── Visualizzatore esploso ── */}
+          {docEsplosoView && docEsplosoView.esploso_analisi && (
+            <ModalOverlay onClose={() => { setDocEsplosoView(null); setDocEsplosoHover(null); }}>
+              <div style={{ minWidth: "min(900px, 95vw)", maxWidth: "95vw" }}>
+                <ModalTitle onClose={() => { setDocEsplosoView(null); setDocEsplosoHover(null); }}>
+                  Esploso — {docEsplosoView.nome}
+                </ModalTitle>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "16px", maxHeight: "65vh", overflow: "hidden" }}>
+                  {/* Immagine con overlay */}
+                  {docEsplosoView.content_type?.startsWith("image/") ? (
+                    <div style={{ position: "relative", overflow: "hidden", borderRadius: "8px", background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                      <img
+                        src={`${API_BASE}/assets/${assetId}/documenti/${docEsplosoView.id}/file`}
+                        alt={docEsplosoView.nome}
+                        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                        crossOrigin="use-credentials"
+                      />
+                      {/* SVG overlay con cerchi numerati */}
+                      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+                        {docEsplosoView.esploso_analisi.map((p) => {
+                          const cx = `${p.posizione_x * 100}%`;
+                          const cy = `${p.posizione_y * 100}%`;
+                          const isHover = docEsplosoHover === p.numero;
+                          return (
+                            <g key={p.numero}>
+                              <circle cx={cx} cy={cy} r={isHover ? 18 : 13} fill={p.colore + "cc"} stroke={p.colore} strokeWidth={isHover ? 3 : 2} />
+                              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize={isHover ? 12 : 10} fontWeight="bold">{p.numero}</text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-elevated)", borderRadius: "8px", color: "var(--text-secondary)", fontSize: "13px" }}>
+                      Anteprima non disponibile per PDF
+                    </div>
+                  )}
+                  {/* Pannello parti */}
+                  <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "4px" }}>{docEsplosoView.esploso_analisi.length} Parti identificate</div>
+                    {docEsplosoView.esploso_analisi.map((p) => (
+                      <div key={p.numero}
+                        onMouseEnter={() => setDocEsplosoHover(p.numero)}
+                        onMouseLeave={() => setDocEsplosoHover(null)}
+                        style={{ background: docEsplosoHover === p.numero ? "var(--bg-surface)" : "var(--bg-elevated)", border: `1px solid ${docEsplosoHover === p.numero ? p.colore : "var(--border)"}`, borderRadius: "8px", padding: "8px 10px", cursor: "default", transition: "all 0.15s" }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "2px" }}>
+                          <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: p.colore, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>{p.numero}</span>
+                          <span style={{ fontSize: "13px", fontWeight: 600 }}>{p.nome}</span>
+                          <span style={{ fontSize: "10px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "1px 6px", color: "var(--text-secondary)", flexShrink: 0 }}>{p.categoria}</span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "30px" }}>{p.descrizione}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </ModalOverlay>
+          )}
+
+          {/* ── Lista documenti ── */}
+          {docLoading ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Caricamento...</div>
+          ) : documenti.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
+              <div style={{ fontSize: "32px", marginBottom: "8px" }}>📄</div>
+              <div style={{ fontWeight: 600 }}>Nessun documento caricato</div>
+              <div style={{ fontSize: "12px", marginTop: "4px" }}>Manuale · Schema elettrico · Datasheet · Certificato · Esploso · Altro</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {documenti.map(doc => {
+                const tipoColori: Record<string, string> = {
+                  "Esploso": "#8b5cf6", "Manuale": "#3b82f6", "Schema elettrico": "#f59e0b",
+                  "Datasheet": "#6b7280", "Certificato": "#22c55e", "Altro": "#94a3b8"
+                };
+                const tipoColore = tipoColori[doc.tipo] || "#94a3b8";
+                return (
+                  <div key={doc.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, fontSize: "13px" }}>{doc.nome}</span>
+                        <span style={{ fontSize: "10px", background: tipoColore + "22", color: tipoColore, border: `1px solid ${tipoColore}55`, borderRadius: "4px", padding: "1px 7px", fontWeight: 700 }}>{doc.tipo}</span>
+                        {doc.ha_analisi && <span style={{ fontSize: "10px", background: "#8b5cf622", color: "#8b5cf6", border: "1px solid #8b5cf655", borderRadius: "4px", padding: "1px 7px" }}>Analisi AI</span>}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>{doc.filename} · {doc.created_at?.split("T")[0]}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      {/* Visualizza esploso */}
+                      {doc.tipo === "Esploso" && doc.ha_analisi && (
+                        <button style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#8b5cf6", borderColor: "#8b5cf655" }} onClick={() => setDocEsplosoView(doc)}>
+                          Vista esplosa
+                        </button>
+                      )}
+                      {/* Analizza esploso */}
+                      {doc.tipo === "Esploso" && (
+                        <button style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px" }} disabled={docAnalizzando === doc.id} onClick={async () => {
+                          setDocAnalizzando(doc.id);
+                          try {
+                            type AnalisiResult = { parti: EsplosoParteItem[]; n_parti: number };
+                            const res = await apiPost<AnalisiResult>(`/assets/${assetId}/documenti/${doc.id}/analizza-esploso`);
+                            notify.success(`Analisi completata: ${res.n_parti} parti identificate.`);
+                            await loadDocumenti();
+                          } catch (e: unknown) {
+                            notify.error(e instanceof Error ? e.message : "Errore analisi AI");
+                          } finally {
+                            setDocAnalizzando(null);
+                          }
+                        }}>
+                          {docAnalizzando === doc.id ? "Analisi..." : doc.ha_analisi ? "Rigenera analisi" : "Analizza esploso"}
+                        </button>
+                      )}
+                      {/* Scarica */}
+                      <a href={`${API_BASE}/assets/${assetId}/documenti/${doc.id}/file`} target="_blank" rel="noopener noreferrer" style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                        Scarica
+                      </a>
+                      {/* Elimina */}
+                      <button style={{ ...btnDanger, padding: "5px 10px", fontSize: "11px" }} onClick={async () => {
+                        if (!confirm(`Eliminare il documento "${doc.nome}"?`)) return;
+                        try {
+                          await apiDelete(`/assets/${assetId}/documenti/${doc.id}`);
+                          notify.success("Documento eliminato.");
+                          setDocumenti(prev => prev.filter(d => d.id !== doc.id));
+                          if (docEsplosoView?.id === doc.id) setDocEsplosoView(null);
+                        } catch (e: unknown) {
+                          notify.error(e instanceof Error ? e.message : "Errore eliminazione");
+                        }
+                      }}>Elimina</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
