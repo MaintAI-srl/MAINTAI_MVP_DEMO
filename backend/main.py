@@ -228,8 +228,8 @@ def _ensure_columns() -> None:
         # Tecnico — telefono e sede per mappa emergenze
         ("tecnici", "telefono",                "ALTER TABLE tecnici ADD COLUMN {ifne}telefono VARCHAR"),
         ("tecnici", "sede_indirizzo",          "ALTER TABLE tecnici ADD COLUMN {ifne}sede_indirizzo VARCHAR"),
-        # asset_documenti — immagine AI generata da gpt-image-1
-        ("asset_documenti", "esploso_immagine", "ALTER TABLE asset_documenti ADD COLUMN {ifne}esploso_immagine BLOB"),
+        # asset_documenti — immagine AI generata da gpt-image-1 (BYTEA su PG, BLOB su SQLite)
+        ("asset_documenti", "esploso_immagine", "ALTER TABLE asset_documenti ADD COLUMN {ifne}esploso_immagine BYTEA"),
     ]
 
     # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)
@@ -622,6 +622,7 @@ def _ensure_columns() -> None:
                 content_type VARCHAR,
                 file_data BYTEA NOT NULL,
                 esploso_analisi TEXT,
+                esploso_immagine BYTEA,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """
@@ -636,6 +637,7 @@ def _ensure_columns() -> None:
                 content_type VARCHAR,
                 file_data BLOB NOT NULL,
                 esploso_analisi TEXT,
+                esploso_immagine BLOB,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """
