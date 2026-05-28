@@ -1212,16 +1212,17 @@ export default function PianificazionePage() {
           whiteSpace: "nowrap",
         }}>
           {/* View toggle */}
-          <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(59,130,246,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
             {(["day", "week", "2week"] as ViewMode[]).map((v) => (
               <button key={v} onClick={() => setView(v)} style={{
-                padding: "5px 10px", fontSize: 10, letterSpacing: "0.1em",
-                background: view === v ? "rgba(59,130,246,0.15)" : "transparent",
-                color: view === v ? "#60a5fa" : "rgba(148,163,184,0.7)",
-                border: view === v ? "1px solid rgba(59,130,246,0.3)" : "1px solid transparent",
+                padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em",
+                background: view === v ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "transparent",
+                color: view === v ? "#fff" : "rgba(148,163,184,0.7)",
+                border: "none",
                 borderRadius: 5,
                 cursor: "pointer", fontFamily: "inherit", fontWeight: view === v ? 700 : 500,
                 transition: "all 0.12s",
+                boxShadow: view === v ? "0 2px 8px rgba(59,130,246,0.4)" : "none",
               }}>
                 {v === "day" ? "GIORNO" : v === "week" ? "SETTIMANA" : "2 SETT."}
               </button>
@@ -1310,19 +1311,20 @@ export default function PianificazionePage() {
 
           {/* Engine toggle Nascosto per richiesta utente */}
 
-          {/* Selettore orizzonte pianificazione (#14) */}
-          <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+          {/* Selettore orizzonte pianificazione */}
+          <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
             {[7, 14, 30].map((d) => (
               <button
                 key={d}
                 onClick={() => setHorizonDays(d)}
                 style={{
-                  padding: "5px 10px", fontSize: 11, fontWeight: 700,
-                  borderRadius: 6, border: "1px solid var(--border-default, #374151)",
-                  background: horizonDays === d ? "rgba(99,102,241,0.25)" : "transparent",
-                  color: horizonDays === d ? "#a5b4fc" : "rgba(148,163,184,0.7)",
+                  padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                  borderRadius: 5, border: "none",
+                  background: horizonDays === d ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" : "transparent",
+                  color: horizonDays === d ? "#fff" : "rgba(148,163,184,0.7)",
                   cursor: "pointer", fontFamily: "inherit",
                   transition: "all 0.12s",
+                  boxShadow: horizonDays === d ? "0 2px 8px rgba(99,102,241,0.4)" : "none",
                 }}
               >
                 {d}gg

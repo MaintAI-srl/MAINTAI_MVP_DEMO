@@ -588,7 +588,6 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   const [docUploadShow, setDocUploadShow] = useState(false);
   const [docUploadForm, setDocUploadForm] = useState<{ nome: string; tipo: string; file: File | null }>({ nome: "", tipo: "Manuale", file: null });
   const [docUploading, setDocUploading] = useState(false);
-  const [docAnalizzando, setDocAnalizzando] = useState<number | null>(null);
   const [viewerDoc, setViewerDoc] = useState<AssetDocumento | null>(null);
   const [viewerImgUrl, setViewerImgUrl] = useState<string | null>(null);
 
@@ -725,21 +724,9 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
         }
       </div>
 
-      <div style={{ display: "flex", gap: "2px", borderBottom: "1px solid var(--border)", marginBottom: "20px", overflowX: "auto" }}>
+      <div className="page-tabs">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: "10px 16px",
-            fontSize: "13px",
-            fontWeight: tab === t.id ? 700 : 500,
-            color: tab === t.id ? "#3b82f6" : "var(--text-secondary)",
-            background: "transparent",
-            border: "none",
-            borderBottom: tab === t.id ? "2px solid #3b82f6" : "2px solid transparent",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-            transition: "all 0.15s",
-            marginBottom: "-1px",
-          }}>
+          <button key={t.id} onClick={() => setTab(t.id)} className={tab === t.id ? "active" : ""}>
             {t.label}
           </button>
         ))}
@@ -1039,29 +1026,6 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                           onClick={() => setViewerDoc(doc)}
                         >
                           Visualizza
-                        </button>
-                      )}
-                      {/* Analizza Esploso (GPT-4o vision) */}
-                      {doc.tipo === "Esploso" && doc.content_type?.startsWith("image/") && (
-                        <button
-                          style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#8b5cf6", borderColor: "#8b5cf655" }}
-                          disabled={docAnalizzando === doc.id}
-                          onClick={async () => {
-                            setDocAnalizzando(doc.id);
-                            notify.info("Analisi esploso in corso... (30-60s)");
-                            try {
-                              type AnalisiResult = { parti: EsplosoParteItem[]; n_parti: number };
-                              const res = await apiPost<AnalisiResult>(`/assets/${assetId}/documenti/${doc.id}/analizza-esploso`);
-                              notify.success(`Analisi completata: ${res.n_parti} parti identificate.`);
-                              await loadDocumenti();
-                            } catch (e: unknown) {
-                              notify.error(e instanceof Error ? e.message : "Errore analisi");
-                            } finally {
-                              setDocAnalizzando(null);
-                            }
-                          }}
-                        >
-                          {docAnalizzando === doc.id ? "Analisi..." : "Analizza Esploso"}
                         </button>
                       )}
                       {/* Scarica */}

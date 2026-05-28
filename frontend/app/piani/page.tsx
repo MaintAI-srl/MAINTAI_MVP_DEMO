@@ -970,30 +970,20 @@ export default function PianiPage() {
               </div>
 
               {/* TABS */}
-              <div style={{ display: "flex", gap: 4 }}>
+              <div className="page-tabs" style={{ marginBottom: 0 }}>
                 {[
-                  { id: "tasks",   label: "Attività e Task",    icon: "⚙️" },
-                  { id: "manuali", label: "Manuali Tecnici",    icon: "📚" },
-                  { id: "history", label: "Cronologia Ticket",  icon: "📋" },
-                ].map(tab => {
-                  const active = activeTab === tab.id;
-                  return (
-                    <button 
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
-                      style={{
-                        padding: "10px 18px", border: "none", background: "transparent",
-                        fontSize: 13, fontWeight: active ? 700 : 500,
-                        color: active ? "var(--text-primary)" : "var(--text-muted)",
-                        cursor: "pointer", position: "relative",
-                        borderBottom: active ? "2px solid #6366f1" : "2px solid transparent",
-                        transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6
-                      }}
-                    >
-                      <span>{tab.icon}</span> {tab.label}
-                    </button>
-                  );
-                })}
+                  { id: "tasks",   label: "⚙️ Attività e Task" },
+                  { id: "manuali", label: "📚 Manuali Tecnici" },
+                  { id: "history", label: "📋 Cronologia Ticket" },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={activeTab === tab.id ? "active" : ""}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </header>
 
