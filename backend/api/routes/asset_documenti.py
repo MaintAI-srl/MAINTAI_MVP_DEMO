@@ -8,7 +8,6 @@ import base64
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -81,7 +80,6 @@ def lista_documenti(
             "filename": d.filename,
             "content_type": d.content_type,
             "ha_analisi": d.esploso_analisi is not None,
-            "ha_immagine_ai": d.esploso_immagine is not None,
             "esploso_analisi": json.loads(d.esploso_analisi) if d.esploso_analisi else None,
             "created_at": d.created_at.isoformat() if d.created_at else None,
         }
@@ -250,131 +248,3 @@ async def analizza_esploso(
     return {"parti": parti, "n_parti": len(parti)}
 
 
-@router.post("/assets/{asset_id}/documenti/{doc_id}/genera-infografica")
-async def genera_infografica(
-    asset_id: int,
-    doc_id: int,
-    db: Session = Depends(get_db),
-    tenant_id: int = Depends(get_current_tenant_id),
-):
-    """Genera un'infografica AI colorata dall'esploso usando gpt-image-1 (Images API edit)."""
-    from backend.core.config import OPENAI_API_KEY
-
-    doc = _get_doc_or_404(db, asset_id, doc_id, tenant_id)
-
-    if doc.tipo != "Esploso":
-        raise HTTPException(status_code=422, detail="La generazione infografica è disponibile solo per documenti di tipo 'Esploso'.")
-
-    import os
-    ext = os.path.splitext(doc.filename)[1].lower()
-    if ext == ".pdf":
-        raise HTTPException(
-            status_code=422,
-            detail="La generazione infografica non supporta PDF. Carica l'esploso come immagine (PNG/JPG).",
-        )
-
-    if not OPENAI_API_KEY:
-        raise HTTPException(status_code=503, detail="OpenAI API key non configurata.")
-
-    # 1. Genera analisi esploso se non esiste ancora
-    parti = []
-    if not doc.esploso_analisi:
-        image_b64 = base64.b64encode(doc.file_data).decode("utf-8")
-        ct = doc.content_type or "image/jpeg"
-        data_url = f"data:{ct};base64,{image_b64}"
-        try:
-            import openai as _openai
-            vision_client = _openai.OpenAI(api_key=OPENAI_API_KEY, timeout=60.0)
-            vision_resp = vision_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": ESPLOSO_PROMPT},
-                            {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
-                        ],
-                    }
-                ],
-                max_tokens=4096,
-                temperature=0.2,
-            )
-            raw = (vision_resp.choices[0].message.content or "").strip()
-            if raw.startswith("```"):
-                lines = raw.splitlines()
-                raw = "\n".join(lines[1:-1]) if len(lines) > 2 else raw
-            try:
-                parti = json.loads(raw)
-                if isinstance(parti, list):
-                    doc.esploso_analisi = json.dumps(parti, ensure_ascii=False)
-            except (json.JSONDecodeError, ValueError):
-                pass
-        except Exception as exc:
-            db_error("asset_documenti", f"Errore analisi vision pre-infografica doc {doc_id}: {exc}", tenant_id=tenant_id)
-    else:
-        try:
-            parti = json.loads(doc.esploso_analisi)
-        except (json.JSONDecodeError, ValueError):
-            parti = []
-
-    # 2. Chiama gpt-image-1 per generare l'infografica colorata
-    import io
-    import openai as _openai2
-
-    INFOGRAFICA_PROMPT = (
-        "Transform this technical exploded view drawing into a professional industrial infographic. "
-        "Keep the same exploded view layout and all component positions identical. "
-        "Apply vivid distinct colors to each numbered part/component group (use blues, greens, reds, oranges, purples, teals). "
-        "Make the background white/light gray. "
-        "Keep all existing part numbers visible and legible. "
-        "Add a clean, modern technical illustration style. "
-        "Make it look like a high-quality professional maintenance manual infographic."
-    )
-
-    try:
-        img_client = _openai2.OpenAI(api_key=OPENAI_API_KEY, timeout=120.0)
-        image_bytes_io = io.BytesIO(doc.file_data)
-        image_bytes_io.name = doc.filename
-
-        response = img_client.images.edit(
-            model="gpt-image-1",
-            image=image_bytes_io,
-            prompt=INFOGRAFICA_PROMPT,
-            size="1024x1024",
-            n=1,
-        )
-    except Exception as exc:
-        db_error("asset_documenti", f"Errore gpt-image-1 genera-infografica doc {doc_id}: {exc}", tenant_id=tenant_id)
-        raise HTTPException(status_code=503, detail=f"Errore durante la generazione AI: {str(exc)}")
-
-    # gpt-image-1 restituisce b64_json
-    import base64 as _base64
-    b64_data = response.data[0].b64_json
-    if not b64_data:
-        raise HTTPException(status_code=503, detail="La risposta AI non contiene dati immagine.")
-
-    png_bytes = _base64.b64decode(b64_data)
-    doc.esploso_immagine = png_bytes
-    db.commit()
-
-    db_info(
-        "asset_documenti",
-        f"Infografica AI generata per doc {doc_id} ({len(png_bytes)} bytes, {len(parti)} parti)",
-        tenant_id=tenant_id,
-    )
-
-    return {"ok": True, "n_parti": len(parti)}
-
-
-@router.get("/assets/{asset_id}/documenti/{doc_id}/immagine-ai")
-def scarica_immagine_ai(
-    asset_id: int,
-    doc_id: int,
-    db: Session = Depends(get_db),
-    tenant_id: int = Depends(get_current_tenant_id),
-):
-    """Restituisce l'immagine PNG generata da AI per un documento Esploso."""
-    doc = _get_doc_or_404(db, asset_id, doc_id, tenant_id)
-    if not doc.esploso_immagine:
-        raise HTTPException(status_code=404, detail="Nessuna immagine AI generata per questo documento.")
-    return Response(content=doc.esploso_immagine, media_type="image/png")

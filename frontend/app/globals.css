@@ -1974,3 +1974,13 @@ input:focus, select:focus, textarea:focus {
   background: rgba(31,232,255,0.30);
   color: #101827;
 }
+
+/* ─── CARD HOVER EFFECT ─────────────────────────────────────── */
+.card-hover {
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.card-hover:hover {
+  border-color: rgba(59,130,246,0.4) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
