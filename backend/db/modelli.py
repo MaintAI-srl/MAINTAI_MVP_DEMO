@@ -426,7 +426,6 @@ class AssetDocumento(Base):
     content_type = Column(String)
     file_data = Column(LargeBinary, nullable=False)
     esploso_analisi = Column(Text, nullable=True)  # JSON string con parti identificate da GPT-4o
-    esploso_immagine = Column(LargeBinary, nullable=True)  # immagine PNG generata da AI (gpt-image-1)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     asset = relationship("Asset")

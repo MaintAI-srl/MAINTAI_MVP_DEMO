@@ -67,7 +67,6 @@ interface AssetDocumento {
   filename: string;
   content_type?: string;
   ha_analisi: boolean;
-  ha_immagine_ai: boolean;
   esploso_analisi?: EsplosoParteItem[] | null;
   created_at?: string;
 }
@@ -148,9 +147,50 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", borderRadius: "6px", color: "var(--text-primary)", fontSize: "13px", boxSizing: "border-box" };
-const btnPrimary: React.CSSProperties = { background: "var(--blue)", color: "#fff", border: "none", borderRadius: "6px", padding: "9px 18px", cursor: "pointer", fontSize: "13px", fontWeight: 600 };
-const btnSecondary: React.CSSProperties = { background: "transparent", color: "var(--text-primary)", border: "1px solid var(--border-strong)", borderRadius: "6px", padding: "9px 18px", cursor: "pointer", fontSize: "13px" };
-const btnDanger: React.CSSProperties = { background: "var(--red-dim)", color: "var(--red)", border: "1px solid var(--red)", borderRadius: "6px", padding: "9px 18px", cursor: "pointer", fontSize: "13px", fontWeight: 600 };
+const btnPrimary: React.CSSProperties = {
+  background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+  color: "#fff",
+  border: "none",
+  borderRadius: "8px",
+  padding: "8px 18px",
+  fontSize: "13px",
+  fontWeight: 600,
+  cursor: "pointer",
+  boxShadow: "0 2px 8px rgba(59,130,246,0.35)",
+  transition: "all 0.15s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+};
+const btnSecondary: React.CSSProperties = {
+  background: "transparent",
+  color: "var(--text-primary)",
+  border: "1px solid var(--border)",
+  borderRadius: "8px",
+  padding: "7px 15px",
+  fontSize: "13px",
+  fontWeight: 500,
+  cursor: "pointer",
+  transition: "all 0.15s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+};
+const btnDanger: React.CSSProperties = {
+  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+  color: "#fff",
+  border: "none",
+  borderRadius: "8px",
+  padding: "8px 18px",
+  fontSize: "13px",
+  fontWeight: 600,
+  cursor: "pointer",
+  boxShadow: "0 2px 8px rgba(239,68,68,0.3)",
+  transition: "all 0.15s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+};
 
 // ─── Modal Conferma Eliminazione ──────────────────────────────────────────────
 
@@ -548,9 +588,9 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   const [docUploadShow, setDocUploadShow] = useState(false);
   const [docUploadForm, setDocUploadForm] = useState<{ nome: string; tipo: string; file: File | null }>({ nome: "", tipo: "Manuale", file: null });
   const [docUploading, setDocUploading] = useState(false);
-  const [docGenerando, setDocGenerando] = useState<number | null>(null);
-  const [docEsplosoView, setDocEsplosoView] = useState<AssetDocumento | null>(null);
-  const [infograficaImgUrl, setInfograficaImgUrl] = useState<string | null>(null);
+  const [docAnalizzando, setDocAnalizzando] = useState<number | null>(null);
+  const [viewerDoc, setViewerDoc] = useState<AssetDocumento | null>(null);
+  const [viewerImgUrl, setViewerImgUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -582,27 +622,32 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   }, [assetId]);
   useEffect(() => { if (tab === "documenti") loadDocumenti(); }, [tab, loadDocumenti]);
 
-  // Carica immagine AI infografica come blob URL (JWT-authenticated)
+  // Carica immagine esploso come blob URL autenticato quando il visualizzatore è aperto
   useEffect(() => {
-    if (!docEsplosoView?.ha_immagine_ai) {
-      setInfograficaImgUrl(null);
+    if (!viewerDoc) {
+      setViewerImgUrl(null);
       return;
     }
     let revoked = false;
-    const token = localStorage.getItem("maintai_jwt");
-    fetch(`${API_BASE}/assets/${assetId}/documenti/${docEsplosoView.id}/immagine-ai`, {
-      headers: { Authorization: `Bearer ${token}` }
+    const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;
+    const tenantCtx = typeof window !== "undefined" ? localStorage.getItem("maintai_tenant_context") : null;
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (tenantCtx) headers["X-Tenant-Id"] = tenantCtx;
+    fetch(`${API_BASE}/assets/${assetId}/documenti/${viewerDoc.id}/file`, {
+      headers,
+      credentials: "include",
     })
       .then(r => r.blob())
       .then(b => {
-        if (!revoked) setInfograficaImgUrl(URL.createObjectURL(b));
+        if (!revoked) setViewerImgUrl(URL.createObjectURL(b));
       })
       .catch(() => {});
     return () => {
       revoked = true;
-      setInfograficaImgUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+      setViewerImgUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
     };
-  }, [docEsplosoView, assetId]);
+  }, [viewerDoc, assetId]);
 
   const saveEdit = async () => {
     if (!detail) return; setSaving(true);
@@ -682,7 +727,19 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 
       <div style={{ display: "flex", gap: "2px", borderBottom: "1px solid var(--border)", marginBottom: "20px", overflowX: "auto" }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "8px 12px", fontSize: "12px", fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? "var(--blue)" : "var(--text-secondary)", borderBottom: tab === t.id ? "2px solid var(--blue)" : "2px solid transparent", marginBottom: "-1px", whiteSpace: "nowrap" }}>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            padding: "10px 16px",
+            fontSize: "13px",
+            fontWeight: tab === t.id ? 700 : 500,
+            color: tab === t.id ? "#3b82f6" : "var(--text-secondary)",
+            background: "transparent",
+            border: "none",
+            borderBottom: tab === t.id ? "2px solid #3b82f6" : "2px solid transparent",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            transition: "all 0.15s",
+            marginBottom: "-1px",
+          }}>
             {t.label}
           </button>
         ))}
@@ -900,65 +957,37 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             </ModalOverlay>
           )}
 
-          {/* ── Visualizzatore infografica AI ── */}
-          {docEsplosoView && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setDocEsplosoView(null)}>
-              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "12px", padding: "28px", minWidth: "min(900px, 95vw)", maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto", zIndex: 9999 }} onClick={e => e.stopPropagation()}>
+          {/* ── Visualizzatore immagine esploso ── */}
+          {viewerDoc && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.80)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewerDoc(null)}>
+              <div style={{ background: "#0a0f1e", border: "1px solid var(--border-strong)", borderRadius: "12px", padding: "24px", width: "min(960px, 95vw)", maxHeight: "92vh", overflowY: "auto", zIndex: 9999 }} onClick={e => e.stopPropagation()}>
                 {/* Header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
-                    {docEsplosoView.nome} — Infografica AI
-                  </h2>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {/* Pulsante rigenera */}
-                    <button
-                      disabled={docGenerando === docEsplosoView.id}
-                      style={{ ...btnSecondary, padding: "5px 12px", fontSize: "12px", color: "#8b5cf6", borderColor: "#8b5cf655" }}
-                      onClick={async () => {
-                        setDocGenerando(docEsplosoView.id);
-                        try {
-                          await apiPost(`/assets/${assetId}/documenti/${docEsplosoView.id}/genera-infografica`);
-                          notify.success("Infografica rigenerata.");
-                          const updated = await apiGet<AssetDocumento[]>(`/assets/${assetId}/documenti`);
-                          setDocumenti(updated);
-                          const updatedDoc = updated.find(d => d.id === docEsplosoView.id);
-                          if (updatedDoc) setDocEsplosoView(updatedDoc);
-                        } catch (e: unknown) {
-                          notify.error(e instanceof Error ? e.message : "Errore rigenerazione");
-                        } finally {
-                          setDocGenerando(null);
-                        }
-                      }}
-                    >
-                      {docGenerando === docEsplosoView.id ? "Generazione..." : "Rigenera"}
-                    </button>
-                    <button onClick={() => setDocEsplosoView(null)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--text-secondary)", lineHeight: 1 }}>×</button>
-                  </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+                  <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "var(--text-primary)" }}>{viewerDoc.nome}</h2>
+                  <button onClick={() => setViewerDoc(null)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "22px", color: "var(--text-secondary)", lineHeight: 1 }}>×</button>
                 </div>
 
-                {/* Immagine infografica AI */}
-                <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "200px" }}>
-                  {infograficaImgUrl ? (
+                {/* Immagine */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "200px", marginBottom: "20px" }}>
+                  {viewerImgUrl ? (
                     <img
-                      src={infograficaImgUrl}
-                      alt={`Infografica AI — ${docEsplosoView.nome}`}
-                      style={{ maxHeight: "55vh", width: "100%", objectFit: "contain", display: "block" }}
+                      src={viewerImgUrl}
+                      alt={viewerDoc.nome}
+                      style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", display: "block", borderRadius: "8px" }}
                     />
                   ) : (
-                    <div style={{ padding: "40px", color: "var(--text-secondary)", fontSize: "13px", textAlign: "center" }}>
-                      {docGenerando === docEsplosoView.id ? "Generazione infografica AI in corso..." : "Caricamento immagine..."}
-                    </div>
+                    <div style={{ padding: "60px", color: "var(--text-secondary)", fontSize: "13px", textAlign: "center" }}>Caricamento immagine...</div>
                   )}
                 </div>
 
-                {/* Griglia parti */}
-                {docEsplosoView.esploso_analisi && docEsplosoView.esploso_analisi.length > 0 && (
+                {/* Griglia parti se disponibile */}
+                {viewerDoc.esploso_analisi && viewerDoc.esploso_analisi.length > 0 && (
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.5px" }}>
-                      {docEsplosoView.esploso_analisi.length} Parti identificate
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.5px" }}>
+                      {viewerDoc.esploso_analisi.length} Parti identificate
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-                      {docEsplosoView.esploso_analisi.map((p) => (
+                      {viewerDoc.esploso_analisi.map((p) => (
                         <div key={p.numero} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px" }}>
                           <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px" }}>
                             <span style={{ width: "24px", height: "24px", borderRadius: "50%", background: p.colore, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>{p.numero}</span>
@@ -999,39 +1028,41 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                         <span style={{ fontWeight: 600, fontSize: "13px" }}>{doc.nome}</span>
                         <span style={{ fontSize: "10px", background: tipoColore + "22", color: tipoColore, border: `1px solid ${tipoColore}55`, borderRadius: "4px", padding: "1px 7px", fontWeight: 700 }}>{doc.tipo}</span>
                         {doc.ha_analisi && <span style={{ fontSize: "10px", background: "#8b5cf622", color: "#8b5cf6", border: "1px solid #8b5cf655", borderRadius: "4px", padding: "1px 7px" }}>Analisi AI</span>}
-                      {doc.ha_immagine_ai && <span style={{ fontSize: "10px", background: "#06b6d422", color: "#06b6d4", border: "1px solid #06b6d455", borderRadius: "4px", padding: "1px 7px" }}>Infografica AI</span>}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>{doc.filename} · {doc.created_at?.split("T")[0]}</div>
                     </div>
                     <div style={{ display: "flex", gap: "6px", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {/* Visualizza / Genera infografica AI */}
-                      {doc.tipo === "Esploso" && (
-                        doc.ha_immagine_ai ? (
-                          <button style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#06b6d4", borderColor: "#06b6d455" }} onClick={() => setDocEsplosoView(doc)}>
-                            Vedi Infografica
-                          </button>
-                        ) : (
-                          <button
-                            style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#8b5cf6", borderColor: "#8b5cf655" }}
-                            disabled={docGenerando === doc.id}
-                            onClick={async () => {
-                              setDocGenerando(doc.id);
-                              notify.info("Generazione infografica AI in corso... (30-60s)");
-                              try {
-                                type GenResult = { ok: boolean; n_parti: number };
-                                const res = await apiPost<GenResult>(`/assets/${assetId}/documenti/${doc.id}/genera-infografica`);
-                                notify.success(`Infografica generata: ${res.n_parti} parti identificate.`);
-                                await loadDocumenti();
-                              } catch (e: unknown) {
-                                notify.error(e instanceof Error ? e.message : "Errore generazione infografica");
-                              } finally {
-                                setDocGenerando(null);
-                              }
-                            }}
-                          >
-                            {docGenerando === doc.id ? "Generazione..." : "Genera Infografica AI"}
-                          </button>
-                        )
+                      {/* Visualizza immagine (Esploso con content_type immagine) */}
+                      {doc.tipo === "Esploso" && doc.content_type?.startsWith("image/") && (
+                        <button
+                          style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px" }}
+                          onClick={() => setViewerDoc(doc)}
+                        >
+                          Visualizza
+                        </button>
+                      )}
+                      {/* Analizza Esploso (GPT-4o vision) */}
+                      {doc.tipo === "Esploso" && doc.content_type?.startsWith("image/") && (
+                        <button
+                          style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", color: "#8b5cf6", borderColor: "#8b5cf655" }}
+                          disabled={docAnalizzando === doc.id}
+                          onClick={async () => {
+                            setDocAnalizzando(doc.id);
+                            notify.info("Analisi esploso in corso... (30-60s)");
+                            try {
+                              type AnalisiResult = { parti: EsplosoParteItem[]; n_parti: number };
+                              const res = await apiPost<AnalisiResult>(`/assets/${assetId}/documenti/${doc.id}/analizza-esploso`);
+                              notify.success(`Analisi completata: ${res.n_parti} parti identificate.`);
+                              await loadDocumenti();
+                            } catch (e: unknown) {
+                              notify.error(e instanceof Error ? e.message : "Errore analisi");
+                            } finally {
+                              setDocAnalizzando(null);
+                            }
+                          }}
+                        >
+                          {docAnalizzando === doc.id ? "Analisi..." : "Analizza Esploso"}
+                        </button>
                       )}
                       {/* Scarica */}
                       <a href={`${API_BASE}/assets/${assetId}/documenti/${doc.id}/file`} target="_blank" rel="noopener noreferrer" style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
@@ -1044,7 +1075,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                           await apiDelete(`/assets/${assetId}/documenti/${doc.id}`);
                           notify.success("Documento eliminato.");
                           setDocumenti(prev => prev.filter(d => d.id !== doc.id));
-                          if (docEsplosoView?.id === doc.id) setDocEsplosoView(null);
+                          if (viewerDoc?.id === doc.id) setViewerDoc(null);
                         } catch (e: unknown) {
                           notify.error(e instanceof Error ? e.message : "Errore eliminazione");
                         }
