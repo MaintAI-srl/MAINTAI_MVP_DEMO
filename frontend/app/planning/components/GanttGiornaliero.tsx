@@ -160,7 +160,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
       <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--border-strong)" }}>
         <div style={{
           position: "relative",
-          background: "#0f172a",
+          background: "var(--surface-2)",
           minWidth: 900,
           height: totalH,
         }}>
@@ -175,7 +175,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
             <div style={{
               gridRow: 1,
               gridColumn: 1,
-              background: "#1e293b",
+              background: "var(--surface-3)",
               borderRight: "1px solid #334155",
               borderBottom: "1px solid #334155",
               display: "flex",
@@ -192,7 +192,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
               <div key={slot} style={{
                 gridRow: 1,
                 gridColumn: i + 2,
-                background: "#1e293b",
+                background: "var(--surface-3)",
                 borderRight: i % 2 === 1 ? "1px solid #334155" : "1px solid #263044",
                 borderBottom: "1px solid #334155",
                 display: "flex",
@@ -277,7 +277,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
                         gridColumn: si + 2,
                         borderRight: si % 2 === 1 ? "1px solid #1e293b" : "1px solid #161f2e",
                         borderBottom: "1px solid var(--border-strong)",
-                        background: si % 2 === 0 ? "#0f172a" : "var(--surface-2)",
+                        background: si % 2 === 0 ? "var(--surface-2)" : "var(--surface-2)",
                       }} />
                     ))}
 
@@ -391,7 +391,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
             position: "fixed",
             left: tooltip.x + 16,
             top: tooltip.y - 10,
-            background: "#1e293b",
+            background: "var(--surface-3)",
             border: `1px solid #3b82f6`,
             borderRadius: 8,
             padding: "12px 16px",

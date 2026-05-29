@@ -178,7 +178,7 @@ export default function RollingAnalysisPanel() {
 
       {!data && !loading && (
         <div style={{
-          background: "#0f172a",
+          background: "var(--surface-2)",
           border: "1px dashed var(--border-strong)",
           borderRadius: 10,
           padding: 40,
@@ -291,7 +291,7 @@ export default function RollingAnalysisPanel() {
 
           {/* ── Tabella ticket ─────────────────────────────────────────────── */}
           <div style={{
-            background: "#0f172a",
+            background: "var(--surface-2)",
             border: "1px solid var(--border-strong)",
             borderRadius: 10,
             overflow: "hidden",
@@ -300,7 +300,7 @@ export default function RollingAnalysisPanel() {
             <div style={{
               display: "grid",
               gridTemplateColumns: "48px 60px 60px 1fr 100px 80px 80px 80px 80px",
-              background: "#1e293b",
+              background: "var(--surface-3)",
               borderBottom: "1px solid var(--border-strong)",
               padding: "8px 12px",
               fontSize: 10,
@@ -340,7 +340,7 @@ export default function RollingAnalysisPanel() {
                       fontSize: 12,
                       borderBottom: "1px solid var(--surface-2)",
                       cursor: "pointer",
-                      background: isOpen ? "var(--surface-1)" : idx % 2 === 0 ? "#0f172a" : "var(--surface-1)",
+                      background: isOpen ? "var(--surface-1)" : idx % 2 === 0 ? "var(--surface-2)" : "var(--surface-1)",
                       transition: "background 80ms",
                       alignItems: "center",
                     }}
@@ -394,7 +394,7 @@ export default function RollingAnalysisPanel() {
                   {/* ── Riga dettaglio espandibile ──────────────────── */}
                   {isOpen && (
                     <div style={{
-                      background: "#080d19",
+                      background: "var(--surface-1)",
                       borderBottom: "1px solid var(--surface-2)",
                       padding: "12px 16px 16px",
                       display: "grid",
@@ -468,7 +468,7 @@ export default function RollingAnalysisPanel() {
 
           {/* ── Note proxy ─────────────────────────────────────────────────── */}
           {data.kpi.note && data.kpi.note.length > 0 && (
-            <div style={{ marginTop: 16, padding: "10px 14px", background: "#0c1220", border: "1px solid #1e293b", borderRadius: 8 }}>
+            <div style={{ marginTop: 16, padding: "10px 14px", background: "var(--surface-3)", border: "1px solid #1e293b", borderRadius: 8 }}>
               <div style={{ fontSize: 10, color: "#374151", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>Note proxy — campi non disponibili nel DB attuale</div>
               {data.kpi.note.map((n, i) => (
                 <div key={i} style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>• {n}</div>

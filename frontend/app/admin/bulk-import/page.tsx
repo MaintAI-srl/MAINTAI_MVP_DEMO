@@ -107,7 +107,7 @@ function PreviewTable({ rows, title }: { rows: Record<string, string>[]; title: 
             <tr>
               {cols.map(c => (
                 <th key={c} style={{
-                  background: "#1e293b", color: "var(--text-muted)",
+                  background: "var(--surface-3)", color: "var(--text-muted)",
                   padding: "5px 10px", textAlign: "left",
                   border: "1px solid var(--border-strong)", whiteSpace: "nowrap",
                   fontWeight: 700, fontSize: 10, textTransform: "uppercase",
@@ -117,7 +117,7 @@ function PreviewTable({ rows, title }: { rows: Record<string, string>[]; title: 
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} style={{ background: i % 2 === 0 ? "#0f172a" : "var(--surface-1)" }}>
+              <tr key={i} style={{ background: i % 2 === 0 ? "var(--surface-2)" : "var(--surface-1)" }}>
                 {cols.map(c => (
                   <td key={c} style={{
                     padding: "5px 10px",
@@ -304,7 +304,7 @@ export default function BulkImportPage() {
               ].map(({ label, desc, color }) => (
                 <div key={label} style={{
                   display: "flex", gap: 12, alignItems: "flex-start",
-                  background: "#0f172a", border: "1px solid #1e293b",
+                  background: "var(--surface-2)", border: "1px solid #1e293b",
                   borderRadius: 8, padding: "10px 14px",
                 }}>
                   <span style={{
@@ -397,7 +397,7 @@ export default function BulkImportPage() {
                   padding: "28px 20px",
                   textAlign: "center",
                   cursor: "pointer",
-                  background: file ? "#052e1644" : "#0f172a",
+                  background: file ? "#052e1644" : "var(--surface-2)",
                   transition: "border-color 150ms",
                 }}
               >
@@ -497,7 +497,7 @@ export default function BulkImportPage() {
                 { label: "Asset da creare", val: preview.counts.asset, color: "#E67E22" },
               ].map(({ label, val, color }) => (
                 <div key={label} style={{
-                  background: "#0f172a", border: `1px solid ${color}44`,
+                  background: "var(--surface-2)", border: `1px solid ${color}44`,
                   borderRadius: 8, padding: "12px 20px", textAlign: "center", minWidth: 130,
                 }}>
                   <div style={{ fontSize: 28, fontWeight: 800, color }}>{val}</div>
@@ -588,7 +588,7 @@ export default function BulkImportPage() {
                 { label: "Asset creati", val: result.stats.asset_creati, color: "#E67E22" },
               ].map(({ label, val, color }) => (
                 <div key={label} style={{
-                  background: "#0f172a", borderRadius: 8, padding: "10px 16px", textAlign: "center",
+                  background: "var(--surface-2)", borderRadius: 8, padding: "10px 16px", textAlign: "center",
                 }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color }}>{val}</div>
                   <div style={{ fontSize: 10, color: "#6b7280" }}>{label}</div>

@@ -210,7 +210,7 @@ function RigaPiano({
         onClick={() => setEspanso(!espanso)}
         style={{
           cursor: "pointer",
-          background: espanso ? "#1a2332" : "transparent",
+          background: espanso ? "var(--surface-3)" : "transparent",
           transition: "background 120ms",
         }}
         onMouseEnter={e => { if (!espanso) (e.currentTarget as HTMLElement).style.background = "var(--surface-2)"; }}
@@ -272,7 +272,7 @@ function RigaPiano({
 
       {/* Riga espansa */}
       {espanso && (
-        <tr style={{ background: "#0d1420" }}>
+        <tr style={{ background: "var(--surface-3)" }}>
           <td colSpan={9} style={{ padding: "12px 20px 16px" }}>
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
               {/* Colonna sinistra — pianificati */}
@@ -451,7 +451,7 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#0d1420" }}>
+              <tr style={{ background: "var(--surface-3)" }}>
                 <th style={thStyle}>NUMERO</th>
                 <th style={thStyle}>DATA</th>
                 <th style={thStyle}>APPROVATO DA</th>

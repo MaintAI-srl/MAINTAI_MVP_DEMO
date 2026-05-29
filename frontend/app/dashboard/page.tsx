@@ -980,7 +980,7 @@ export default function DashboardPage() {
       {/* ── Hero Header — New Identity ────────────────────────────────────── */}
       <div style={{
         position: "relative", borderRadius: "var(--radius-xl)", overflow: "hidden",
-        background: "linear-gradient(130deg, rgba(13,21,38,0.97) 0%, rgba(17,29,52,0.95) 50%, rgba(11,17,32,0.97) 100%)",
+        background: "var(--grad-card)",
         border: "1px solid var(--border-default)",
         padding: "18px 24px",
         display: "flex", alignItems: "center",
@@ -1003,7 +1003,7 @@ export default function DashboardPage() {
             </span>
             <h1 style={{ margin: 0, fontSize: 19, fontWeight: 800, fontFamily: "var(--font-display)", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.03em" }}>
               Ciao,{" "}
-              <span style={{ background: "linear-gradient(135deg, #7aa8ff, #9b78ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              <span style={{ color: "var(--text-accent)" }}>
                 {user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : "Operatore"}
               </span>
             </h1>
@@ -1324,7 +1324,7 @@ export default function DashboardPage() {
                   const critColor = a.criticita ? (mapABC[a.criticita] || "#94a3b8") : "#94a3b8";
                   return (
                     <div key={a.asset_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < kpiAvanzati.top_asset_critici.length - 1 ? "1px solid var(--border-default)" : "none" }}>
-                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1f2937", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--surface-3)", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>{i + 1}</div>
                       <div style={{ flex: 1 }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{a.nome}</span>
                         {a.codice && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--text-muted)" }}>({a.codice})</span>}

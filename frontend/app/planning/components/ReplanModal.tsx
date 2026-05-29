@@ -144,7 +144,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
                   padding: "12px 14px",
                   borderRadius: 10,
                   border: `1px solid ${selected ? opt.color : "#374151"}`,
-                  background: selected ? `${opt.color}12` : "#1a2332",
+                  background: selected ? `${opt.color}12` : "var(--surface-3)",
                   cursor: "pointer",
                   textAlign: "left",
                   transition: "border-color 0.15s, background 0.15s",

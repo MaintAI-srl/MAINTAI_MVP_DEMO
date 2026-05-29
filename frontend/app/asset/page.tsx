@@ -844,7 +844,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 </div>
               </div>
               {kpi.n_guasti_90gg < 2 && (
-                <div style={{ background: "#1f2937", border: "1px solid var(--border-default)", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                <div style={{ background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
                   MTBF e MTTR richiedono almeno 2 guasti chiusi (BD/CM). Con {kpi.n_guasti_90gg} guasto registrato i valori saranno disponibili dopo il secondo intervento.
                 </div>
               )}

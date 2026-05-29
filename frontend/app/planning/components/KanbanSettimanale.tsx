@@ -364,13 +364,13 @@ export default function KanbanSettimanale({
           gridTemplateColumns: `${HOUR_LABEL_W}px repeat(7, minmax(110px, 1fr))`,
           gridTemplateRows: `${HEADER_H}px ${TOTAL_H}px`,
           minWidth: 900,
-          background: "#0f172a",
+          background: "var(--surface-2)",
         }}>
 
           {/* ── Cella angolo top-left ─────────────────────────────── */}
           <div style={{
             gridRow: 1, gridColumn: 1,
-            background: "#1e293b",
+            background: "var(--surface-3)",
             borderRight: "1px solid var(--border-strong)",
             borderBottom: "1px solid #334155",
           }} />
@@ -384,7 +384,7 @@ export default function KanbanSettimanale({
               <div key={i} style={{
                 gridRow: 1,
                 gridColumn: i + 2,
-                background: isWeekend ? "#162032" : "#1e293b",
+                background: isWeekend ? "var(--surface-3)" : "var(--surface-3)",
                 borderRight: i < 6 ? "1px solid var(--border-strong)" : "none",
                 borderBottom: "1px solid #334155",
                 borderTop: isToday ? "3px solid #3b82f6" : "3px solid transparent",
@@ -412,7 +412,7 @@ export default function KanbanSettimanale({
           <div style={{
             gridRow: 2, gridColumn: 1,
             position: "relative",
-            background: "#0c1220",
+            background: "var(--surface-3)",
             borderRight: "1px solid #1e293b",
             height: TOTAL_H,
           }}>
@@ -455,7 +455,7 @@ export default function KanbanSettimanale({
                   position: "relative",
                   height: TOTAL_H,
                   borderRight: colIdx < 6 ? "1px solid #1e293b" : "none",
-                  background: isToday ? "#0f1a2a" : isWeekend ? "#0b1422" : "#0f172a",
+                  background: isToday ? "var(--surface-2)" : isWeekend ? "var(--surface-2)" : "var(--surface-2)",
                 }}
               >
                 {/* Linee orizzontali ore */}
@@ -465,7 +465,7 @@ export default function KanbanSettimanale({
                     left: 0, right: 0,
                     top: i * HOUR_HEIGHT,
                     height: 1,
-                    background: "#1e293b",
+                    background: "var(--surface-3)",
                     zIndex: 0,
                   }} />
                 ))}

@@ -39,7 +39,7 @@ export default function AssetAnalyticsModal({ asset, onClose }: Props) {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }} onClick={onClose}>
-      <div style={{ background: "#0f172a", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 24, padding: 32, width: "min(680px, 95vw)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 24, padding: 32, width: "min(680px, 95vw)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>

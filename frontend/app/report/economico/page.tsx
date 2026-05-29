@@ -55,7 +55,7 @@ function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "#1f2937", border: "1px solid var(--border-default)", borderRadius: "8px",
+      background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: "8px",
       padding: "10px 14px", fontSize: "13px",
     }}>
       <p style={{ color: "var(--text-muted)", marginBottom: "6px", fontWeight: 600 }}>{label}</p>
@@ -152,7 +152,7 @@ export default function ReportEconomicoPage() {
             value={mesi}
             onChange={e => setMesi(Number(e.target.value))}
             style={{
-              background: "#1f2937", color: "var(--text-primary)", border: "1px solid var(--border-default)",
+              background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-default)",
               borderRadius: "8px", padding: "8px 12px", fontSize: "13px", cursor: "pointer",
             }}
           >
@@ -240,7 +240,7 @@ export default function ReportEconomicoPage() {
         <div style={{ height: "280px" }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.trend_mensile} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-3)" />
               <XAxis
                 dataKey="label"
                 tick={{ fill: "#64748b", fontSize: 11 }}

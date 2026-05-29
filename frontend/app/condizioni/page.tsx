@@ -245,7 +245,7 @@ export default function CondizioniPage() {
 
 function Kpi({ label, value, color, icon }: { label: string; value: number; color: string; icon: ReactNode }) {
   return (
-    <div style={{ background: "linear-gradient(145deg, rgba(13,21,38,0.98), rgba(10,17,31,0.98))", border: "1px solid rgba(91,143,255,0.14)", borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", minHeight: 86, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+    <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", minHeight: 86, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "var(--shadow-card)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: 10, fontWeight: 850, letterSpacing: "0.14em", textTransform: "uppercase" }}>
         {label}<span style={{ color }}>{icon}</span>
       </div>
@@ -254,10 +254,10 @@ function Kpi({ label, value, color, icon }: { label: string; value: number; colo
   );
 }
 
-const buttonStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 14px", borderRadius: 7, border: "1px solid rgba(16,217,176,0.32)", background: "rgba(16,217,176,0.10)", color: "#d1fae5", fontSize: 12, fontWeight: 800, cursor: "pointer" };
-const panelStyle: CSSProperties = { background: "linear-gradient(145deg, rgba(13,21,38,0.98), rgba(8,14,26,0.98))", border: "1px solid rgba(91,143,255,0.14)", borderRadius: 8, overflow: "hidden", boxShadow: "0 0 0 1px rgba(91,143,255,0.04), 0 16px 38px rgba(0,0,0,0.32)" };
-const searchStyle: CSSProperties = { width: "100%", height: 34, padding: "0 11px 0 34px", borderRadius: 7, border: "1px solid rgba(91,143,255,0.18)", background: "rgba(6,10,18,0.74)", color: "var(--text-primary)", outline: "none", fontSize: 12 };
-const thStyle: CSSProperties = { height: 38, padding: "0 14px", textAlign: "left", fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.13em", textTransform: "uppercase", fontWeight: 850, background: "rgba(6,10,18,0.72)", borderBottom: "1px solid rgba(91,143,255,0.12)", whiteSpace: "nowrap" };
+const buttonStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 14px", borderRadius: 7, border: "1px solid var(--green-border)", background: "var(--green-dim)", color: "var(--green)", fontSize: 12, fontWeight: 800, cursor: "pointer" };
+const panelStyle: CSSProperties = { background: "var(--surface-2)", border: "1px solid var(--border-default)", borderRadius: 8, overflow: "hidden", boxShadow: "var(--shadow-card)" };
+const searchStyle: CSSProperties = { width: "100%", height: 34, padding: "0 11px 0 34px", borderRadius: 7, border: "1px solid var(--border-default)", background: "var(--surface-1)", color: "var(--text-primary)", outline: "none", fontSize: 12 };
+const thStyle: CSSProperties = { height: 38, padding: "0 14px", textAlign: "left", fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.13em", textTransform: "uppercase", fontWeight: 850, background: "var(--surface-3)", borderBottom: "1px solid var(--border-default)", whiteSpace: "nowrap" };
 const tdStyle: CSSProperties = { padding: "12px 14px", borderBottom: "1px solid rgba(91,143,255,0.075)", color: "var(--text-secondary)", fontSize: 12, verticalAlign: "middle" };
-const inputStyle: CSSProperties = { width: 110, height: 32, borderRadius: 7, border: "1px solid rgba(91,143,255,0.18)", background: "rgba(6,10,18,0.74)", color: "var(--text-primary)", padding: "0 9px", outline: "none", fontSize: 12 };
-const smallButtonStyle: CSSProperties = { height: 32, padding: "0 11px", borderRadius: 7, border: "1px solid rgba(16,217,176,0.30)", background: "rgba(16,217,176,0.10)", color: "#43edd3", fontSize: 11, fontWeight: 850, cursor: "pointer" };
+const inputStyle: CSSProperties = { width: 110, height: 32, borderRadius: 7, border: "1px solid var(--border-default)", background: "var(--surface-1)", color: "var(--text-primary)", padding: "0 9px", outline: "none", fontSize: 12 };
+const smallButtonStyle: CSSProperties = { height: 32, padding: "0 11px", borderRadius: 7, border: "1px solid var(--green-border)", background: "var(--green-dim)", color: "var(--green)", fontSize: 11, fontWeight: 850, cursor: "pointer" };

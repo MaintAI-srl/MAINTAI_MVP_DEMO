@@ -262,7 +262,7 @@ function ActiveWorkView({
     <div style={{
       display: "flex", flexDirection: "column",
       minHeight: "100%",
-      background: "#060d1a",
+      background: "var(--surface-0)",
     }}>
 
       {/* ── QR Scanner per chiusura ─────────────────────────────────────────── */}
@@ -619,7 +619,7 @@ function ActiveWorkView({
                   height: 64, borderRadius: 14,
                   background: allChecked
                     ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
-                    : "#1e293b",
+                    : "var(--surface-3)",
                   border: allChecked ? "none" : "2px solid #3b82f6",
                   color: "#fff",
                   fontWeight: 900, fontSize: 16,

@@ -106,7 +106,7 @@ export default function NotificationPanel() {
           <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={() => setIsOpen(false)} />
           <div style={{
             position: "absolute", top: 48, right: 0, width: 340,
-            background: "#0f172a", border: "1px solid rgba(59,130,246,0.3)",
+            background: "var(--surface-2)", border: "1px solid rgba(59,130,246,0.3)",
             borderRadius: 16, boxShadow: "0 20px 50px rgba(0,0,0,0.6)", zIndex: 1000,
             overflow: "hidden",
           }}>

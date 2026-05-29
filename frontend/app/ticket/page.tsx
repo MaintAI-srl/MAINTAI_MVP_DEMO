@@ -1304,7 +1304,7 @@ export default function TicketPage() {
   });
 
   return (
-    <div style={{ background: "#060d1a", minHeight: "100%" }}>
+    <div style={{ background: "var(--surface-0)", minHeight: "100%" }}>
       <div className="mb-8" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Ticket</h1>
@@ -1345,10 +1345,10 @@ export default function TicketPage() {
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "9px 20px", borderRadius: showNuovoTicket ? "8px 8px 0 0" : 8,
-            background: showNuovoTicket ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "linear-gradient(135deg, #1e1b4b, #312e81)",
+            background: showNuovoTicket ? "var(--grad-primary)" : "var(--cobalt-dim)",
             border: showNuovoTicket ? "1px solid rgba(139,92,246,0.6)" : "1px solid rgba(99,102,241,0.35)",
             borderBottom: showNuovoTicket ? "none" : undefined,
-            color: showNuovoTicket ? "#fff" : "#a5b4fc",
+            color: showNuovoTicket ? "#fff" : "var(--text-accent)",
             fontWeight: 700, fontSize: 13, cursor: "pointer",
             boxShadow: showNuovoTicket ? "0 4px 16px rgba(99,102,241,0.35)" : "none",
             transition: "all 0.2s",

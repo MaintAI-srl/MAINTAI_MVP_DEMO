@@ -299,7 +299,7 @@ export default function WeatherWidget() {
                     <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Cerca Città</label>
                     <div style={{ position: "relative", display: "flex", gap: "6px", marginTop: "4px" }}>
                         <input 
-                          style={{ background: "#020617", border: "1px solid var(--border)", borderRadius: "4px", padding: "6px 30px 6px 8px", width: "100%", color: "white", fontSize: "11px" }}
+                          style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "4px", padding: "6px 30px 6px 8px", width: "100%", color: "white", fontSize: "11px" }}
                           placeholder="es. Milano, Roma..."
                           value={editForm.name}
                           onChange={(e) => setEditForm({...editForm, name: e.target.value.toUpperCase()})}
@@ -326,7 +326,7 @@ export default function WeatherWidget() {
                         <input 
                           type="number"
                           readOnly
-                          style={{ background: "#020617", border: "1px solid var(--border)", borderRadius: "4px", padding: "4px 8px", width: "100%", color: "var(--text-secondary)", fontSize: "10px" }}
+                          style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "4px", padding: "4px 8px", width: "100%", color: "var(--text-secondary)", fontSize: "10px" }}
                           value={editForm.lat.toFixed(3)}
                         />
                     </div>
@@ -335,7 +335,7 @@ export default function WeatherWidget() {
                         <input 
                           type="number"
                           readOnly
-                          style={{ background: "#020617", border: "1px solid var(--border)", borderRadius: "4px", padding: "4px 8px", width: "100%", color: "var(--text-secondary)", fontSize: "10px" }}
+                          style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "4px", padding: "4px 8px", width: "100%", color: "var(--text-secondary)", fontSize: "10px" }}
                           value={editForm.lon.toFixed(3)}
                         />
                     </div>

@@ -27,7 +27,7 @@ interface TecnicoOption {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function scadenzaColor(giorni?: number | null): { bg: string; color: string; label: string } {
-  if (giorni === null || giorni === undefined) return { bg: "#1f2937", color: "var(--text-muted)", label: "Nessuna scadenza" };
+  if (giorni === null || giorni === undefined) return { bg: "var(--surface-3)", color: "var(--text-muted)", label: "Nessuna scadenza" };
   if (giorni < 0) return { bg: "#7f1d1d", color: "#fca5a5", label: `Scaduto ${Math.abs(giorni)}gg fa` };
   if (giorni <= 30) return { bg: "#7f1d1d", color: "#ef4444", label: `${giorni}gg` };
   if (giorni <= 60) return { bg: "#431407", color: "#f97316", label: `${giorni}gg` };
@@ -147,7 +147,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", background: "#1f2937", border: "1px solid var(--border-default)",
+  width: "100%", padding: "9px 12px", background: "var(--surface-3)", border: "1px solid var(--border-default)",
   borderRadius: "6px", color: "var(--text-primary)", fontSize: "14px", boxSizing: "border-box",
 };
 const btnPri: React.CSSProperties = {
@@ -255,7 +255,7 @@ export default function CompliancePage() {
       {!loading && attestati.length > 0 && (
         <div style={{ background: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border-default)", overflow: "hidden" }}>
           {/* Intestazione tabella */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "12px 16px", background: "#0f172a", borderBottom: "1px solid var(--border-default)", fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "12px 16px", background: "var(--surface-2)", borderBottom: "1px solid var(--border-default)", fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             <div>Tecnico</div>
             <div>Tipo Corso</div>
             <div>Ente</div>

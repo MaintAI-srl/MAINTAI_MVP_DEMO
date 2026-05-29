@@ -222,7 +222,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
           overflow: "hidden",
         }}>
           <div style={{
-            background: "#1e293b",
+            background: "var(--surface-3)",
             borderBottom: "1px solid var(--border-strong)",
             padding: "10px 14px",
             display: "flex",
@@ -257,7 +257,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
                 const stile = tipoStyle(tipo, wo.is_continuation);
                 return (
                   <div key={i} style={{
-                    background: "#1a2332",
+                    background: "var(--surface-3)",
                     borderLeft: `3px solid ${stile.border}`,
                     borderRadius: 5,
                     padding: "8px 10px",

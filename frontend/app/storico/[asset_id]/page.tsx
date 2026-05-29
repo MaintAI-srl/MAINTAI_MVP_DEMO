@@ -104,7 +104,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
               {tipoLabel(ticket.tipo)}
             </span>
             <span style={{
-              background: "#1f2937",
+              background: "var(--surface-3)",
               color: prioritaColor(ticket.priorita),
               borderRadius: "999px",
               padding: "2px 10px",
@@ -231,7 +231,7 @@ export default function StoricoAssetPage() {
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
           <button
             onClick={() => router.back()}
-            style={{ background: "#1f2937", border: "none", borderRadius: "8px", padding: "8px 12px", color: "var(--text-muted)", cursor: "pointer", fontSize: "16px", minHeight: "44px", minWidth: "44px" }}
+            style={{ background: "var(--surface-3)", border: "none", borderRadius: "8px", padding: "8px 12px", color: "var(--text-muted)", cursor: "pointer", fontSize: "16px", minHeight: "44px", minWidth: "44px" }}
             aria-label="Torna indietro"
           >
             ←
@@ -271,7 +271,7 @@ export default function StoricoAssetPage() {
           </Link>
           <button
             onClick={loadData}
-            style={{ background: "#1f2937", border: "1px solid var(--border-default)", borderRadius: "10px", padding: "12px 14px", color: "var(--text-muted)", cursor: "pointer", fontSize: "18px", minHeight: "48px", minWidth: "48px" }}
+            style={{ background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: "10px", padding: "12px 14px", color: "var(--text-muted)", cursor: "pointer", fontSize: "18px", minHeight: "48px", minWidth: "48px" }}
             title="Aggiorna"
           >
             ↻

@@ -90,7 +90,7 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
 
   return (
     <div style={{
-      padding: 16, background: "#0f172a", borderRadius: 16,
+      padding: 16, background: "var(--surface-2)", borderRadius: 16,
       border: "1px solid var(--border-default)",
     }}>
       <div style={{

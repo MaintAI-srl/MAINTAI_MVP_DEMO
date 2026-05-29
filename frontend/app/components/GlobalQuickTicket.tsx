@@ -43,7 +43,7 @@ export default function GlobalQuickTicket() {
         asset_stato: assetStato || null,
         stato: "Aperto",
         durata_stimata_ore: 1, // default
-        fascia_oraria: "diurna" 
+        fascia_oraria: "diurna"
       });
       notify.success("Ticket creato con successo!");
       setOpen(false);
@@ -81,62 +81,62 @@ export default function GlobalQuickTicket() {
         <span style={{ fontSize: 16 }}>+</span>
         QUICK TICKET
       </SheetTrigger>
-      
-      <SheetContent 
-        style={{ 
-          background: "#0f172a", 
-          borderColor: "#1e293b", 
-          color: "#f8fafc",
+
+      <SheetContent
+        style={{
+          background: "var(--surface-2)",
+          borderColor: "var(--border-default)",
+          color: "var(--text-primary)",
           width: "min(100vw, 400px)",
           display: "flex",
           flexDirection: "column",
           padding: 0
         }}
       >
-        <div style={{ padding: "24px", borderBottom: "1px solid #1e293b", background: "linear-gradient(180deg, rgba(59,130,246,0.05), transparent)" }}>
+        <div style={{ padding: "24px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#3b82f6", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Fast Action</div>
-          <SheetTitle style={{ color: "#f8fafc", fontSize: 22, fontWeight: 800 }}>Nuovo Ticket</SheetTitle>
+          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 22, fontWeight: 800 }}>Nuovo Ticket</SheetTitle>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
           <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
-            
+
             {/* Titolo */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Titolo *</label>
-              <input 
-                type="text" 
-                value={titolo} 
-                onChange={e => setTitolo(e.target.value)} 
-                required 
+              <input
+                type="text"
+                value={titolo}
+                onChange={e => setTitolo(e.target.value)}
+                required
                 autoFocus
-                placeholder="Breve descrizione o sintomo fallimento" 
-                style={{ 
-                  background: "#1e293b", 
-                  color: "white", 
-                  border: "1px solid #334155", 
-                  padding: "10px 14px", 
+                placeholder="Breve descrizione o sintomo fallimento"
+                style={{
+                  background: "var(--surface-3)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border-default)",
+                  padding: "10px 14px",
                   borderRadius: 6,
                   outline: "none",
-                  fontSize: 14 
-                }} 
+                  fontSize: 14
+                }}
               />
             </div>
 
             {/* Asset */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset Principale</label>
-              <select 
-                value={assetId} 
-                onChange={e => setAssetId(e.target.value)} 
-                style={{ 
-                  background: "#1e293b", 
-                  color: "white", 
-                  border: "1px solid #334155", 
-                  padding: "10px 14px", 
+              <select
+                value={assetId}
+                onChange={e => setAssetId(e.target.value)}
+                style={{
+                  background: "var(--surface-3)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border-default)",
+                  padding: "10px 14px",
                   borderRadius: 6,
                   outline: "none",
-                  fontSize: 14 
+                  fontSize: 14
                 }}
               >
                 <option value="">Seleziona asset id/codice</option>
@@ -150,21 +150,21 @@ export default function GlobalQuickTicket() {
                 <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tipo</label>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {["BD", "CM"].map(t => (
-                    <button 
+                    <button
                       key={t}
                       type="button"
                       onClick={() => {
                         setTipo(t);
                         setAssetStato(t === "BD" ? "out of service" : "stopped");
                       }}
-                      style={{ 
+                      style={{
                         flex: 1,
                         padding: "6px 0",
                         borderRadius: 4,
                         fontSize: 12,
                         fontWeight: 700,
-                        border: tipo === t ? `1px solid ${t === "BD" ? "#ef4444" : "#f59e0b"}` : "1px solid #334155",
-                        background: tipo === t ? `${t === "BD" ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)"}` : "#1e293b",
+                        border: tipo === t ? `1px solid ${t === "BD" ? "#ef4444" : "#f59e0b"}` : "1px solid var(--border-default)",
+                        background: tipo === t ? `${t === "BD" ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)"}` : "var(--surface-3)",
                         color: tipo === t ? (t === "BD" ? "#fca5a5" : "#fde68a") : "#94a3b8"
                       }}
                     >
@@ -176,18 +176,18 @@ export default function GlobalQuickTicket() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Priorità</label>
-                <select 
-                  value={priorita} 
-                  onChange={e => setPriorita(e.target.value)} 
-                  style={{ 
-                    background: "#1e293b", 
-                    color: "white", 
-                    border: "1px solid #334155", 
-                    padding: "9px 12px", 
+                <select
+                  value={priorita}
+                  onChange={e => setPriorita(e.target.value)}
+                  style={{
+                    background: "var(--surface-3)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-default)",
+                    padding: "9px 12px",
                     borderRadius: 6,
                     outline: "none",
                     height: "100%",
-                    fontSize: 13 
+                    fontSize: 13
                   }}
                 >
                   <option value="Alta">Alta</option>
@@ -214,8 +214,8 @@ export default function GlobalQuickTicket() {
                       borderRadius: 5,
                       fontSize: 11,
                       fontWeight: 800,
-                      border: assetStato === s.value ? `1px solid ${s.color}` : "1px solid #334155",
-                      background: assetStato === s.value ? `${s.color}22` : "#1e293b",
+                      border: assetStato === s.value ? `1px solid ${s.color}` : "1px solid var(--border-default)",
+                      background: assetStato === s.value ? `${s.color}22` : "var(--surface-3)",
                       color: assetStato === s.value ? s.color : "#94a3b8",
                       cursor: "pointer",
                     }}
@@ -229,7 +229,7 @@ export default function GlobalQuickTicket() {
             <div style={{ marginTop: "auto", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
               Il ticket verrà salvato in stato <strong>Aperto</strong> e sarà visibile nella lista Ticket o pronto per l'assegnazione nel Planner.
             </div>
-            
+
           </div>
 
           <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>

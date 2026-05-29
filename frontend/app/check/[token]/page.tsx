@@ -147,7 +147,7 @@ export default function CheckPubblicoPage() {
                   width: "28px",
                   height: "28px",
                   borderRadius: "50%",
-                  background: checkati.has(idx) ? "#16a34a" : "#1f2937",
+                  background: checkati.has(idx) ? "#16a34a" : "var(--surface-3)",
                   border: `2px solid ${checkati.has(idx) ? "#22c55e" : "#4b5563"}`,
                   display: "flex",
                   alignItems: "center",
@@ -205,7 +205,7 @@ export default function CheckPubblicoPage() {
                 🔴 Segnala anomalia
               </button>
             ) : (
-              <div style={{ background: "#1f2937", borderRadius: "12px", padding: "20px", border: "2px solid #ef4444" }}>
+              <div style={{ background: "var(--surface-3)", borderRadius: "12px", padding: "20px", border: "2px solid #ef4444" }}>
                 <div style={{ fontSize: "16px", fontWeight: 700, color: "#f87171", marginBottom: "12px" }}>
                   Descrivi l&apos;anomalia riscontrata
                 </div>

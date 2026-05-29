@@ -327,7 +327,7 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
         <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}22`, border: `1px solid ${s.border}44`, padding: "1px 5px", borderRadius: 4 }}>{ticket.tipo}</span>
         <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>
       </div>
-      <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{ticket.titolo}</div>
+      <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{ticket.titolo}</div>
       <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
     </div>
   );
@@ -349,14 +349,14 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
     <div style={{
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
-      borderRight: "1px solid rgba(59,130,246,0.1)",
-      background: "linear-gradient(90deg, #0b1628 0%, rgba(12,22,40,0.96) 100%)",
+      borderRight: "1px solid var(--border-default)",
+      background: "var(--surface-2)",
       position: "sticky", left: 0, zIndex: 3,
       opacity: totalOperativo ? 1 : 0.72,
     }}>
       <div style={{ width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#e2e8f0", lineHeight: 1.3 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>
             {tecnico.nome} {tecnico.cognome ?? ""}
           </div>
           <div style={{
@@ -368,7 +368,7 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
             {remaining.toFixed(1)}h libere
           </div>
         </div>
-        <div style={{ fontSize: 10, color: "rgba(148,163,184,0.78)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {tecnico.skill ?? tecnico.competenze ?? ""}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
@@ -379,7 +379,7 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
               boxShadow: usagePct > 92 ? "0 0 10px rgba(224,82,82,0.45)" : "0 0 10px rgba(56,217,120,0.28)",
             }} />
           </div>
-          <span style={{ fontSize: 9, color: "rgba(166,246,255,0.72)", whiteSpace: "nowrap" }}>{assigned.toFixed(1)}/{cap.toFixed(1)}h</span>
+          <span style={{ fontSize: 9, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{assigned.toFixed(1)}/{cap.toFixed(1)}h</span>
         </div>
         {!totalOperativo && (
           <div style={{
@@ -452,7 +452,7 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
             position: "absolute", right: 12, top: 10, zIndex: 4,
             fontSize: 11, fontWeight: 900,
             color: dropCap.canAccept ? "#a6f6ff" : "#fca5a5",
-            background: dropCap.canAccept ? "rgba(7,17,31,0.88)" : "rgba(80,20,24,0.92)",
+            background: dropCap.canAccept ? "var(--surface-2)" : "rgba(254,226,226,0.96)",
             border: `1px solid ${dropCap.canAccept ? "rgba(31,232,255,0.48)" : "rgba(224,82,82,0.58)"}`,
             borderRadius: 999, padding: "5px 10px",
             boxShadow: dropCap.canAccept ? "0 0 18px rgba(31,232,255,0.18)" : "0 0 18px rgba(224,82,82,0.18)",
@@ -531,11 +531,11 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
         ? "linear-gradient(180deg, rgba(31,232,255,0.18), rgba(56,217,120,0.08))"
         : invalidDrop
           ? "linear-gradient(180deg, rgba(224,82,82,0.2), rgba(242,184,75,0.08))"
-          : assenzaGiorno
-            ? "linear-gradient(180deg, rgba(80,20,24,0.26), rgba(13,27,42,0.12))"
+            : assenzaGiorno
+            ? "linear-gradient(180deg, rgba(224,82,82,0.12), rgba(224,82,82,0.04))"
             : cap.operativo && cap.remaining > 0
-              ? "linear-gradient(180deg, rgba(13,27,42,0.18), transparent)"
-              : "linear-gradient(180deg, rgba(80,20,24,0.16), rgba(13,27,42,0.08))",
+              ? "linear-gradient(180deg, rgba(37,99,235,0.06), transparent)"
+              : "linear-gradient(180deg, rgba(224,82,82,0.08), rgba(217,119,6,0.04))",
       boxShadow: validDrop ? "inset 0 0 0 2px rgba(31,232,255,0.55), inset 0 0 26px rgba(31,232,255,0.13)" : invalidDrop ? "inset 0 0 0 2px rgba(224,82,82,0.55)" : "none",
       transition: "background 0.12s, box-shadow 0.12s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
@@ -630,14 +630,14 @@ function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: 
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
         </div>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb", lineHeight: 1.4 }}>{ticket.titolo}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.4 }}>{ticket.titolo}</div>
           {ticket.descrizione && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.6 }}>{ticket.descrizione}</div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {rows.map(([label, value]) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "8px 0", borderBottom: "1px solid var(--border-strong)" }}>
               <span style={{ color: "#6b7280" }}>{label}</span>
-              <span style={{ color: label === "Priorità" ? prioColor : "#f9fafb", fontWeight: 500 }}>{value}</span>
+              <span style={{ color: label === "Priorità" ? prioColor : "var(--text-primary)", fontWeight: 500 }}>{value}</span>
             </div>
           ))}
         </div>
@@ -671,17 +671,17 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
       <SheetContent
         side="right"
         className="p-0 border-l border-slate-800"
-        style={{ background: "#0f172a", color: "var(--text-primary)", display: "flex", flexDirection: "column", minWidth: 400 }}
+        style={{ background: "var(--surface-2)", color: "var(--text-primary)", display: "flex", flexDirection: "column", minWidth: 400 }}
       >
-        <div style={{ padding: "24px 28px", borderBottom: "1px solid #1e293b", background: "linear-gradient(180deg, rgba(59,130,246,0.05), transparent)" }}>
+        <div style={{ padding: "24px 28px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#3b82f6", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Pianifica Manualmente</div>
-          <SheetTitle style={{ color: "#f8fafc", fontSize: 20, fontWeight: 800 }}>#{ticket.id} — {ticket.titolo}</SheetTitle>
+          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 20, fontWeight: 800 }}>#{ticket.id} — {ticket.titolo}</SheetTitle>
         </div>
 
         <div style={{ flex: 1, padding: "28px", display: "flex", flexDirection: "column", gap: 20 }}>
           <div>
             <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO</label>
-            <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
+            <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
               {tecnici.map((t) => (
                 <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t)}>
                   {t.nome} {t.cognome ?? ""} · {isTecnicoOperativo(t) ? `${t.ore_giornaliere || 8}h/gg` : `non disponibile (${t.stato})`}
@@ -691,13 +691,13 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
           </div>
           <div>
             <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>DATA</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f9fafb", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
           </div>
           <div>
             <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>ORA INIZIO</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {SLOT_PRESETS.map((p) => (
-                <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "#3b82f6" : "#334155"}`, background: oraInizio === p.h ? "rgba(59,130,246,0.15)" : "#1e293b", color: oraInizio === p.h ? "#60a5fa" : "#94a3b8", fontWeight: oraInizio === p.h ? 700 : 500 }}>
+                <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "var(--cobalt-border)" : "var(--border-default)"}`, background: oraInizio === p.h ? "var(--cobalt-dim)" : "var(--surface-1)", color: oraInizio === p.h ? "var(--cobalt)" : "var(--text-muted)", fontWeight: oraInizio === p.h ? 700 : 500 }}>
                   {p.label}
                 </button>
               ))}
@@ -1196,13 +1196,13 @@ export default function PianificazionePage() {
   return (
     <ZoomContext.Provider value={zoom}>
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--surface-1)", fontFamily: "'IBM Plex Mono', monospace", color: "#f9fafb" }}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--surface-0)", fontFamily: "'IBM Plex Mono', monospace", color: "var(--text-primary)" }}>
 
         {/* ── TOOLBAR ── */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8, padding: "0 16px",
-          borderBottom: "1px solid rgba(59,130,246,0.15)",
-          background: "linear-gradient(90deg, #0a1628 0%, #0d1e38 100%)",
+          borderBottom: "1px solid var(--border-default)",
+          background: "var(--surface-2)",
           flexShrink: 0,
           flexWrap: "nowrap",
           height: 52,
@@ -1217,7 +1217,7 @@ export default function PianificazionePage() {
               <button key={v} onClick={() => setView(v)} style={{
                 padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em",
                 background: view === v ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "transparent",
-                color: view === v ? "#fff" : "rgba(148,163,184,0.7)",
+                color: view === v ? "#fff" : "var(--text-muted)",
                 border: "none",
                 borderRadius: 5,
                 cursor: "pointer", fontFamily: "inherit", fontWeight: view === v ? 700 : 500,
@@ -1231,9 +1231,9 @@ export default function PianificazionePage() {
 
           {/* Date nav */}
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-            <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>‹</button>
-            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>OGGI</button>
-            <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid rgba(59,130,246,0.2)", color: "rgba(148,163,184,0.8)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>›</button>
+            <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>‹</button>
+            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>OGGI</button>
+            <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>›</button>
           </div>
 
           {/* Controlli Zoom */}
@@ -1257,7 +1257,7 @@ export default function PianificazionePage() {
             </button>
           </div>
 
-          <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 700, textTransform: "capitalize", flexShrink: 0 }}>{dateLabel}</span>
+          <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, textTransform: "capitalize", flexShrink: 0 }}>{dateLabel}</span>
 
           <div style={{ flex: "1 1 auto", minWidth: 12 }} />
 
@@ -1321,7 +1321,7 @@ export default function PianificazionePage() {
                   padding: "4px 10px", fontSize: 11, fontWeight: 700,
                   borderRadius: 5, border: "none",
                   background: horizonDays === d ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" : "transparent",
-                  color: horizonDays === d ? "#fff" : "rgba(148,163,184,0.7)",
+                  color: horizonDays === d ? "#fff" : "var(--text-muted)",
                   cursor: "pointer", fontFamily: "inherit",
                   transition: "all 0.12s",
                   boxShadow: horizonDays === d ? "0 2px 8px rgba(99,102,241,0.4)" : "none",
@@ -1337,7 +1337,7 @@ export default function PianificazionePage() {
           {/* Genera Piano AI disattivato per demo */}
           <button disabled title="Funzione temporaneamente disattivata per demo" style={{
             background: "linear-gradient(135deg, rgba(29,78,216,0.42), rgba(124,58,237,0.42))",
-            border: "1px solid rgba(165,180,252,0.22)", color: "rgba(255,255,255,0.62)", borderRadius: 8, padding: "8px 20px",
+            border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, padding: "8px 20px",
             fontSize: 12, fontWeight: 800, cursor: "not-allowed",
             boxShadow: "none",
             display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s", flexShrink: 0,
@@ -1447,7 +1447,7 @@ export default function PianificazionePage() {
           </div>
 
           {/* ── GANTT TIMELINE ── */}
-          <div style={{ flex: 1, overflow: "auto", position: "relative", background: "#060d1a" }}>
+          <div style={{ flex: 1, overflow: "auto", position: "relative", background: "var(--surface-0)" }}>
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#6b7280", fontSize: 13 }}>
                 Caricamento dati...
@@ -1457,24 +1457,24 @@ export default function PianificazionePage() {
                 {/* Header colonne */}
                 <div style={{
                   display: "flex", height: 56,
-                  borderBottom: "1px solid rgba(59,130,246,0.12)",
-                  background: "linear-gradient(180deg, var(--surface-1) 0%, #0a1422 100%)",
+                  borderBottom: "1px solid var(--border-default)",
+                  background: "var(--surface-2)",
                   position: "sticky", top: 0, zIndex: 10,
                 }}>
                   <div style={{
                     width: LABEL_W, minWidth: LABEL_W, display: "flex", flexDirection: "column",
                     alignItems: "flex-start", justifyContent: "center",
-                    padding: "0 14px", borderRight: "1px solid rgba(59,130,246,0.1)",
-                    fontSize: 10, color: "rgba(148,163,184,0.7)", letterSpacing: "0.08em", fontWeight: 700,
+                    padding: "0 14px", borderRight: "1px solid var(--border-default)",
+                    fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.08em", fontWeight: 700,
                     position: "sticky", left: 0,
-                    background: "linear-gradient(180deg, var(--surface-1) 0%, #0a1422 100%)", zIndex: 11,
+                    background: "var(--surface-2)", zIndex: 11,
                   }}>
                     <span style={{ lineHeight: 1.1 }}>TECNICO</span>
                     <span style={{ fontSize: 9, lineHeight: 1.2, color: "#a6f6ff", marginTop: 3 }}>ORE RESIDUE</span>
                   </div>
                   {view === "day"
                     ? Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => (
-                        <div key={i} style={{ width: BASE_HOUR_W * zoom, minWidth: BASE_HOUR_W * zoom, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxSizing: "border-box", borderRight: "1px solid rgba(59,130,246,0.06)", fontSize: 10, color: "rgba(148,163,184,0.7)", fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", overflow: "visible" }}>
+                        <div key={i} style={{ width: BASE_HOUR_W * zoom, minWidth: BASE_HOUR_W * zoom, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxSizing: "border-box", borderRight: "1px solid var(--border-subtle)", fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", overflow: "visible" }}>
                           {String(DAY_START_H + i).padStart(2, "0")}:00
                         </div>
                       ))
@@ -1487,14 +1487,14 @@ export default function PianificazionePage() {
                             width: cellW, minWidth: cellW, display: "flex", flexDirection: "column",
                             alignItems: "center", justifyContent: "center", height: "100%",
                             padding: "4px 6px", boxSizing: "border-box", overflow: "visible",
-                            borderRight: "1px solid rgba(59,130,246,0.06)",
-                            background: today ? "rgba(59,130,246,0.15)" : "transparent",
+                            borderRight: "1px solid var(--border-subtle)",
+                            background: today ? "var(--cobalt-dim)" : "transparent",
                           }}>
-                            <div style={{ fontSize: compactHeader ? 8 : 9, color: today ? "#60a5fa" : "rgba(148,163,184,0.7)", letterSpacing: "0.08em", fontWeight: 700, whiteSpace: "nowrap", lineHeight: 1.15 }}>
+                            <div style={{ fontSize: compactHeader ? 8 : 9, color: today ? "var(--cobalt)" : "var(--text-muted)", letterSpacing: "0.08em", fontWeight: 700, whiteSpace: "nowrap", lineHeight: 1.15 }}>
                               {format(day, "EEE", { locale: it }).toUpperCase()}
                             </div>
                             <div style={{
-                              fontSize: compactHeader ? 12 : 13, fontWeight: 700, color: today ? "#60a5fa" : "#e2e8f0",
+                              fontSize: compactHeader ? 12 : 13, fontWeight: 700, color: today ? "var(--cobalt)" : "var(--text-primary)",
                               textShadow: today ? "0 0 8px rgba(96,165,250,0.6)" : "none",
                               whiteSpace: "nowrap", lineHeight: 1.15,
                             }}>
@@ -1563,7 +1563,7 @@ export default function PianificazionePage() {
         <div style={{ display: "none",
           borderTop: "1px solid rgba(59,130,246,0.08)",
           padding: "0 16px 24px",
-          background: "linear-gradient(180deg, #060d1a 0%, #040a14 100%)",
+          background: "var(--surface-0)",
           maxHeight: 320, overflowY: "auto",
         }}>
           <StoricoPiani piani={storico} onRefresh={loadStorico} />

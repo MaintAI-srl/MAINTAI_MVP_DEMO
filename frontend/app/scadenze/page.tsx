@@ -93,13 +93,13 @@ function KpiTile({ label, value, detail, color, icon }: {
 }) {
   return (
     <div style={{
-      background: "linear-gradient(145deg, rgba(13,21,38,0.98), rgba(10,17,31,0.98))",
-      border: "1px solid rgba(91,143,255,0.14)",
+      background: "var(--surface-2)",
+      border: "1px solid var(--border-default)",
       borderLeft: `3px solid ${color}`,
       borderRadius: 8,
       padding: "14px 16px",
       minHeight: 92,
-      boxShadow: "0 0 0 1px rgba(91,143,255,0.04), 0 10px 28px rgba(0,0,0,0.28)",
+      boxShadow: "var(--shadow-card)",
       display: "flex",
       flexDirection: "column",
       justifyContent: "space-between",
@@ -228,10 +228,10 @@ export default function ScadenzePage() {
       </section>
 
       <section style={{
-        background: "linear-gradient(145deg, rgba(13,21,38,0.98), rgba(8,14,26,0.98))",
-        border: "1px solid rgba(91,143,255,0.14)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border-default)",
         borderRadius: 8,
-        boxShadow: "0 0 0 1px rgba(91,143,255,0.04), 0 16px 38px rgba(0,0,0,0.32)",
+        boxShadow: "var(--shadow-card)",
         overflow: "hidden",
       }}>
         <div style={{
@@ -256,8 +256,8 @@ export default function ScadenzePage() {
                     padding: "0 11px",
                     borderRadius: 6,
                     border: active ? "1px solid rgba(91,143,255,0.42)" : "1px solid var(--cobalt-dim)",
-                    background: active ? "rgba(91,143,255,0.14)" : "rgba(255,255,255,0.025)",
-                    color: active ? "#dbeafe" : "var(--text-secondary)",
+                    background: active ? "var(--cobalt-dim)" : "var(--surface-2)",
+                    color: active ? "var(--text-accent)" : "var(--text-secondary)",
                     cursor: "pointer",
                     fontSize: 12,
                     fontWeight: 750,
@@ -281,7 +281,7 @@ export default function ScadenzePage() {
                 padding: "0 11px 0 34px",
                 borderRadius: 7,
                 border: "1px solid rgba(91,143,255,0.18)",
-                background: "rgba(6,10,18,0.74)",
+                background: "var(--surface-1)",
                 color: "var(--text-primary)",
                 outline: "none",
                 fontSize: 12,
@@ -412,7 +412,7 @@ const thStyle: CSSProperties = {
   letterSpacing: "0.13em",
   textTransform: "uppercase",
   fontWeight: 850,
-  background: "rgba(6,10,18,0.72)",
+  background: "var(--surface-3)",
   borderBottom: "1px solid var(--cobalt-dim)",
   whiteSpace: "nowrap",
 };
