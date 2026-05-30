@@ -19,7 +19,7 @@ type AnalyticsData = {
 };
 
 type Props = {
-  asset: { id: number; nome: string; codice: string };
+  asset: { id: number; nome: string; codice?: string };
   onClose: () => void;
 };
 

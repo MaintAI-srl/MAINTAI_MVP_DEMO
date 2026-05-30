@@ -294,7 +294,8 @@ export function DataTable<TData>({
                   if (filterVariant === "date") {
                     return (
                       <th key={header.id} style={{ padding: "4px 6px" }} onClick={(e) => e.stopPropagation()}>
-                        <DateFilterCell column={header.column} />
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Column<TData,unknown> non è assegnabile a Column<unknown,any> senza cast */}
+                        <DateFilterCell column={header.column as Column<unknown, any>} />
                       </th>
                     );
                   }

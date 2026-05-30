@@ -21,9 +21,8 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   rectSortingStrategy,
-  type SyntheticListenerMap,
 } from "@dnd-kit/sortable";
-import type { DraggableAttributes } from "@dnd-kit/core";
+import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
@@ -298,8 +297,8 @@ function WidgetControls({
   listeners,
   children,
 }: {
-  attributes: DraggableAttributes;
-  listeners?: SyntheticListenerMap;
+  attributes: DraggableAttributes | Record<string, never>;
+  listeners?: DraggableSyntheticListeners;
   children: React.ReactNode;
 }) {
   return (
@@ -377,7 +376,7 @@ function SortableDashboardTile({
   widget: DashboardWidget;
   editing: boolean;
   expanded?: boolean;
-  children: (drag: { attributes: DraggableAttributes; listeners?: SyntheticListenerMap }) => React.ReactNode;
+  children: (drag: { attributes: DraggableAttributes; listeners?: DraggableSyntheticListeners }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const style: CSSProperties = {

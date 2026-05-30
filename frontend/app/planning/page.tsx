@@ -946,34 +946,6 @@ export default function PianificazionePage() {
     }
   }
 
-  // ── Genera piano AI ─────────────────────────────────────────────────────────
-  async function generateAIPlan() {
-    setGenerando(true);
-    try {
-      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
-        days: horizonDays,
-        mode: engineMode,
-        include_weekends: includeWeekends,
-        allow_overtime: allowOvertime,
-      });
-      const { previous_efficiency_score: prevScore, ...cleanRes } = res;
-      const newScore = res.plan_json?.efficiency_score;
-      if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
-        notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
-      } else {
-        notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
-      }
-      setPiano(cleanRes);
-      const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
-      setCurrentDate(planStart ? parseISO(planStart) : new Date());
-      await loadData(); // aggiorna il Gantt con i ticket ora pianificati
-    } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore generazione piano AI");
-    } finally {
-      setGenerando(false);
-    }
-  }
-
   // ── Conferma piano ──────────────────────────────────────────────────────────
   async function confirmPlan() {
     if (!piano) return;

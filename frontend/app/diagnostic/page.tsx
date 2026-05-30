@@ -538,7 +538,7 @@ function DiagnosticContent() {
   async function startSession() {
     setStatus("loading");
     try {
-      const data = await apiPost<{ session_id: string; step: Step }>(`/tickets/${ticketId}/diagnostic/start`, {});
+      const data = await apiPost<{ session_id: number; step: Step }>(`/tickets/${ticketId}/diagnostic/start`, {});
       setSessionId(data.session_id);
       setMessages([{ from: "ai", step: data.step, timestamp: new Date() }]);
       setStatus("active");
