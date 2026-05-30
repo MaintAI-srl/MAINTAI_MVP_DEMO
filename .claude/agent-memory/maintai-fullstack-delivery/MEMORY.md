@@ -6,3 +6,4 @@
 - [project_response_schema_strict.md](project_response_schema_strict.md) — RESPONSE_SCHEMA strict=True requires all new optional fields in required[] as anyOf with null
 - [project_utente_tecnico_link.md](project_utente_tecnico_link.md) — Pattern FK Utente↔Tecnico: joinedload, validazione unicità, endpoint /utenti per responsabile
 - [project_tauri_autoupdate.md](project_tauri_autoupdate.md) — Keypair minisign generata, tauri-plugin-updater configurato, endpoint /desktop/update implementato
+- [feedback_eslint_sec04.md](feedback_eslint_sec04.md) — eslint-disable placement, Next.js 16 removed ignoreDuringBuilds, @dnd-kit types, HTML entities in JSX
