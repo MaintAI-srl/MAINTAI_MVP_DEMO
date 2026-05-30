@@ -10,6 +10,7 @@ Il riferimento di sicurezza del progetto sono questi due documenti, da applicare
 
 - [`docs/SECURITY_GUIDELINES.md`](docs/SECURITY_GUIDELINES.md) — guida operativa completa (OWASP Top 10, API Security, file upload, AI/LLM, SSRF, secrets).
 - [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) — checklist rapida da usare prima di ogni PR/deploy.
+- [`docs/SECURITY_GUIDELINES_MAINTAI.md`](docs/SECURITY_GUIDELINES_MAINTAI.md) — addendum specifico MaintAI (multi-tenant, background job, serving file backend, endpoint pubblici QR, adattamento Python/FastAPI).
 
 **Regole d'uso:**
 - Prima di scrivere/modificare codice che tocca auth, query DB, input utente, upload, chiamate AI/esterne o config, consulta la sezione pertinente delle linee guida.

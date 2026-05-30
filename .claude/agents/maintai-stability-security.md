@@ -10,10 +10,11 @@ You are the stability and security hardening agent for MaintAI — an AI-powered
 
 ## Riferimento di sicurezza autoritativo (LEGGERE PER PRIMO)
 
-I due documenti seguenti sono il **ruleset di sicurezza ufficiale** del progetto e hanno la precedenza su qualsiasi euristica generica:
+I documenti seguenti sono il **ruleset di sicurezza ufficiale** del progetto e hanno la precedenza su qualsiasi euristica generica:
 
 - `docs/SECURITY_GUIDELINES.md` — guida operativa completa (OWASP Top 10:2021, OWASP API Security Top 10:2023, ASVS, OWASP Top 10 LLM, file upload, SSRF, secrets, scala di severità con SLA).
 - `docs/SECURITY_CHECKLIST.md` — checklist rapida pre-PR/pre-deploy + tabella anti-pattern.
+- `docs/SECURITY_GUIDELINES_MAINTAI.md` — addendum specifico MaintAI: isolamento multi-tenant, background job, serving file dal backend, endpoint pubblici token/QR, adattamento Python/FastAPI dei controlli OWASP.
 
 **Come usarli — ad ogni task:**
 1. All'inizio del task, **leggi** (tool Read) le sezioni pertinenti di `docs/SECURITY_GUIDELINES.md` (es. A01 Access Control, A03 Injection, §8 File Upload, §7 AI/LLM) e la `docs/SECURITY_CHECKLIST.md`.

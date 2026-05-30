@@ -124,7 +124,7 @@ I flag `ignoreBuildErrors`/`ignoreDuringBuilds` in `frontend/next.config.ts` res
 
 ## 6. Proposte di aggiunta ai criteri (da valutare)
 
-Le linee guida sono ottime ma scritte per **Next.js/Prisma/Auth.js**. Per coprire bene MaintAI (FastAPI/SQLAlchemy/JWT, multi-tenant, job in background, endpoint pubblici) propongo 5 aggiunte (motivate). Da confermare se vuoi che le aggiunga come addendum `docs/SECURITY_GUIDELINES_MAINTAI.md`.
+Le linee guida sono ottime ma scritte per **Next.js/Prisma/Auth.js**. Per coprire bene MaintAI (FastAPI/SQLAlchemy/JWT, multi-tenant, job in background, endpoint pubblici) sono state aggiunte 5 sezioni (motivate) nell'addendum [`docs/SECURITY_GUIDELINES_MAINTAI.md`](SECURITY_GUIDELINES_MAINTAI.md), referenziato da `CLAUDE.md` e dall'agente `maintai-stability-security`:
 
 1. **Sezione "Isolamento multi-tenant" dedicata.** *Perché:* è il rischio #1 di un SaaS multi-tenant ma nelle guide è solo un sotto-caso di IDOR. Regole: ogni query filtra `tenant_id`; `check_tenant_ownership`→404; `X-Tenant-Id` solo per superadmin in route designate; attenzione esplicita al caso `tenant_id=None` (superadmin) che bypassa i filtri.
 2. **Sicurezza dei background worker / job schedulati.** *Perché:* le guide assumono il ciclo request/response; MaintAI ha IMAP poller, retention e auto-ticket job non coperti. Regole: filtrare per tenant attivo, backoff sugli errori senza crash, no segreti nei log, limiti su dimensione email/allegati.
