@@ -14,7 +14,7 @@
 
 Posture di sicurezza **buona e in netto miglioramento**. Dopo la remediation di oggi, **14 finding su 19 sono risolti nel codice** (suite test backend: **83/83 verde**). Restano:
 - **1 critico parziale** — SEC-01: il segreto di produzione è stato rimosso dal tracking e protetto da `.gitignore` + CI di secret-scanning, **ma la rotazione della password e la riscrittura della history git restano azioni manuali dell'utente**.
-- **2 aperti/deferiti** — SEC-04 (errori TS preesistenti che impediscono di attivare i controlli di build) e SEC-16 (versioni disallineate).
+- **SEC-04** parzialmente risolto: gate TypeScript ora attivo (12 errori TS corretti, `npm run build` verde); resta da ripulire il backlog ESLint (~116) per attivare anche quel gate. **SEC-16** (versioni) ancora aperto.
 - **2 accettati con motivazione** — SEC-13 (masking nomi via NER) e SEC-15 (doppio mount `/v1`).
 
 ### Distribuzione finding
@@ -23,7 +23,7 @@ Posture di sicurezza **buona e in netto miglioramento**. Dopo la remediation di 
 |---|---|---|---|---|---|
 | Critica | 1 | — | 1 (SEC-01) | — | — |
 | Alta | 1 | 1 | — | — | — |
-| Media | 9 | 8 | — | 1 (SEC-04) | — |
+| Media | 9 | 8 | 1 (SEC-04) | — | — |
 | Bassa | 8 | 5 | — | 1 (SEC-16) | 2 (SEC-13, SEC-15) |
 | **Totale** | **19** | **14** | **1** | **2** | **2** |
 
@@ -39,7 +39,7 @@ Posture di sicurezza **buona e in netto miglioramento**. Dopo la remediation di 
 | SEC-01 | 🔴 Critica | Segreto DB di produzione nel repo (`.claude/settings.local.json`) | 🟡 Parziale |
 | SEC-02 | 🟠 Alta | Stored XSS download documenti (content-type client, no nosniff) | ✅ Risolto |
 | SEC-03 | 🟡 Media | Security header HTTP assenti (frontend + API) | ✅ Risolto |
-| SEC-04 | 🟡 Media | `ignoreBuildErrors`/`ignoreDuringBuilds` = true | ⏳ Deferito |
+| SEC-04 | 🟡 Media | `ignoreBuildErrors`/`ignoreDuringBuilds` = true | 🟡 Parziale — gate TS attivo, ESLint rimandato |
 | SEC-05 | 🟡 Media | CORS con localhost/IP privati anche in prod | ✅ Risolto |
 | SEC-06 | 🟡 Media | Validità JWT 7 giorni | ✅ Risolto (24h) |
 | SEC-07 | 🟡 Media | `COOKIE_SECURE` default false | ✅ Risolto |
@@ -112,13 +112,16 @@ Fatto in automatico: `git rm --cached .claude/settings.local.json` + `.gitignore
 
 ---
 
-## 5. SEC-04 — errori TS da correggere prima di attivare i controlli di build
+## 5. SEC-04 — gate TypeScript attivato (ESLint rimandato)
 
-I flag `ignoreBuildErrors`/`ignoreDuringBuilds` in `frontend/next.config.ts` restano `true`: girarli ora **rompe il build di produzione** (verificato con `tsc --noEmit`: 12 errori, tutti preesistenti). Lista:
-- `app/planning/page.tsx`: *Duplicate function* (862, 944); `SetStateAction<TicketData[]>` mismatch (1127, 1129); proprietà mancanti su `EfficiencyBreakdown` (`rispetto_priorita`, `riduzione_spostamenti`, `matching_competenze`, 1269) e su `TicketData` (`sito_name`, `impianto_name`, 1640/1644).
-- `next.config.ts`: TS2353 su `eslint` (cosmetico, non blocca `next build`).
+**Fatto (2026-05-30):** i 12 errori TS preesistenti sono stati corretti e il gate TypeScript è ora **attivo** (`typescript.ignoreBuildErrors: false`). `tsc --noEmit` = 0 errori, `npm run build` verde.
 
-→ Task dedicato consigliato (codice feature planning, rischio regressione). Dopo la correzione: impostare entrambi i flag a `false`.
+Correzioni applicate:
+- `app/planning/types.ts`: aggiunti i campi che il backend già invia — `TicketData.sito_name`/`impianto_name` e `EfficiencyBreakdown.rispetto_priorita`/`riduzione_spostamenti`/`matching_competenze` (opzionali, additivi).
+- `app/planning/page.tsx`: rimossa la `generateAIPlan` **duplicata** (codice morto sovrascritto da JS — nessun cambio di comportamento) e lo stato `generandoStatus` inutilizzato; `tecnico_id: dropTarget.tecnico_id ?? null` nel drag-drop ottimistico (mismatch `SetStateAction`).
+- `next.config.ts`: refactor con `as NextConfig` (risolve il TS2353 su `eslint`, quirk di tipizzazione).
+
+**Rimandato:** il gate **ESLint** resta non bloccante (`eslint.ignoreDuringBuilds: true`) perché `npm run lint` riporta **~116 errori lint preesistenti** in tutto il frontend (`@typescript-eslint/no-explicit-any`, `react-hooks/*`, `prefer-const`, ...). Da ripulire in un task dedicato, poi mettere anche questo flag a `false`.
 
 ---
 
@@ -142,7 +145,7 @@ Le linee guida sono ottime ma scritte per **Next.js/Prisma/Auth.js**. Per coprir
 | A02 Crypto (no secret hardcoded, bcrypt) | ⚠️ Codice ok — **SEC-01 history da scrubbare** |
 | A03 Injection / XSS | ✅ Stored XSS upload risolto (SEC-02/14) |
 | A04 Insecure Design (token, rate limit) | ✅ Rate-limit completato (SEC-08/09) |
-| A05 Misconfiguration (header, CORS) | ✅ Header + CORS risolti; ⏳ build flags (SEC-04) |
+| A05 Misconfiguration (header, CORS) | ✅ Header + CORS risolti; gate TS attivo, ESLint rimandato (SEC-04) |
 | A06/A08 Dipendenze | ✅ Pinnate + CI audit aggiunta |
 | A07 Authentication (revoca, cookie, durata) | ✅ Buono (SEC-06/07 risolti) |
 | A09 Logging | ✅ Buono (SEC-11/17 risolti) |
@@ -156,7 +159,7 @@ Le linee guida sono ottime ma scritte per **Next.js/Prisma/Auth.js**. Per coprir
 ## 8. Cosa resta da fare (priorità)
 
 1. **SEC-01** (Critico): ruotare password Supabase + scrub history (§4).
-2. **SEC-04** (Media): correggere i 12 errori TS, poi attivare i controlli di build (§5).
+2. **SEC-04** (Media): gate TypeScript ATTIVO; resta da ripulire ~116 errori ESLint per attivare anche quel gate (§5).
 3. **SEC-16** (Bassa): definire una sola fonte di verità per la versione.
 4. Valutare le **aggiunte ai criteri** (§6).
 

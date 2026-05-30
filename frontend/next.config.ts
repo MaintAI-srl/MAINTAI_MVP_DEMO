@@ -41,7 +41,7 @@ const securityHeaders = [
   { key: "Content-Security-Policy", value: cspDirectives },
 ];
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_DATE: deployVersion.buildDate || new Date().toISOString().split("T")[0],
     NEXT_PUBLIC_VERSION: packageJson.version,
@@ -50,27 +50,26 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_DESKTOP: isDesktop ? "true" : "false",
   },
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
+    // SEC-04: ESLint lasciato NON bloccante nel build — restano ~116 errori lint preesistenti
+    // in tutto il frontend, da ripulire in un task separato. Il gate TypeScript (sotto) è invece ATTIVO.
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
-    ignoreBuildErrors: true,
+    // SEC-04: controlli TypeScript attivi nel build di produzione
+    ignoreBuildErrors: false,
   },
-  ...(!isDesktop && {
-    async headers() {
-      return [{ source: "/(.*)", headers: securityHeaders }];
-    },
-  }),
-  ...(isDesktop && {
-    output: "export",
-    trailingSlash: true,
-    images: { unoptimized: true },
-  }),
-};
+} as NextConfig;
+
+if (!isDesktop) {
+  // SEC-03 — security header (solo build web; non supportati con output: export)
+  nextConfig.headers = async () => [{ source: "/(.*)", headers: securityHeaders }];
+}
+
+if (isDesktop) {
+  // Static export per packaging Tauri
+  nextConfig.output = "export";
+  nextConfig.trailingSlash = true;
+  nextConfig.images = { unoptimized: true };
+}
 
 export default nextConfig;

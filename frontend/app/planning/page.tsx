@@ -856,52 +856,6 @@ export default function PianificazionePage() {
     } catch { /* silenzioso */ }
   }, []);
 
-  // ── Genera piano AI ─────────────────────────────────────────────────────
-  const [generandoStatus, setGenerandoStatus] = useState("Elaborazione...");
-
-  async function generateAIPlan() {
-    setGenerando(true);
-    setGenerandoStatus("Avvio backend...");
-    try {
-      // Warm-up ping: sveglia il server Render prima di fare la chiamata pesante
-      try {
-        await apiGet<unknown>("/health", { signal: AbortSignal.timeout(5000) } as any);
-        setGenerandoStatus("Analisi contesto...");
-      } catch {
-        setGenerandoStatus("Connessione backend...");
-      }
-
-      setGenerandoStatus("Felix sta pianificando...");
-      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
-        days: horizonDays,
-        mode: engineMode,
-        include_weekends: includeWeekends,
-        allow_overtime: allowOvertime,
-      });
-      const { previous_efficiency_score: prevScore, ...cleanRes } = res;
-      const newScore = res.plan_json?.efficiency_score;
-      if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
-        notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
-      } else {
-        notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
-      }
-      setPiano(cleanRes);
-      const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
-      setCurrentDate(planStart ? parseISO(planStart) : new Date());
-      await loadData(); // aggiorna il Gantt con i ticket ora pianificati
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Errore generazione piano AI";
-      if (msg.includes("troppo tempo")) {
-        notify.error("Il server OpenAI ha impiegato troppo. Riprova — il backend è ora sveglio e sarà più veloce.");
-      } else {
-        notify.error(msg);
-      }
-    } finally {
-      setGenerando(false);
-      setGenerandoStatus("Elaborazione...");
-    }
-  }
-
   const loadData = useCallback(async (background = false) => {
     if (!background) setLoading(true);
     try {
@@ -1121,12 +1075,12 @@ export default function PianificazionePage() {
        // Optimistic update for confirmed/db
        const newStartIso = `${dropTarget.date}T${newStartStr}:00`;
        const newEndIso = `${dropTarget.date}T${newEndStr}:00`;
-       const updateTicketList = (list: TicketData[]) => list.map(t => t.id === droppedTicket.id ? { ...t, tecnico_id: dropTarget.tecnico_id, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" } : t);
+       const updateTicketList = (list: TicketData[]) => list.map(t => t.id === droppedTicket.id ? { ...t, tecnico_id: dropTarget.tecnico_id ?? null, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" } : t);
        
        if (droppedTicket.planned_start) {
          setScheduledTickets(prev => updateTicketList(prev));
        } else {
-         setScheduledTickets(prev => [...prev, { ...droppedTicket, tecnico_id: dropTarget.tecnico_id, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" }]);
+         setScheduledTickets(prev => [...prev, { ...droppedTicket, tecnico_id: dropTarget.tecnico_id ?? null, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" }]);
          setUnscheduledTickets(prev => prev.filter(t => t.id !== droppedTicket.id));
        }
     }

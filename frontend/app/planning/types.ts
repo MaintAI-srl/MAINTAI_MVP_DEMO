@@ -5,6 +5,8 @@ export interface TicketData {
   titolo: string;
   asset_id: number;
   asset_name: string | null;
+  sito_name?: string | null;
+  impianto_name?: string | null;
   tipo: string;           // "CM" | "PM" | "BD"
   priorita: string;
   stato: string;
@@ -84,6 +86,10 @@ export interface EfficiencyBreakdown {
   bilanciamento_70_30: number;
   match_skill: number;
   ottimizzazione_meteo: number;
+  // Chiavi alternative emesse da alcune versioni/motori del planner (tooltip score)
+  rispetto_priorita?: number;
+  riduzione_spostamenti?: number;
+  matching_competenze?: number;
 }
 
 export interface EfficiencyMotivation {
