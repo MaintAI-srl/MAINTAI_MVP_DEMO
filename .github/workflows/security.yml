@@ -1,0 +1,54 @@
+name: security
+
+# CI di sicurezza minima (SECURITY_GUIDELINES.md §9 Supply Chain, §10 SAST).
+# - secret scanning (previene la ricaduta di segreti committati, vedi SEC-01)
+# - audit dipendenze backend (pip-audit) e frontend (npm audit)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NB: per repository di un'ORGANIZZAZIONE gitleaks-action richiede una licenza gratuita.
+          # Decommentare se necessario:
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  backend-deps:
+    name: Backend deps audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit backend/requirements.txt
+        run: pip-audit -r backend/requirements.txt
+
+  frontend-deps:
+    name: Frontend deps audit (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm audit (high+)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high

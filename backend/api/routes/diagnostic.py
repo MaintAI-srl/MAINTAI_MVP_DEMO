@@ -171,9 +171,11 @@ def start_session(
 
 
 @router.post("/tickets/{ticket_id}/diagnostic/{session_id}/reply")
+@limiter.limit("15/minute")
 def reply_to_session(
     ticket_id: int,
     session_id: int,
+    request: Request,
     payload: DiagnosticReply,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.logger_db import db_info, db_error
+from backend.core.file_validation import validate_magic, safe_serving, sanitize_filename_header
 from backend.db.modelli import Asset, AssetDocumento
 
 router = APIRouter()
@@ -119,6 +120,12 @@ async def upload_documento(
             detail=f"File troppo grande: massimo {MAX_DOC_BYTES // (1024 * 1024)} MB.",
         )
 
+    # Validazione magic bytes: il contenuto reale deve corrispondere all'estensione (anti file "travestiti")
+    try:
+        validate_magic(content, file.filename, ALLOWED_EXTENSIONS)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     doc = AssetDocumento(
         tenant_id=tenant_id,
         asset_id=asset_id,
@@ -155,9 +162,15 @@ def scarica_documento(
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     doc = _get_doc_or_404(db, asset_id, doc_id, tenant_id)
-    ct = doc.content_type or "application/octet-stream"
-    headers = {"Content-Disposition": f'inline; filename="{doc.filename}"'}
-    return Response(content=doc.file_data, media_type=ct, headers=headers)
+    # Serving sicuro: content-type da whitelist (il valore del client viene ignorato),
+    # immagini inline, tutto il resto forzato a download, sempre con nosniff (anti stored XSS).
+    media_type, disposition = safe_serving(doc.filename, doc.content_type)
+    safe_name = sanitize_filename_header(doc.filename)
+    headers = {
+        "Content-Disposition": f'{disposition}; filename="{safe_name}"',
+        "X-Content-Type-Options": "nosniff",
+    }
+    return Response(content=doc.file_data, media_type=media_type, headers=headers)
 
 
 @router.delete("/assets/{asset_id}/documenti/{doc_id}", status_code=204)

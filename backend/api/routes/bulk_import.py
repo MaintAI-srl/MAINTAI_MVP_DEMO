@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/bulk-import", tags=["bulk-import"])
 
+MAX_IMPORT_BYTES = 10 * 1024 * 1024  # 10 MB — limite upload Excel (anti memory-exhaustion)
+
 # ── Definizione colonne per foglio ────────────────────────────────────────────
 
 # (nome_colonna, obbligatoria, descrizione, esempio)
@@ -384,6 +386,8 @@ async def preview_import(
         raise HTTPException(400, "Il file deve essere in formato .xlsx")
 
     content = await file.read()
+    if len(content) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB.")
     try:
         wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
     except Exception as e:
@@ -484,6 +488,8 @@ async def execute_import(
         raise HTTPException(400, "Il file deve essere in formato .xlsx")
 
     content = await file.read()
+    if len(content) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB.")
     try:
         wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
     except Exception as e:

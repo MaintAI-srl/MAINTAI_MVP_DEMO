@@ -62,6 +62,10 @@ def create_tenant(data: TenantCreate, db: Session = Depends(get_db), _: dict = D
     if existing_user:
         raise HTTPException(status_code=409, detail=f"Username '{data.admin_username}' già in uso")
 
+    # Policy password coerente con gli altri endpoint (non solo min_length)
+    if not STRONG_PWD_REGEX.match(data.admin_password):
+        raise HTTPException(status_code=422, detail="La password admin deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali.")
+
     # Crea tenant e admin in un'unica transazione atomica
     tenant = Tenant(nome=data.nome, slug=data.slug, is_active=True)
     db.add(tenant)

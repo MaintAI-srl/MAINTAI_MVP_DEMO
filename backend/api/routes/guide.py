@@ -2,11 +2,12 @@ import os
 from typing import Any
 
 import openai
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from backend.core.logger_db import db_info
 from backend.core.security import get_current_user_payload
+from backend.core.rate_limiter import limiter
 
 router = APIRouter(prefix="/guide", tags=["guide"])
 
@@ -194,7 +195,9 @@ def _fallback_answer(req: GuideRequest) -> str:
 
 
 @router.post("/chat")
+@limiter.limit("15/minute")
 async def guide_chat(
+    request: Request,
     req: GuideRequest,
     payload: dict = Depends(get_current_user_payload),
 ):

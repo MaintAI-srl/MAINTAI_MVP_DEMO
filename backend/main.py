@@ -51,6 +51,7 @@ try:
     from backend.api.routes.emergency import router as emergency_router
     from backend.api.routes.asset_documenti import router as asset_documenti_router
     from backend.core.config import init_backend
+    from backend.core.security import IS_PRODUCTION
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
     from backend.core.init_db import init_db
     from backend.core.logging_config import setup_logging
@@ -86,14 +87,8 @@ async def email_poller_task():
         await asyncio.sleep(_POLL_INTERVAL)
 
 
-_DEFAULT_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-    "http://192.168.1.222:3000",
-    "http://192.168.1.222:3001",
-    # produzione web
+# Origin sempre ammessi (produzione web + desktop Tauri)
+_PROD_ORIGINS = [
     "https://maintai.vercel.app",
     "https://maintai-frontend.vercel.app",
     "https://maintaiv3.vercel.app",
@@ -105,13 +100,36 @@ _DEFAULT_ORIGINS = [
     "https://tauri.localhost",
 ]
 
+# Origin di sviluppo locale — NON aggiunti in produzione (niente localhost/IP privati in allowlist)
+_DEV_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://192.168.1.222:3000",
+    "http://192.168.1.222:3001",
+]
+
+_PRIVATE_ORIGIN_HINTS = ("localhost", "127.0.0.1", "192.168.", "10.", "172.16.", "0.0.0.0")
+
 
 def _load_origins() -> list[str]:
-    """Legge CORS_ORIGINS dal .env (comma-separated), aggiunge sempre gli origin di produzione."""
+    """Legge CORS_ORIGINS dal .env (comma-separated). Aggiunge sempre gli origin di
+    produzione; quelli di sviluppo solo fuori dalla produzione. In produzione avvisa
+    se CORS_ORIGINS contiene esplicitamente origin locali/privati."""
     raw = os.getenv("CORS_ORIGINS", "")
     origins = [o.strip() for o in raw.split(",") if o.strip()] if raw.strip() else []
-    # Merge con i default (produzione inclusa) senza duplicati
-    for o in _DEFAULT_ORIGINS:
+
+    if IS_PRODUCTION:
+        bad = [o for o in origins if any(h in o for h in _PRIVATE_ORIGIN_HINTS)]
+        if bad:
+            import logging
+            logging.getLogger(__name__).warning(
+                "CORS in produzione: rimuovere gli origin locali/privati da CORS_ORIGINS: %s", bad
+            )
+
+    defaults = _PROD_ORIGINS if IS_PRODUCTION else (_PROD_ORIGINS + _DEV_ORIGINS)
+    for o in defaults:
         if o not in origins:
             origins.append(o)
     return origins
@@ -764,6 +782,22 @@ async def csrf_origin_check(request: Request, call_next):
             )
             
     return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Header di sicurezza su tutte le risposte API (difesa in profondità).
+    NB: niente X-Frame-Options qui — i file serviti dall'API possono essere mostrati
+    in iframe dal frontend; il clickjacking dell'app UI è coperto dagli header del frontend."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if IS_PRODUCTION:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+        )
+    return response
 
 
 # ── Routers legacy (senza prefisso) — mantenuti per retrocompatibilità frontend ──

@@ -4,6 +4,37 @@ Guida per Claude Code su questo repository. Aggiornato alla versione **3.2.1** (
 
 ---
 
+## ⚠️ Sicurezza — linee guida obbligatorie (leggere PRIMA di ogni modifica)
+
+Il riferimento di sicurezza del progetto sono questi due documenti, da applicare **sempre** come base per ogni modifica:
+
+- [`docs/SECURITY_GUIDELINES.md`](docs/SECURITY_GUIDELINES.md) — guida operativa completa (OWASP Top 10, API Security, file upload, AI/LLM, SSRF, secrets).
+- [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) — checklist rapida da usare prima di ogni PR/deploy.
+
+**Regole d'uso:**
+- Prima di scrivere/modificare codice che tocca auth, query DB, input utente, upload, chiamate AI/esterne o config, consulta la sezione pertinente delle linee guida.
+- Prima di ogni PR esegui la checklist di `docs/SECURITY_CHECKLIST.md`.
+- Classifica ogni vulnerabilità trovata con la scala Critica/Alta/Media/Bassa definita nelle linee guida.
+
+**Mappatura stack** (le guide sono scritte per Next.js/Prisma/Auth.js — qui lo stack è FastAPI/SQLAlchemy/JWT; i principi OWASP restano identici):
+
+| Concetto nella guida | Equivalente in MaintAI |
+|---|---|
+| Auth.js / `auth()` | JWT in `backend/core/security.py` (`get_current_user_payload`, `require_superadmin`) |
+| RBAC `requireRole()` | `require_superadmin` / check `payload["ruolo"]` + `get_current_tenant_id` |
+| Prisma `findFirst({ id, tenantId })` | query SQLAlchemy con `.filter(Model.tenant_id == tenant_id)` + `check_tenant_ownership()` |
+| Validazione con Zod | schema **Pydantic** (`backend/schemas/`) con `Field(min_length/max_length/...)` |
+| Route Handler / Server Action | router FastAPI (`backend/api/routes/*`) con `Depends(...)` |
+| `NEXT_PUBLIC_*` | env `NEXT_PUBLIC_*` nel frontend Next.js (stesso rischio: bundle client) |
+| `next.config.js` security headers | header su risposte FastAPI **e** `frontend/next.config.ts` |
+| Rate limiting `@upstash/ratelimit` | `slowapi` via `backend/core/rate_limiter.py` (`@limiter.limit(...)`) |
+| Storage privato + signed URL | `backend/core/storage.py` (Supabase) — preferire bucket privato |
+| Cifratura at-rest | `encrypt_data`/`decrypt_data` (Fernet) in `security.py` |
+
+L'audit di sicurezza più recente è in `docs/SECURITY_AUDIT_2026-05-30.md`.
+
+---
+
 ## Panoramica del progetto
 
 MaintAI è un sistema di gestione manutenzione industriale AI-powered per impianti manifatturieri, energetici e portuali. L'intera UI è in **italiano**.

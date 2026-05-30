@@ -4,9 +4,31 @@ from backend.core.dependencies import get_db
 from backend.db.modelli import SystemLog
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from typing import Optional, List
 import os
 
 router = APIRouter()
+
+
+class SystemLogOut(BaseModel):
+    """Schema esplicito per i log di sistema — evita di serializzare l'intero oggetto ORM."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    timestamp: Optional[datetime] = None
+    level: Optional[str] = None
+    module: Optional[str] = None
+    message: Optional[str] = None
+    extra_info: Optional[str] = None
+    tenant_id: Optional[int] = None
+
+
+class SystemLogsPage(BaseModel):
+    total: int
+    page: int
+    pages: int
+    logs: List[SystemLogOut]
 
 LOG_DIR = os.path.join(os.getcwd(), "logs")
 LOG_FILE = os.path.join(LOG_DIR, "maintai.log")
@@ -43,7 +65,7 @@ def clear_logs(_payload: dict = Depends(require_superadmin)):
     return {"status": "error", "message": "File di log non trovato."}
 
 
-@router.get("/system-logs")
+@router.get("/system-logs", response_model=SystemLogsPage)
 def get_system_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),

@@ -390,7 +390,7 @@ def patch_ticket(
     payload: dict = Depends(get_current_user_payload),
 ):
     """PATCH parziale per singolo ticket (usato da Kanban e aggiornamenti veloci)."""
-    ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
+    ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id, include_deleted=True)
     if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 
@@ -431,7 +431,7 @@ def update_ticket(
     tenant_id: int = Depends(get_current_tenant_id),
     payload: dict = Depends(get_current_user_payload),
 ):
-    ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id)
+    ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id, include_deleted=True)
     if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
 

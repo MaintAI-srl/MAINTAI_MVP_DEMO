@@ -109,10 +109,14 @@ class TicketRepository:
             "pages": max(1, math.ceil(total / limit)),
         }
 
-    def get_by_id(self, db: Session, ticket_id: int, tenant_id: int | None = None):
+    def get_by_id(self, db: Session, ticket_id: int, tenant_id: int | None = None, include_deleted: bool = False):
         query = db.query(Ticket).options(joinedload(Ticket.asset).joinedload(Asset.impianto).joinedload(Impianto.sito)).filter(Ticket.id == ticket_id)
         if tenant_id is not None:
             query = query.filter(Ticket.tenant_id == tenant_id)
+        # I ticket soft-deleted non sono recuperabili in lettura; resta possibile passarli
+        # esplicitamente (include_deleted=True) per i flussi di ripristino/modifica.
+        if not include_deleted:
+            query = query.filter(Ticket.deleted_at.is_(None))
         return query.first()
 
     def create(self, db: Session, data: TicketCreate, tenant_id: int):
