@@ -42,6 +42,10 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  experimental: {
+    // Abilita certificati TLS di sistema per Turbopack (necessario in ambienti sandboxed)
+    turbopackUseSystemTlsCerts: true,
+  },
   env: {
     NEXT_PUBLIC_BUILD_DATE: deployVersion.buildDate || new Date().toISOString().split("T")[0],
     NEXT_PUBLIC_VERSION: packageJson.version,
@@ -49,11 +53,8 @@ const nextConfig = {
     NEXT_PUBLIC_DEPLOY_BUILD_DATE: deployVersion.buildDate || new Date().toISOString(),
     NEXT_PUBLIC_DESKTOP: isDesktop ? "true" : "false",
   },
-  eslint: {
-    // SEC-04: ESLint lasciato NON bloccante nel build — restano ~116 errori lint preesistenti
-    // in tutto il frontend, da ripulire in un task separato. Il gate TypeScript (sotto) è invece ATTIVO.
-    ignoreDuringBuilds: true,
-  },
+  // SEC-04: eslint.ignoreDuringBuilds rimosso (opzione non più supportata in Next.js 16)
+  // Il gate ESLint è ora enforced via `npm run lint` (0 errori).
   typescript: {
     // SEC-04: controlli TypeScript attivi nel build di produzione
     ignoreBuildErrors: false,

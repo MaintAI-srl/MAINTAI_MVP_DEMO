@@ -21,7 +21,9 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   rectSortingStrategy,
+  type SyntheticListenerMap,
 } from "@dnd-kit/sortable";
+import type { DraggableAttributes } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
@@ -296,8 +298,8 @@ function WidgetControls({
   listeners,
   children,
 }: {
-  attributes: any;
-  listeners?: any;
+  attributes: DraggableAttributes;
+  listeners?: SyntheticListenerMap;
   children: React.ReactNode;
 }) {
   return (
@@ -375,7 +377,7 @@ function SortableDashboardTile({
   widget: DashboardWidget;
   editing: boolean;
   expanded?: boolean;
-  children: (drag: { attributes: any; listeners?: any }) => React.ReactNode;
+  children: (drag: { attributes: DraggableAttributes; listeners?: SyntheticListenerMap }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const style: CSSProperties = {
@@ -712,7 +714,7 @@ export default function DashboardPage() {
         ...(assetColumnFilters.area && { asset_area: assetColumnFilters.area }),
         ...(assetColumnFilters.stato && { asset_stato: assetColumnFilters.stato }),
       });
-      setKpiAsset(await apiGet<any>(`/dashboard/kpi-asset?${q.toString()}`));
+      setKpiAsset(await apiGet<KpiAsset & { total: number; page: number; pages: number }>(`/dashboard/kpi-asset?${q.toString()}`));
     } catch { notify.error("Errore caricamento KPI asset."); }
   }
 

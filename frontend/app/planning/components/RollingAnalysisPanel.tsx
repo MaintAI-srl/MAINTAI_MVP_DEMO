@@ -186,7 +186,7 @@ export default function RollingAnalysisPanel() {
           color: "#374151",
           fontSize: 13,
         }}>
-          Clicca "Avvia Analisi" per valutare readiness, freeze zones e priorità di tutti i ticket
+          Clicca &quot;Avvia Analisi&quot; per valutare readiness, freeze zones e priorità di tutti i ticket
         </div>
       )}
 

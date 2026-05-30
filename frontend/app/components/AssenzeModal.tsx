@@ -70,8 +70,8 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("maintai:data-changed"));
       }
-    } catch (err: any) {
-      alert(err.message || "Errore");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Errore");
     }
   }
 

@@ -220,7 +220,7 @@ function TecnicoLabel({ tecnico }: { tecnico: TecnicoData }) {
           {tecnico.nome} {tecnico.cognome ?? ""}
         </div>
         <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
-          {(tecnico as any).skill ?? tecnico.competenze ?? ""}
+          {tecnico.skill ?? tecnico.competenze ?? ""}
         </div>
       </div>
     </div>

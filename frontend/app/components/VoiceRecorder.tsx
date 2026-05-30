@@ -23,17 +23,38 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
     const hasSpeechRecognition =
       typeof window !== "undefined" &&
       ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+    // TODO(sec-04): revisione umana - init one-shot da feature detection browser, accettato
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- rileva feature browser all'mount; non triggera cascata
     setSupported(hasSpeechRecognition);
   }, []);
+
+  // Tipi minimal per Web Speech API (non inclusa nei lib TypeScript standard)
+  type SpeechRecognitionInstance = {
+    lang: string;
+    continuous: boolean;
+    interimResults: boolean;
+    maxAlternatives: number;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+    onerror: ((event: { error: string }) => void) | null;
+    onend: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+  };
+  type SpeechRecognitionResult = { isFinal: boolean; 0: { transcript: string } };
+  type SpeechRecognitionEvent = { resultIndex: number; results: SpeechRecognitionResult[] & { length: number } };
+  type WindowWithSpeech = Window & {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+    __maintaiRecognition?: SpeechRecognitionInstance;
+  };
 
   const startRecording = async () => {
     setError("");
     setElapsed(0);
 
     // Usa Web Speech API (nativa, no server) se disponibile — meglio per mobile
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+    const win = window as WindowWithSpeech;
+    const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
 
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
@@ -44,7 +65,7 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
 
       let fullText = "";
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
             fullText += event.results[i][0].transcript + " ";
@@ -52,7 +73,7 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
         }
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: { error: string }) => {
         setError(`Errore riconoscimento: ${event.error}`);
         setState("idle");
         if (timerRef.current) clearInterval(timerRef.current);
@@ -66,7 +87,7 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
         }
       };
 
-      (window as any).__maintaiRecognition = recognition;
+      win.__maintaiRecognition = recognition;
       recognition.start();
       setState("recording");
 
@@ -80,10 +101,11 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
   };
 
   const stopRecording = () => {
-    const recognition = (window as any).__maintaiRecognition;
+    const win = window as WindowWithSpeech;
+    const recognition = win.__maintaiRecognition;
     if (recognition) {
       recognition.stop();
-      delete (window as any).__maintaiRecognition;
+      delete win.__maintaiRecognition;
     }
     if (timerRef.current) clearInterval(timerRef.current);
     setState("idle");
@@ -91,7 +113,8 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
 
   useEffect(() => {
     return () => {
-      const recognition = (window as any).__maintaiRecognition;
+      const win = window as WindowWithSpeech;
+      const recognition = win.__maintaiRecognition;
       if (recognition) recognition.stop();
       if (timerRef.current) clearInterval(timerRef.current);
     };

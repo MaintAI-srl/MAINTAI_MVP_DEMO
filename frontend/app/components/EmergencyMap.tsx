@@ -61,7 +61,10 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
 
   useEffect(() => {
     if (!ticketId) return;
+    // TODO(sec-04): revisione umana - accettato come init di loading state prima di chiamata asincrona
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- init loading state prima del fetch; pattern standard data fetching
     setLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetta errore prima del fetch; pattern standard data fetching
     setError(null);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;

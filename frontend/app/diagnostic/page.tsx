@@ -395,7 +395,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    apiGet<any>("/tickets?limit=200&stato=Aperto,Pianificato,In corso")
+    apiGet<{ items?: TicketOption[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In corso")
       .then(d => setTickets(d.items ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -538,7 +538,7 @@ function DiagnosticContent() {
   async function startSession() {
     setStatus("loading");
     try {
-      const data = await apiPost<any>(`/tickets/${ticketId}/diagnostic/start`, {});
+      const data = await apiPost<{ session_id: string; step: Step }>(`/tickets/${ticketId}/diagnostic/start`, {});
       setSessionId(data.session_id);
       setMessages([{ from: "ai", step: data.step, timestamp: new Date() }]);
       setStatus("active");
@@ -554,7 +554,7 @@ function DiagnosticContent() {
     setSending(true);
     setMessages(prev => [...prev, { from: "user", text: userText, timestamp: new Date() }]);
     try {
-      const data = await apiPost<any>(`/tickets/${ticketId}/diagnostic/${sessionId}/reply`, { reply: userText });
+      const data = await apiPost<{ step: Step; status?: string }>(`/tickets/${ticketId}/diagnostic/${sessionId}/reply`, { reply: userText });
       setMessages(prev => [...prev, { from: "ai", step: data.step, timestamp: new Date() }]);
       if (data.status === "concluded") setStatus("concluded");
     } catch {

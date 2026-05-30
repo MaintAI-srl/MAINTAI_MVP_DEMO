@@ -678,12 +678,12 @@ function DrawerTask({
           )}
           {form.generation_mode === "manual" && (
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              I ticket vengono generati solo manualmente premendo "Genera Ticket".
+              I ticket vengono generati solo manualmente premendo &quot;Genera Ticket&quot;.
             </div>
           )}
           {form.generation_mode === "disabled" && (
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              La generazione ticket e' disabilitata per questa attivita'.
+              La generazione ticket è disabilitata per questa attività.
             </div>
           )}
         </div>
@@ -892,7 +892,7 @@ export default function PianiPage() {
                       ✎
                     </button>
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>
                     {p.descrizione || "Nessuna specifica tecnica aggiuntiva."}
                   </p>
                   <div style={{ display: "flex", gap: 12 }}>
@@ -978,7 +978,7 @@ export default function PianiPage() {
                 ].map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id as "tasks" | "manuali" | "history")}
                     className={activeTab === tab.id ? "active" : ""}
                   >
                     {tab.label}

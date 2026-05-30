@@ -53,8 +53,8 @@ export default function GlobalQuickTicket() {
       setPriorita("Media");
       setTipo("BD");
       setAssetStato("out of service");
-    } catch (err: any) {
-      notify.error(err.message || "Errore nella creazione");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore nella creazione");
     } finally {
       setLoading(false);
     }
@@ -227,7 +227,7 @@ export default function GlobalQuickTicket() {
             </div>
 
             <div style={{ marginTop: "auto", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-              Il ticket verrà salvato in stato <strong>Aperto</strong> e sarà visibile nella lista Ticket o pronto per l'assegnazione nel Planner.
+              Il ticket verrà salvato in stato <strong>Aperto</strong> e sarà visibile nella lista Ticket o pronto per l&apos;assegnazione nel Planner.
             </div>
 
           </div>

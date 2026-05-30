@@ -71,7 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // non ha senso chiamare /auth/me — vai subito al login.
     if (isTauri() && !getTauriToken()) {
       clearUserMeta();
+      // TODO(sec-04): revisione umana - pattern accettato per guard di piattaforma (Tauri senza token)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- early-return sincrono per Tauri senza token; non triggera cascata
       setUser(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- early-return sincrono per Tauri senza token; non triggera cascata
       setLoading(false);
       return;
     }

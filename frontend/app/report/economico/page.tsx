@@ -51,7 +51,8 @@ function fmt(n: number) {
   }).format(n);
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+type TooltipPayloadItem = { name: string; value: number; color: string };
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadItem[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -59,7 +60,7 @@ function CustomTooltip({ active, payload, label }: any) {
       padding: "10px 14px", fontSize: "13px",
     }}>
       <p style={{ color: "var(--text-muted)", marginBottom: "6px", fontWeight: 600 }}>{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <p key={p.name} style={{ color: p.color, margin: "2px 0" }}>
           {p.name}: <strong>{fmt(p.value)}</strong>
         </p>

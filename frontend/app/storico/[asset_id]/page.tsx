@@ -177,8 +177,8 @@ export default function StoricoAssetPage() {
       ]);
       setAsset(assetData);
       setTickets(ticketsData.items ?? []);
-    } catch (err: any) {
-      if (err?.status === 401) {
+    } catch (err: unknown) {
+      if ((err as { status?: number })?.status === 401) {
         router.push("/login");
         return;
       }

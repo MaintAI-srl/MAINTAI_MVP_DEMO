@@ -40,8 +40,8 @@ export default function EmailConfigPage() {
     try {
       const data = await apiGet<EmailConfigItem[]>("/email-config");
       setConfigs(data || []);
-    } catch (err: any) {
-      notify.error(err.message || "Errore di caricamento configurazioni");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore di caricamento configurazioni");
     } finally {
       setLoading(false);
     }
@@ -73,8 +73,8 @@ export default function EmailConfigPage() {
       notify.success("Connessione verificata e salvata. Il polling email è attivo ogni 5 minuti.");
       setForm(f => ({ ...f, email_address: "", password: "" }));
       loadData();
-    } catch (err: any) {
-      notify.error(err.message || "Connessione fallita. Controlla le credenziali.");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Connessione fallita. Controlla le credenziali.");
     } finally {
       setSaving(false);
     }
@@ -86,8 +86,8 @@ export default function EmailConfigPage() {
       await apiDelete(`/email-config/${id}`);
       setConfigs(c => c.filter(x => x.id !== id));
       notify.success("Configurazione rimossa.");
-    } catch (err: any) {
-      notify.error(err.message || "Errore durante l'eliminazione");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore durante l'eliminazione");
     }
   }
 
@@ -184,16 +184,16 @@ export default function EmailConfigPage() {
             />
             {isGmail && (
               <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                <strong style={{ color: "var(--amber)" }}>Gmail: come generare l'App Password</strong><br />
+                <strong style={{ color: "var(--amber)" }}>Gmail: come generare l&apos;App Password</strong><br />
                 1. Vai su <strong>myaccount.google.com</strong> → <strong>Sicurezza</strong><br />
                 2. Attiva la <strong>Verifica in 2 passaggi</strong> (se non è già attiva)<br />
-                3. Cerca <strong>"Password per le app"</strong> → seleziona "Posta" → "Altro"<br />
+                3. Cerca <strong>&quot;Password per le app&quot;</strong> → seleziona &quot;Posta&quot; → &quot;Altro&quot;<br />
                 4. Copia le 16 lettere generate e incollale qui sopra
               </div>
             )}
             {form.imap_server === "outlook.office365.com" && (
               <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                <strong style={{ color: "#818cf8" }}>Outlook / O365:</strong> usa la tua password Microsoft normale, oppure genera una App Password se l'account ha l'autenticazione a più fattori attiva (<strong>account.microsoft.com</strong> → Sicurezza).
+                <strong style={{ color: "#818cf8" }}>Outlook / O365:</strong> usa la tua password Microsoft normale, oppure genera una App Password se l&apos;account ha l&apos;autenticazione a più fattori attiva (<strong>account.microsoft.com</strong> → Sicurezza).
               </div>
             )}
           </div>

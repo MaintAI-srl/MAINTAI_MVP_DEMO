@@ -166,8 +166,8 @@ export default function TenantsPage() {
       setForm({ nome: "", slug: "", admin_username: "", admin_password: "" });
       setShowForm(false);
       await load();
-    } catch (err: any) {
-      setFormError(err.message || "Errore durante la creazione");
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : "Errore durante la creazione");
     } finally {
       setSaving(false);
     }
@@ -193,8 +193,8 @@ export default function TenantsPage() {
         setUtentiMap(m => ({ ...m, [showAddUser]: data }));
       }
       await load();
-    } catch (err: any) {
-      setUserError(err.message || "Errore");
+    } catch (err: unknown) {
+      setUserError(err instanceof Error ? err.message : "Errore");
     } finally {
       setUserSaving(false);
     }
@@ -209,8 +209,8 @@ export default function TenantsPage() {
       notify.success(`Password di "${resetPwd.username}" aggiornata`);
       setResetPwd(null);
       setResetPwdVal("");
-    } catch (err: any) {
-      notify.error(err.message || "Errore reset password");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore reset password");
     } finally {
       setResetPwdSaving(false);
     }
@@ -275,7 +275,7 @@ export default function TenantsPage() {
         <div style={{ color: "var(--text-secondary)", textAlign: "center", padding: "48px" }}>Caricamento...</div>
       ) : tenants.length === 0 ? (
         <div style={{ ...card, textAlign: "center", padding: "48px", color: "var(--text-secondary)" }}>
-          Nessun cliente. Creane uno con "+ Nuovo Cliente".
+          Nessun cliente. Creane uno con &quot;+ Nuovo Cliente&quot;.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

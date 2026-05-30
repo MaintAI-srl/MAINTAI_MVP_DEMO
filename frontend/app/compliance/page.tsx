@@ -80,8 +80,9 @@ function ModalAggiungiAttestato({
       notify.success("Attestato aggiunto");
       onCreated();
       onClose();
-    } catch (err: any) {
-      notify.error(err?.detail ?? "Errore nel salvataggio");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : (err as { detail?: string })?.detail ?? "Errore nel salvataggio";
+      notify.error(msg);
     } finally {
       setSaving(false);
     }
@@ -173,7 +174,7 @@ export default function CompliancePage() {
     try {
       const data = await apiGet<Attestato[]>("/attestati/scadenze");
       setAttestati(data);
-    } catch (err: any) {
+    } catch {
       notify.error("Errore nel caricamento degli attestati");
     } finally {
       setLoading(false);

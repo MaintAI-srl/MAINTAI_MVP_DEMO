@@ -140,8 +140,8 @@ export default function LoginPage() {
         else router.push("/dashboard");
         return;
 
-      } catch (err: any) {
-        if (err?.name === "AbortError") {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
           lastError = "Server non raggiungibile (timeout)";
         } else {
           lastError = "Impossibile contattare il server";

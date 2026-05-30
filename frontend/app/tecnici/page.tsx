@@ -217,8 +217,8 @@ export default function TecniciPage() {
       await loadTecnici();
       await loadStats();
       if (editId !== null) cancelEdit(); else resetForm();
-    } catch (err: any) {
-      notify.error(err.message || "Errore nel salvataggio.");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
 
@@ -267,7 +267,7 @@ export default function TecniciPage() {
         <div className={styles.heroCopy}>
           <div className={styles.eyebrow}>Workforce</div>
           <h1 className={styles.title}>Tecnici</h1>
-          <p className={styles.subtitle}>Skill, disponibilità, stato e ore uomo per l'allocazione automatica.</p>
+          <p className={styles.subtitle}>Skill, disponibilità, stato e ore uomo per l&apos;allocazione automatica.</p>
         </div>
         <div className={styles.heroStats}>
           <div className={styles.heroStat}>
@@ -391,7 +391,7 @@ export default function TecniciPage() {
                   }
                 </select>
                 <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>
-                  Solo utenti con ruolo "tecnico" non ancora associati ad altro tecnico
+                  Solo utenti con ruolo &quot;tecnico&quot; non ancora associati ad altro tecnico
                 </span>
               </div>
             )}

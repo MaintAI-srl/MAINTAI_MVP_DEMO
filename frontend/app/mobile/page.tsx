@@ -124,6 +124,8 @@ function MttrCounter({ start, paused, pausedAt }: { start?: string; paused: bool
     const startMs = new Date(start).getTime();
     if (paused) {
       // Mostra tempo congelato al momento della pausa
+      // TODO(sec-04): revisione umana - init sincrona del contatore al valore congelato
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- early-return condizionale per stato pausa; non triggera cascata
       setSec(Math.max(0, Math.floor((pausedAt - startMs) / 1000)));
       return;
     }
@@ -174,7 +176,11 @@ function ActiveWorkView({
   const [checklistLoading, setChecklistLoading] = useState(true);
 
   useEffect(() => {
-    if (!ticket.asset_id) { setChecklistLoading(false); return; }
+    if (!ticket.asset_id) {
+      // TODO(sec-04): revisione umana - setLoading(false) per early exit prima di fetch asincrono
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- early-return guard sincrono; nessun fetch né cascata
+      setChecklistLoading(false); return;
+    }
     apiGet<{ voci?: { label: string; descrizione?: string }[] } | null>(
       `/assets/${ticket.asset_id}/check`
     )
@@ -756,7 +762,7 @@ export default function MobileHomePage() {
 
   useEffect(() => {
     if (!user?.userid || !mounted) return;
-    apiGet<any>(`/tecnici/me?utente_id=${user.userid}`)
+    apiGet<{ id: number }>(`/tecnici/me?utente_id=${user.userid}`)
       .then(d => setTecnicoId(d.id))
       .catch(() => { setTecnicoId(-1); setLoading(false); });
   }, [user, mounted]);
@@ -765,7 +771,7 @@ export default function MobileHomePage() {
     if (tecnicoId === null || !mounted) return;
     if (tecnicoId === -1) { setLoading(false); return; }
     try {
-      const d = await apiGet<any>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
+      const d = await apiGet<{ items?: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
       const items: Ticket[] = d.items ?? [];
       setTickets(items);
       // Primo caricamento: segna tutte le emergenze come già viste (nessun allarme)
@@ -792,7 +798,7 @@ export default function MobileHomePage() {
     if (tecnicoId === null || tecnicoId === -1 || !mounted) return;
     const poll = async () => {
       try {
-        const d = await apiGet<any>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
+        const d = await apiGet<{ items?: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
         const items: Ticket[] = d.items ?? [];
         items.forEach(t => {
           if (t.priorita?.toLowerCase() === "emergenza" && !seenEmergencyIds.current.has(t.id)) {
@@ -851,7 +857,7 @@ export default function MobileHomePage() {
   async function handleVoiceTranscript(text: string) {
     setVoiceTranscript(text);
     // Cerca prima con il testo completo
-    let assets = await searchAssetsByQuery(text);
+    const assets = await searchAssetsByQuery(text);
     // Se non trova nulla, prova ogni parola significativa (>2 caratteri) separatamente
     if (assets.length === 0) {
       const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 2);
