@@ -640,6 +640,8 @@ class CheckPrimoLivello(Base):
     asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     public_token = Column(String, nullable=False, unique=True, index=True)  # UUID per accesso pubblico
+    token_active = Column(Boolean, default=True, nullable=False, server_default='1')
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
     voci = Column(Text, default="[]")  # JSON: [{label, descrizione}]
     created_at = Column(DateTime, default=_utcnow)
 

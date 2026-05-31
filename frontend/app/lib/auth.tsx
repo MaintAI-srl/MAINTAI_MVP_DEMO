@@ -110,6 +110,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loggingOutRef.current = true;
     try {
       await apiPost("/auth/logout");
+      // Pulisce la cache del service worker per evitare accesso offline a dati tenant dopo logout
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        try {
+          const cacheKeys = await window.caches.keys();
+          await Promise.all(cacheKeys.map(key => window.caches.delete(key)));
+        } catch { /* ignora errori caches API - non critico */ }
+      }
     } catch {
       // Il backend potrebbe non essere raggiungibile — procedi comunque
     }

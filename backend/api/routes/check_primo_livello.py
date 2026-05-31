@@ -6,6 +6,7 @@ Routes: checklist di primo livello per operatori (accesso parzialmente pubblico)
 import json
 import logging
 import uuid
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -40,6 +41,8 @@ def _serialize(c: CheckPrimoLivello, asset_nome: Optional[str] = None) -> dict:
         "asset_nome": asset_nome,
         "tenant_id": c.tenant_id,
         "public_token": c.public_token,
+        "token_active": c.token_active if c.token_active is not None else True,
+        "token_expires_at": c.token_expires_at.isoformat() if c.token_expires_at else None,
         "voci": json.loads(c.voci or "[]"),
         "created_at": c.created_at.isoformat() if c.created_at else None,
     }
@@ -50,6 +53,15 @@ def _get_asset_or_404(db: Session, asset_id: int, tenant_id: int) -> Asset:
     if not asset:
         raise HTTPException(status_code=404, detail="Asset non trovato")
     return asset
+
+
+def _check_token_valid(check: CheckPrimoLivello) -> None:
+    """Verifica che il token sia attivo e non scaduto. Solleva HTTP 404 in caso contrario."""
+    token_active = check.token_active if check.token_active is not None else True
+    if not token_active:
+        raise HTTPException(status_code=404, detail="Checklist non disponibile")
+    if check.token_expires_at and check.token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=404, detail="Checklist non disponibile")
 
 
 # ── Endpoint autenticati ─────────────────────────────────────────────────────
@@ -88,13 +100,17 @@ def upsert_check(
     voci_json = json.dumps([v.model_dump() for v in body.voci])
 
     if check:
+        # Aggiornamento: mantieni token_active e token_expires_at invariati
         check.voci = voci_json
     else:
+        # Creazione: imposta scadenza a 365 giorni dalla creazione
         check = CheckPrimoLivello(
             asset_id=asset_id,
             tenant_id=tenant_id,
             public_token=str(uuid.uuid4()),
             voci=voci_json,
+            token_active=True,
+            token_expires_at=datetime.now(timezone.utc) + timedelta(days=365),
         )
         db.add(check)
 
@@ -103,6 +119,33 @@ def upsert_check(
     db_info("CHECK_PL", f"Check primo livello aggiornato per asset {asset_id}", {"tenant_id": tenant_id})
     logger.info("Check primo livello asset %s aggiornato", asset_id)
     return _serialize(check, asset_nome=asset.nome)
+
+
+@router.post("/assets/{asset_id}/check/rotate-token")
+def rotate_qr_token(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Genera un nuovo token pubblico per il QR code dell'asset, invalidando il precedente."""
+    check = db.query(CheckPrimoLivello).filter_by(asset_id=asset_id, tenant_id=tenant_id).first()
+    if not check:
+        raise HTTPException(status_code=404, detail="Check non trovato")
+    check.public_token = str(uuid.uuid4())
+    check.token_active = True
+    check.token_expires_at = datetime.now(timezone.utc) + timedelta(days=365)
+    db.commit()
+    db.refresh(check)
+    db_info(
+        "CHECK_PL",
+        f"Token QR ruotato per asset {asset_id}",
+        {"tenant_id": tenant_id, "new_token_prefix": check.public_token[:8]},
+    )
+    logger.info("Token QR ruotato per asset %s (nuovo token: %s…)", asset_id, check.public_token[:8])
+    return {
+        "public_token": check.public_token,
+        "token_expires_at": check.token_expires_at.isoformat() if check.token_expires_at else None,
+    }
 
 
 # ── Endpoint PUBBLICO (no auth) ──────────────────────────────────────────────
@@ -123,11 +166,21 @@ def get_check_public(
     if not check:
         raise HTTPException(status_code=404, detail="Checklist non trovata")
 
+    # P1-05: verifica che il token sia attivo e non scaduto
+    _check_token_valid(check)
+
     # Recupera nome asset (senza filtro tenant — accesso pubblico)
     asset = db.query(Asset).filter(Asset.id == check.asset_id).first()
     asset_nome = asset.nome if asset else f"Asset #{check.asset_id}"
 
-    return _serialize(check, asset_nome=asset_nome)
+    # Risposta pubblica: NON espone tenant_id né public_token (dati interni)
+    return {
+        "id": check.id,
+        "asset_id": check.asset_id,
+        "asset_nome": asset_nome,
+        "voci": json.loads(check.voci or "[]"),
+        "created_at": check.created_at.isoformat() if check.created_at else None,
+    }
 
 
 class SegnalazioneBody(BaseModel):
@@ -145,13 +198,14 @@ def segnala_anomalia_pubblica(
     Endpoint PUBBLICO — crea un ticket BD dall'operatore di produzione via QR.
     Non richiede autenticazione: usa il tenant_id del check record.
     """
-    from datetime import datetime, timezone
-
     check = db.query(CheckPrimoLivello).filter(
         CheckPrimoLivello.public_token == public_token,
     ).first()
     if not check:
         raise HTTPException(status_code=404, detail="Checklist non trovata")
+
+    # P1-05: verifica che il token sia attivo e non scaduto
+    _check_token_valid(check)
 
     if not body.descrizione or not body.descrizione.strip():
         raise HTTPException(status_code=422, detail="La descrizione è obbligatoria")
@@ -189,4 +243,5 @@ def segnala_anomalia_pubblica(
     )
     logger.info("Ticket BD #%s creato da check pubblico token %s", ticket.id, public_token[:8])
 
+    # P1-05: risposta pubblica — solo ticket_id e messaggio (NON tenant_id né public_token)
     return {"ticket_id": ticket.id, "messaggio": f"Segnalazione ricevuta — Ticket #{ticket.id} aperto"}
