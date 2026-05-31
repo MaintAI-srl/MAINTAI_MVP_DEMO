@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from backend.core.logger_db import db_info
 from backend.core.security import get_current_user_payload
+from backend.services.ai.anonymization_service import anonymizer
 
 router = APIRouter(prefix="/guide", tags=["guide"])
 
@@ -218,7 +219,8 @@ async def guide_chat(
     ]
     for msg in req.messages[-10:]:
         role = msg.role if msg.role in {"user", "assistant"} else "user"
-        messages.append({"role": role, "content": msg.content})
+        content = anonymizer.mask_text(msg.content) if role == "user" else msg.content
+        messages.append({"role": role, "content": content})
 
     try:
         client = openai.AsyncOpenAI(api_key=api_key)

@@ -1,3 +1,6 @@
+import ipaddress
+import socket
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
@@ -8,6 +11,38 @@ from backend.core.security import get_current_tenant_id, encrypt_data, decrypt_d
 from backend.db.modelli import EmailConfig
 
 router = APIRouter(prefix="/email-config", tags=["EmailConfig"])
+
+
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network(n) for n in [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
+    ]
+]
+
+
+def _validate_imap_server(server: str) -> None:
+    """Blocca IP privati/loopback/link-local per prevenire SSRF via configurazione IMAP."""
+    try:
+        addrs = socket.getaddrinfo(server, None)
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Server IMAP '{server}' non risolvibile.",
+        )
+    for _, _, _, _, sockaddr in addrs:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if any(ip in net for net in _PRIVATE_NETWORKS):
+            raise HTTPException(
+                status_code=400,
+                detail="Server IMAP punta a indirizzo privato/loopback non consentito.",
+            )
 
 
 class EmailConfigBase(BaseModel):
@@ -77,6 +112,8 @@ def create_config(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
+    # Blocca SSRF: verifica che il server non punti a indirizzi privati/loopback
+    _validate_imap_server(data.imap_server)
     # Test connessione con password in chiaro (prima di cifrare)
     _test_imap(data.imap_server, data.imap_port, data.email_address, data.password)
 
