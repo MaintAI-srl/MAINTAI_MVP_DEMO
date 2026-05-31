@@ -1,13 +1,18 @@
 
+import logging
+
 from sqlalchemy.orm import Session
 from backend.db.modelli import Manuale
 from backend.services.ai.openai_service import get_openai_client
 from backend.services.ai.anonymization_service import anonymizer
 
+logger = logging.getLogger(__name__)
+
+
 def extract_maintenance_tasks(text: str) -> str:
     ai_client = get_openai_client()
-    
-    # Redact text for privacy
+
+    # Redact text for privacy before sending to OpenAI
     text = anonymizer.mask_text(text)
 
     prompt = f"""
@@ -31,20 +36,22 @@ Testo:
 {text[:20000]}
 """.strip()
 
-    print(">>> OPENAI START extract_maintenance_tasks")
-    print(">>> chars:", len(text))
+    logger.info("OPENAI extract_maintenance_tasks start, chars=%d", len(text))
 
     response = ai_client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}],
     )
 
-    print(">>> OPENAI END extract_maintenance_tasks")
+    logger.info("OPENAI extract_maintenance_tasks end")
 
     return response.choices[0].message.content
 
 def parse_manual_with_ai(text: str, filename: str) -> str:
     ai_client = get_openai_client()
+
+    # Redact text for privacy before sending to OpenAI
+    text = anonymizer.mask_text(text)
 
     schema = {
         "name": "manual_maintenance_plan",
@@ -242,7 +249,7 @@ REGOLE PRIORITÀ:
 - manutenzione tecnica ordinaria = medium
 - controlli consigliati = low"""
 
-    print(">>> OPENAI START parse_manual_with_ai, chars:", len(text))
+    logger.info("OPENAI parse_manual_with_ai start, chars=%d", len(text))
     try:
         response = ai_client.chat.completions.create(
             model="gpt-4.1",
@@ -253,12 +260,10 @@ REGOLE PRIORITÀ:
             response_format={"type": "json_schema", "json_schema": schema}
         )
         result = response.choices[0].message.content
-        print(">>> OPENAI END parse_manual_with_ai, finish_reason:", response.choices[0].finish_reason)
-        print(">>> RESULT PREVIEW:", result[:300] if result else "EMPTY")
+        logger.info("OPENAI parse_manual_with_ai end, finish_reason=%s", response.choices[0].finish_reason)
         return result
     except Exception as exc:
-        print(f">>> OPENAI ERROR con json_schema: {exc}")
-        print(">>> Fallback su json_object...")
+        logger.warning("OPENAI parse_manual_with_ai json_schema fallback: %s", exc)
         response = ai_client.chat.completions.create(
             model="gpt-4.1",
             messages=[
@@ -268,7 +273,7 @@ REGOLE PRIORITÀ:
             response_format={"type": "json_object"}
         )
         result = response.choices[0].message.content
-        print(">>> FALLBACK RESULT PREVIEW:", result[:300] if result else "EMPTY")
+        logger.info("OPENAI parse_manual_with_ai fallback end")
         return result
 
 def salva_manuale_db(
@@ -281,12 +286,12 @@ def salva_manuale_db(
     tenant_id: int | None = None,
     piano_id: int | None = None,
 ):
-    print(">>> SALVATAGGIO MANUALE DB START")
-    print(">>> nome_file:", nome_file)
-    print(">>> pagine:", pagine)
-    print(">>> metodo_lettura:", metodo_lettura)
-    print(">>> testo_len:", len(testo_raw) if testo_raw else 0)
-    print(">>> json_len:", len(json_estratto) if json_estratto else 0)
+    logger.info(
+        "salva_manuale_db: file=%s pagine=%d metodo=%s testo_len=%d json_len=%d",
+        nome_file, pagine, metodo_lettura,
+        len(testo_raw) if testo_raw else 0,
+        len(json_estratto) if json_estratto else 0,
+    )
 
     nuovo_manuale = Manuale(
         nome_file=nome_file,
@@ -302,7 +307,7 @@ def salva_manuale_db(
     db.commit()
     db.refresh(nuovo_manuale)
 
-    print(">>> SALVATAGGIO MANUALE DB OK, id:", nuovo_manuale.id)
+    logger.info("salva_manuale_db OK, id=%d", nuovo_manuale.id)
 
     return nuovo_manuale
 

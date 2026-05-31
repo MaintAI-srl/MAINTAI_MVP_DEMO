@@ -7,6 +7,7 @@ from backend.core.exceptions import AppError
 from backend.core.rate_limiter import limiter
 from backend.db.modelli import Ticket, Asset, FailureMode, DiagnosticLearning, FailureAnalysis
 from backend.services.failure_engine import analyze_failure, confirm_failure_mode, classify_rpn
+from backend.services.ai.anonymization_service import anonymizer
 
 router = APIRouter(prefix="/failure", tags=["failure-engine"])
 
@@ -75,12 +76,15 @@ def analyze_ticket_failure(
     if not asset_type:
         asset_type = "generico"
 
+    symptoms = anonymizer.mask_text(data.symptoms) if data.symptoms else data.symptoms
+    description = anonymizer.mask_text(data.description or ticket.descrizione or "")
+
     result = analyze_failure(
         db=db,
         ticket_id=ticket_id,
         asset_type=asset_type,
-        symptoms=data.symptoms,
-        description=data.description or ticket.descrizione or "",
+        symptoms=symptoms,
+        description=description,
         tenant_id=tenant_id,
         asset_info=asset_info,
     )
