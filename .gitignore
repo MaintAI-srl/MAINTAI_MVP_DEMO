@@ -32,6 +32,9 @@ docs/_build_*.py
 # Script di debug/scratch — non vanno in produzione
 backend/scratch/
 
+# Claude Code agent memory (scaffolding locale, non parte del progetto)
+.claude/agent-memory/
+
 # OS
 .DS_Store
 Thumbs.db
