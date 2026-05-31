@@ -34,7 +34,7 @@ class TicketUpdate(BaseModel):
     planned_finish: Optional[datetime] = None
     execution_start: Optional[datetime] = None
     execution_finish: Optional[datetime] = None
-    eliminazione_note: str | None = None  # Motivo eliminazione (obbligatorio lato UI)
+    eliminazione_note: str | None = Field(default=None, max_length=2000)  # Motivo eliminazione (obbligatorio lato UI)
     is_manual_plan: bool | None = None
     piano_manutenzione_id: int | None = None
     origine_piano: str | None = None

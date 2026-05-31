@@ -168,11 +168,16 @@ class TicketRepository:
             dump_chunk = dump.copy()
             dump_chunk["durata_stimata_ore"] = durata_chunk
             dump_chunk["titolo"] = f"{data.titolo} (Parte {chunk_idx}/{num_chunks})"
+            if chunk_idx > 1:
+                dump_chunk["is_continuation"] = True
 
             ticket = Ticket(**dump_chunk)
             db.add(ticket)
             if chunk_idx == 1:
                 primo_ticket = ticket
+                db.flush()  # ottiene primo_ticket.id per collegare i chunk successivi (FINDING M-04)
+            else:
+                ticket.parent_ticket_id = primo_ticket.id
 
             ore_rimanenti -= durata_chunk
             chunk_idx += 1

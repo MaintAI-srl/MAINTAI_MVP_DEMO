@@ -231,6 +231,13 @@ def get_current_tenant_id(
         else:
             resolved_tid = int(tid) if tid else None
         
+        if resolved_tid is None:
+            # Superadmin senza contesto tenant: le query dati non vengono filtrate.
+            # Lasciamo traccia per audit (FINDING H-08).
+            _logger.warning(
+                "Superadmin opera SENZA contesto tenant (X-Tenant-Id assente): "
+                "le query dati non sono filtrate per tenant."
+            )
         from backend.core.database import current_tenant_id
         current_tenant_id.set(resolved_tid)
         return resolved_tid

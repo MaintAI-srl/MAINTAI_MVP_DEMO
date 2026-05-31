@@ -74,5 +74,16 @@ def get_system_logs(
         "total": total,
         "page": page,
         "pages": (total + limit - 1) // limit,
-        "logs": logs
+        "logs": [
+            {
+                "id": l.id,
+                "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+                "level": l.level,
+                "module": l.module,
+                "message": l.message,
+                "extra_info": l.extra_info,
+                "tenant_id": l.tenant_id,
+            }
+            for l in logs
+        ],
     }

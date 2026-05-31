@@ -7,13 +7,13 @@ from datetime import datetime, date
 # ── Asset ──────────────────────────────────────────────────────────────────
 
 class AssetCreate(BaseModel):
-    nome: str = Field(..., min_length=1, description="Nome asset")
+    nome: str = Field(..., min_length=1, max_length=200, description="Nome asset")
     name: Optional[str] = None             # retrocompatibilita
-    area: str = Field(..., min_length=1)
+    area: str = Field(..., min_length=1, max_length=200)
     vincolo_orario: Optional[str] = None
     note: Optional[str] = None
     codice: Optional[str] = None
-    descrizione: Optional[str] = None
+    descrizione: Optional[str] = Field(default=None, max_length=5000)
     anno: Optional[int] = Field(None, ge=1900, le=2100)
     impianto_id: Optional[int] = None
     limitazioni: Optional[str] = None
@@ -47,13 +47,13 @@ class AssetCreate(BaseModel):
 
 
 class AssetUpdate(BaseModel):
-    nome: Optional[str] = None
+    nome: Optional[str] = Field(default=None, max_length=200)
     name: Optional[str] = None
-    area: Optional[str] = None
+    area: Optional[str] = Field(default=None, max_length=200)
     vincolo_orario: Optional[str] = None
     note: Optional[str] = None
     codice: Optional[str] = None
-    descrizione: Optional[str] = None
+    descrizione: Optional[str] = Field(default=None, max_length=5000)
     anno: Optional[int] = None
     impianto_id: Optional[int] = None
     limitazioni: Optional[str] = None
