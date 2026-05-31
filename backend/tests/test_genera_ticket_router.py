@@ -28,7 +28,7 @@ def user(db_session, tenant):
     u = Utente(
         username="admin_gen",
         password_hash=get_password_hash("pass123"),
-        ruolo="admin",
+        ruolo="responsabile",
         tenant_id=tenant.id,
         is_active=True,
     )

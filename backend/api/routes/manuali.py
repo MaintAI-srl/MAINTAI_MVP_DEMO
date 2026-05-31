@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.core.exceptions import AppError
 from backend.core.logging_config import get_logger
 from backend.core.rate_limiter import limiter
@@ -31,6 +31,7 @@ async def upload_manuale(
     new_asset_area: str | None = Form(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     if new_asset_name and new_asset_name.strip():
         nuovo = Asset(
@@ -233,7 +234,7 @@ def list_manuali(
 
 
 @router.patch("/manuali/{manuale_id}")
-def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     manuale = db.query(Manuale).filter(Manuale.id == manuale_id, Manuale.tenant_id == tenant_id).first()
     if not manuale:
         raise AppError(status_code=404, message=f"Manuale {manuale_id} non trovato")

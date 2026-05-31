@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, encrypt_data, decrypt_data
+from backend.core.security import get_current_tenant_id, encrypt_data, decrypt_data, require_roles
 from backend.db.modelli import EmailConfig
 
 router = APIRouter(prefix="/email-config", tags=["EmailConfig"])
@@ -76,6 +76,7 @@ def create_config(
     data: EmailConfigBase,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     # Test connessione con password in chiaro (prima di cifrare)
     _test_imap(data.imap_server, data.imap_port, data.email_address, data.password)
@@ -104,6 +105,7 @@ def delete_config(
     config_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     conf = db.query(EmailConfig).filter(
         EmailConfig.id == config_id, EmailConfig.tenant_id == tenant_id
