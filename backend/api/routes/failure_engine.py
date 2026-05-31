@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.exceptions import AppError
+from backend.core.rate_limiter import limiter
 from backend.db.modelli import Ticket, Asset, FailureMode, DiagnosticLearning, FailureAnalysis
 from backend.services.failure_engine import analyze_failure, confirm_failure_mode, classify_rpn
 
@@ -43,8 +44,10 @@ def _infer_asset_type(name: str) -> str:
 
 
 @router.post("/tickets/{ticket_id}/analyze")
+@limiter.limit("10/minute")
 def analyze_ticket_failure(
     ticket_id: int,
+    request: Request,
     data: AnalyzeRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),

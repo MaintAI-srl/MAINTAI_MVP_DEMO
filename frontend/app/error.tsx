@@ -64,7 +64,7 @@ export default function ErrorBoundary({
           fontSize: "15px",
           lineHeight: "1.5"
         }}>
-          Ci scusiamo per l'inconveniente. L'applicazione ha riscontrato un problema inatteso: {error.message || "Errore sconosciuto"}.
+          Ci scusiamo per l&apos;inconveniente. L&apos;applicazione ha riscontrato un problema inatteso: {error.message || "Errore sconosciuto"}.
         </p>
 
         <button

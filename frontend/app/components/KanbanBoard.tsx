@@ -390,9 +390,9 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
       if (tecnicoId) body.tecnico_id = tecnicoId;
       await apiPatch(`/tickets/${ticketId}`, body);
       onRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLocal(prev);
-      notify.error(err?.message || "Errore nella pianificazione del ticket.");
+      notify.error(err instanceof Error ? err.message : "Errore nella pianificazione del ticket.");
     }
   }
 

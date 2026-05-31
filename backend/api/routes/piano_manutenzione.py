@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, check_tenant_ownership
+from backend.core.security import get_current_tenant_id, check_tenant_ownership, require_roles
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione, Asset, Manuale, piano_asset_association
 from backend.services.condition_maintenance_service import (
@@ -230,6 +230,7 @@ def create_piano(
     data: PianoManutenzioneCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Crea un Piano di Manutenzione con supporto multi-asset."""
     # Gestione asset_ids (nuova) vs asset_id (legacy)
@@ -318,6 +319,7 @@ def update_piano(
     data: PianoManutenzioneUpdate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     piano = db.query(PianoManutenzione).filter(
         PianoManutenzione.id == piano_id,
@@ -355,6 +357,7 @@ def delete_piano(
     piano_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     piano = db.query(PianoManutenzione).filter(
         PianoManutenzione.id == piano_id,
@@ -446,6 +449,7 @@ def create_piano_task(
     data: TaskCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Crea un nuovo Task all'interno del Piano."""
     piano = db.query(PianoManutenzione).filter(
@@ -491,6 +495,7 @@ def update_piano_task(
     data: TaskUpdate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Aggiorna un Task del Piano."""
     task = db.query(AttivitaManutenzione).filter(
@@ -535,6 +540,7 @@ def delete_piano_task(
     task_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Elimina un Task (i ticket collegati vengono scollegati, non eliminati)."""
     task = db.query(AttivitaManutenzione).filter(
@@ -562,6 +568,7 @@ def genera_ticket_da_task(
     task_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """
     Genera un Ticket dal Task selezionato.
@@ -728,6 +735,7 @@ async def import_pdf_to_piano(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Importa attività da PDF (AI/OCR) come TASK del piano."""
     from backend.services.pdf_service import smart_read_pdf
@@ -802,6 +810,7 @@ async def import_excel_to_piano(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Importa attività da Excel/CSV come TASK del piano (non ticket diretti)."""
     piano = db.query(PianoManutenzione).filter(
@@ -883,6 +892,7 @@ def assign_ticket_to_piano(
     origine: str = Query("manuale_interno_piano"),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Collega un ticket esistente al piano (backward compat)."""
     piano = db.query(PianoManutenzione).filter(
@@ -944,6 +954,7 @@ def delete_piano_manuale(
     manuale_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Scollega o elimina un manuale dal piano."""
     manuale = db.query(Manuale).filter(

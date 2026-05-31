@@ -50,23 +50,26 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
    * Restituisce coordinate CSS relative al canvas element.
    * Funziona correttamente sia su mouse che su touch.
    */
-  const getPos = (e: any): { x: number; y: number } => {
+  type PointerEvent = React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>;
+
+  const getPos = (e: PointerEvent): { x: number; y: number } => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect    = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const touch = "touches" in e ? e.touches[0] : null;
+    const clientX = touch ? touch.clientX : (e as React.MouseEvent).clientX;
+    const clientY = touch ? touch.clientY : (e as React.MouseEvent).clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
   };
 
-  const startDrawing = (e: any) => {
+  const startDrawing = (e: PointerEvent) => {
     e.preventDefault();
     const { x, y } = getPos(e);
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx) { ctx.beginPath(); ctx.moveTo(x, y); setIsDrawing(true); }
   };
 
-  const draw = (e: any) => {
+  const draw = (e: PointerEvent) => {
     if (!isDrawing) return;
     e.preventDefault();
     const { x, y } = getPos(e);

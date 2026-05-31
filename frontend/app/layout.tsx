@@ -28,7 +28,8 @@ import {
 
 // Fonts now loaded above individually
 
-const NAV = [
+type NavItem = { href: string; label: string; icon: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean };
+const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "DASHBOARD",
     items: [
@@ -96,6 +97,8 @@ function GlobalOfflineIndicator() {
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
+    // TODO(sec-04): revisione umana - pattern accettato per init sincrona da DOM API all'mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- leggo navigator.onLine all'mount per init state; non triggera re-render cascante
     setIsOnline(navigator.onLine);
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
@@ -166,7 +169,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   const filteredNav = NAV.map(section => ({
     ...section,
-    items: section.items.filter((item: any) => {
+    items: section.items.filter((item) => {
       if (item.superadminOnly && !isSuperadmin) return false;
       if (item.adminOnly && user?.ruolo !== "responsabile" && !isSuperadmin) return false;
       if (!isTecnico) return true;
@@ -194,6 +197,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const local = localStorage.getItem("maintai_theme");
     const nextTheme = local === "dark" || local === "light" ? local : "light";
+    // TODO(sec-04): revisione umana - pattern accettato per init one-shot da storage all'mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- init theme dal localStorage all'mount; sincrono e senza cascata
     setTheme(nextTheme);
     document.documentElement.setAttribute("data-theme", nextTheme);
   }, []);

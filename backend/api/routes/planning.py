@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.rate_limiter import limiter
-from backend.core.security import get_current_tenant_id, get_current_user_payload
+from backend.core.security import get_current_tenant_id, get_current_user_payload, require_roles
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant, PlannerFeedback
@@ -294,6 +294,7 @@ async def generate_plan(
     data: GeneratePlanRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Genera un piano AI e lo salva come draft."""
     # ── FEATURE FLAG: Generazione AI disattivata ─────────────────────────────
@@ -433,6 +434,7 @@ def move_ticket_in_plan(
     data: MoveTicketRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """
     Sposta un ticket pianificato a una nuova data/ora (e/o nuovo tecnico).
@@ -665,7 +667,7 @@ def confirm_plan(
     plan_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(require_roles("responsabile")),
 ):
     """
     Conferma un piano draft:
@@ -788,7 +790,7 @@ def deauthorize_plan(
     data: DeauthorizeRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(require_roles("responsabile")),
 ):
     """
     Deautorizza un piano confermato.
@@ -1124,6 +1126,7 @@ async def adaptive_replanning(
     data: ReplanningRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """
     Ricalcola il piano in modo adattivo a partire da un evento specifico.
@@ -1484,7 +1487,7 @@ def feedback_analytics(
         "by_tipo": by_tipo,
     }
 @router.post("/clear")
-def clear_gantt(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def clear_gantt(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     from backend.db.modelli import Ticket, GeneratedPlan
     tickets = db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Pianificato", Ticket.deleted_at.is_(None)).all()
     for t in tickets:

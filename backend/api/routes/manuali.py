@@ -1,14 +1,16 @@
 import json
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends, Query
+from fastapi import APIRouter, UploadFile, File, Form, Depends, Query, Request
 from pydantic import BaseModel as PydanticModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.core.exceptions import AppError
 from backend.core.logging_config import get_logger
+from backend.core.rate_limiter import limiter
+from backend.core.file_validation import sniff_ext
 from backend.db.modelli import Manuale, AttivitaManutenzione, Asset
 from backend.services.pdf_service import smart_read_pdf
 from backend.services.ai.manuals_ai_service import salva_manuale_db, parse_manual_with_ai
@@ -20,13 +22,16 @@ MAX_MANUALE_BYTES = 25 * 1024 * 1024  # 25 MB
 
 
 @router.post("/manuali/upload")
+@limiter.limit("10/minute")
 async def upload_manuale(
+    request: Request,
     file: UploadFile = File(...),
     asset_id: int | None = Form(None),
     new_asset_name: str | None = Form(None),
     new_asset_area: str | None = Form(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     if new_asset_name and new_asset_name.strip():
         nuovo = Asset(
@@ -54,6 +59,9 @@ async def upload_manuale(
             status_code=413,
             message=f"File troppo grande: massimo {MAX_MANUALE_BYTES // (1024 * 1024)} MB consentiti.",
         )
+    # Validazione magic bytes: deve essere un vero PDF, non solo l'estensione
+    if sniff_ext(content) != "pdf":
+        raise AppError(status_code=400, message="Il file caricato non è un PDF valido.")
 
     result = smart_read_pdf(content)
     text = result.get("text", "")
@@ -226,7 +234,7 @@ def list_manuali(
 
 
 @router.patch("/manuali/{manuale_id}")
-def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def patch_manuale(manuale_id: int, data: ManualePatch, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     manuale = db.query(Manuale).filter(Manuale.id == manuale_id, Manuale.tenant_id == tenant_id).first()
     if not manuale:
         raise AppError(status_code=404, message=f"Manuale {manuale_id} non trovato")

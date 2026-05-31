@@ -59,7 +59,7 @@ export default function AssetsPage() {
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [selectedAnalyticsAsset, setSelectedAnalyticsAsset] = useState<any>(null);
+  const [selectedAnalyticsAsset, setSelectedAnalyticsAsset] = useState<Asset | null>(null);
 
   useEffect(() => {
     loadAssets();
@@ -171,8 +171,8 @@ export default function AssetsPage() {
         setAssets(prev => [...prev, saved]);
         resetForm();
       }
-    } catch (err: any) {
-      notify.error(err.message || "Errore nel salvataggio.");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
 

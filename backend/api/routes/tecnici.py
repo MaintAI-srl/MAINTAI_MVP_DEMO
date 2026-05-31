@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.db.modelli import TecnicoAssenza, Tecnico
 from backend.repositories.tecnico_repository import tecnico_repository
 from backend.schemas.schemas import TecnicoCreate, TecnicoUpdate, TecnicoAssenzaCreate, TecnicoAssenzaResponse
@@ -136,7 +136,7 @@ def tecnici_statistiche(db: Session = Depends(get_db), tenant_id: int = Depends(
 
 
 @router.post("/tecnici", status_code=201)
-def create_tecnico(tecnico: TecnicoCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def create_tecnico(tecnico: TecnicoCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     if not tecnico.nome.strip():
         raise HTTPException(status_code=422, detail="Il campo 'nome' è obbligatorio")
     if tecnico.stato and tecnico.stato not in STATI_VALIDI:
@@ -145,7 +145,7 @@ def create_tecnico(tecnico: TecnicoCreate, db: Session = Depends(get_db), tenant
 
 
 @router.put("/tecnici/{tecnico_id}")
-def update_tecnico(tecnico_id: int, data: TecnicoUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def update_tecnico(tecnico_id: int, data: TecnicoUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     if data.stato and data.stato not in STATI_VALIDI:
         raise HTTPException(status_code=422, detail=f"Stato non valido. Valori ammessi: {', '.join(STATI_VALIDI)}")
 
@@ -174,7 +174,7 @@ def update_tecnico(tecnico_id: int, data: TecnicoUpdate, db: Session = Depends(g
 
 
 @router.delete("/tecnici/{tecnico_id}", status_code=204)
-def delete_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def delete_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     ok = tecnico_repository.delete(db, tecnico_id, tenant_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Tecnico non trovato")
@@ -192,7 +192,7 @@ def get_assenze_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_i
     return assenze
 
 @router.post("/tecnici/{tecnico_id}/assenze", response_model=TecnicoAssenzaResponse, status_code=201)
-def create_assenza_tecnico(tecnico_id: int, assenza: TecnicoAssenzaCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def create_assenza_tecnico(tecnico_id: int, assenza: TecnicoAssenzaCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     t = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tecnico non trovato")
@@ -212,7 +212,7 @@ def create_assenza_tecnico(tecnico_id: int, assenza: TecnicoAssenzaCreate, db: S
     return nuova_assenza
 
 @router.delete("/tecnici/assenze/{assenza_id}", status_code=204)
-def delete_assenza_tecnico(assenza_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def delete_assenza_tecnico(assenza_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     assenza = db.query(TecnicoAssenza).filter(TecnicoAssenza.id == assenza_id).first()
     if not assenza:
         raise HTTPException(status_code=404, detail="Assenza non trovata")

@@ -1,8 +1,20 @@
 # Secrets — mai nel repo
 .env
+.env.local
+.env.*.local
 backend/.env
 *.db
+*.sqlite
 *.sqlite3
+
+# File locali di tool/IDE — possono contenere token/segreti (NON committare)
+# NB: .claude/agents/ e .codex/agents/ restano tracciati (asset di team condivisi).
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.cursor/
+.idea/
+.vscode/settings.json
 
 # Tauri signing — chiave privata (NON committare mai)
 tauri_signing_key.txt

@@ -12,13 +12,16 @@ import {
   type ColumnFiltersState,
   type RowSelectionState,
   type TableOptions,
+  type Column,
+  type Row,
+  type FilterFn,
 } from "@tanstack/react-table";
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData> {
   data: TData[];
-  columns: ColumnDef<TData, any>[];
+  columns: ColumnDef<TData, unknown>[];
   pageSize?: number;
   enableRowSelection?: boolean;
   onRowSelectionChange?: (selection: RowSelectionState) => void;
@@ -72,9 +75,10 @@ function getPresetRange(preset: string): { from: Date | null; to: Date | null } 
 }
 
 /** FilterFn da usare nelle colonne con filterVariant:"date" */
-export function dateRangeFilterFn(row: any, columnId: string, filterValue: any): boolean {
+type DateRangeFilter = { preset: string; from: string; to: string };
+export function dateRangeFilterFn<TData>(row: Row<TData>, columnId: string, filterValue: DateRangeFilter): boolean {
   if (!filterValue) return true;
-  const { preset, from, to } = filterValue as { preset: string; from: string; to: string };
+  const { preset, from, to } = filterValue;
   if (!preset) return true;
   const raw = row.getValue(columnId);
   if (!raw) return false;
@@ -90,9 +94,10 @@ export function dateRangeFilterFn(row: any, columnId: string, filterValue: any):
   if (range.to   && cellDate > range.to)   return false;
   return true;
 }
-dateRangeFilterFn.autoRemove = (val: any) => !val || !val.preset;
+(dateRangeFilterFn as FilterFn<unknown>).autoRemove = (val: unknown) => !val || !(val as DateRangeFilter).preset;
 
-function DateFilterCell({ column }: { column: any }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Column<TData> non e' trapassabile in modo semplice senza generic in subcomponent
+function DateFilterCell({ column }: { column: Column<unknown, any> }) {
   const [preset, setPreset] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -171,7 +176,7 @@ export function DataTable<TData>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    filterFns: { dateRange: dateRangeFilterFn } as any,
+    filterFns: { dateRange: dateRangeFilterFn as FilterFn<TData> },
     onSortingChange: setSorting,
     onColumnFiltersChange: (updater) => {
       const next = typeof updater === "function" ? updater(columnFilters) : updater;
@@ -236,8 +241,8 @@ export function DataTable<TData>({
             {enableColumnFilters && table.getHeaderGroups().map((headerGroup) => (
               <tr key={`filter-${headerGroup.id}`} style={{ background: "var(--surface-3)" }}>
                 {headerGroup.headers.map((header) => {
-                  const meta = (header.column.columnDef.meta as any);
-                  const filterVariant = meta?.filterVariant as string | undefined;
+                  const meta = (header.column.columnDef.meta as { filterVariant?: string; options?: string[] } | undefined);
+                  const filterVariant = meta?.filterVariant;
 
                   if (!filterVariant) {
                     return <th key={header.id} style={{ padding: "4px 6px" }} />;
@@ -259,7 +264,7 @@ export function DataTable<TData>({
                           }}
                         >
                           <option value="">Tutti</option>
-                          {(meta.options as string[]).map((o) => (
+                          {(meta?.options ?? []).map((o) => (
                             <option key={o} value={o}>{o}</option>
                           ))}
                         </select>
@@ -289,7 +294,8 @@ export function DataTable<TData>({
                   if (filterVariant === "date") {
                     return (
                       <th key={header.id} style={{ padding: "4px 6px" }} onClick={(e) => e.stopPropagation()}>
-                        <DateFilterCell column={header.column} />
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Column<TData,unknown> non è assegnabile a Column<unknown,any> senza cast */}
+                        <DateFilterCell column={header.column as Column<unknown, any>} />
                       </th>
                     );
                   }

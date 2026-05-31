@@ -24,7 +24,10 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
 
   useEffect(() => {
     if (!assetId) return;
+    // TODO(sec-04): revisione umana - accettato come init di loading state prima di fetch asincrono
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- init loading state prima del fetch; pattern standard data fetching
     setLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetta errore prima del fetch; pattern standard data fetching
     setError(null);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;

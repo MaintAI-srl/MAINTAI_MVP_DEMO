@@ -485,7 +485,7 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
             </div>
           </div>
         ))}
-        {sito.impianti.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun impianto. Clicca "+ Impianto" per aggiungerne uno.</div>}
+        {sito.impianti.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun impianto. Clicca &quot;+ Impianto&quot; per aggiungerne uno.</div>}
       </div>
       {sito.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {sito.note}</div>}
     </div>
@@ -548,7 +548,7 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
             </div>
           </div>
         ))}
-        {impianto.assets.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun asset. Clicca "+ Asset" per aggiungerne uno.</div>}
+        {impianto.assets.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun asset. Clicca &quot;+ Asset&quot; per aggiungerne uno.</div>}
       </div>
       {impianto.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {impianto.note}</div>}
     </div>
@@ -750,7 +750,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             <FormField label="Criticita' (A/B/C)">
               <select style={inputStyle} value={editForm.criticita || ""} onChange={upd("criticita")}>
                 <option value="">Non classificato</option>
-                <option value="A">A — Critica (alta priorita')</option>
+                <option value="A">A — Critica (alta priorità)</option>
                 <option value="B">B — Importante</option>
                 <option value="C">C — Standard</option>
               </select>
@@ -839,7 +839,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                   <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.disponibilita_pct !== null ? (kpi.disponibilita_pct >= 90 ? "#22c55e" : kpi.disponibilita_pct >= 75 ? "#f59e0b" : "#ef4444") : "var(--text-secondary)" }}>
                     {kpi.disponibilita_pct !== null ? `${kpi.disponibilita_pct}%` : "N/D"}
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Disponibilita'</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Disponibilità</div>
                   <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>MTBF / (MTBF + MTTR/24)</div>
                 </div>
               </div>
@@ -871,7 +871,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
               <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>{p.descrizione}</div>
               <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
                 <span>Ogni {p.frequenza_giorni}gg</span><span>{p.durata_ore}h</span>
-                <span>Priorita': {p.priorita}</span>
+                <span>Priorità: {p.priorita}</span>
                 {p.prossima_scadenza && <span>Scad: {p.prossima_scadenza.split("T")[0]}</span>}
               </div>
             </div>
@@ -1365,7 +1365,7 @@ export default function AssetPage() {
         </div>
 
         {loading && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Caricamento...</div>}
-        {!loading && siti.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Nessun sito. Clicca "+ Sito".</div>}
+        {!loading && siti.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Nessun sito. Clicca &quot;+ Sito&quot;.</div>}
 
         <div style={{ padding: "8px 0" }}>
           {(() => {

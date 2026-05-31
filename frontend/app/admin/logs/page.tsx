@@ -18,7 +18,7 @@ export default function AdminLogsPage() {
     setLoading(true);
     try {
       if (view === "file") {
-        const data: any = await apiGet(`/logs?lines=${lines}`);
+        const data = await apiGet<{ logs?: string[] }>(`/logs?lines=${lines}`);
         if (data && typeof data === 'object' && Array.isArray(data.logs)) {
           setLogs(data.logs);
         } else {
@@ -31,16 +31,16 @@ export default function AdminLogsPage() {
           ...(level && { level }),
           ...(module && { module }),
         });
-        const data: any = await apiGet(`/logs/system-logs?${q.toString()}`);
+        const data = await apiGet<{ logs?: Array<{ timestamp: string; level: string; module: string; message: string; extra_info?: string }>; total?: number }>(`/logs/system-logs?${q.toString()}`);
         if (data && Array.isArray(data.logs)) {
-          setLogs(data.logs.map((l: any) => 
+          setLogs(data.logs.map((l) =>
             `[${new Date(l.timestamp).toLocaleString()}] ${l.level} [${l.module}] ${l.message} ${l.extra_info ? '| ' + l.extra_info : ''}`
           ));
-          setTotal(data.total);
+          setTotal(data.total ?? 0);
         }
       }
-    } catch (err: any) {
-      notify.error(err.message || "Errore durante il caricamento dei log");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore durante il caricamento dei log");
     } finally {
       setLoading(false);
     }
@@ -67,7 +67,7 @@ export default function AdminLogsPage() {
         <StatusToggle 
           size="sm"
           currentValue={view}
-          onChange={(v: any) => setView(v)}
+          onChange={(v) => setView(v as "db" | "file")}
           options={[
             { value: "db", label: "DB Logs", color: "var(--blue)" },
             { value: "file", label: "System File", color: "var(--text-muted)" },

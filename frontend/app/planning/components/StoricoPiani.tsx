@@ -280,7 +280,7 @@ function RigaPiano({
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>
                   PIANIFICATI ({planned.length})
                 </div>
-                {planned.slice(0, 10).map((wo: any) => (
+                {planned.slice(0, 10).map((wo) => (
                   <div key={wo.wo_id} style={{
                     fontSize: 11, color: "var(--text-muted)", marginBottom: 4,
                     display: "flex", gap: 8,
@@ -300,7 +300,7 @@ function RigaPiano({
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>
                   NON PIANIFICATI ({deferred.length})
                 </div>
-                {deferred.slice(0, 6).map((d: any) => (
+                {deferred.slice(0, 6).map((d) => (
                   <div key={d.wo_id} style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
                     <span style={{ color: "#4b5563" }}>#{d.wo_id}</span>{" "}
                     <span style={{ fontStyle: "italic", color: "#6b7280" }}>{d.reason}</span>
@@ -399,8 +399,8 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
       toast.success(`${pianoDeauto.plan_label ?? `Piano #${pianoDeauto.id}`} deautorizzato`);
       setPianoDeauto(null);
       onRefresh();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Errore deautorizzazione");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Errore deautorizzazione");
       throw e;
     }
   }

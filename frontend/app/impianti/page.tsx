@@ -240,7 +240,7 @@ export default function ImpiantiPage() {
             <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16 }}>⚠️</div>
             <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 800 }}>Elimina Impianto</h2>
             <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>
-              Sei sicuro? L'operazione eliminerà a cascata <strong>tutti i dati collegati</strong> (Asset, Piani, Ticket, Documenti, Analisi). Azione irreversibile.
+              Sei sicuro? L&apos;operazione eliminerà a cascata <strong>tutti i dati collegati</strong> (Asset, Piani, Ticket, Documenti, Analisi). Azione irreversibile.
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setModalDelId(null)} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>

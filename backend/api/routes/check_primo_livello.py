@@ -8,13 +8,14 @@ import logging
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.logger_db import db_info
+from backend.core.rate_limiter import limiter
 from backend.db.modelli import Asset, CheckPrimoLivello, Ticket
 
 logger = logging.getLogger(__name__)
@@ -108,8 +109,10 @@ def upsert_check(
 # ── Endpoint PUBBLICO (no auth) ──────────────────────────────────────────────
 
 @router.get("/check/public/{public_token}")
+@limiter.limit("30/minute")
 def get_check_public(
     public_token: str,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """
@@ -131,13 +134,15 @@ def get_check_public(
 
 
 class SegnalazioneBody(BaseModel):
-    descrizione: str
-    operatore: Optional[str] = None  # nome operatore (facoltativo, non autenticato)
+    descrizione: str = Field(..., min_length=1, max_length=2000)
+    operatore: Optional[str] = Field(None, max_length=100)  # nome operatore (facoltativo, non autenticato)
 
 
 @router.post("/check/public/{public_token}/segnala", status_code=201)
+@limiter.limit("10/minute")
 def segnala_anomalia_pubblica(
     public_token: str,
+    request: Request,
     body: SegnalazioneBody,
     db: Session = Depends(get_db),
 ):

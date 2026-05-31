@@ -136,7 +136,7 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
 
   useEffect(() => {
     apiGet<{ items?: { id: number; nome: string; cognome: string; specializzazione?: string }[] }>("/tecnici?limit=200")
-      .then(d => setTecnici(d.items ?? (Array.isArray(d) ? d as any : [])))
+      .then(d => setTecnici(d.items ?? (Array.isArray(d) ? (d as unknown as { id: number; nome: string; cognome: string; specializzazione?: string }[]) : [])))
       .catch(() => {});
   }, []);
 
@@ -301,7 +301,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [tecnicoList, setTecnicoList] = useState<{ id: number; nome: string; cognome: string; specializzazione?: string }[]>([]);
   useEffect(() => {
     apiGet<{ items?: { id: number; nome: string; cognome: string; specializzazione?: string }[] }>("/tecnici?limit=200")
-      .then(d => setTecnicoList(d.items ?? (Array.isArray(d) ? d as any : [])))
+      .then(d => setTecnicoList(d.items ?? (Array.isArray(d) ? (d as unknown as { id: number; nome: string; cognome: string; specializzazione?: string }[]) : [])))
       .catch(() => {});
   }, []);
 
@@ -1278,12 +1278,12 @@ export default function TicketPage() {
 
   // Colonne per la tabella archivio — stato come badge statico colorato
   const archivioColumns: ColumnDef<Ticket>[] = ticketColumns.map(col => {
-    if ((col as any).accessorKey === "stato") {
+    if ((col as { accessorKey?: string }).accessorKey === "stato") {
       return {
         accessorKey: "stato",
         header: "Stato",
         enableSorting: false,
-        cell: ({ getValue }: any) => {
+        cell: ({ getValue }: { getValue: () => unknown }) => {
           const s = getValue() as string;
           const isEliminato = s === "Eliminato";
           return (

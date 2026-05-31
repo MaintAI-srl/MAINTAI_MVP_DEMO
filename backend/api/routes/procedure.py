@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import Asset, Procedura
 
@@ -81,6 +81,7 @@ def create_procedura(
     body: ProceduraCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Crea una nuova procedura operativa."""
     _get_asset_or_404(db, asset_id, tenant_id)
@@ -110,6 +111,7 @@ def update_procedura(
     body: ProceduraUpdate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Aggiorna una procedura (incrementa revisione automaticamente)."""
     _get_asset_or_404(db, asset_id, tenant_id)
@@ -143,6 +145,7 @@ def delete_procedura(
     proc_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Elimina una procedura operativa."""
     _get_asset_or_404(db, asset_id, tenant_id)

@@ -81,6 +81,8 @@ export function useApiQuery<T>(
 
   // Ref per evitare stale closure su path
   const pathRef = useRef(path);
+  // TODO(sec-04): revisione umana - questo e' il pattern raccomandato da React per ref che seguono un valore
+  // eslint-disable-next-line react-hooks/refs -- aggiornamento ref durante render: pattern documentato per evitare stale closure senza useEffect
   pathRef.current = path;
 
   const fetchData = useCallback(async () => {

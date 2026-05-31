@@ -1,5 +1,10 @@
 "use client";
 
+// Estensione window per il global hover tooltip handler nel Gantt
+type WindowWithGantt = Window & {
+  __setHoverTooltip?: (ticket: import("./types").TicketData | null, e?: React.MouseEvent) => void;
+};
+
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   DndContext,
@@ -199,9 +204,10 @@ function TicketBlock({ ticket, view, onClick, onHover }: { ticket: TicketData; v
   });
   const s = tipoStyle(ticket.tipo);
   const dur = ticketHours(ticket);
+  // useZoom deve essere chiamato unconditionally (rules-of-hooks)
+  const zoom = useZoom();
 
   if (view === "day") {
-    const zoom = useZoom();
     const HOUR_W = BASE_HOUR_W * zoom;
     const ROW_H = BASE_ROW_H * zoom;
     return (
@@ -467,7 +473,7 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
           const top = 6 + laneInfo.lane * (laneHeight + 4);
           return (
             <div key={t.gantt_key ?? t.id} style={{ position: "absolute", left, top, zIndex: 2 }}>
-              <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as any).__setHoverTooltip?.(tk, e)} />
+              <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as WindowWithGantt).__setHoverTooltip?.(tk, e)} />
             </div>
           );
         })}
@@ -560,7 +566,7 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
         <span>{cap.remaining.toFixed(1)}h</span>
         <span style={{ opacity: 0.62 }}>/ {cap.capacity.toFixed(0)}h</span>
       </div>
-      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as any).__setHoverTooltip?.(tk, e)} />)}
+      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as WindowWithGantt).__setHoverTooltip?.(tk, e)} />)}
     </div>
   );
 }
@@ -752,14 +758,14 @@ export default function PianificazionePage() {
   
   // Set global handler for deeply nested TicketBlocks
   useEffect(() => {
-    (window as any).__setHoverTooltip = (ticket: TicketData | null, e?: React.MouseEvent) => {
+    (window as WindowWithGantt).__setHoverTooltip = (ticket: TicketData | null, e?: React.MouseEvent) => {
       if (!ticket || !e) {
         setHoverTooltip(null);
       } else {
         setHoverTooltip({ ticket, x: e.clientX, y: e.clientY });
       }
     };
-    return () => { delete (window as any).__setHoverTooltip; };
+    return () => { delete (window as WindowWithGantt).__setHoverTooltip; };
   }, []);
 
   // Selettore orizzonte pianificazione (#14)
@@ -767,7 +773,7 @@ export default function PianificazionePage() {
   const [includeWeekends, setIncludeWeekends] = useState(false);
   const [allowOvertime, setAllowOvertime] = useState(false);
 
-  const [manualEval, setManualEval] = useState<{ score: number; breakdown: any } | null>(null);
+  const [manualEval, setManualEval] = useState<{ score: number; breakdown: EfficiencyBreakdown } | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -865,7 +871,7 @@ export default function PianificazionePage() {
     try {
       // Warm-up ping: sveglia il server Render prima di fare la chiamata pesante
       try {
-        await apiGet<unknown>("/health", { signal: AbortSignal.timeout(5000) } as any);
+        await apiGet<unknown>("/health", { signal: AbortSignal.timeout(5000) });
         setGenerandoStatus("Analisi contesto...");
       } catch {
         setGenerandoStatus("Connessione backend...");
@@ -930,41 +936,13 @@ export default function PianificazionePage() {
   async function requestScoreUpdate() {
     setScoreLoading(true);
     try {
-      const evalRes = await apiPost<{ efficiency_score: number; efficiency_breakdown: any }>("/planning/evaluate");
+      const evalRes = await apiPost<{ efficiency_score: number; efficiency_breakdown: EfficiencyBreakdown }>("/planning/evaluate");
       setManualEval({ score: evalRes.efficiency_score, breakdown: evalRes.efficiency_breakdown });
       notify.success(`Score aggiornato: ${Math.round(evalRes.efficiency_score)}`);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore aggiornamento score");
     } finally {
       setScoreLoading(false);
-    }
-  }
-
-  // ── Genera piano AI ─────────────────────────────────────────────────────────
-  async function generateAIPlan() {
-    setGenerando(true);
-    try {
-      const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
-        days: horizonDays,
-        mode: engineMode,
-        include_weekends: includeWeekends,
-        allow_overtime: allowOvertime,
-      });
-      const { previous_efficiency_score: prevScore, ...cleanRes } = res;
-      const newScore = res.plan_json?.efficiency_score;
-      if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
-        notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
-      } else {
-        notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
-      }
-      setPiano(cleanRes);
-      const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
-      setCurrentDate(planStart ? parseISO(planStart) : new Date());
-      await loadData(); // aggiorna il Gantt con i ticket ora pianificati
-    } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore generazione piano AI");
-    } finally {
-      setGenerando(false);
     }
   }
 
@@ -1121,12 +1099,12 @@ export default function PianificazionePage() {
        // Optimistic update for confirmed/db
        const newStartIso = `${dropTarget.date}T${newStartStr}:00`;
        const newEndIso = `${dropTarget.date}T${newEndStr}:00`;
-       const updateTicketList = (list: TicketData[]) => list.map(t => t.id === droppedTicket.id ? { ...t, tecnico_id: dropTarget.tecnico_id, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" } : t);
+       const updateTicketList = (list: TicketData[]) => list.map(t => t.id === droppedTicket.id ? { ...t, tecnico_id: dropTarget.tecnico_id ?? null, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" } : t);
        
        if (droppedTicket.planned_start) {
          setScheduledTickets(prev => updateTicketList(prev));
        } else {
-         setScheduledTickets(prev => [...prev, { ...droppedTicket, tecnico_id: dropTarget.tecnico_id, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" }]);
+         setScheduledTickets(prev => [...prev, { ...droppedTicket, tecnico_id: dropTarget.tecnico_id ?? null, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" }]);
          setUnscheduledTickets(prev => prev.filter(t => t.id !== droppedTicket.id));
        }
     }

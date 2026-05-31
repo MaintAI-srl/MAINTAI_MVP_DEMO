@@ -28,8 +28,8 @@ export default function ProfiloPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Errore durante l'aggiornamento" });
+    } catch (err: unknown) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Errore durante l'aggiornamento" });
     } finally {
       setLoading(false);
     }

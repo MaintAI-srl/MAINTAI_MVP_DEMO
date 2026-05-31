@@ -7,7 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, check_tenant_ownership
+from backend.core.security import get_current_tenant_id, check_tenant_ownership, require_roles
 from backend.db.modelli import Asset, AssetConditionReading, AttivitaManutenzione
 from backend.services.condition_maintenance_service import (
     METRIC_RUNNING_HOURS,
@@ -101,6 +101,7 @@ def create_running_hours_reading(
     data: RunningHoursCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     check_tenant_ownership(db, Asset, asset_id, tenant_id)
     latest = latest_running_hours_by_asset(db, tenant_id, [asset_id]).get(asset_id)

@@ -39,6 +39,8 @@ export function BackendStatus() {
   }, []);
 
   useEffect(() => {
+    // TODO(sec-04): revisione umana - falso positivo: check() è asincrona, setState avviene in callback async
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- check() avvia fetch async; setState avviene nelle callback, non nell'effect
     check();
     const interval = setInterval(check, 30_000);
     return () => clearInterval(interval);

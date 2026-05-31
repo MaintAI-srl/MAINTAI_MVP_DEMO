@@ -32,7 +32,7 @@ export interface AppNotification {
 
 // ── Store in-memoria ─────────────────────────────────────────────────────────
 let _notifications: AppNotification[] = [];
-let _listeners: Set<() => void> = new Set();
+const _listeners: Set<() => void> = new Set();
 const MAX_NOTIFICATIONS = 100;
 
 function _emit() {

@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.repositories.asset_repository import asset_repository
 from backend.schemas.schemas import AssetCreate, AssetUpdate, GeneraAssetMultipliRequest
 from backend.db.modelli import Ticket, Asset
@@ -31,7 +31,7 @@ def get_assets(
 
 
 @router.post("/assets/genera-multipli", status_code=201)
-def genera_asset_multipli(data: GeneraAssetMultipliRequest, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def genera_asset_multipli(data: GeneraAssetMultipliRequest, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     return asset_repository.genera_multipli(db, data, tenant_id)
 
 
@@ -65,7 +65,7 @@ def get_asset(asset_id: int, db: Session = Depends(get_db), tenant_id: int = Dep
 
 
 @router.post("/assets", status_code=201)
-def create_asset(asset: AssetCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def create_asset(asset: AssetCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     nome = asset.nome or asset.name or ""
     if not nome.strip():
         raise HTTPException(status_code=422, detail="Il campo 'nome' e' obbligatorio")
@@ -75,7 +75,7 @@ def create_asset(asset: AssetCreate, db: Session = Depends(get_db), tenant_id: i
 
 
 @router.put("/assets/{asset_id}")
-def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     updated = asset_repository.update(db, asset_id, data, tenant_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Asset non trovato")
@@ -83,7 +83,7 @@ def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db)
 
 
 @router.delete("/assets/{asset_id}", status_code=204)
-def delete_asset(asset_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def delete_asset(asset_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     ok = asset_repository.delete(db, asset_id, tenant_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Asset non trovato")

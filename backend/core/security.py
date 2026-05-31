@@ -11,6 +11,19 @@ from backend.core.dependencies import get_db
 
 _logger = logging.getLogger(__name__)
 
+
+def is_production() -> bool:
+    """Rileva l'ambiente di produzione cloud (Render/Vercel/Supabase) o ENV=production."""
+    return (
+        os.getenv("ENV", "").strip().lower() in ("production", "prod")
+        or bool(os.getenv("RENDER"))
+        or bool(os.getenv("VERCEL"))
+        or bool(os.getenv("SUPABASE_URL"))
+    )
+
+
+IS_PRODUCTION = is_production()
+
 # ── JWT_SECRET ────────────────────────────────────────────────────────────────
 # Obbligatoria. Nessun fallback. Il server non parte se manca.
 # Generare con: python -c "import secrets; print(secrets.token_hex(32))"
@@ -31,7 +44,12 @@ if not _jwt_secret_raw:
 
 SECRET_KEY: str = _jwt_secret_raw
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 giorni
+# Durata access token configurabile via env; default ridotto a 24h (era 7 giorni).
+# La finestra resta mitigata da revoca (jti blacklist + token_version) ma più corta = meno rischio.
+try:
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+except ValueError:
+    ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 
 # ── ENCRYPTION_KEY ────────────────────────────────────────────────────────────
@@ -74,7 +92,14 @@ except Exception as _fernet_exc:
 
 COOKIE_NAME = "maintai_jwt"
 COOKIE_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60  # secondi
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() == "true"
+# In produzione il cookie di sessione DEVE essere Secure (solo HTTPS).
+# Default sicuro: True in produzione, False in locale; sempre sovrascrivibile via env COOKIE_SECURE.
+_cookie_secure_env = os.getenv("COOKIE_SECURE")
+COOKIE_SECURE = (
+    _cookie_secure_env.strip().lower() == "true"
+    if _cookie_secure_env is not None
+    else IS_PRODUCTION
+)
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 
@@ -128,6 +153,9 @@ def decrypt_data(encrypted_text: str) -> str:
     except (InvalidToken, Exception):
         # La stringa non è cifrata o è corrotta — restituisce l'originale
         # (supporto legacy per password salvate in chiaro prima della cifratura)
+        _logger.warning(
+            "decrypt_data: valore non decifrabile (legacy in chiaro o corrotto) — restituito invariato"
+        )
         return encrypted_text
 
 
@@ -254,6 +282,26 @@ def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dic
             detail="Accesso riservato al superadmin.",
         )
     return payload
+
+
+def require_roles(*allowed: str):
+    """
+    Factory che restituisce una dependency FastAPI che ammette superadmin sempre
+    e richiede che il ruolo JWT sia in `allowed` per tutti gli altri.
+
+    Uso: payload: dict = Depends(require_roles('responsabile'))
+    """
+    def _check(payload: dict = Depends(get_current_user_payload)) -> dict:
+        ruolo = payload.get("ruolo", "")
+        if ruolo == "superadmin":
+            return payload
+        if ruolo not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Accesso negato. Ruoli ammessi: {', '.join(allowed)}.",
+            )
+        return payload
+    return _check
 
 
 # ── Object-level authorization ───────────────────────────────────────────────

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, get_current_user_payload
+from backend.core.security import get_current_tenant_id, get_current_user_payload, require_roles
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import Asset, NotaAsset
 
@@ -66,7 +66,7 @@ def upsert_nota_senior(
     body: NotaAssetBody,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(require_roles("responsabile", "tecnico")),
 ):
     """Crea o aggiorna (upsert) la nota tecnica senior dell'asset."""
     _get_asset_or_404(db, asset_id, tenant_id)
