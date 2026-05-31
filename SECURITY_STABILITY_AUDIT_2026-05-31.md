@@ -167,4 +167,19 @@ Il progetto ha **fondamenta di sicurezza buone** (gestione segreti, fail-closed,
 
 **Nessuno dei problemi è di natura sistemica o richiede refactoring architetturale**: la maggior parte sono fix mirati da poche righe. Chiudendo il Blocco 1 e 2 il progetto passa da "demo solido" a "production-hardened".
 
-> Questo report è un audit di sola lettura: **nessuna modifica funzionale al codice** è stata applicata. L'unica modifica al repo è l'aggiunta di `.claude/agent-memory/` al `.gitignore`.
+> Versione originale del report: audit di sola lettura, nessuna modifica funzionale al codice. Vedi §10 per le correzioni applicate successivamente.
+
+---
+
+## 10. Aggiornamento — Blocco 1 risolto (2026-05-31)
+
+I 4 problemi bloccanti del Blocco 1 sono stati corretti su questo branch:
+
+| ID | Stato | Modifica |
+|---|---|---|
+| **QA-C1** | ✅ Risolto | `planning/page.tsx`: `useZoom()` spostato fuori dal condizionale in `TicketBlock` (sempre invocato, Rules of Hooks rispettate). |
+| **QA-C2** | ✅ Risolto | `planning/page.tsx`: rimossa la seconda definizione (semplice) di `generateAIPlan`; mantenuta la versione con warm-up `/health` e `generandoStatus`. |
+| **SEC-C1** | ✅ Risolto | `planning.py` `_batch_completion_pct()`: aggiunto filtro esplicito `Ticket.tenant_id.in_(tenant_ids)` dei piani → niente contaminazione cross-tenant. |
+| **SEC-C2** | ✅ Risolto | `check_primo_livello.py`: rate limit `slowapi` (POST `segnala` 10/min, GET pubblica 30/min) + `Field(min_length=3, max_length=2000)` su `descrizione` e `max_length=120` su `operatore`. |
+
+I restanti Blocchi 2–4 restano aperti come backlog.

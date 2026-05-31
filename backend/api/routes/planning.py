@@ -171,10 +171,15 @@ def _batch_completion_pct(plans: List[GeneratedPlan], db: Session) -> Dict[int, 
     # Tutti gli id univoci da cercare
     all_wo_ids = list({wid for ids in plan_wo_map.values() for wid in ids})
 
-    # Una sola query: ticket chiusi tra tutti i WO id (tenant non necessario se wo_ids sono già filtrati per tenant)
+    # Tenant dei piani eleggibili: filtro esplicito per evitare contaminazione
+    # cross-tenant (l'ORM event listener non scatta su questo helper raw).
+    tenant_ids = list({p.tenant_id for p in plans if p.id in plan_wo_map})
+
+    # Una sola query: ticket chiusi tra tutti i WO id, ristretti ai tenant dei piani
     chiusi_rows = db.query(Ticket.id).filter(
         Ticket.id.in_(all_wo_ids),
         Ticket.stato == "Chiuso",
+        Ticket.tenant_id.in_(tenant_ids),
     ).all()
     chiusi_set = {row[0] for row in chiusi_rows}
 
