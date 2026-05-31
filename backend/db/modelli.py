@@ -71,7 +71,7 @@ class Sito(Base):
     note = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     impianti = relationship("Impianto", back_populates="sito", cascade="all, delete-orphan")
     tenant = relationship("Tenant", back_populates="siti")
@@ -96,7 +96,7 @@ class Impianto(Base):
     sito = relationship("Sito", back_populates="impianti")
     tipologia = Column(String, nullable=True)
     note = Column(String, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
 
 class Asset(Base):
@@ -153,7 +153,7 @@ class Asset(Base):
 
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     impianto = relationship("Impianto", back_populates="assets")
     tickets = relationship("Ticket", back_populates="asset", cascade="all, delete-orphan")
@@ -178,7 +178,7 @@ class Tecnico(Base):
     limitazioni_orarie = Column(Text, nullable=True)
     telefono = Column(String, nullable=True)
     sede_indirizzo = Column(String, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     utente = relationship("Utente")
     assenze = relationship("TecnicoAssenza", back_populates="tecnico", cascade="all, delete-orphan")
@@ -208,7 +208,7 @@ class Ticket(Base):
     parent_id = Column(Integer, ForeignKey("ticket.id"), nullable=True)
     diagnosi_eseguita = Column(Boolean, default=False)
     firma_percorso = Column(String, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Campi splitting/pianificazione AI (FASE 6)
     parent_ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=True)
@@ -270,8 +270,8 @@ class Manuale(Base):
     json_estratto = Column(Text)
     version = Column(Integer, default=1)
     stato = Column(String, default="attivo")
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+
     # Collegamento al Piano di Manutenzione (Integrazione Piani/Manuali)
     piano_id = Column(Integer, ForeignKey("piani_manutenzione.id"), nullable=True, index=True)
     
@@ -293,7 +293,7 @@ class AttivitaManutenzione(Base):
     codice = Column(String, nullable=True, index=True)  # Codice univoco piano — Null per attività da manuale
     ultima_esecuzione = Column(DateTime, nullable=True)
     prossima_scadenza = Column(DateTime, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Campi unificazione Task/Piano (v2.5.0)
     generation_mode = Column(String, default="manual", nullable=True)  # manual | auto | disabled
@@ -323,7 +323,7 @@ class AssetConditionReading(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     metric = Column(String, nullable=False, default="running_hours", index=True)
     value = Column(Float, nullable=False)
     recorded_at = Column(DateTime, default=_utcnow, nullable=False, index=True)
@@ -342,7 +342,7 @@ class AnalisiGuasto(Base):
     sintomi = Column(Text)
     analisi_json = Column(Text)
     ai_utilizzata = Column(Boolean)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     ticket = relationship("Ticket", back_populates="analisi")
 
@@ -356,7 +356,7 @@ class DiagnosticSession(Base):
     status = Column(String, default="active")
     root_cause = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     ticket = relationship("Ticket", back_populates="sessioni")
 
@@ -376,7 +376,7 @@ class TecnicoAssenza(Base):
     data_fine = Column(DateTime, nullable=False)
     tipo_assenza = Column(String, default="Ferie")
     note = Column(Text, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     tecnico = relationship("Tecnico", back_populates="assenze")
 
@@ -391,7 +391,7 @@ class TicketAllegato(Base):
     tipo_mime = Column(String(100), nullable=True)
     dimensione_bytes = Column(Integer, nullable=True)
     creato_il = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     ticket = relationship("Ticket", back_populates="allegati")
 
@@ -400,7 +400,7 @@ class EmailConfig(Base):
     __tablename__ = "email_config"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     imap_server = Column(String)  # es. imap.gmail.com
     imap_port = Column(Integer, default=993)
     email_address = Column(String)
@@ -437,7 +437,7 @@ class PianoManutenzione(Base):
     __tablename__ = "piani_manutenzione"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     nome_codificato = Column(String, nullable=False, index=True) # es. "PM-2026-0001"
     progressivo = Column(Integer, nullable=False, index=True)
     descrizione = Column(Text, nullable=True)
@@ -502,7 +502,7 @@ class GeneratedPlan(Base):
     deauthorized_by = Column(String, nullable=True)
     deauthorization_reason = Column(String, nullable=True)
 
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
 
 class PlannerFeedback(Base):
@@ -510,7 +510,7 @@ class PlannerFeedback(Base):
     __tablename__ = "planner_feedback"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=False, index=True)
     generated_plan_id = Column(Integer, ForeignKey("generated_plans.id"), nullable=True)
 
@@ -578,7 +578,7 @@ class FailureAnalysis(Base):
     rpn_weighted = Column(Float, nullable=False)
     ai_explanation = Column(Text, nullable=True)
     selected = Column(Boolean, default=False)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=_utcnow)
 
     failure_mode = relationship("FailureMode")
@@ -596,7 +596,7 @@ class DiagnosticLearning(Base):
     action_taken = Column(Text, nullable=False)
     resolution_time_minutes = Column(Integer, nullable=True)
     success = Column(Boolean, default=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=_utcnow)
 
     failure_mode = relationship("FailureMode")
@@ -610,7 +610,7 @@ class Procedura(Base):
 
     id = Column(Integer, primary_key=True)
     asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     titolo = Column(String, nullable=False)
     tipo = Column(String, default="ispezione")  # ispezione | sostituzione | taratura | loto | emergenza
     passi = Column(Text, default="[]")           # JSON array di stringhe
@@ -625,7 +625,7 @@ class NotaAsset(Base):
 
     id = Column(Integer, primary_key=True)
     asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     testo = Column(Text, nullable=False)
     autore = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
@@ -638,7 +638,7 @@ class CheckPrimoLivello(Base):
 
     id = Column(Integer, primary_key=True)
     asset_id = Column(Integer, ForeignKey("asset.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     public_token = Column(String, nullable=False, unique=True, index=True)  # UUID per accesso pubblico
     token_active = Column(Boolean, default=True, nullable=False, server_default='1')
     token_expires_at = Column(DateTime(timezone=True), nullable=True)
@@ -652,7 +652,7 @@ class Attestato(Base):
 
     id = Column(Integer, primary_key=True)
     tecnico_id = Column(Integer, ForeignKey("tecnici.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     tipo_corso = Column(String, nullable=False)
     ente_certificatore = Column(String, nullable=True)
     data_conseguimento = Column(Date, nullable=True)

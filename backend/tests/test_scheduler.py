@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 def test_db_session(db_session: Session):
     """Verifica che il DB in-memory sia funzionante."""
-    new_asset = Asset(nome="Test Asset", area="Prod")
+    new_asset = Asset(nome="Test Asset", area="Prod", tenant_id=1)
     db_session.add(new_asset)
     db_session.commit()
     
