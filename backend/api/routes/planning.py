@@ -9,13 +9,13 @@ from typing import Dict, List, Literal, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.rate_limiter import limiter
-from backend.core.security import get_current_tenant_id, get_current_user_payload
+from backend.core.security import get_current_tenant_id, get_current_user_payload, require_roles
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant, PlannerFeedback
@@ -44,7 +44,7 @@ def _planning_today() -> date_type:
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 class GeneratePlanRequest(BaseModel):
-    days: int = 7
+    days: int = Field(default=7, ge=1, le=90)
     asset_ids: Optional[List[int]] = None
     mode: str = "auto"   # "deterministic" | "ai" | "auto"
     include_weekends: bool = False
@@ -52,7 +52,7 @@ class GeneratePlanRequest(BaseModel):
 
 
 class DeauthorizeRequest(BaseModel):
-    reason: str
+    reason: str = Field(min_length=10, max_length=1000)
 
 
 class MoveTicketRequest(BaseModel):
@@ -671,6 +671,7 @@ def confirm_plan(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     payload: dict = Depends(get_current_user_payload),
+    _role: dict = Depends(require_roles("responsabile")),
 ):
     """
     Conferma un piano draft:
@@ -794,6 +795,7 @@ def deauthorize_plan(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     payload: dict = Depends(get_current_user_payload),
+    _role: dict = Depends(require_roles("responsabile")),
 ):
     """
     Deautorizza un piano confermato.
@@ -1489,7 +1491,11 @@ def feedback_analytics(
         "by_tipo": by_tipo,
     }
 @router.post("/clear")
-def clear_gantt(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def clear_gantt(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _role: dict = Depends(require_roles("responsabile")),
+):
     from backend.db.modelli import Ticket, GeneratedPlan
     tickets = db.query(Ticket).filter(Ticket.tenant_id == tenant_id, Ticket.stato == "Pianificato", Ticket.deleted_at.is_(None)).all()
     for t in tickets:

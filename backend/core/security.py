@@ -74,7 +74,7 @@ except Exception as _fernet_exc:
 
 COOKIE_NAME = "maintai_jwt"
 COOKIE_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60  # secondi
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() == "true"
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").strip().lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 
@@ -254,6 +254,28 @@ def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dic
             detail="Accesso riservato al superadmin.",
         )
     return payload
+
+
+def require_roles(*allowed_roles: str):
+    """
+    Dependency factory: consente l'accesso solo agli utenti con uno dei
+    ruoli indicati. Il superadmin è sempre autorizzato.
+
+    Uso:
+        _: dict = Depends(require_roles("responsabile"))
+    """
+    allowed = set(allowed_roles)
+
+    def _dep(payload: dict = Depends(get_current_user_payload)) -> dict:
+        ruolo = payload.get("ruolo")
+        if ruolo != "superadmin" and ruolo not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Operazione non consentita per il tuo ruolo.",
+            )
+        return payload
+
+    return _dep
 
 
 # ── Object-level authorization ───────────────────────────────────────────────

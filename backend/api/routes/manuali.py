@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.exceptions import AppError
+from backend.core.file_validation import is_pdf
 from backend.core.logging_config import get_logger
 from backend.db.modelli import Manuale, AttivitaManutenzione, Asset
 from backend.services.pdf_service import smart_read_pdf
@@ -53,6 +54,11 @@ async def upload_manuale(
         raise AppError(
             status_code=413,
             message=f"File troppo grande: massimo {MAX_MANUALE_BYTES // (1024 * 1024)} MB consentiti.",
+        )
+    if not is_pdf(file.filename, content):
+        raise AppError(
+            status_code=415,
+            message="Sono ammessi solo file PDF validi (estensione .pdf e contenuto PDF).",
         )
 
     result = smart_read_pdf(content)

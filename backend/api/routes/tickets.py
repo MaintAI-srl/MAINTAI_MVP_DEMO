@@ -530,6 +530,7 @@ import uuid
 from fastapi import UploadFile, File, HTTPException
 from backend.db.modelli import TicketAllegato
 from backend.core import storage
+from backend.core.file_validation import magic_bytes_mismatch
 
 @router.post("/tickets/{ticket_id}/allegati")
 async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
@@ -538,7 +539,7 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
         raise HTTPException(status_code=404, detail="Ticket non trovato")
 
     ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
-    if ext and ext not in ALLOWED_UPLOAD_EXTENSIONS:
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"Tipo file non consentito: '{ext}'. Estensioni ammesse: {', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}",
@@ -550,6 +551,9 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
             status_code=413,
             detail=f"File troppo grande: massimo {MAX_ALLEGATO_BYTES // (1024*1024)} MB consentiti.",
         )
+    mismatch = magic_bytes_mismatch(file.filename, content)
+    if mismatch:
+        raise HTTPException(status_code=415, detail=mismatch)
     url = storage.save_file(content, unique_filename)
 
     allegato = TicketAllegato(

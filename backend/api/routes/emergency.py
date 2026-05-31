@@ -129,9 +129,9 @@ async def nearest_technicians(
     if ticket.asset_id:
         asset = db.query(Asset).filter(Asset.id == ticket.asset_id, Asset.tenant_id == tenant_id).first()
     if asset and asset.impianto_id:
-        impianto = db.query(Impianto).filter(Impianto.id == asset.impianto_id).first()
+        impianto = db.query(Impianto).filter(Impianto.id == asset.impianto_id, Impianto.tenant_id == tenant_id).first()
     if impianto and impianto.sito_id:
-        sito = db.query(Sito).filter(Sito.id == impianto.sito_id).first()
+        sito = db.query(Sito).filter(Sito.id == impianto.sito_id, Sito.tenant_id == tenant_id).first()
 
     if sito:
         sito_nome = sito.nome or ""
@@ -178,11 +178,11 @@ async def nearest_technicians(
             .first()
         )
         if ticket_in_corso and ticket_in_corso.asset_id:
-            a_lav = db.query(Asset).filter(Asset.id == ticket_in_corso.asset_id).first()
+            a_lav = db.query(Asset).filter(Asset.id == ticket_in_corso.asset_id, Asset.tenant_id == tenant_id).first()
             if a_lav and a_lav.impianto_id:
-                imp_lav = db.query(Impianto).filter(Impianto.id == a_lav.impianto_id).first()
+                imp_lav = db.query(Impianto).filter(Impianto.id == a_lav.impianto_id, Impianto.tenant_id == tenant_id).first()
                 if imp_lav and imp_lav.sito_id:
-                    sito_lav = db.query(Sito).filter(Sito.id == imp_lav.sito_id).first()
+                    sito_lav = db.query(Sito).filter(Sito.id == imp_lav.sito_id, Sito.tenant_id == tenant_id).first()
                     if sito_lav:
                         tec_indirizzo = _build_sito_address(sito_lav)
                         posizione_fonte = "in_lavorazione"
@@ -203,11 +203,11 @@ async def nearest_technicians(
                 .first()
             )
             if ticket_pianificato and ticket_pianificato.asset_id:
-                a_pian = db.query(Asset).filter(Asset.id == ticket_pianificato.asset_id).first()
+                a_pian = db.query(Asset).filter(Asset.id == ticket_pianificato.asset_id, Asset.tenant_id == tenant_id).first()
                 if a_pian and a_pian.impianto_id:
-                    imp_pian = db.query(Impianto).filter(Impianto.id == a_pian.impianto_id).first()
+                    imp_pian = db.query(Impianto).filter(Impianto.id == a_pian.impianto_id, Impianto.tenant_id == tenant_id).first()
                     if imp_pian and imp_pian.sito_id:
-                        sito_pian = db.query(Sito).filter(Sito.id == imp_pian.sito_id).first()
+                        sito_pian = db.query(Sito).filter(Sito.id == imp_pian.sito_id, Sito.tenant_id == tenant_id).first()
                         if sito_pian:
                             tec_indirizzo = _build_sito_address(sito_pian)
                             posizione_fonte = "in_piano"

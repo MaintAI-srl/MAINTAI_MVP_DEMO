@@ -182,4 +182,20 @@ I 4 problemi bloccanti del Blocco 1 sono stati corretti su questo branch:
 | **SEC-C1** | ✅ Risolto | `planning.py` `_batch_completion_pct()`: aggiunto filtro esplicito `Ticket.tenant_id.in_(tenant_ids)` dei piani → niente contaminazione cross-tenant. |
 | **SEC-C2** | ✅ Risolto | `check_primo_livello.py`: rate limit `slowapi` (POST `segnala` 10/min, GET pubblica 30/min) + `Field(min_length=3, max_length=2000)` su `descrizione` e `max_length=120` su `operatore`. |
 
-I restanti Blocchi 2–4 restano aperti come backlog.
+## 11. Aggiornamento — Blocco 2 risolto (2026-05-31)
+
+Hardening sicurezza completato:
+
+| ID | Stato | Modifica |
+|---|---|---|
+| **SEC-A3** | ✅ Risolto | Nuovo helper riusabile `require_roles()` in `security.py`; applicato a `confirm_plan`, `deauthorize_plan`, `clear_gantt` (`planning.py`) → solo `responsabile`/`superadmin`. I tecnici non possono più confermare/deautorizzare/svuotare piani. |
+| **SEC-A5** | ✅ Risolto | `GeneratePlanRequest.days` → `Field(default=7, ge=1, le=90)` (bonus: `DeauthorizeRequest.reason` → `min_length=10, max_length=1000`, copre anche SEC-M1). |
+| **SEC-A7** | ✅ Risolto | `diagnostic.py`: filtro `AttivitaManutenzione.tenant_id == tenant_id` sulle due query del contesto diagnostico. |
+| **SEC-A4** | ✅ Risolto | `emergency.py`: filtro `tenant_id` esplicito su tutte le query `Asset`/`Impianto`/`Sito` (8 query) → sicuro anche sotto impersonation SuperAdmin. |
+| **SEC-A1** | ✅ Risolto | `manuali.py`: nuovo `is_pdf()` (estensione `.pdf` + magic bytes `%PDF`) prima del parsing. |
+| **SEC-A2** | ✅ Risolto | `tickets.py`: nuovo `magic_bytes_mismatch()` (HTTP 415 se il contenuto non corrisponde all'estensione); estensione ora obbligatoria (rifiuta file senza estensione). |
+| **SEC-A6** | ✅ Risolto | `security.py`: `COOKIE_SECURE` default `"true"` (opt-out esplicito solo per dev locale). |
+
+Nuovo modulo: `backend/core/file_validation.py` (signature magic-bytes per PDF/immagini/Office/zip/video, con unit-check manuale superato).
+
+I restanti Blocchi 3–4 restano aperti come backlog.

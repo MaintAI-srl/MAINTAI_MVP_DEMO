@@ -106,6 +106,7 @@ def start_session(
     if ticket.asset_id:
         activities = db.query(AttivitaManutenzione).filter(
             AttivitaManutenzione.asset_id == ticket.asset_id,
+            AttivitaManutenzione.tenant_id == tenant_id,
         ).limit(10).all()
         for a in activities:
             maintenance_activities.append({
@@ -121,6 +122,7 @@ def start_session(
         att_ids = db.query(AttivitaManutenzione.manuale_id).filter(
             AttivitaManutenzione.asset_id == ticket.asset_id,
             AttivitaManutenzione.manuale_id.isnot(None),
+            AttivitaManutenzione.tenant_id == tenant_id,
         ).distinct().all()
         manuale_ids = [r[0] for r in att_ids]
         if manuale_ids:
