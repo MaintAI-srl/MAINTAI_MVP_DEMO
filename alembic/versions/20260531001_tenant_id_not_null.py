@@ -16,30 +16,40 @@ down_revision: Union[str, Sequence[str], None] = "c8b3fc6efac0"
 branch_labels = None
 depends_on = None
 
-# Tables where tenant_id was nullable=True and must become NOT NULL.
-# Excluded (intentionally nullable):
-#   - system_logs: global infrastructure logs, may exist before tenant context
+# All operative tables where tenant_id was nullable=True (original HEAD).
+# Skipped intentionally:
+#   - utenti: tenant association is optional (pre-invite state)
+#   - system_logs: global infra logs, may exist before tenant context
 #   - failure_modes: has is_global flag — records shared across tenants
-#   - revoked_tokens: infrastructure, no tenant context
-#   - analisi_guasti, diagnostic_sessions: diagnostic data loosely coupled to tenant
-#   - failure_analysis, diagnostic_learning: analytics data, may be cross-tenant
+#   - asset_documenti: was already nullable=False before this migration
 TABLES = [
+    "siti",
+    "impianti",
+    "asset",
+    "tecnici",
+    "ticket",
+    "manuali",
+    "attivita_manutenzione",
+    "asset_condition_readings",
+    "analisi_guasti",
+    "diagnostic_sessions",
     "tecnici_assenze",
     "ticket_allegati",
     "email_config",
+    "piani_manutenzione",
     "generated_plans",
     "planner_feedback",
+    "failure_analysis",
+    "diagnostic_learning",
     "procedure",
     "note_asset",
     "check_primo_livello",
     "attestati",
-    "piani_manutenzione",
 ]
 
 
 def upgrade() -> None:
     for table in TABLES:
-        # Backfill any NULL tenant_id with 1 so the NOT NULL constraint can apply.
         op.execute(f"UPDATE {table} SET tenant_id = 1 WHERE tenant_id IS NULL")
         with op.batch_alter_table(table) as batch_op:
             batch_op.alter_column(
