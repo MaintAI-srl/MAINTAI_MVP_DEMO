@@ -256,6 +256,26 @@ def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dic
     return payload
 
 
+def require_roles(*allowed: str):
+    """
+    Factory che restituisce una dependency FastAPI che ammette superadmin sempre
+    e richiede che il ruolo JWT sia in `allowed` per tutti gli altri.
+
+    Uso: payload: dict = Depends(require_roles('responsabile'))
+    """
+    def _check(payload: dict = Depends(get_current_user_payload)) -> dict:
+        ruolo = payload.get("ruolo", "")
+        if ruolo == "superadmin":
+            return payload
+        if ruolo not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Accesso negato. Ruoli ammessi: {', '.join(allowed)}.",
+            )
+        return payload
+    return _check
+
+
 # ── Object-level authorization ───────────────────────────────────────────────
 
 def check_tenant_ownership(db, model, object_id: int, tenant_id: int):

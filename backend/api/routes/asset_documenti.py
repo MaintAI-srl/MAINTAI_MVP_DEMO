@@ -14,7 +14,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import Asset, AssetDocumento
 
@@ -95,6 +95,7 @@ async def upload_documento(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     _get_asset_or_404(db, asset_id, tenant_id)
 
@@ -166,6 +167,7 @@ def elimina_documento(
     doc_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     doc = _get_doc_or_404(db, asset_id, doc_id, tenant_id)
     db_info("asset_documenti", f"Documento '{doc.nome}' eliminato per asset {asset_id}", {"doc_id": doc_id}, tenant_id=tenant_id)
@@ -180,6 +182,7 @@ async def analizza_esploso(
     doc_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     from backend.core.config import OPENAI_API_KEY
 
