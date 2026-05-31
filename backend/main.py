@@ -246,6 +246,9 @@ def _ensure_columns() -> None:
         # Tecnico — telefono e sede per mappa emergenze
         ("tecnici", "telefono",                "ALTER TABLE tecnici ADD COLUMN {ifne}telefono VARCHAR"),
         ("tecnici", "sede_indirizzo",          "ALTER TABLE tecnici ADD COLUMN {ifne}sede_indirizzo VARCHAR"),
+        # P1-05 — QR token scadenza e revoca (v3.3.1)
+        ("check_primo_livello", "token_active",     "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_active BOOLEAN NOT NULL DEFAULT 1"),
+        ("check_primo_livello", "token_expires_at", "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_expires_at DATETIME"),
     ]
 
     # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)
