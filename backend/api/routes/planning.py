@@ -61,6 +61,7 @@ class MoveTicketRequest(BaseModel):
     new_start_hour: Optional[int] = None   # 0-23 — None = mantieni orario corrente
     new_start_minute: Optional[int] = None # 0 o 30 — None = mantieni orario corrente
     tecnico_id: Optional[int] = None       # None = mantieni tecnico corrente
+    skip_engine_validation: Optional[bool] = False  # bypass validazione capienza (es. piani draft)
 
 
 def _wo_count(plan: GeneratedPlan) -> int:
@@ -371,7 +372,7 @@ async def generate_plan(
     except Exception as exc:
         logger.error("Planning: eccezione non gestita — %s", exc, exc_info=True)
         db_error("PLANNING", f"Eccezione durante generazione piano: {exc}", tenant_id=tenant_id)
-        raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
+        raise HTTPException(status_code=500, detail="Errore interno durante la generazione del piano.")
 
     # Aggiungi plan_metadata al piano generato
     gen_ms = round((_time.monotonic() - t_gen_start) * 1000)
@@ -777,7 +778,7 @@ def confirm_plan(
         db.rollback()
         logger.error("Confirm plan: errore durante conferma piano %s: %s", plan_id, exc, exc_info=True)
         db_error("PLANNING", f"Errore durante conferma piano #{plan_id}: {exc}", tenant_id=tenant_id)
-        raise HTTPException(status_code=500, detail=f"Errore durante la conferma del piano: {exc}")
+        raise HTTPException(status_code=500, detail="Errore durante la conferma del piano.")
 
     completion_pct = _compute_completion_pct(plan, db)
     logger.info(
@@ -1431,7 +1432,7 @@ def get_feedback(
 
 @router.get("/feedback/analytics")
 def feedback_analytics(
-    days: int = 30,
+    days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):

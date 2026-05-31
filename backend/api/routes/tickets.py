@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from pydantic import BaseModel as PydanticModel
+from pydantic import BaseModel as PydanticModel, Field
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, get_current_user_payload
@@ -243,7 +243,7 @@ def sync_ticket_hierarchy(
 class QuickTicketCreate(PydanticModel):
     """M1.1 — Ticket rapido da campo: soli 3 campi obbligatori."""
     asset_id: int
-    descrizione: str
+    descrizione: str = Field(min_length=1, max_length=4000)
     tipo: str = "BD"  # BD | PM | CM
 
 

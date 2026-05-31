@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guida per Claude Code su questo repository. Aggiornato alla versione **3.2.1** (2026-05-02).
+Guida per Claude Code su questo repository. Aggiornato alla versione **3.3.0** (2026-05-31).
 
 ---
 
@@ -18,7 +18,7 @@ MaintAI è un sistema di gestione manutenzione industriale AI-powered per impian
 3. **Piano AI Felix** — motore deterministico (`PlannerEngine`) + motore GPT opzionale, viste Gantt/Kanban/Calendario, storico piani con deautorizzazione
 4. Sessione diagnostica AI guidata (RCA interattiva via OpenAI)
 5. Caricamento manuali PDF → estrazione automatica piano manutenzione + pagina `/piani`
-6. Dashboard KPI in tempo reale (polling 30s) con grafici Recharts
+6. Dashboard KPI in tempo reale (aggiornamento event-driven: eventi `maintai:data-changed` e `focus`) con grafici Recharts
 7. Kanban board ticket drag-and-drop (`@dnd-kit`)
 8. Integrazione Email-to-Ticket via IMAP polling (ogni 5 min)
 9. Gestione tecnici con assenze e orari
@@ -76,8 +76,8 @@ Next.js Frontend (Vercel, porta 3000 in locale)
           Open-Meteo API (previsioni meteo per vincoli asset)
 ```
 
-### Routing DB (multi-tenant + demo)
-- `get_db` in `backend/core/dependencies.py` → se JWT ha `is_demo=True` usa `demo.db` (SQLite), altrimenti PostgreSQL
+### Routing DB (multi-tenant)
+- `get_db` in `backend/core/dependencies.py` → restituisce sempre una sessione verso il DB principale (`SessionLocal`). **Nota:** il routing automatico verso `demo.db` in base a `is_demo` non è attualmente implementato; l'isolamento demo, se necessario, va realizzato a livello di tenant. `DEMO_DATABASE_URL` resta definita in config ma non è cablata in `get_db`.
 - Ogni tabella ha `tenant_id` FK; le query filtrano sempre per tenant
 - SuperAdmin può impersonare tenant via header `X-Tenant-Id`
 

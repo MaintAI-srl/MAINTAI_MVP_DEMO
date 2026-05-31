@@ -1,5 +1,6 @@
 import io
 import os
+import logging
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,6 +16,7 @@ from backend.db.modelli import Ticket, Asset
 from backend.core.logger_db import db_info, db_error
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/assets")
@@ -248,7 +250,8 @@ def get_asset_qr_json(
             asset.qr_code_b64 = qr_b64
             db.commit()
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Errore generazione QR: {exc}")
+            logger.error("Errore generazione QR asset %s: %s", asset_id, exc, exc_info=True)
+            raise HTTPException(status_code=500, detail="Errore durante la generazione del QR code.")
 
     return {
         "asset_id": asset_id,
@@ -276,7 +279,8 @@ def get_asset_qr_png(
         from backend.services.qr_service import generate_asset_qr_png
         png_bytes = generate_asset_qr_png(asset_id)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Errore generazione QR: {exc}")
+        logger.error("Errore generazione QR PNG asset %s: %s", asset_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Errore durante la generazione del QR code.")
 
     return Response(
         content=png_bytes,

@@ -1239,8 +1239,8 @@ export default function PianificazionePage() {
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0, whiteSpace: "nowrap" }}>
           {effScore !== undefined && (
             <span 
-              title={effBreakdown 
-                ? `Dettagli Score:\nCopertura Backlog: ${effBreakdown.copertura_backlog?.toFixed(1)}%\nUtilizzo Tecnici: ${effBreakdown.utilizzo_tecnici?.toFixed(1)}%\nRispetto Priorità: ${effBreakdown.rispetto_priorita?.toFixed(1)}%\nRiduzione Spostamenti: ${effBreakdown.riduzione_spostamenti?.toFixed(1)}%\nMatching Competenze: ${effBreakdown.matching_competenze?.toFixed(1)}%`
+              title={effBreakdown
+                ? `Dettagli Score:\nCopertura Backlog: ${effBreakdown.copertura_backlog?.toFixed(1)}%\nUtilizzo Tecnici: ${effBreakdown.utilizzo_tecnici?.toFixed(1)}%\nBilanciamento PM/CM: ${effBreakdown.bilanciamento_70_30?.toFixed(1)}%\nMatch Competenze: ${effBreakdown.match_skill?.toFixed(1)}%\nOttimizzazione Meteo: ${effBreakdown.ottimizzazione_meteo?.toFixed(1)}%`
                 : "Score di efficienza del piano"}
               style={{
               fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
@@ -1534,7 +1534,7 @@ export default function PianificazionePage() {
         </div>
 
         {/* ── STORICO PIANI ── */}
-        <div style={{ display: "none",
+        <div style={{
           borderTop: "1px solid rgba(59,130,246,0.08)",
           padding: "0 16px 24px",
           background: "var(--surface-0)",

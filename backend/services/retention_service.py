@@ -3,9 +3,31 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from backend.core import storage
 from backend.core.database import SessionLocal
-from backend.db.modelli import Ticket, TicketAllegato
+from backend.db.modelli import Ticket, TicketAllegato, RevokedToken
 
 logger = logging.getLogger("retention_service")
+
+# I token JWT scadono dopo ACCESS_TOKEN_EXPIRE_MINUTES (7 giorni): una volta
+# scaduti, la voce nella blacklist è inutile. Manteniamo un margine di sicurezza.
+REVOKED_TOKEN_RETENTION_DAYS = 8
+
+
+def cleanup_expired_revoked_tokens(db: Session, max_age_days: int = REVOKED_TOKEN_RETENTION_DAYS) -> int:
+    """
+    Elimina dalla blacklist i jti revocati più vecchi di max_age_days: il token
+    originale è ormai scaduto per TTL, quindi la voce non serve più. Evita la
+    crescita illimitata della tabella revoked_tokens.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    deleted = (
+        db.query(RevokedToken)
+        .filter(RevokedToken.created_at < cutoff)
+        .delete(synchronize_session=False)
+    )
+    if deleted:
+        db.commit()
+        logger.info("Retention Cleanup: eliminati %d token revocati scaduti (oltre %d giorni).", deleted, max_age_days)
+    return deleted
 
 def cleanup_old_deleted_tickets(db: Session, max_age_days: int = 30):
     """
@@ -56,6 +78,7 @@ async def run_retention_job():
             db = SessionLocal()
             try:
                 cleanup_old_deleted_tickets(db)
+                cleanup_expired_revoked_tokens(db)
             finally:
                 db.close()
         except Exception as e:

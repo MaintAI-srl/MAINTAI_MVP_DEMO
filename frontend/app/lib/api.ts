@@ -30,6 +30,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const SLOW_ENDPOINTS: RegExp[] = [
   /\/planning\/generate/,
   /\/planning\/confirm/,
+  /\/planning\/replanning/,
   /\/manuali\/\d+\/analisi/,
   /\/problem-analysis/,
   /\/diagnostic/,

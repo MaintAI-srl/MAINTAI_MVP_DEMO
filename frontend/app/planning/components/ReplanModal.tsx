@@ -69,7 +69,12 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
       );
       onSuccess(result);
     } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore durante il ricalcolo del piano");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("temporaneamente disattivat") || msg.includes("503")) {
+        notify.warning("Il ricalcolo adattivo è temporaneamente disattivato.");
+      } else {
+        notify.error(msg || "Errore durante il ricalcolo del piano");
+      }
     } finally {
       setLoading(false);
     }

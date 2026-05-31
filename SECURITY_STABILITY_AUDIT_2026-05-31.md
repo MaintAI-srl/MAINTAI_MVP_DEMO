@@ -198,4 +198,32 @@ Hardening sicurezza completato:
 
 Nuovo modulo: `backend/core/file_validation.py` (signature magic-bytes per PDF/immagini/Office/zip/video, con unit-check manuale superato).
 
-I restanti Blocchi 3–4 restano aperti come backlog.
+## 12. Aggiornamento — Blocco 3 risolto (2026-05-31)
+
+UX e contratto frontend↔backend:
+
+| ID | Stato | Modifica |
+|---|---|---|
+| **QA-A1** | ✅ Risolto | `planning/page.tsx`: tooltip efficiency ora usa i nomi reali (`bilanciamento_70_30`, `match_skill`, `ottimizzazione_meteo`) → niente più `undefined%`. |
+| **QA-A2** | ✅ Risolto | `planning/page.tsx`: rimosso `display:"none"` dal contenitore `StoricoPiani` → storico ora visibile. |
+| **QA-A3** | ✅ Risolto | `planning/types.ts`: aggiunti `sito_name`/`impianto_name` a `TicketData` (allineamento col backend). |
+| **QA-M1** | ✅ Risolto | `api.ts`: `/planning/replanning` aggiunto a `SLOW_ENDPOINTS` (timeout 120s). |
+| **QA-M2** | ✅ Risolto | `ReplanModal.tsx`: gestione esplicita del 503 (feature flag) con `notify.warning`. |
+
+## 13. Aggiornamento — Blocco 4 risolto (2026-05-31)
+
+Igiene e robustezza:
+
+| ID | Stato | Modifica |
+|---|---|---|
+| **Versioni** | ✅ Allineate | `package.json` 3.1.7→3.3.0; `CLAUDE.md` 3.2.1→3.3.0. Ora coerenti con `version.ts`/`config.py` (3.3.0). |
+| **Drift doc** | ✅ Corretto | `CLAUDE.md`: routing DB demo documentato come **non implementato**; dashboard descritta come event-driven (non polling 30s). |
+| **SEC-M3** | ✅ Risolto | `retention_service.py`: nuova `cleanup_expired_revoked_tokens()` (>8gg) eseguita nel job giornaliero → la blacklist JTI non cresce più illimitata. |
+| **SEC-M10** | ✅ Risolto | `planning.py` (2) e `assets.py` (2): i 500 non espongono più `{exc}` al client; l'eccezione è loggata server-side. |
+| **SEC-M4/M5/M6** | ✅ Risolto | Bound su `feedback_analytics.days` (1-365), `report.mesi` (1-60), `QuickTicketCreate.descrizione` (max 4000). |
+| **QA-B1** | ✅ Risolto | `planning.py`: `skip_engine_validation` dichiarato in `MoveTicketRequest` (niente drift silenzioso). |
+| **QA-B2** | ✅ Risolto | `init_db.py`: aggiunti import `PlannerFeedback`, `AssetConditionReading` prima di `create_all()`. |
+
+**Residui noti (non bloccanti, bassa priorità):** SEC-M2 (JWT 7gg, scelta di prodotto), SEC-M8 (caching geocoding emergency), SEC-M9 (batch limit email poller), SEC-B1/B3/B4, `RollingAnalysisPanel`/`DeferredWOPanel` non montati (dead code UI), endpoint `feedback`/`opportunistic` senza UI.
+
+> Tutti i blocchi 1–4 dell'audit originale sono stati chiusi su questo branch.

@@ -5,6 +5,8 @@ export interface TicketData {
   titolo: string;
   asset_id: number;
   asset_name: string | null;
+  sito_name?: string | null;
+  impianto_name?: string | null;
   tipo: string;           // "CM" | "PM" | "BD"
   priorita: string;
   stato: string;

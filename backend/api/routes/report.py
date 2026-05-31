@@ -9,7 +9,7 @@ from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -56,7 +56,7 @@ def _calcola_costo(ticket: Ticket, asset_map: dict) -> float:
 def get_report_economico(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    mesi: int = 12,
+    mesi: int = Query(default=12, ge=1, le=60),
 ):
     """
     Ritorna il report economico di manutenzione per il tenant:
