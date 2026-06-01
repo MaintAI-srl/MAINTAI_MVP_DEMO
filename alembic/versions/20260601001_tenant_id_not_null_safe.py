@@ -5,14 +5,12 @@ Revises: fa2e7d5c222b
 Create Date: 2026-06-01
 
 P1-09: Backfill tenant_id NULL -> MIN(tenant) sui modelli operativi.
-Il NOT NULL constraint viene applicato SOLO dove fattibile senza lock
-contention (via SAVEPOINT + lock_timeout su PostgreSQL).
-Su SQLite usa batch_alter_table.
-
-Se il constraint non puo' essere applicato (lock atteso > 5s), la migration
-continua comunque — il backfill e' sempre committato, il constraint puo'
-essere aggiunto manualmente in seguito. L'ORM (nullable=False) garantisce
-che nessun nuovo NULL venga inserito a livello applicativo.
+Poi tenta di aggiungere NOT NULL:
+  - SQLite:      batch_alter_table (necessario, nessun ALTER COLUMN nativo)
+  - PostgreSQL:  connessione AUTOCOMMIT separata con lock_timeout=5s per
+                 non bloccare lo startup; se fallisce logga warning e
+                 continua — il backfill resta, l'ORM (nullable=False)
+                 impedisce nuovi NULL a livello applicativo.
 """
 import logging
 from typing import Sequence, Union
@@ -44,6 +42,11 @@ OPERATIONAL_TABLES = [
 ]
 
 
+def _table_exists(conn, table_name: str) -> bool:
+    from sqlalchemy import inspect as sa_inspect
+    return table_name in sa_inspect(conn).get_table_names()
+
+
 def _column_exists(conn, table_name: str, column_name: str) -> bool:
     from sqlalchemy import inspect as sa_inspect
     insp = sa_inspect(conn)
@@ -52,24 +55,40 @@ def _column_exists(conn, table_name: str, column_name: str) -> bool:
     return any(c["name"] == column_name for c in insp.get_columns(table_name))
 
 
-def _table_exists(conn, table_name: str) -> bool:
-    from sqlalchemy import inspect as sa_inspect
-    return table_name in sa_inspect(conn).get_table_names()
-
-
-def _is_nullable(conn, table_name: str, column_name: str) -> bool:
-    """Ritorna True se la colonna e' attualmente nullable."""
+def _is_already_not_null(conn, table_name: str, column_name: str) -> bool:
     from sqlalchemy import inspect as sa_inspect
     cols = sa_inspect(conn).get_columns(table_name)
     col = next((c for c in cols if c["name"] == column_name), None)
-    return col["nullable"] if col else True
+    return col is not None and not col["nullable"]
+
+
+def _apply_not_null_pg(engine, table: str) -> None:
+    """Applica NOT NULL su PostgreSQL tramite connessione autocommit separata.
+
+    Usa lock_timeout=5s: se la tabella e' bloccata da lock contention
+    l'operazione fallisce in 5 secondi invece di appendere all'infinito.
+    Il fallimento viene loggato come warning — non interrompe lo startup.
+    """
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ac_conn:
+            ac_conn.execute(sa.text("SET lock_timeout = '5s'"))
+            ac_conn.execute(
+                sa.text(f"ALTER TABLE {table} ALTER COLUMN tenant_id SET NOT NULL")
+            )
+        log.info("P1-09: NOT NULL applicato su %s.tenant_id", table)
+    except Exception as exc:
+        log.warning(
+            "P1-09: NOT NULL su %s.tenant_id rimandato (lock contention o errore: %s). "
+            "Backfill eseguito. ORM (nullable=False) garantisce integrita' a livello app.",
+            table, exc,
+        )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
     dialect = bind.dialect.name
 
-    # Step 1 — trova il tenant_id di fallback (MIN esistente, default 1)
+    # Step 1: tenant_id di fallback per il backfill
     row = bind.execute(sa.text("SELECT MIN(id) FROM tenants")).fetchone()
     fallback_tid: int = row[0] if row and row[0] is not None else 1
 
@@ -79,38 +98,25 @@ def upgrade() -> None:
         if not _column_exists(bind, table, 'tenant_id'):
             continue
 
-        # Step 2 — backfill NULL (sempre eseguito, fast RowExclusiveLock)
+        # Step 2: backfill NULL -> fallback_tid (DML, RowExclusiveLock, non blocca)
         bind.execute(
             sa.text(f"UPDATE {table} SET tenant_id = :tid WHERE tenant_id IS NULL"),
             {"tid": fallback_tid},
         )
 
-        # Step 3 — NOT NULL constraint (dialect-aware, non-blocking)
-        if already_not_null := not _is_nullable(bind, table, 'tenant_id'):
+        # Skip se gia' NOT NULL (idempotente)
+        if _is_already_not_null(bind, table, 'tenant_id'):
             log.info("P1-09: %s.tenant_id e' gia' NOT NULL, skip.", table)
             continue
 
+        # Step 3: NOT NULL constraint
         if dialect == 'sqlite':
             with op.batch_alter_table(table) as batch_op:
                 batch_op.alter_column('tenant_id', existing_type=sa.Integer(), nullable=False)
         else:
-            # PostgreSQL: ALTER TABLE nativo con lock_timeout + SAVEPOINT
-            # Se il lock non e' disponibile in 5s, skippa il constraint
-            # (il backfill e' gia' committato nella stessa transazione)
-            try:
-                bind.execute(sa.text("SET LOCAL lock_timeout = '5s'"))
-                bind.execute(sa.text(f"SAVEPOINT sp_not_null_{table}"))
-                bind.execute(
-                    sa.text(f"ALTER TABLE {table} ALTER COLUMN tenant_id SET NOT NULL")
-                )
-                bind.execute(sa.text(f"RELEASE SAVEPOINT sp_not_null_{table}"))
-                log.info("P1-09: NOT NULL applicato su %s.tenant_id", table)
-            except Exception as exc:
-                bind.execute(sa.text(f"ROLLBACK TO SAVEPOINT sp_not_null_{table}"))
-                log.warning(
-                    "P1-09: NOT NULL su %s.tenant_id rimandato (lock contention: %s). "
-                    "Backfill eseguito, ORM garantisce nullable=False a livello app.", table, exc
-                )
+            # PostgreSQL: connessione autocommit separata con lock_timeout
+            # Non blocca la transazione principale della migration
+            _apply_not_null_pg(bind.engine, table)
 
 
 def downgrade() -> None:
@@ -122,7 +128,7 @@ def downgrade() -> None:
             continue
         if not _column_exists(bind, table, 'tenant_id'):
             continue
-        if _is_nullable(bind, table, 'tenant_id'):
+        if not _is_already_not_null(bind, table, 'tenant_id'):
             continue  # gia' nullable, niente da fare
 
         if dialect == 'sqlite':
@@ -130,12 +136,10 @@ def downgrade() -> None:
                 batch_op.alter_column('tenant_id', existing_type=sa.Integer(), nullable=True)
         else:
             try:
-                bind.execute(sa.text("SET LOCAL lock_timeout = '5s'"))
-                bind.execute(sa.text(f"SAVEPOINT sp_downgrade_{table}"))
-                bind.execute(
-                    sa.text(f"ALTER TABLE {table} ALTER COLUMN tenant_id DROP NOT NULL")
-                )
-                bind.execute(sa.text(f"RELEASE SAVEPOINT sp_downgrade_{table}"))
+                with bind.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ac:
+                    ac.execute(sa.text("SET lock_timeout = '5s'"))
+                    ac.execute(
+                        sa.text(f"ALTER TABLE {table} ALTER COLUMN tenant_id DROP NOT NULL")
+                    )
             except Exception as exc:
-                bind.execute(sa.text(f"ROLLBACK TO SAVEPOINT sp_downgrade_{table}"))
-                log.warning("P1-09 downgrade: impossibile rimuovere NOT NULL da %s: %s", table, exc)
+                log.warning("P1-09 downgrade: skip DROP NOT NULL su %s: %s", table, exc)
