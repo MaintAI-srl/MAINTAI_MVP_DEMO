@@ -480,7 +480,7 @@ async def execute_import(
     - ASSET: crea sempre (non fa dedup su nome perché lo stesso asset può avere più istanze).
 
     Tutti i record vengono creati con tenant_id = tenant_id specificato.
-    L'operazione non è atomica a livello DB (commit per sezione) per facilitare il debug.
+    L'operazione è atomica (P2-12): un unico commit finale; qualsiasi errore causa rollback completo.
     """
     from openpyxl import load_workbook
 
@@ -517,115 +517,117 @@ async def execute_import(
              "impianti_creati": 0, "impianti_esistenti": 0,
              "asset_creati": 0}
 
-    # ── SITI ─────────────────────────────────────────────────────────────────
-    for r in siti_rows:
-        nome_key = r["nome"].strip().lower()
-        existing = (
-            db.query(Sito)
-            .filter(Sito.tenant_id == tenant_id, Sito.nome.ilike(r["nome"].strip()))
-            .first()
-        )
-        if existing:
-            created_siti[nome_key] = existing.id
-            stats["siti_esistenti"] += 1
-        else:
-            sito = Sito(
+    try:
+        # ── SITI ─────────────────────────────────────────────────────────────────
+        for r in siti_rows:
+            nome_key = r["nome"].strip().lower()
+            existing = (
+                db.query(Sito)
+                .filter(Sito.tenant_id == tenant_id, Sito.nome.ilike(r["nome"].strip()))
+                .first()
+            )
+            if existing:
+                created_siti[nome_key] = existing.id
+                stats["siti_esistenti"] += 1
+            else:
+                sito = Sito(
+                    nome=r["nome"].strip(),
+                    descrizione=r.get("descrizione"),
+                    ubicazione=r.get("ubicazione"),
+                    citta=r.get("citta"),
+                    paese=r.get("paese") or "Italia",
+                    responsabile=r.get("responsabile"),
+                    telefono_responsabile=r.get("telefono_responsabile"),
+                    email_responsabile=r.get("email_responsabile"),
+                    note=r.get("note"),
+                    tenant_id=tenant_id,
+                )
+                db.add(sito)
+                db.flush()  # ottieni l'id senza commit — visibile nella sessione corrente
+                created_siti[nome_key] = sito.id
+                stats["siti_creati"] += 1
+
+        # Recupera anche siti già esistenti nel DB (non nel file)
+        for s in db.query(Sito).filter(Sito.tenant_id == tenant_id).all():
+            created_siti.setdefault(s.nome.strip().lower(), s.id)
+
+        # ── IMPIANTI ──────────────────────────────────────────────────────────────
+        for r in impianti_rows:
+            nome_key = r["nome"].strip().lower()
+            sito_nome_key = (r.get("sito_nome") or "").strip().lower()
+            sito_id = created_siti.get(sito_nome_key)
+
+            existing = (
+                db.query(Impianto)
+                .filter(Impianto.tenant_id == tenant_id, Impianto.nome.ilike(r["nome"].strip()))
+                .first()
+            )
+            if existing:
+                created_impianti[nome_key] = existing.id
+                stats["impianti_esistenti"] += 1
+            else:
+                lat = _to_float(r.get("latitude"))
+                lon = _to_float(r.get("longitude"))
+                impianto = Impianto(
+                    nome=r["nome"].strip(),
+                    descrizione=r.get("descrizione"),
+                    tipologia=r.get("tipologia"),
+                    note=r.get("note"),
+                    latitude=lat,
+                    longitude=lon,
+                    sito_id=sito_id,
+                    tenant_id=tenant_id,
+                )
+                db.add(impianto)
+                db.flush()
+                created_impianti[nome_key] = impianto.id
+                stats["impianti_creati"] += 1
+
+        # Recupera anche impianti già esistenti nel DB
+        for i in db.query(Impianto).filter(Impianto.tenant_id == tenant_id).all():
+            created_impianti.setdefault(i.nome.strip().lower(), i.id)
+
+        # ── ASSET ─────────────────────────────────────────────────────────────────
+        for r in asset_rows:
+            imp_nome_key = (r.get("impianto_nome") or "").strip().lower()
+            impianto_id = created_impianti.get(imp_nome_key)
+
+            asset = Asset(
                 nome=r["nome"].strip(),
+                area=r["area"].strip(),
+                impianto_id=impianto_id,
+                codice=r.get("codice"),
                 descrizione=r.get("descrizione"),
-                ubicazione=r.get("ubicazione"),
-                citta=r.get("citta"),
-                paese=r.get("paese") or "Italia",
-                responsabile=r.get("responsabile"),
-                telefono_responsabile=r.get("telefono_responsabile"),
-                email_responsabile=r.get("email_responsabile"),
-                note=r.get("note"),
+                note=r.get("note") or "",
+                criticita=_normalize_criticita(r.get("criticita")),
+                stato=_normalize_stato(r.get("stato")),
+                marca=r.get("marca"),
+                modello=r.get("modello"),
+                matricola=r.get("matricola"),
+                numero_serie=r.get("numero_serie"),
+                anno_installazione=_to_int(r.get("anno_installazione")),
+                anno_produzione=_to_int(r.get("anno_produzione")),
+                fornitore=r.get("fornitore"),
+                data_acquisto=_to_date(r.get("data_acquisto")),
+                data_scadenza_garanzia=_to_date(r.get("data_scadenza_garanzia")),
+                posizione_fisica=r.get("posizione_fisica"),
+                limitazioni=r.get("limitazioni"),
+                weather_constraint=_normalize_weather(r.get("weather_constraint")),
+                fermo_on_schedule=_to_bool(r.get("fermo_on_schedule")),
+                note_tecniche=r.get("note_tecniche"),
+                vincoli_operativi=r.get("vincoli_operativi"),
+                vincoli_manutenzione=r.get("vincoli_manutenzione"),
                 tenant_id=tenant_id,
             )
-            db.add(sito)
-            db.flush()  # ottieni l'id senza commit
-            created_siti[nome_key] = sito.id
-            stats["siti_creati"] += 1
+            db.add(asset)
+            stats["asset_creati"] += 1
 
-    # Recupera anche siti già esistenti nel DB (non nel file)
-    for s in db.query(Sito).filter(Sito.tenant_id == tenant_id).all():
-        created_siti.setdefault(s.nome.strip().lower(), s.id)
+        db.commit()  # unico commit atomico — o tutto o niente (P2-12)
 
-    db.commit()
-
-    # ── IMPIANTI ──────────────────────────────────────────────────────────────
-    for r in impianti_rows:
-        nome_key = r["nome"].strip().lower()
-        sito_nome_key = (r.get("sito_nome") or "").strip().lower()
-        sito_id = created_siti.get(sito_nome_key)
-
-        existing = (
-            db.query(Impianto)
-            .filter(Impianto.tenant_id == tenant_id, Impianto.nome.ilike(r["nome"].strip()))
-            .first()
-        )
-        if existing:
-            created_impianti[nome_key] = existing.id
-            stats["impianti_esistenti"] += 1
-        else:
-            lat = _to_float(r.get("latitude"))
-            lon = _to_float(r.get("longitude"))
-            impianto = Impianto(
-                nome=r["nome"].strip(),
-                descrizione=r.get("descrizione"),
-                tipologia=r.get("tipologia"),
-                note=r.get("note"),
-                latitude=lat,
-                longitude=lon,
-                sito_id=sito_id,
-                tenant_id=tenant_id,
-            )
-            db.add(impianto)
-            db.flush()
-            created_impianti[nome_key] = impianto.id
-            stats["impianti_creati"] += 1
-
-    # Recupera anche impianti già esistenti nel DB
-    for i in db.query(Impianto).filter(Impianto.tenant_id == tenant_id).all():
-        created_impianti.setdefault(i.nome.strip().lower(), i.id)
-
-    db.commit()
-
-    # ── ASSET ─────────────────────────────────────────────────────────────────
-    for r in asset_rows:
-        imp_nome_key = (r.get("impianto_nome") or "").strip().lower()
-        impianto_id = created_impianti.get(imp_nome_key)
-
-        asset = Asset(
-            nome=r["nome"].strip(),
-            area=r["area"].strip(),
-            impianto_id=impianto_id,
-            codice=r.get("codice"),
-            descrizione=r.get("descrizione"),
-            note=r.get("note") or "",
-            criticita=_normalize_criticita(r.get("criticita")),
-            stato=_normalize_stato(r.get("stato")),
-            marca=r.get("marca"),
-            modello=r.get("modello"),
-            matricola=r.get("matricola"),
-            numero_serie=r.get("numero_serie"),
-            anno_installazione=_to_int(r.get("anno_installazione")),
-            anno_produzione=_to_int(r.get("anno_produzione")),
-            fornitore=r.get("fornitore"),
-            data_acquisto=_to_date(r.get("data_acquisto")),
-            data_scadenza_garanzia=_to_date(r.get("data_scadenza_garanzia")),
-            posizione_fisica=r.get("posizione_fisica"),
-            limitazioni=r.get("limitazioni"),
-            weather_constraint=_normalize_weather(r.get("weather_constraint")),
-            fermo_on_schedule=_to_bool(r.get("fermo_on_schedule")),
-            note_tecniche=r.get("note_tecniche"),
-            vincoli_operativi=r.get("vincoli_operativi"),
-            vincoli_manutenzione=r.get("vincoli_manutenzione"),
-            tenant_id=tenant_id,
-        )
-        db.add(asset)
-        stats["asset_creati"] += 1
-
-    db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("BulkImport ROLLBACK: tenant=%d errore=%s", tenant_id, exc)
+        raise HTTPException(500, f"Import fallito, nessun dato salvato: {exc}")
 
     logger.info(
         "BulkImport: tenant=%d — siti +%d (exist %d), impianti +%d (exist %d), asset +%d",

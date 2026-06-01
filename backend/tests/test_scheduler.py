@@ -4,10 +4,13 @@ from sqlalchemy.orm import Session
 
 def test_db_session(db_session: Session):
     """Verifica che il DB in-memory sia funzionante."""
-    new_asset = Asset(nome="Test Asset", area="Prod")
+    tenant = Tenant(nome="Test Tenant DB", slug="test-db-session")
+    db_session.add(tenant)
+    db_session.flush()
+    new_asset = Asset(nome="Test Asset", area="Prod", tenant_id=tenant.id)
     db_session.add(new_asset)
     db_session.commit()
-    
+
     asset = db_session.query(Asset).filter(Asset.nome == "Test Asset").first()
     assert asset is not None
     assert asset.area == "Prod"
