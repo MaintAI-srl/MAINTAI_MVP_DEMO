@@ -12,6 +12,7 @@ import { DataTable, dateRangeFilterFn, type ColumnDef } from "@/components/ui/da
 import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
+import { useAuth } from "../lib/auth";
 
 // Lazy load mappa emergenze (Leaflet, solo client-side)
 const EmergencyMap = dynamic(() => import("../components/EmergencyMap"), { ssr: false });
@@ -779,6 +780,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 // ── Pagina principale ─────────────────────────────────────────────────────
 
 export default function TicketPage() {
+  const { isModuleEnabled } = useAuth();
   const [result, setResult] = useState<PagedResult | null>(null);
   const [archivio, setArchivio] = useState<PagedResult | null>(null);
   const [kanbanTickets, setKanbanTickets] = useState<KanbanTicket[]>([]);
@@ -1260,9 +1262,11 @@ export default function TicketPage() {
                 style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", whiteSpace: "nowrap" }}
               >✓ COMPLETA</button>
             )}
-            <a href={`/diagnostic?id=${t.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
-              DIAGNOSTICA →
-            </a>
+            {isModuleEnabled("diagnostic_ai") && (
+              <a href={`/diagnostic?id=${t.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
+                DIAGNOSTICA →
+              </a>
+            )}
             {t.stato !== "Eliminato" && (
               <button
                 onClick={() => handleStatoChange(t.id, "Eliminato")}
@@ -1637,7 +1641,7 @@ export default function TicketPage() {
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{detailTicket.priorita}</span>
-                  {detailTicket.priorita === "Emergenza" && (
+                  {detailTicket.priorita === "Emergenza" && isModuleEnabled("emergency") && (
                     <button
                       onClick={() => setShowEmergencyMap(true)}
                       style={{

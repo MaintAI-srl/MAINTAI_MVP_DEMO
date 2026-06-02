@@ -1,0 +1,278 @@
+from __future__ import annotations
+
+import os
+from dataclasses import asdict, dataclass
+from functools import lru_cache
+from typing import Any
+
+
+TRUE_VALUES = {"1", "true", "yes", "y", "on", "enabled", "active"}
+FALSE_VALUES = {"0", "false", "no", "n", "off", "disabled", "inactive"}
+
+
+@dataclass(frozen=True)
+class ModuleDefinition:
+    id: str
+    name: str
+    description: str
+    category: str
+    default_enabled: bool = True
+    requires: tuple[str, ...] = ()
+
+
+MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
+    "dashboard": ModuleDefinition(
+        id="dashboard",
+        name="Dashboard KPI",
+        description="KPI operativi, grafici e indicatori in tempo reale.",
+        category="operazioni",
+    ),
+    "assets": ModuleDefinition(
+        id="assets",
+        name="Siti, impianti e asset",
+        description="Anagrafica tecnica, documenti asset, QR code, procedure e note.",
+        category="risorse",
+    ),
+    "technicians": ModuleDefinition(
+        id="technicians",
+        name="Tecnici",
+        description="Anagrafica tecnici, competenze, assenze e disponibilita.",
+        category="risorse",
+    ),
+    "tickets": ModuleDefinition(
+        id="tickets",
+        name="Ticket",
+        description="Gestione ticket, allegati, stati, export e kanban.",
+        category="operazioni",
+    ),
+    "planning": ModuleDefinition(
+        id="planning",
+        name="Piano AI Felix",
+        description="Pianificazione deterministica/AI, storico piani e feedback.",
+        category="operazioni",
+        requires=("tickets", "assets", "technicians"),
+    ),
+    "diagnostic_ai": ModuleDefinition(
+        id="diagnostic_ai",
+        name="Diagnostica AI",
+        description="Sessioni RCA guidate, problem analysis e failure intelligence.",
+        category="ai",
+        requires=("tickets", "assets"),
+    ),
+    "maintenance_plans": ModuleDefinition(
+        id="maintenance_plans",
+        name="Piani di manutenzione",
+        description="Task manutentivi, generazione ticket e piani multi-asset.",
+        category="risorse",
+        requires=("tickets", "assets"),
+    ),
+    "manuals": ModuleDefinition(
+        id="manuals",
+        name="Manuali PDF",
+        description="Upload manuali, parsing PDF e import nei piani.",
+        category="ai",
+        requires=("maintenance_plans",),
+    ),
+    "deadlines": ModuleDefinition(
+        id="deadlines",
+        name="Scadenziario",
+        description="Scadenze manutentive imminenti e calendario PM.",
+        category="operazioni",
+        requires=("maintenance_plans",),
+    ),
+    "condition_maintenance": ModuleDefinition(
+        id="condition_maintenance",
+        name="Manutenzione su condizione",
+        description="Letture ore, soglie condition-based e trigger automatici.",
+        category="operazioni",
+        requires=("assets", "maintenance_plans"),
+    ),
+    "email_to_ticket": ModuleDefinition(
+        id="email_to_ticket",
+        name="Email to Ticket",
+        description="Configurazione IMAP e polling automatico delle mailbox.",
+        category="integrazioni",
+        requires=("tickets",),
+    ),
+    "system_logs": ModuleDefinition(
+        id="system_logs",
+        name="Log di sistema",
+        description="Consultazione e pulizia dei log persistenti.",
+        category="admin",
+    ),
+    "bulk_import": ModuleDefinition(
+        id="bulk_import",
+        name="Import massivo",
+        description="Import strutturato da template Excel/CSV.",
+        category="admin",
+        requires=("assets", "technicians"),
+    ),
+    "tenant_admin": ModuleDefinition(
+        id="tenant_admin",
+        name="Gestione clienti",
+        description="Amministrazione tenant e utenti tenant.",
+        category="admin",
+    ),
+    "user_admin": ModuleDefinition(
+        id="user_admin",
+        name="Gestione utenti",
+        description="Creazione utenti e reset password.",
+        category="admin",
+    ),
+    "compliance": ModuleDefinition(
+        id="compliance",
+        name="Compliance attestati",
+        description="Scadenziario attestati e certificazioni tecnici.",
+        category="admin",
+        requires=("technicians",),
+    ),
+    "economic_reports": ModuleDefinition(
+        id="economic_reports",
+        name="Report economico",
+        description="Costi fermo, ricambi e reportistica economica.",
+        category="admin",
+        requires=("tickets", "assets"),
+    ),
+    "emergency": ModuleDefinition(
+        id="emergency",
+        name="Emergenze",
+        description="Ricerca tecnici piu vicini e supporto emergenze.",
+        category="operazioni",
+        requires=("tickets", "technicians"),
+    ),
+    "mobile_app": ModuleDefinition(
+        id="mobile_app",
+        name="App tecnico",
+        description="Vista mobile per tecnici, piano del giorno, QR e voce.",
+        category="campo",
+        requires=("tickets", "assets"),
+    ),
+    "weather": ModuleDefinition(
+        id="weather",
+        name="Meteo",
+        description="Widget meteo e vincoli meteo usati dalla pianificazione.",
+        category="integrazioni",
+    ),
+    "desktop_updates": ModuleDefinition(
+        id="desktop_updates",
+        name="Aggiornamenti desktop",
+        description="Manifest aggiornamenti per build Tauri desktop.",
+        category="desktop",
+    ),
+    "guide_ai": ModuleDefinition(
+        id="guide_ai",
+        name="Guida AI",
+        description="Assistente contestuale dell'applicazione.",
+        category="ai",
+        default_enabled=False,
+    ),
+}
+
+
+def _normalize_module_id(value: str) -> str:
+    return value.strip().lower().replace("-", "_")
+
+
+def _split_env(*names: str) -> set[str]:
+    values: set[str] = set()
+    for name in names:
+        raw = os.getenv(name, "")
+        if not raw.strip():
+            continue
+        values.update(
+            _normalize_module_id(part)
+            for part in raw.split(",")
+            if part.strip()
+        )
+    return values
+
+
+def _env_bool(*names: str) -> bool | None:
+    for name in names:
+        raw = os.getenv(name)
+        if raw is None:
+            continue
+        normalized = raw.strip().lower()
+        if normalized in TRUE_VALUES:
+            return True
+        if normalized in FALSE_VALUES:
+            return False
+    return None
+
+
+def _module_env_names(module_id: str) -> tuple[str, ...]:
+    suffix = module_id.upper()
+    return (
+        f"MAINTAI_MODULE_{suffix}",
+        f"MAINTAI_FEATURE_{suffix}",
+        f"FEATURE_{suffix}",
+    )
+
+
+def _configured_enabled_ids() -> set[str]:
+    known = set(MODULE_DEFINITIONS)
+    explicit_enabled = _split_env("MAINTAI_MODULES_ENABLED", "FEATURE_MODULES_ENABLED")
+
+    if explicit_enabled:
+        enabled = explicit_enabled & known
+    else:
+        enabled = {
+            module_id
+            for module_id, definition in MODULE_DEFINITIONS.items()
+            if definition.default_enabled
+        }
+
+    disabled = _split_env("MAINTAI_MODULES_DISABLED", "FEATURE_MODULES_DISABLED")
+    enabled -= disabled & known
+
+    for module_id in MODULE_DEFINITIONS:
+        override = _env_bool(*_module_env_names(module_id))
+        if override is True:
+            enabled.add(module_id)
+        elif override is False:
+            enabled.discard(module_id)
+
+    return enabled
+
+
+def _resolve_dependencies(enabled: set[str]) -> set[str]:
+    resolved = set(enabled)
+    changed = True
+    while changed:
+        changed = False
+        for module_id in list(resolved):
+            missing = [
+                dependency
+                for dependency in MODULE_DEFINITIONS[module_id].requires
+                if dependency not in resolved
+            ]
+            if missing:
+                resolved.remove(module_id)
+                changed = True
+    return resolved
+
+
+@lru_cache(maxsize=1)
+def enabled_module_ids() -> frozenset[str]:
+    return frozenset(_resolve_dependencies(_configured_enabled_ids()))
+
+
+def is_module_enabled(module_id: str) -> bool:
+    return _normalize_module_id(module_id) in enabled_module_ids()
+
+
+def modules_payload() -> dict[str, Any]:
+    enabled = enabled_module_ids()
+    modules = []
+
+    for module_id, definition in MODULE_DEFINITIONS.items():
+        item = asdict(definition)
+        item["requires"] = list(definition.requires)
+        item["enabled"] = module_id in enabled
+        modules.append(item)
+
+    return {
+        "enabled": sorted(enabled),
+        "disabled": sorted(set(MODULE_DEFINITIONS) - set(enabled)),
+        "modules": modules,
+    }

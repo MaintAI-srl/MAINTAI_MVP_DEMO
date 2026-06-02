@@ -22,12 +22,6 @@ TEXT_REPLACEMENTS = {
             "Aggiornato alla versione **{version}** ({date})",
         ),
     ],
-    "roadmap.md": [
-        (
-            r'\*Versione: [^*]+ Aggiornata al: [0-9-]+\*',
-            "*Versione: {version} - Aggiornata al: {date}*",
-        ),
-    ],
 }
 
 

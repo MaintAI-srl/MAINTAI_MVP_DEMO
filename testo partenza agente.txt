@@ -1,7 +1,7 @@
 Leggi prima e applica sempre questi file:
-- directive.md
-- architecture.md
-- planning_directive.md
+- docs/directive.md
+- docs/architecture.md
+- docs/planning_directive.md
 
 Lavora in autonomia senza chiedere conferme intermedie.
 Non fermarti per chiedere approvazioni su scelte tecniche, refactor locali, analisi o implementazioni coerenti con i file di direttiva.
@@ -9,9 +9,9 @@ Procedi fino a completamento del task oppure fino a esaurimento di budget, turni
 
 Automigliora il software:
 quando hai finito il ciclo aggiorna :
-- directive.md
-- architecture.md
-- planning_directive.md
+- docs/directive.md
+- docs/architecture.md
+- docs/planning_directive.md
 
 Così da rendere il prossimo ciclo in automiglioramento.
 

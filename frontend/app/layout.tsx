@@ -2,9 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./globals.css";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { moduleForPath, type ModuleId } from "./lib/modules";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
@@ -20,51 +21,51 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
 import {
-  LayoutDashboard, CalendarClock, ClipboardList, Factory,
+  LayoutDashboard,
   Users, Wrench, CalendarDays, Building, UploadCloud,
   ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
-  Activity, Cpu, Zap, BrainCircuit, Settings, Gauge, ShieldCheck, TrendingUp
+  Activity, Cpu, Zap, BrainCircuit, Gauge, ShieldCheck, TrendingUp
 } from "lucide-react";
 
 // Fonts now loaded above individually
 
-type NavItem = { href: string; label: string; icon: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: React.ReactNode; module?: ModuleId; adminOnly?: boolean; superadminOnly?: boolean };
 const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "DASHBOARD",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} strokeWidth={1.8} /> },
+      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} strokeWidth={1.8} />, module: "dashboard" },
     ],
   },
   {
     section: "OPERAZIONI",
     items: [
-      { href: "/ticket",     label: "Ticket",               icon: <Activity size={14} strokeWidth={1.8} /> },
-      { href: "/planning",   label: "Pianificazione",       icon: <Zap size={14} strokeWidth={1.8} /> },
-      { href: "/diagnostic", label: "Analisi Ingegneria AI", icon: <BrainCircuit size={14} strokeWidth={1.8} /> },
+      { href: "/ticket",     label: "Ticket",               icon: <Activity size={14} strokeWidth={1.8} />, module: "tickets" },
+      { href: "/planning",   label: "Pianificazione",       icon: <Zap size={14} strokeWidth={1.8} />, module: "planning" },
+      { href: "/diagnostic", label: "Analisi Ingegneria AI", icon: <BrainCircuit size={14} strokeWidth={1.8} />, module: "diagnostic_ai" },
     ],
   },
   {
     section: "RISORSE",
     items: [
-      { href: "/asset",    label: "Siti & Asset",         icon: <Cpu size={14} strokeWidth={1.8} /> },
-      { href: "/tecnici",  label: "Tecnici",              icon: <Users size={14} strokeWidth={1.8} /> },
-      { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} /> },
-      { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} /> },
-      { href: "/condizioni", label: "Dati Misure Asset",   icon: <Gauge size={14} strokeWidth={1.8} /> },
+      { href: "/asset",    label: "Siti & Asset",         icon: <Cpu size={14} strokeWidth={1.8} />, module: "assets" },
+      { href: "/tecnici",  label: "Tecnici",              icon: <Users size={14} strokeWidth={1.8} />, module: "technicians" },
+      { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} />, module: "maintenance_plans" },
+      { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} />, module: "deadlines" },
+      { href: "/condizioni", label: "Dati Misure Asset",   icon: <Gauge size={14} strokeWidth={1.8} />, module: "condition_maintenance" },
     ],
   },
   {
     section: "IMPOSTAZIONI",
     items: [
-      { href: "/report/economico",   label: "Report Economico",      icon: <TrendingUp size={14} strokeWidth={1.8} />,  adminOnly: true },
-      { href: "/compliance",        label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, adminOnly: true },
-      { href: "/admin/tenants",     label: "Clienti",          icon: <Building size={14} strokeWidth={1.8} />,    superadminOnly: true },
-      { href: "/admin/bulk-import", label: "Import Massivo",   icon: <UploadCloud size={14} strokeWidth={1.8} />, adminOnly: true },
-      { href: "/admin/logs",        label: "Log di Sistema",   icon: <ScrollText size={14} strokeWidth={1.8} />,  adminOnly: true },
-      { href: "/admin/email",       label: "Email to Ticket",  icon: <Mail size={14} strokeWidth={1.8} />,        adminOnly: true },
+      { href: "/report/economico",   label: "Report Economico",      icon: <TrendingUp size={14} strokeWidth={1.8} />,  module: "economic_reports", adminOnly: true },
+      { href: "/compliance",        label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, module: "compliance", adminOnly: true },
+      { href: "/admin/tenants",     label: "Clienti",          icon: <Building size={14} strokeWidth={1.8} />,    module: "tenant_admin", superadminOnly: true },
+      { href: "/admin/bulk-import", label: "Import Massivo",   icon: <UploadCloud size={14} strokeWidth={1.8} />, module: "bulk_import", adminOnly: true },
+      { href: "/admin/logs",        label: "Log di Sistema",   icon: <ScrollText size={14} strokeWidth={1.8} />,  module: "system_logs", adminOnly: true },
+      { href: "/admin/email",       label: "Email to Ticket",  icon: <Mail size={14} strokeWidth={1.8} />,        module: "email_to_ticket", adminOnly: true },
       { href: "/profilo",           label: "Mio Profilo",      icon: <UserCheck size={14} strokeWidth={1.8} /> },
-      { href: "/admin/utenti",      label: "Gestione Utenti",  icon: <UserCog size={14} strokeWidth={1.8} />,     adminOnly: true },
+      { href: "/admin/utenti",      label: "Gestione Utenti",  icon: <UserCog size={14} strokeWidth={1.8} />,     module: "user_admin", adminOnly: true },
     ],
   },
 ];
@@ -137,7 +138,7 @@ function GlobalOfflineIndicator() {
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, logout, user } = useAuth();
+  const { isAuthenticated, logout, user, isModuleEnabled, modulesLoaded } = useAuth();
   const [time, setTime] = useState("");
   const [theme, setTheme] = useState("light");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -167,16 +168,22 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const isTecnico = user?.ruolo === "tecnico";
   const isSuperadmin = user?.ruolo === "superadmin";
 
-  const filteredNav = NAV.map(section => ({
-    ...section,
-    items: section.items.filter((item) => {
-      if (item.superadminOnly && !isSuperadmin) return false;
-      if (item.adminOnly && user?.ruolo !== "responsabile" && !isSuperadmin) return false;
-      if (!isTecnico) return true;
-      const visibleForTecnico = ["/ticket", "/asset", "/profilo"];
-      return visibleForTecnico.includes(item.href);
-    })
-  })).filter(section => section.items.length > 0);
+  const filteredNav = useMemo(() => {
+    return NAV.map(section => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.module && !isModuleEnabled(item.module)) return false;
+        if (item.superadminOnly && !isSuperadmin) return false;
+        if (item.adminOnly && user?.ruolo !== "responsabile" && !isSuperadmin) return false;
+        if (!isTecnico) return true;
+        const visibleForTecnico = ["/ticket", "/asset", "/profilo"];
+        return visibleForTecnico.includes(item.href);
+      })
+    })).filter(section => section.items.length > 0);
+  }, [isModuleEnabled, isSuperadmin, isTecnico, user?.ruolo]);
+
+  const firstAvailableHref = filteredNav[0]?.items[0]?.href ?? "/profilo";
+  const notificationsEnabled = isModuleEnabled("deadlines") || isModuleEnabled("tickets");
 
   const toggleSidebar = () => {
     setSidebarOpen((open) => !open);
@@ -227,6 +234,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       router.push("/login");
     }
   }, [isAuthenticated, pathname, router, isPublicPage]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isPublicPage || !modulesLoaded) return;
+    const moduleId = moduleForPath(pathname);
+    if (moduleId && !isModuleEnabled(moduleId)) {
+      router.replace(firstAvailableHref);
+    }
+  }, [firstAvailableHref, isAuthenticated, isModuleEnabled, isPublicPage, modulesLoaded, pathname, router]);
 
   if (!isAuthenticated || isPublicPage) {
     return <main style={{ height: "100vh", width: "100vw" }}>{children}</main>;
@@ -451,12 +466,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
           {/* Right controls */}
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <GlobalQuickTicket />
+            {isModuleEnabled("tickets") && <GlobalQuickTicket />}
 
             <div style={{ width: 1, height: 22, background: "var(--border-subtle)", margin: "0 4px" }} />
 
-            <NotificationPanel />
-            <WeatherWidget />
+            {notificationsEnabled && (
+              <NotificationPanel
+                enableScadenze={isModuleEnabled("deadlines")}
+                enableTickets={isModuleEnabled("tickets")}
+              />
+            )}
+            {isModuleEnabled("weather") && <WeatherWidget />}
 
             {/* Clock */}
             <div className="topbar-time">{time}</div>
@@ -530,6 +550,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 
+function AppShellExtras() {
+  const { isModuleEnabled } = useAuth();
+
+  return (
+    <>
+      {isModuleEnabled("guide_ai") && <GuideBot />}
+      {isModuleEnabled("tickets") && <QuickTicketModal />}
+    </>
+  );
+}
+
 
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -560,8 +591,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <AppLayoutContent>{children}</AppLayoutContent>
-          {/* <GuideBot /> */}
-          <QuickTicketModal />
+          <AppShellExtras />
         </AuthProvider>
         <Toaster
           position="bottom-right"

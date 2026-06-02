@@ -26,6 +26,7 @@ try:
     from backend.api.routes.impianti import router as impianti_router
     from backend.api.routes.siti import router as siti_router
     from backend.api.routes.manuali import router as manuali_router
+    from backend.api.routes.modules import router as modules_router
     from backend.api.routes.piani import router as piani_router
     from backend.api.routes.problem_analysis import router as problem_analysis_router
     from backend.api.routes.tenants import router as tenants_router
@@ -56,6 +57,7 @@ try:
     from backend.core.init_db import init_db
     from backend.core.logging_config import setup_logging
     from backend.core.logger_db import db_warn
+    from backend.core.modules import is_module_enabled
     from backend.services.email_poller import check_all_mailboxes
     from backend.services.retention_service import run_retention_job
     from backend.services.auto_ticket_service import run_auto_ticket_job
@@ -706,19 +708,22 @@ async def lifespan(app: FastAPI):
         traceback.print_exc()
         raise e
 
-    # Avvio tasks in background
-    poller_task = asyncio.create_task(email_poller_task())
-    retention_task = asyncio.create_task(run_retention_job())
-    auto_ticket_task = asyncio.create_task(run_auto_ticket_job())
-    print("✅ background tasks started")
+    # Avvio tasks in background coerente con i moduli attivi.
+    background_tasks: list[asyncio.Task] = [
+        asyncio.create_task(run_retention_job()),
+    ]
+    if is_module_enabled("email_to_ticket"):
+        background_tasks.append(asyncio.create_task(email_poller_task()))
+    if is_module_enabled("maintenance_plans") and is_module_enabled("tickets"):
+        background_tasks.append(asyncio.create_task(run_auto_ticket_job()))
+    print(f"✅ background tasks started ({len(background_tasks)})")
 
     yield
 
     # Pulizia
     print("🛑 APP LIFESPAN ENDING...")
-    poller_task.cancel()
-    retention_task.cancel()
-    auto_ticket_task.cancel()
+    for task in background_tasks:
+        task.cancel()
 
 app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 
@@ -803,51 +808,81 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+# ── Router core: sempre disponibili ─────────────────────────────────────────
+_CORE_ROUTERS = [
+    health_router,
+    auth_router,
+    modules_router,
+]
+for _router in _CORE_ROUTERS:
+    app.include_router(_router)
+
+
+def _include_module_router(router, module_id: str) -> None:
+    if is_module_enabled(module_id):
+        app.include_router(router)
+
+
 # ── Routers legacy (senza prefisso) — mantenuti per retrocompatibilità frontend ──
-app.include_router(health_router)
-app.include_router(auth_router)
-app.include_router(dashboard_router)
-app.include_router(assets_router)
-app.include_router(tecnici_router)
-app.include_router(tickets_router)
-app.include_router(scadenze_router)
-app.include_router(logs_router)
-app.include_router(scheduler_router)
-app.include_router(manuali_router)
-app.include_router(diagnostic_router)
-app.include_router(piani_router)
-app.include_router(impianti_router)
-app.include_router(siti_router)
-app.include_router(problem_analysis_router)
-app.include_router(tenants_router)
-app.include_router(email_config_router)
-app.include_router(planning_router)
-app.include_router(bulk_import_router)
-app.include_router(piano_manutenzione_router)
-app.include_router(utenti_router)
-app.include_router(desktop_update_router)
-app.include_router(conditions_router)
-app.include_router(failure_engine_router)
-app.include_router(guide_router)
-app.include_router(procedure_router)
-app.include_router(note_asset_router)
-app.include_router(check_pl_router)
-app.include_router(attestati_router)
-app.include_router(report_router)
-app.include_router(emergency_router)
-app.include_router(asset_documenti_router)
+_MODULE_ROUTERS = [
+    (dashboard_router, "dashboard"),
+    (assets_router, "assets"),
+    (impianti_router, "assets"),
+    (siti_router, "assets"),
+    (procedure_router, "assets"),
+    (note_asset_router, "assets"),
+    (check_pl_router, "assets"),
+    (asset_documenti_router, "assets"),
+    (tecnici_router, "technicians"),
+    (tickets_router, "tickets"),
+    (scadenze_router, "deadlines"),
+    (logs_router, "system_logs"),
+    (scheduler_router, "planning"),
+    (planning_router, "planning"),
+    (manuali_router, "manuals"),
+    (diagnostic_router, "diagnostic_ai"),
+    (problem_analysis_router, "diagnostic_ai"),
+    (failure_engine_router, "diagnostic_ai"),
+    (piani_router, "maintenance_plans"),
+    (piano_manutenzione_router, "maintenance_plans"),
+    (tenants_router, "tenant_admin"),
+    (email_config_router, "email_to_ticket"),
+    (bulk_import_router, "bulk_import"),
+    (utenti_router, "user_admin"),
+    (desktop_update_router, "desktop_updates"),
+    (conditions_router, "condition_maintenance"),
+    (guide_router, "guide_ai"),
+    (attestati_router, "compliance"),
+    (report_router, "economic_reports"),
+    (emergency_router, "emergency"),
+]
+for _router, _module_id in _MODULE_ROUTERS:
+    _include_module_router(_router, _module_id)
 
 # ── Routers v1 (prefisso /v1) — per futura migrazione del frontend ──
 # Il frontend può gradualmente migrare da /endpoint a /v1/endpoint.
 # Entrambi i path restano attivi finché la migrazione non è completa.
 _V1_ROUTERS = [
-    auth_router, dashboard_router, assets_router, tecnici_router, tickets_router,
-    scadenze_router, manuali_router, diagnostic_router, piani_router, impianti_router,
-    siti_router, problem_analysis_router, planning_router, piano_manutenzione_router,
-    conditions_router,
+    (auth_router, None),
+    (modules_router, None),
+    (dashboard_router, "dashboard"),
+    (assets_router, "assets"),
+    (tecnici_router, "technicians"),
+    (tickets_router, "tickets"),
+    (scadenze_router, "deadlines"),
+    (manuali_router, "manuals"),
+    (diagnostic_router, "diagnostic_ai"),
+    (piani_router, "maintenance_plans"),
+    (impianti_router, "assets"),
+    (siti_router, "assets"),
+    (problem_analysis_router, "diagnostic_ai"),
+    (planning_router, "planning"),
+    (piano_manutenzione_router, "maintenance_plans"),
+    (conditions_router, "condition_maintenance"),
 ]
-for _r in _V1_ROUTERS:
-    app.include_router(_r, prefix="/v1")
+for _router, _module_id in _V1_ROUTERS:
+    if _module_id is None or is_module_enabled(_module_id):
+        app.include_router(_router, prefix="/v1")
 
 # Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
 if not os.getenv("SUPABASE_URL"):

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "../lib/api";
 
@@ -23,9 +23,17 @@ type TicketAssegnato = {
 
 type TabType = "scadenze" | "tickets";
 
-export default function NotificationPanel() {
+type NotificationPanelProps = {
+  enableScadenze?: boolean;
+  enableTickets?: boolean;
+};
+
+export default function NotificationPanel({
+  enableScadenze = true,
+  enableTickets = true,
+}: NotificationPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tab, setTab] = useState<TabType>("scadenze");
+  const [tab, setTab] = useState<TabType>(enableScadenze ? "scadenze" : "tickets");
   const [scadenze, setScadenze] = useState<Scadenza[]>([]);
   const [ticketsAssegnati, setTicketsAssegnati] = useState<TicketAssegnato[]>([]);
   const [loadingScadenze, setLoadingScadenze] = useState(false);
@@ -34,7 +42,8 @@ export default function NotificationPanel() {
 
   const totale = scadenze.length + ticketsAssegnati.length;
 
-  async function loadScadenze() {
+  const loadScadenze = useCallback(async () => {
+    if (!enableScadenze) return;
     setLoadingScadenze(true);
     try {
       const d = await apiGet<Scadenza[]>("/scadenze/imminenti?days=15");
@@ -44,9 +53,10 @@ export default function NotificationPanel() {
     } finally {
       setLoadingScadenze(false);
     }
-  }
+  }, [enableScadenze]);
 
-  async function loadTicketsAssegnati() {
+  const loadTicketsAssegnati = useCallback(async () => {
+    if (!enableTickets) return;
     setLoadingTickets(true);
     try {
       // Carica i ticket in stato "In corso" o "Pianificato" assegnati all'utente corrente
@@ -61,9 +71,10 @@ export default function NotificationPanel() {
     } finally {
       setLoadingTickets(false);
     }
-  }
+  }, [enableTickets]);
 
   useEffect(() => {
+    if (!enableScadenze && !enableTickets) return;
     // Ritardo iniziale di 4s per non bloccare il primo paint (desktop cold start)
     const startup = setTimeout(() => {
       loadScadenze();
@@ -74,7 +85,12 @@ export default function NotificationPanel() {
       loadTicketsAssegnati();
     }, 60000);
     return () => { clearTimeout(startup); clearInterval(timer); };
-  }, []);
+  }, [enableScadenze, enableTickets, loadScadenze, loadTicketsAssegnati]);
+
+  useEffect(() => {
+    if (tab === "scadenze" && !enableScadenze) setTab("tickets");
+    if (tab === "tickets" && !enableTickets) setTab("scadenze");
+  }, [enableScadenze, enableTickets, tab]);
 
   const PRIO_COLOR: Record<string, string> = { alta: "#f87171", media: "#fbbf24", bassa: "#34d399" };
 
@@ -115,7 +131,10 @@ export default function NotificationPanel() {
               <div style={{ fontWeight: 800, fontSize: 12, color: "#fff", marginBottom: 10, letterSpacing: "0.08em" }}>NOTIFICHE</div>
               {/* Tabs */}
               <div style={{ display: "flex", gap: 0 }}>
-                {([["scadenze", "Scadenze PM", scadenze.length], ["tickets", "Attività", ticketsAssegnati.length]] as [TabType, string, number][]).map(([t, label, count]) => (
+                {([
+                  enableScadenze ? ["scadenze", "Scadenze PM", scadenze.length] : null,
+                  enableTickets ? ["tickets", "Attività", ticketsAssegnati.length] : null,
+                ].filter(Boolean) as [TabType, string, number][]).map(([t, label, count]) => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
@@ -199,18 +218,22 @@ export default function NotificationPanel() {
 
             {/* Footer */}
             <div style={{ padding: "10px 18px", background: "var(--border-subtle)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between" }}>
-              <button
-                onClick={() => { setIsOpen(false); router.push("/scadenze"); }}
-                style={{ background: "transparent", border: "none", color: "#818cf8", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-              >
-                Calendario scadenze →
-              </button>
-              <button
-                onClick={() => { setIsOpen(false); router.push("/ticket"); }}
-                style={{ background: "transparent", border: "none", color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-              >
-                Tutti i ticket →
-              </button>
+              {enableScadenze && (
+                <button
+                  onClick={() => { setIsOpen(false); router.push("/scadenze"); }}
+                  style={{ background: "transparent", border: "none", color: "#818cf8", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Calendario scadenze →
+                </button>
+              )}
+              {enableTickets && (
+                <button
+                  onClick={() => { setIsOpen(false); router.push("/ticket"); }}
+                  style={{ background: "transparent", border: "none", color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}
+                >
+                  Tutti i ticket →
+                </button>
+              )}
             </div>
           </div>
         </>

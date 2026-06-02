@@ -1,7 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { apiGet, apiPost, clearTauriToken, isTauri, getTauriToken } from "./api";
+import {
+  DEFAULT_ENABLED_MODULES,
+  normalizeEnabledModules,
+  type ModuleId,
+  type ModulesResponse,
+} from "./modules";
 
 type User = {
   username: string;
@@ -16,6 +22,9 @@ interface AuthContextType {
   login: (username: string, ruolo: string, userid?: number, tenant_id?: number, tenant_nome?: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  enabledModules: ModuleId[];
+  modulesLoaded: boolean;
+  isModuleEnabled: (moduleId: ModuleId | string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,6 +32,9 @@ const AuthContext = createContext<AuthContextType>({
   login: () => {},
   logout: () => {},
   isAuthenticated: false,
+  enabledModules: DEFAULT_ENABLED_MODULES,
+  modulesLoaded: false,
+  isModuleEnabled: () => true,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -62,7 +74,21 @@ function loadUserMeta(): User | null {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [enabledModules, setEnabledModules] = useState<ModuleId[]>(DEFAULT_ENABLED_MODULES);
+  const [modulesLoaded, setModulesLoaded] = useState(false);
   const loggingOutRef = useRef(false);
+
+  useEffect(() => {
+    apiGet<ModulesResponse>("/modules")
+      .then((data) => setEnabledModules(normalizeEnabledModules(data.enabled)))
+      .catch(() => setEnabledModules(DEFAULT_ENABLED_MODULES))
+      .finally(() => setModulesLoaded(true));
+  }, []);
+
+  const enabledModuleSet = useMemo(() => new Set<string>(enabledModules), [enabledModules]);
+  const isModuleEnabled = useCallback((moduleId: ModuleId | string) => {
+    return enabledModuleSet.has(moduleId);
+  }, [enabledModuleSet]);
 
   useEffect(() => {
     const meta = loadUserMeta();
@@ -138,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (loading) return null;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, enabledModules, modulesLoaded, isModuleEnabled }}>
       {children}
     </AuthContext.Provider>
   );

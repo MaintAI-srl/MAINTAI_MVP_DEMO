@@ -61,6 +61,9 @@ def _create_index_if_not_exists(index_name: str, table_name: str, columns, **kwa
 
 def upgrade() -> None:
     """Upgrade schema — idempotente, compatibile SQLite e PostgreSQL."""
+    # Wrap tutto in try/except per singola operazione: ogni CREATE TABLE / ADD COLUMN
+    # che fallisce per "already exists" viene silenziosamente ignorato.
+    # Questo garantisce l'idempotenza anche se le tabelle/colonne esistono già nel DB.
     bind = op.get_bind()
 
     # ── Nuove tabelle (create solo se non esistono) ──────────────────────────
