@@ -156,23 +156,61 @@ def _run_alembic_upgrade() -> None:
 
 
 def _check_database_connection() -> None:
-    """Fail-fast: evita migrazioni/seed ripetuti se il DB non accetta connessioni."""
+    """Verifica la raggiungibilità del DB allo startup con retry a backoff esponenziale.
+
+    Un fail-fast immediato è controproducente su Render: se il DB rifiuta l'auth
+    (credenziali errate o circuit breaker del pooler Supabase, `ECIRCUITBREAKER`),
+    il container crasha e viene riavviato subito, rilanciando altri tentativi di auth
+    che tengono il circuit breaker sempre aperto (crash-loop). Un retry con backoff
+    riduce il rate di tentativi e dà tempo al pooler di rientrare, senza nascondere
+    un errore di configurazione persistente (dopo i retry rilancia comunque).
+    """
     import logging
+    import time
     from sqlalchemy import text
     from backend.core.database import engine, DATABASE_URL
 
     logger = logging.getLogger(__name__)
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        logger.info("Database raggiungibile (%s)", DATABASE_URL.split("://", 1)[0])
-    except Exception as exc:
-        logger.error(
-            "Database non raggiungibile durante lo startup. "
-            "Verifica DATABASE_URL/credenziali sul provider prima di rilanciare il deploy: %s",
-            exc,
-        )
-        raise
+    backoffs = [2, 4, 8, 16, 32]  # secondi tra i tentativi (6 tentativi totali, ~62s max)
+    last_exc: Exception | None = None
+
+    for attempt in range(len(backoffs) + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Database raggiungibile (%s)", DATABASE_URL.split("://", 1)[0])
+            return
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            is_auth_failure = (
+                "ecircuitbreaker" in msg
+                or "authentication" in msg
+                or "tenant or user not found" in msg
+            )
+            if is_auth_failure:
+                logger.error(
+                    "Autenticazione DB rifiutata dal pooler/server (tentativo %d/%d). "
+                    "Verifica DATABASE_URL su Render: con il pooler Supabase "
+                    "(*.pooler.supabase.com) lo username deve essere "
+                    "'postgres.<project-ref>' e la password quella del database. "
+                    "Errore: %s",
+                    attempt + 1, len(backoffs) + 1, exc,
+                )
+            else:
+                logger.warning(
+                    "DB non raggiungibile (tentativo %d/%d): %s",
+                    attempt + 1, len(backoffs) + 1, exc,
+                )
+            if attempt < len(backoffs):
+                time.sleep(backoffs[attempt])
+
+    logger.error(
+        "Database non raggiungibile dopo %d tentativi durante lo startup. "
+        "Verifica DATABASE_URL/credenziali sul provider prima di rilanciare il deploy: %s",
+        len(backoffs) + 1, last_exc,
+    )
+    raise last_exc
 
 
 def _ensure_columns() -> None:
@@ -269,8 +307,11 @@ def _ensure_columns() -> None:
         ("tecnici", "telefono",                "ALTER TABLE tecnici ADD COLUMN {ifne}telefono VARCHAR"),
         ("tecnici", "sede_indirizzo",          "ALTER TABLE tecnici ADD COLUMN {ifne}sede_indirizzo VARCHAR"),
         # P1-05 — QR token scadenza e revoca (v3.3.1)
-        ("check_primo_livello", "token_active",     "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_active BOOLEAN NOT NULL DEFAULT 1"),
-        ("check_primo_livello", "token_expires_at", "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_expires_at DATETIME"),
+        # NB: TIMESTAMP e DEFAULT TRUE sono compatibili sia con SQLite sia con PostgreSQL.
+        # (DATETIME e DEFAULT 1 sono sintassi SQLite e su Postgres fallivano:
+        #  'type datetime does not exist' / 'boolean ... default expression is of type integer')
+        ("check_primo_livello", "token_active",     "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_active BOOLEAN NOT NULL DEFAULT TRUE"),
+        ("check_primo_livello", "token_expires_at", "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_expires_at TIMESTAMP"),
     ]
 
     # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)

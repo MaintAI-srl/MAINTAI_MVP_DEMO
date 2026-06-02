@@ -20,8 +20,15 @@ _SQLITE_DEFAULT = f"sqlite:///{_PROJECT_ROOT / 'maintai.db'}"
 # In locale usa SQLite con path assoluto
 DATABASE_URL = os.getenv("DATABASE_URL", _SQLITE_DEFAULT)
 
-# Argomenti extra per la connessione (SQLite richiede check_same_thread=False)
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+# Argomenti extra per la connessione:
+# - SQLite richiede check_same_thread=False
+# - PostgreSQL: connect_timeout evita che un connect appeso stalli lo startup 30-60s
+#   (utile col cold start del pooler Supabase / Render free tier)
+connect_args = (
+    {"check_same_thread": False}
+    if DATABASE_URL.startswith("sqlite")
+    else {"connect_timeout": 10}
+)
 
 # Pool parameters: ottimizzati per PostgreSQL su Render (concorrenza + stabilità)
 # SQLite usa StaticPool implicito → i parametri pool sono ignorati
