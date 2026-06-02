@@ -3,7 +3,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from backend.core.database import engine, Base
 from backend.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +26,7 @@ def init_backend() -> None:
     """
     Inizializzazione base del backend:
     - carica .env
-    - inizializza DB
+    - verifica configurazione runtime di base
     """
     logger.info("INIT BACKEND START")
 
@@ -41,10 +40,6 @@ def init_backend() -> None:
     else:
         logger.warning("OpenAI API key NON presente — le feature AI saranno disabilitate")
 
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database inizializzato")
-    except Exception as e:
-        logger.error("ERRORE inizializzazione DB: %s", str(e))
+    logger.info("Inizializzazione schema DB demandata a lifespan/init_db")
 
     logger.info("INIT BACKEND END")

@@ -155,6 +155,26 @@ def _run_alembic_upgrade() -> None:
     _ensure_columns()
 
 
+def _check_database_connection() -> None:
+    """Fail-fast: evita migrazioni/seed ripetuti se il DB non accetta connessioni."""
+    import logging
+    from sqlalchemy import text
+    from backend.core.database import engine, DATABASE_URL
+
+    logger = logging.getLogger(__name__)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("Database raggiungibile (%s)", DATABASE_URL.split("://", 1)[0])
+    except Exception as exc:
+        logger.error(
+            "Database non raggiungibile durante lo startup. "
+            "Verifica DATABASE_URL/credenziali sul provider prima di rilanciare il deploy: %s",
+            exc,
+        )
+        raise
+
+
 def _ensure_columns() -> None:
     """Aggiunge colonne mancanti al DB — idempotente, compatibile SQLite e PostgreSQL."""
     import logging
@@ -697,6 +717,8 @@ async def lifespan(app: FastAPI):
         print("✅ logging configured")
         init_backend()
         print("✅ backend initialized")
+        _check_database_connection()
+        print("✅ database connection checked")
         _run_alembic_upgrade()  
         print("✅ migrations checked")
         init_db()               
