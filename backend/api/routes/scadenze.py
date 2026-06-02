@@ -93,7 +93,9 @@ def get_scadenze_imminenti(
             "asset_nome": s.asset.nome if s.asset else "N/A",
             "descrizione": s.descrizione,
             "scadenza": s.prossima_scadenza.isoformat() if s.prossima_scadenza else None,
-            "urgenza": "alta" if s.prossima_scadenza <= now + timedelta(days=2) else "media"
+            # _as_aware: la colonna è TIMESTAMP WITHOUT TIME ZONE (naive); senza
+            # normalizzazione il confronto con now (aware) solleva TypeError → 500
+            "urgenza": "alta" if _as_aware(s.prossima_scadenza) <= now + timedelta(days=2) else "media"
         } for s in scadenze
     ]
 
@@ -141,7 +143,7 @@ def get_calendario_scadenze(
             "asset_nome": assets_map.get(a.asset_id, "—"),
             "frequenza_giorni": a.frequenza_giorni,
             "priorita": a.priorita or "Media",
-            "urgenza": "alta" if a.prossima_scadenza <= now + timedelta(days=3) else "media",
+            "urgenza": "alta" if _as_aware(a.prossima_scadenza) <= now + timedelta(days=3) else "media",
         }
         for a in attivita
     ]
