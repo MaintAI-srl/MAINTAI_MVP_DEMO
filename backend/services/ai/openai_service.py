@@ -18,7 +18,8 @@ def get_openai_client() -> OpenAI:
         logger.warning("OPENAI_API_KEY non configurata — feature AI non disponibili")
         raise RuntimeError("OPENAI_API_KEY non configurata. Impostare la variabile d'ambiente OPENAI_API_KEY su Render.")
 
-    return OpenAI(api_key=OPENAI_API_KEY)
+    # SEC AI-01: timeout esplicito per evitare worker starvation se OpenAI è lento/non risponde.
+    return OpenAI(api_key=OPENAI_API_KEY, timeout=120.0)
 
 
 

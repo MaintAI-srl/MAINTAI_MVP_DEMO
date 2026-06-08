@@ -550,13 +550,25 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
             status_code=413,
             detail=f"File troppo grande: massimo {MAX_ALLEGATO_BYTES // (1024*1024)} MB consentiti.",
         )
+
+    # SEC UPLOAD-01: per i tipi con magic bytes noti, valida il contenuto reale (anti file "travestiti").
+    from backend.core.file_validation import validate_magic, safe_serving
+    if ext.lstrip(".") in {"pdf", "png", "jpg", "jpeg"}:
+        try:
+            validate_magic(content, file.filename, {ext})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     url = storage.save_file(content, unique_filename)
+
+    # SEC UPLOAD-01: il tipo MIME è derivato da whitelist server-side, NON dal client (anti stored-XSS).
+    safe_mime, _ = safe_serving(file.filename or unique_filename)
 
     allegato = TicketAllegato(
         ticket_id=ticket_id,
         nome_file=file.filename or unique_filename,
         percorso=url,
-        tipo_mime=file.content_type,
+        tipo_mime=safe_mime,
         dimensione_bytes=len(content),
         tenant_id=tenant_id,
     )
@@ -609,6 +621,11 @@ async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(
             status_code=413,
             detail=f"Firma troppo grande: massimo {MAX_FIRMA_BYTES // (1024*1024)} MB consentiti.",
         )
+
+    # SEC UPLOAD-02: verifica che il base64 decodificato sia un'immagine reale (PNG/JPEG).
+    from backend.core.file_validation import sniff_ext
+    if sniff_ext(content) not in ("png", "jpg"):
+        raise HTTPException(status_code=400, detail="La firma deve essere un'immagine PNG o JPEG valida.")
 
     url = storage.save_file(content, filename)
 

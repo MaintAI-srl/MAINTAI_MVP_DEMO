@@ -9,7 +9,7 @@ from typing import Dict, List, Literal, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -44,22 +44,25 @@ def _planning_today() -> date_type:
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 class GeneratePlanRequest(BaseModel):
-    days: int = 7
-    asset_ids: Optional[List[int]] = None
-    mode: str = "auto"   # "deterministic" | "ai" | "auto"
+    # SEC VAL-01: limiti espliciti per prevenire DoS computazionale / costi OpenAI.
+    days: int = Field(default=7, ge=1, le=90)
+    asset_ids: Optional[List[int]] = Field(default=None, max_length=1000)
+    mode: str = Field(default="auto", pattern="^(auto|deterministic|ai)$")
     include_weekends: bool = False
     allow_overtime: bool = False
 
 
 class DeauthorizeRequest(BaseModel):
-    reason: str
+    # SEC VAL-03: bound sulla motivazione (salvata in GeneratedPlan.deauthorization_reason).
+    reason: str = Field(..., min_length=3, max_length=2000)
 
 
 class MoveTicketRequest(BaseModel):
     ticket_id: int
-    new_date: Optional[str] = None         # "YYYY-MM-DD" — None = mantieni data corrente
-    new_start_hour: Optional[int] = None   # 0-23 — None = mantieni orario corrente
-    new_start_minute: Optional[int] = None # 0 o 30 — None = mantieni orario corrente
+    new_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")  # "YYYY-MM-DD"
+    # SEC VAL-05: range espliciti → 422 invece di 500 su valori fuori scala.
+    new_start_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    new_start_minute: Optional[int] = Field(default=None, ge=0, le=59)
     tecnico_id: Optional[int] = None       # None = mantieni tecnico corrente
 
 
@@ -171,11 +174,16 @@ def _batch_completion_pct(plans: List[GeneratedPlan], db: Session) -> Dict[int, 
     # Tutti gli id univoci da cercare
     all_wo_ids = list({wid for ids in plan_wo_map.values() for wid in ids})
 
-    # Una sola query: ticket chiusi tra tutti i WO id (tenant non necessario se wo_ids sono già filtrati per tenant)
-    chiusi_rows = db.query(Ticket.id).filter(
+    # Una sola query: ticket chiusi tra tutti i WO id.
+    # SEC MT-01: filtro tenant esplicito (difesa in profondità oltre al with_loader_criteria ORM).
+    plan_tenant_id = plans[0].tenant_id if plans else None
+    chiusi_q = db.query(Ticket.id).filter(
         Ticket.id.in_(all_wo_ids),
         Ticket.stato == "Chiuso",
-    ).all()
+    )
+    if plan_tenant_id is not None:
+        chiusi_q = chiusi_q.filter(Ticket.tenant_id == plan_tenant_id)
+    chiusi_rows = chiusi_q.all()
     chiusi_set = {row[0] for row in chiusi_rows}
 
     result: Dict[int, Optional[float]] = {}
@@ -350,7 +358,8 @@ async def generate_plan(
             if "error" in plan_json:
                 msg = plan_json["error"]
                 db_error("PLANNING", f"Errore motore AI: {msg}", tenant_id=tenant_id)
-                raise HTTPException(status_code=500, detail=f"Errore motore AI: {msg}")
+                # SEC ERR-01: nessun dettaglio interno al client.
+                raise HTTPException(status_code=500, detail="Errore del motore AI durante la generazione del piano. Riprovare o contattare il supporto.")
 
             # Validazione post-generazione AI (#10)
             tecnici_for_validation = db.query(Tecnico).filter(
@@ -367,7 +376,8 @@ async def generate_plan(
     except Exception as exc:
         logger.error("Planning: eccezione non gestita — %s", exc, exc_info=True)
         db_error("PLANNING", f"Eccezione durante generazione piano: {exc}", tenant_id=tenant_id)
-        raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
+        # SEC ERR-01: messaggio generico, dettagli solo nei log server-side.
+        raise HTTPException(status_code=500, detail="Errore interno durante la generazione del piano. Riprovare o contattare il supporto.")
 
     # Aggiungi plan_metadata al piano generato
     gen_ms = round((_time.monotonic() - t_gen_start) * 1000)
@@ -663,7 +673,9 @@ def evaluate_manual_plan(
 
 
 @router.post("/confirm/{plan_id}")
+@limiter.limit("10/minute")
 def confirm_plan(
+    request: Request,
     plan_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -773,7 +785,8 @@ def confirm_plan(
         db.rollback()
         logger.error("Confirm plan: errore durante conferma piano %s: %s", plan_id, exc, exc_info=True)
         db_error("PLANNING", f"Errore durante conferma piano #{plan_id}: {exc}", tenant_id=tenant_id)
-        raise HTTPException(status_code=500, detail=f"Errore durante la conferma del piano: {exc}")
+        # SEC ERR-01: messaggio generico, dettagli solo nei log server-side.
+        raise HTTPException(status_code=500, detail="Errore durante la conferma del piano. Riprovare o contattare il supporto.")
 
     completion_pct = _compute_completion_pct(plan, db)
     logger.info(
@@ -1122,7 +1135,9 @@ class ReplanningRequest(BaseModel):
 # ── Endpoint POST /planning/replanning ───────────────────────────────────────
 
 @router.post("/replanning")
+@limiter.limit("5/minute")
 async def adaptive_replanning(
+    request: Request,
     data: ReplanningRequest,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -1194,8 +1209,9 @@ async def adaptive_replanning(
 
     if "error" in new_plan_json:
         msg = new_plan_json["error"]
-        db_error(db, "PLANNING", f"adaptive_replanning: errore bridge — {msg}", tenant_id=tenant_id)
-        raise HTTPException(status_code=500, detail=f"Errore motore deterministico: {msg}")
+        db_error("PLANNING", f"adaptive_replanning: errore bridge — {msg}", tenant_id=tenant_id)
+        # SEC ERR-01: nessun dettaglio interno al client.
+        raise HTTPException(status_code=500, detail="Errore del motore di pianificazione. Riprovare o contattare il supporto.")
 
     # Salva come nuovo draft
     new_plan = GeneratedPlan(
@@ -1427,7 +1443,7 @@ def get_feedback(
 
 @router.get("/feedback/analytics")
 def feedback_analytics(
-    days: int = 30,
+    days: int = Query(default=30, ge=1, le=365),  # SEC VAL-04: bound contro full-table scan
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):

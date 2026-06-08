@@ -1,5 +1,9 @@
 import io
-from PyPDF2 import PdfReader
+import logging
+
+from pypdf import PdfReader
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_text(text: str) -> str:
@@ -69,5 +73,7 @@ def smart_read_pdf(content: bytes):
             return fallback
         result["warning"] = "Testo PDF troppo corto; OCR non disponibile o non riuscito."
         return result
-    except Exception:
+    except Exception as exc:
+        # SEC ERR-02: log della causa originale prima del fallback OCR.
+        logger.warning("smart_read_pdf: estrazione testo fallita (%s), provo OCR", exc)
         return read_pdf_ocr_fallback(content)

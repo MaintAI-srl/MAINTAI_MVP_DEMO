@@ -9,8 +9,11 @@ Guida per Claude Code su questo repository. Aggiornato alla versione **3.3.1** (
 Il riferimento di sicurezza del progetto sono questi due documenti, da applicare **sempre** come base per ogni modifica:
 
 - [`docs/SECURITY_GUIDELINES.md`](docs/SECURITY_GUIDELINES.md) — guida operativa completa (OWASP Top 10, API Security, file upload, AI/LLM, SSRF, secrets).
-- [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) — checklist rapida da usare prima di ogni PR/deploy.
-- [`docs/SECURITY_GUIDELINES_MAINTAI.md`](docs/SECURITY_GUIDELINES_MAINTAI.md) — addendum specifico MaintAI (multi-tenant, background job, serving file backend, endpoint pubblici QR, adattamento Python/FastAPI).
+- [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) — checklist rapida da usare prima di ogni PR/deploy (include blocco ISO/NIS2).
+- [`docs/SECURITY_GUIDELINES_MAINTAI.md`](docs/SECURITY_GUIDELINES_MAINTAI.md) — addendum specifico MaintAI (multi-tenant, background job, serving file backend, endpoint pubblici QR, adattamento Python/FastAPI, §6 conformità ISO/NIS2).
+- [`docs/COMPLIANCE_ISO27001_27002_NIS2.md`](docs/COMPLIANCE_ISO27001_27002_NIS2.md) — mappatura dei 93 controlli ISO 27001:2022 Annex A / ISO 27002:2022 e delle misure minime NIS2 (Art. 21/23) sui controlli reali del codice. Da consultare per ogni feature venduta a clienti regolati.
+- [`docs/INCIDENT_RESPONSE.md`](docs/INCIDENT_RESPONSE.md) — runbook incidenti (ISO A.5.24, NIS2 Art. 23: 24h/72h/1 mese).
+- [`SECURITY.md`](SECURITY.md) — coordinated vulnerability disclosure policy.
 
 **Regole d'uso:**
 - Prima di scrivere/modificare codice che tocca auth, query DB, input utente, upload, chiamate AI/esterne o config, consulta la sezione pertinente delle linee guida.
@@ -32,7 +35,10 @@ Il riferimento di sicurezza del progetto sono questi due documenti, da applicare
 | Storage privato + signed URL | `backend/core/storage.py` (Supabase) — preferire bucket privato |
 | Cifratura at-rest | `encrypt_data`/`decrypt_data` (Fernet) in `security.py` |
 
-L'audit di sicurezza più recente è in `docs/SECURITY_AUDIT_2026-05-30.md`.
+L'audit di sicurezza più recente è in `docs/SECURITY_AUDIT_2026-06-08.md`.
+
+**Compliance:** quando una modifica tocca un controllo di sicurezza, annota nel commit/PR il controllo Annex A
+o la misura NIS2 corrispondente (es. *"A.8.5 / NIS2 21.j: MFA"*) — mantiene aggiornato lo Statement of Applicability.
 
 ---
 

@@ -13,6 +13,7 @@
 3. [Serving sicuro di file dal backend applicativo](#3-serving-sicuro-di-file-dal-backend-applicativo)
 4. [Endpoint pubblici non autenticati (token / QR)](#4-endpoint-pubblici-non-autenticati-token--qr)
 5. [Adattamento Python / FastAPI dei controlli OWASP](#5-adattamento-python--fastapi-dei-controlli-owasp)
+6. [Conformità ISO 27001/27002 e NIS2](#6-conformità-iso-2700127002-e-nis2)
 
 ---
 
@@ -148,6 +149,46 @@ db.execute(text("SELECT * FROM ticket WHERE titolo = :q"), {"q": q})
 - [ ] Nuove env sensibili validate/fail-fast all'avvio?
 
 **Severità tipica:** Critica/Alta (injection, over-exposure).
+
+---
+
+## 6. Conformità ISO 27001/27002 e NIS2
+
+**Perché:** MaintAI è venduto a clienti dei settori manifatturiero/energetico/portuale che possono ricadere
+nell'ambito della **Direttiva NIS2** (UE 2022/2555, recepita in Italia dal D.lgs. 138/2024) e che richiedono ai
+fornitori ICT evidenze di conformità **ISO/IEC 27001:2022** / **27002:2022**. Ogni modifica che tocca sicurezza
+deve preservare i controlli mappati nel documento dedicato.
+
+> **Riferimento completo:** [`COMPLIANCE_ISO27001_27002_NIS2.md`](COMPLIANCE_ISO27001_27002_NIS2.md) —
+> mappatura dei 93 controlli Annex A:2022, requisiti ISMS (clausole 4–10) e misure minime NIS2 Art. 21/23.
+
+**Regole operative (da rispettare in ogni PR rilevante per la sicurezza):**
+
+- **Tracciabilità del controllo:** quando aggiungi/modifichi una misura di sicurezza, annota nel commit o nella PR
+  il controllo Annex A o la misura NIS2 corrispondente (es. *"A.8.5 / NIS2 21.j: MFA"*). Mantiene aggiornato lo SoA.
+- **Crittografia (A.8.24 / NIS2 21.h):** dati sensibili at-rest sempre cifrati (Fernet `encrypt_data`), segreti solo
+  in env con fail-fast, mai chiavi/hardcoded. TLS obbligatorio in transito (HSTS in prod).
+- **Controllo accessi (A.8.2/8.3/8.5 / NIS2 21.i):** ogni endpoint con `Depends` auth+RBAC e filtro `tenant_id`;
+  privilegi `superadmin` minimizzati; revoca immediata via `RevokedToken`/`token_version`.
+- **Logging & audit trail (A.8.15 / A.5.28):** ogni operazione critica (login/logout, cambio password, conferma
+  piano, modifiche RBAC/tenant) deve lasciare traccia in `SystemLog` con tenant/utente/azione/esito/timestamp UTC.
+  È l'evidenza per la **notifica incidenti NIS2 (Art. 23: 24h/72h/1 mese)**.
+- **Vulnerability handling (A.8.8 / NIS2 21.e):** dipendenze pinnate, CI `pip-audit`/`npm audit` bloccante,
+  disclosure secondo [`SECURITY.md`](../SECURITY.md).
+- **Gestione incidenti (A.5.24–5.26 / NIS2 Art. 23):** seguire il runbook
+  [`INCIDENT_RESPONSE.md`](INCIDENT_RESPONSE.md). Non chiudere un incidente senza root-cause e azione correttiva.
+- **MFA (A.8.5 / NIS2 21.j):** gap noto a priorità Alta — l'autenticazione a più fattori va prevista per gli account
+  amministrativi prima della vendita a soggetti NIS2.
+
+**Checklist conformità (rapida):**
+- [ ] La modifica preserva l'isolamento multi-tenant e il filtro `tenant_id`? (A.8.3)
+- [ ] Segreti/credenziali cifrati e mai nel codice/log? (A.8.24)
+- [ ] L'operazione critica genera audit trail in `SystemLog`? (A.8.15)
+- [ ] Le dipendenze nuove sono pinnate e passano l'audit CI? (A.8.8)
+- [ ] Se introduce un nuovo flusso di autenticazione/accesso: è compatibile con MFA e RBAC? (A.8.5)
+- [ ] Il controllo Annex A / NIS2 toccato è annotato nella PR?
+
+**Severità tipica:** Alta (la non conformità può bloccare la vendita a clienti regolati NIS2).
 
 ---
 

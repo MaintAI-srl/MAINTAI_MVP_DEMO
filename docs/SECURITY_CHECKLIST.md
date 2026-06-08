@@ -206,6 +206,21 @@
 
 ---
 
+## ISO 27001/27002 + NIS2 (compliance — clienti regolati)
+
+> Dettaglio e mappatura completa: `SECURITY_GUIDELINES_MAINTAI.md` §6 e `COMPLIANCE_ISO27001_27002_NIS2.md`.
+
+- [ ] **A.8.3** Isolamento multi-tenant preservato (filtro `tenant_id` / `check_tenant_ownership`)
+- [ ] **A.8.5 / NIS2 21.j** Nuovi flussi di auth compatibili con RBAC e MFA (MFA = gap Alta in roadmap)
+- [ ] **A.8.15 / A.5.28** Operazioni critiche tracciate in `SystemLog` (audit trail per notifica NIS2 Art.23)
+- [ ] **A.8.24 / NIS2 21.h** Dati sensibili cifrati at-rest (Fernet) + TLS in transito; segreti solo in env
+- [ ] **A.8.8 / NIS2 21.e** Dipendenze pinnate + CI audit; vulnerabilità gestite via `SECURITY.md`
+- [ ] **A.5.24 / NIS2 23** Incidenti gestiti secondo `docs/INCIDENT_RESPONSE.md` (early warning 24h, notifica 72h)
+- [ ] **NIS2 21.d** Supply chain: SBOM aggiornato, fornitori (OpenAI/Supabase/Render) con dati minimizzati
+- [ ] **PR** Il controllo Annex A / misura NIS2 toccato è annotato nel commit/PR
+
+---
+
 ## Comandi utili
 
 ```bash

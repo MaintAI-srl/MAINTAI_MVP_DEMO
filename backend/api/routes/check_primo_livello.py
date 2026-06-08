@@ -27,12 +27,13 @@ router = APIRouter()
 # ── Schemi ───────────────────────────────────────────────────────────────────
 
 class VoceCheck(BaseModel):
-    label: str
-    descrizione: Optional[str] = None
+    # SEC VAL-02: bound per prevenire saturazione storage / memory spike.
+    label: str = Field(..., min_length=1, max_length=200)
+    descrizione: Optional[str] = Field(default=None, max_length=1000)
 
 
 class CheckBody(BaseModel):
-    voci: List[VoceCheck] = []
+    voci: List[VoceCheck] = Field(default_factory=list, max_length=100)
 
 
 def _serialize(c: CheckPrimoLivello, asset_nome: Optional[str] = None) -> dict:

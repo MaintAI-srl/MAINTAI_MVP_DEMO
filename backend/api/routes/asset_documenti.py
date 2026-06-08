@@ -239,7 +239,8 @@ async def analizza_esploso(
         )
     except Exception as exc:
         db_error("asset_documenti", f"Errore OpenAI analisi esploso doc {doc_id}: {exc}", tenant_id=tenant_id)
-        raise HTTPException(status_code=503, detail=f"Errore durante l'analisi AI: {str(exc)}")
+        # SEC ERR-01: nessun dettaglio interno al client.
+        raise HTTPException(status_code=503, detail="Errore durante l'analisi AI. Riprovare più tardi.")
 
     raw = response.choices[0].message.content or ""
     # Pulisci eventuale markdown wrapping
@@ -254,7 +255,8 @@ async def analizza_esploso(
             raise ValueError("Risposta non è un array JSON")
     except (json.JSONDecodeError, ValueError) as exc:
         db_error("asset_documenti", f"Parse JSON analisi esploso fallito: {exc}", extra={"raw": raw[:500]}, tenant_id=tenant_id)
-        raise HTTPException(status_code=422, detail=f"La risposta AI non è un JSON valido: {str(exc)}")
+        # SEC ERR-01: nessun dettaglio interno al client.
+        raise HTTPException(status_code=422, detail="La risposta AI non è in un formato valido. Riprovare.")
 
     doc.esploso_analisi = json.dumps(parti, ensure_ascii=False)
     db.commit()

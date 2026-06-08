@@ -3,3 +3,4 @@
 - [AI Privacy Anonymization Pattern](project_ai_privacy.md) — anonymizer.mask_text() must wrap all user text before OpenAI calls; confirmed pattern and covered endpoints
 - [IMAP SSRF Prevention](project_imap_ssrf.md) — _validate_imap_server() blocks private/loopback IPs via DNS resolution before _test_imap(); added to email_config.py POST
 - [Test Setup](project_test_setup.md) — test environment requires pip install -r requirements.txt --ignore-installed PyJWT; 83 tests pass with JWT_SECRET + ENCRYPTION_KEY env vars
+- [Security Audit 2026-06-08](security_audit_2026_06_08.md) — full production-readiness audit: 12 new findings (4 Alta, 4 Media, 4 Bassa), confirmed good patterns for JWT/tenant/CORS/CSRF/rate-limit/file-validation

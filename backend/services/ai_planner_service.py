@@ -765,7 +765,9 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
 
     except json.JSONDecodeError as exc:
         logger.error("AI Planner: errore parsing JSON risposta: %s", exc)
-        return {"error": f"Errore parsing risposta AI: {exc}", "raw_response": raw if "raw" in dir() else ""}
+        # SEC AI-02: raw_response troncato per non propagare contenuti AI potenzialmente sensibili nei log/UI.
+        _raw_trunc = (raw[:500] if "raw" in dir() and isinstance(raw, str) else "")
+        return {"error": "Errore parsing risposta AI", "raw_response": _raw_trunc}
     except Exception as exc:
         logger.error("AI Planner: errore chiamata OpenAI: %s", exc)
         return {"error": f"Errore chiamata AI: {exc}", "raw_response": ""}

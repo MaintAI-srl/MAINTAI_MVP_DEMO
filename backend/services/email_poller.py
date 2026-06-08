@@ -51,7 +51,8 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
         imap_pass = decrypt_data(config.password) if config.is_encrypted else config.password
         
         # Tenta connessione
-        with MailBox(config.imap_server, port=config.imap_port).login(config.email_address, imap_pass) as mailbox:
+        # SEC IMAP-01: timeout esplicito per evitare stall del background worker su server non responsivi.
+        with MailBox(config.imap_server, port=config.imap_port, timeout=30).login(config.email_address, imap_pass) as mailbox:
             # Cerca solo UNSEEN e le marca automaticamente come viste
             messages = mailbox.fetch(AND(seen=False), mark_seen=True)
             for msg in messages:

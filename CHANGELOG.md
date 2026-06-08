@@ -5,6 +5,20 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/).
 
 ---
 
+## [3.3.2] — 2026-06-08
+
+### Sicurezza & Stabilità (release di hardening per stato vendibile)
+- **Supply chain** — `PyJWT 2.12.1 → 2.13.0` (risolti 4 CVE); migrazione `PyPDF2 → pypdf 6.13.1` (libreria mantenuta, ultima patch sicura); `openai` pinnato a `1.109.1`. `pip-audit` ora pulito.
+- **Validazione input** — limiti espliciti su `GeneratePlanRequest.days` (1–90), `mode`, `DeauthorizeRequest.reason`, `MoveTicketRequest` (ore/minuti/data), `feedback_analytics.days`, checklist primo livello (anti-DoS/storage).
+- **File upload** — magic-bytes sugli allegati ticket e verifica immagine reale sulle firme; `tipo_mime` derivato server-side (anti stored-XSS).
+- **Hardening API** — rate limit su `/planning/replanning` e `/planning/confirm`; messaggi di errore 500 generici (no leak di dettagli interni); timeout espliciti su client OpenAI e poller IMAP; filtro tenant esplicito in `_batch_completion_pct`.
+- **Auth** — cleanup automatico della blacklist `RevokedToken` nel retention job; validazione `COOKIE_SAMESITE`.
+- **Compliance ISO/NIS2** — nuovi `docs/COMPLIANCE_ISO27001_27002_NIS2.md`, `SECURITY.md`, `docs/INCIDENT_RESPONSE.md`; sezione ISO/NIS2 in linee guida e checklist; job SBOM (CycloneDX) in CI.
+- **Versioni** — allineamento globale a **3.3.2** (backend, frontend, deploy).
+- **Test** — suite backend 93/93 verde.
+
+---
+
 ## [2.8.2] — 2026-04-19
 
 ### Allineamento Versioni

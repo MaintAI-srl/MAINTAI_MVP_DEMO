@@ -289,7 +289,7 @@ def create_piano(
     db.add(piano)
     db.commit()
     db.refresh(piano)
-    db_info(db, "PIANO", f"Piano {piano.nome_codificato} creato per {len(asset_ids)} asset", tenant_id=tenant_id)
+    db_info("PIANO", f"Piano {piano.nome_codificato} creato per {len(asset_ids)} asset", tenant_id=tenant_id)
     return piano
 
 

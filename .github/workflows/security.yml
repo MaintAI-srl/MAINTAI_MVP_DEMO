@@ -52,3 +52,23 @@ jobs:
       - name: npm audit (high+)
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
+
+  sbom:
+    name: SBOM (CycloneDX) — NIS2 21.d supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Generate backend SBOM
+        run: |
+          pip install cyclonedx-bom
+          cyclonedx-py requirements backend/requirements.txt -o backend-sbom.cdx.json || \
+            cyclonedx-py -r -i backend/requirements.txt -o backend-sbom.cdx.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-sbom
+          path: backend-sbom.cdx.json
+          if-no-files-found: warn

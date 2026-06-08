@@ -100,7 +100,16 @@ COOKIE_SECURE = (
     if _cookie_secure_env is not None
     else IS_PRODUCTION
 )
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
+# SEC AUT-02: valida il valore di SameSite; un valore non valido o "none" senza Secure
+# verrebbe rifiutato dai browser. Default sicuro "lax".
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
+if COOKIE_SAMESITE not in ("lax", "strict", "none"):
+    _logger.warning("COOKIE_SAMESITE '%s' non valido — uso 'lax'", COOKIE_SAMESITE)
+    COOKIE_SAMESITE = "lax"
+if COOKIE_SAMESITE == "none" and not COOKIE_SECURE:
+    # SameSite=None richiede Secure: in caso contrario i browser ignorano il cookie.
+    _logger.warning("COOKIE_SAMESITE=none richiede COOKIE_SECURE=true — forzo SameSite='lax'")
+    COOKIE_SAMESITE = "lax"
 
 
 # ── Token extraction (cookie-first, Authorization header fallback) ────────────
