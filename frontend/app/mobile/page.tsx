@@ -164,10 +164,12 @@ function MttrCounter({ start, paused, pausedAt }: { start?: string; paused: bool
 function ActiveWorkView({
   ticket,
   onClose,
+  onHome,
   onStatusChange,
 }: {
   ticket: Ticket;
   onClose: () => void;
+  onHome: () => void;
   onStatusChange: (id: number, stato: string) => Promise<void>;
 }) {
   const tipo = tipoLabel(ticket.tipo);
@@ -371,13 +373,13 @@ function ActiveWorkView({
         borderBottom: "1px solid var(--border-default)",
         marginBottom: 10, flexShrink: 0,
       }}>
-        <button onClick={onClose} style={{
-          background: "var(--surface-3)", border: "1px solid var(--border-default)",
-          borderRadius: 10, width: 36, height: 36, fontSize: 16, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", flexShrink: 0,
-        }}>←</button>
+        <button className="m-press" aria-label="Indietro" onClick={onClose} style={{
+          background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.09)",
+          borderRadius: "50%", width: 38, height: 38, fontSize: 22, cursor: "pointer", paddingBottom: 3,
+          display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, lineHeight: 1,
+        }}>‹</button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "-0.01em", color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {ticket.titolo}
           </div>
           <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{ticket.asset_name}</div>
@@ -388,6 +390,11 @@ function ActiveWorkView({
         }}>
           {tipo.icon} {tipo.label}
         </div>
+        <button className="m-press" aria-label="Home" onClick={onHome} style={{
+          background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.09)",
+          borderRadius: "50%", width: 38, height: 38, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0,
+        }}><HomeIcon /></button>
       </div>
 
       {/* ── Layout split 50/50 ── */}
@@ -432,6 +439,7 @@ function ActiveWorkView({
               }}
             />
             <button
+              className="m-press"
               onClick={handlePhotoClick}
               style={{
                 aspectRatio: "1", borderRadius: 16,
@@ -445,6 +453,7 @@ function ActiveWorkView({
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.05em" }}>FOTO</span>
             </button>
             <button
+              className="m-press"
               onClick={() => setShowVoice(v => !v)}
               style={{
                 aspectRatio: "1", borderRadius: 16,
@@ -475,8 +484,8 @@ function ActiveWorkView({
                     rows={2}
                     style={{
                       width: "100%", resize: "none", background: "rgba(139,92,246,0.07)",
-                      border: "1px solid rgba(139,92,246,0.25)", borderRadius: 8,
-                      color: "#e2e8f0", padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box",
+                      border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10,
+                      color: "#e2e8f0", padding: "10px 12px", fontSize: 16, outline: "none", boxSizing: "border-box", WebkitAppearance: "none",
                     }}
                   />
                   <button onClick={handleSaveVoice} disabled={savingVoice} style={{
@@ -620,6 +629,7 @@ function ActiveWorkView({
             {/* INIZIA — sempre visibile se non ancora avviato */}
             {!started && (
               <button
+                className="m-press"
                 onClick={handleIniziaLavoro}
                 disabled={!allChecked || starting}
                 style={{
@@ -646,6 +656,7 @@ function ActiveWorkView({
             {/* TERMINA — visibile solo se già avviato */}
             {started && (
               <button
+                className="m-press"
                 onClick={handleTermina}
                 disabled={!allChecked}
                 style={{
@@ -669,6 +680,7 @@ function ActiveWorkView({
             {/* PAUSA — solo se avviato */}
             {started && (
               <button
+                className="m-press"
                 onClick={handlePausa}
                 style={{
                   height: 54, borderRadius: 14,
@@ -687,6 +699,53 @@ function ActiveWorkView({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Icona Home (SVG, stile SF Symbols) ───────────────────────────────────────
+function HomeIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5 9.5V21h14V9.5" />
+    </svg>
+  );
+}
+
+// ── Header mobile stile iOS: sticky, blur, back chevron + home ───────────────
+function MobileHeader({ title, onBack, onHome }: { title: string; onBack?: () => void; onHome?: () => void }) {
+  const circle = {
+    width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
+    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.09)",
+    color: "#fff", cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+  } as const;
+  return (
+    <div style={{
+      position: "sticky", top: 0, zIndex: 60,
+      margin: "-16px -16px 0",
+      padding: "10px 14px",
+      paddingTop: "calc(10px + env(safe-area-inset-top, 0px))",
+      display: "flex", alignItems: "center", gap: 10,
+      background: "rgba(10,15,30,0.72)",
+      backdropFilter: "blur(20px) saturate(1.5)",
+      WebkitBackdropFilter: "blur(20px) saturate(1.5)",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
+    }}>
+      {onBack && (
+        <button className="m-press" aria-label="Indietro" onClick={onBack} style={{ ...circle, fontSize: 24, paddingBottom: 3 }}>
+          ‹
+        </button>
+      )}
+      <span style={{ flex: 1, fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {title}
+      </span>
+      {onHome && (
+        <button className="m-press" aria-label="Home" onClick={onHome} style={circle}>
+          <HomeIcon />
+        </button>
+      )}
     </div>
   );
 }
@@ -990,7 +1049,33 @@ export default function MobileHomePage() {
   const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "short" });
   const allDpiChecked = DPI_ITEMS.every(item => dpiChecked[item]);
 
-  function TicketVocaleView() {
+  // Reset completo e ritorno alla home
+  function goHomeFromVocale() {
+    setHomeView("home"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]);
+    setSelectedAsset(null); setManualSearch(""); setManualAssets([]); setNuovoDesc(""); setShowVoiceQrScan(false);
+  }
+
+  // Back step-aware: torna allo step precedente, non sempre alla home
+  function backFromVocale() {
+    if (showVoiceQrScan) { setShowVoiceQrScan(false); return; }
+    if (voiceStep === "form") {
+      setSelectedAsset(null);
+      setVoiceStep(foundAssets.length > 0 ? "confirm_asset" : "listen");
+      return;
+    }
+    if (voiceStep === "confirm_asset") { setVoiceStep("listen"); setFoundAssets([]); setVoiceTranscript(""); return; }
+    goHomeFromVocale();
+  }
+
+  function goHomeFromPiano() {
+    setHomeView("home"); setDpiConfirmed(false); setDpiChecked({});
+  }
+
+  // NB: queste viste sono funzioni di render (chiamate come funzioni, non come
+  // componenti JSX): definirle come componenti annidati causava il remount del
+  // sottoalbero a ogni render del parent → gli input perdevano il focus dopo
+  // ogni carattere e la registrazione vocale veniva interrotta.
+  function renderTicketVocale() {
     return (
       <div style={{ minHeight: "100dvh", background: "var(--surface-0)", display: "flex", flexDirection: "column" }}>
 
@@ -1007,16 +1092,8 @@ export default function MobileHomePage() {
           />
         )}
 
-        {/* Header */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid var(--border-default)" }}>
-          <button
-            onClick={() => {
-              if (showVoiceQrScan) { setShowVoiceQrScan(false); return; }
-              setHomeView("home"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setSelectedAsset(null);
-            }}
-            style={{ background: "var(--surface-3)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
-          <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>🎙️ Apri Ticket Vocale</span>
-        </div>
+        {/* Header sticky con blur */}
+        <MobileHeader title="🎙️ Ticket Vocale" onBack={backFromVocale} onHome={goHomeFromVocale} />
 
         <div style={{ flex: 1, padding: "24px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
 
@@ -1069,7 +1146,8 @@ export default function MobileHomePage() {
                       value={manualSearch}
                       onChange={e => handleManualSearch(e.target.value)}
                       placeholder="Cerca asset per nome..."
-                      style={{ flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 10, color: "#fff", padding: "12px 16px", fontSize: 14, outline: "none" }}
+                      autoComplete="off"
+                      style={{ flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 12, color: "#fff", padding: "14px 16px", fontSize: 16, outline: "none", WebkitAppearance: "none" }}
                     />
                   </div>
                   {manualAssets.length > 0 && (
@@ -1196,10 +1274,10 @@ export default function MobileHomePage() {
               <div>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Descrizione (opzionale)</div>
                 <textarea value={nuovoDesc} onChange={e => setNuovoDesc(e.target.value)} rows={3} placeholder="Note sull'intervento..."
-                  style={{ width: "100%", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 10, color: "#fff", padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
+                  style={{ width: "100%", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 12, color: "#fff", padding: "14px 16px", fontSize: 16, resize: "none", outline: "none", boxSizing: "border-box", WebkitAppearance: "none" }} />
               </div>
 
-              <button onClick={saveTicketVocale} disabled={savingTicket}
+              <button className="m-press" onClick={saveTicketVocale} disabled={savingTicket}
                 style={{ padding: "18px", background: savingTicket ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg,#6366f1,#4f46e5)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 900, fontSize: 17, cursor: savingTicket ? "not-allowed" : "pointer", boxShadow: "0 8px 24px rgba(99,102,241,0.35)" }}>
                 {savingTicket ? "Salvataggio..." : "💾 SALVA TICKET"}
               </button>
@@ -1210,15 +1288,15 @@ export default function MobileHomePage() {
     );
   }
 
-  function PianoOdiernoView() {
+  function renderPianoOdierno() {
     return (
       <div style={{ minHeight: "100dvh", background: "var(--surface-0)", display: "flex", flexDirection: "column" }}>
-        {/* Header */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid var(--border-default)" }}>
-          <button onClick={() => { setHomeView("home"); setDpiConfirmed(false); setDpiChecked({}); }}
-            style={{ background: "var(--surface-3)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer", fontWeight: 700 }}>← Torna</button>
-          <span style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>📋 Piano Odierno</span>
-        </div>
+        {/* Header sticky con blur + pulsante Home sempre visibile */}
+        <MobileHeader
+          title="📋 Piano Odierno"
+          onBack={dpiConfirmed ? () => { setDpiConfirmed(false); setDpiChecked({}); } : goHomeFromPiano}
+          onHome={goHomeFromPiano}
+        />
 
         {/* DPI Step */}
         {!dpiConfirmed && (
@@ -1233,7 +1311,7 @@ export default function MobileHomePage() {
               {DPI_ITEMS.map(item => {
                 const checked = !!dpiChecked[item];
                 return (
-                  <button key={item} onClick={() => setDpiChecked(prev => ({ ...prev, [item]: !prev[item] }))}
+                  <button key={item} className="m-press" onClick={() => setDpiChecked(prev => ({ ...prev, [item]: !prev[item] }))}
                     style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all 0.15s",
                       background: checked ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
                       border: `1.5px solid ${checked ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.1)"}`,
@@ -1249,6 +1327,7 @@ export default function MobileHomePage() {
 
             <div style={{ marginTop: 8 }}>
               <button
+                className="m-press"
                 disabled={!allDpiChecked}
                 onClick={() => { setDpiConfirmed(true); loadPianoOdierno(); }}
                 style={{ width: "100%", padding: "18px", borderRadius: 14, fontWeight: 900, fontSize: 17, cursor: allDpiChecked ? "pointer" : "not-allowed", border: "none", transition: "all 0.2s",
@@ -1287,8 +1366,8 @@ export default function MobileHomePage() {
               return (
                 <div key={t.id}>
                   {startTime && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 6, fontWeight: 700 }}>{startTime}{endTime ? `–${endTime}` : ""}</div>}
-                  <button onClick={() => setActiveView(t)}
-                    style={{ width: "100%", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 14, padding: "16px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14 }}>
+                  <button className="m-press" onClick={() => setActiveView(t)}
+                    style={{ width: "100%", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 16, padding: "16px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 44, height: 44, borderRadius: 12, background: `${tipoInfo.color}18`, border: `1.5px solid ${tipoInfo.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
                       {tipoInfo.icon}
                     </div>
@@ -1333,13 +1412,14 @@ export default function MobileHomePage() {
       <ActiveWorkView
         ticket={fresh}
         onClose={() => setActiveView(null)}
+        onHome={() => { setActiveView(null); setHomeView("home"); setDpiConfirmed(false); setDpiChecked({}); }}
         onStatusChange={updateStatus}
       />
     );
   }
 
-  if (homeView === "ticket_vocale") return <TicketVocaleView />;
-  if (homeView === "piano_odierno") return <PianoOdiernoView />;
+  if (homeView === "ticket_vocale") return renderTicketVocale();
+  if (homeView === "piano_odierno") return renderPianoOdierno();
 
   // ── Home ─────────────────────────────────────────────────────────────────
   return (
@@ -1352,8 +1432,8 @@ export default function MobileHomePage() {
             {tickets.filter(t => t.stato === "In corso").length} in corso · {tickets.filter(t => t.stato === "Pianificato").length} pianificati
           </div>
         </div>
-        <button onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }} disabled={refreshing}
-          style={{ background: "var(--surface-3)", border: "none", color: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "8px 12px", cursor: refreshing ? "wait" : "pointer", fontSize: 16 }}>↻</button>
+        <button className="m-press" aria-label="Aggiorna" onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }} disabled={refreshing}
+          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.7)", borderRadius: "50%", width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: refreshing ? "wait" : "pointer", fontSize: 17 }}>↻</button>
       </div>
 
       {/* Banner no profilo */}
@@ -1395,8 +1475,9 @@ export default function MobileHomePage() {
       {/* 2 PULSANTONI */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "12px 16px", gap: 12 }}>
         <button
+          className="m-press"
           onClick={() => { setHomeView("ticket_vocale"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setManualSearch(""); setManualAssets([]); setSelectedAsset(null); setNuovoDesc(""); setVoiceQrInputMethod("voice"); setShowVoiceQrScan(false); }}
-          style={{ flex: 1, minHeight: 140, borderRadius: 20, border: "1.5px solid rgba(99,102,241,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, position: "relative", overflow: "hidden",
+          style={{ flex: 1, minHeight: 140, borderRadius: 24, border: "1.5px solid rgba(99,102,241,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, position: "relative", overflow: "hidden",
             background: "linear-gradient(145deg, #1e1b4b 0%, #0f0c29 60%, #1a1040 100%)",
             boxShadow: "0 8px 32px rgba(99,102,241,0.2)",
           }}
@@ -1410,8 +1491,9 @@ export default function MobileHomePage() {
         </button>
 
         <button
+          className="m-press"
           onClick={() => { setHomeView("piano_odierno"); setDpiConfirmed(false); setDpiChecked({}); setPianoDiOggi([]); }}
-          style={{ flex: 1, minHeight: 140, borderRadius: 20, border: "1.5px solid rgba(20,184,166,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
+          style={{ flex: 1, minHeight: 140, borderRadius: 24, border: "1.5px solid rgba(20,184,166,0.4)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
             background: "linear-gradient(145deg, #0f2922 0%, #0a1f1a 60%, #0d2520 100%)",
             boxShadow: "0 8px 32px rgba(20,184,166,0.2)",
           }}
