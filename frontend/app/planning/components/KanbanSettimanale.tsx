@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import type { PlannedWO, TicketData, TecnicoData } from "../types";
 import { tipoStyle, GIORNI_SETTIMANA, MESI } from "../types";
+import { localDateStr } from "../../lib/datetime";
 
 // ── Costanti layout ───────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ function getWeekDays(weekStart: Date): Date[] {
 }
 
 function dateToStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 function formatDayHeader(d: Date): { dow: string; day: string; mon: string } {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import type { PlannedWO, TicketData, TecnicoData } from "../types";
 import { tipoStyle, timeToCol } from "../types";
+import { localDateStr } from "../../lib/datetime";
 
 interface Props {
   wos: PlannedWO[];
@@ -67,12 +68,12 @@ function formatDay(dateStr: string): string {
 function prevDay(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 function nextDay(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate, onDateChange, onTicketDrop }: Props) {
@@ -87,7 +88,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
 
   // Linea ora corrente
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = localDateStr(now);
   const isToday = selectedDate === todayStr;
   const nowMinutesFrom8 = (now.getHours() - 8) * 60 + now.getMinutes();
   const nowFrac = Math.max(0, Math.min(nowMinutesFrom8 / 540, 1)); // 540 min = 9 ore

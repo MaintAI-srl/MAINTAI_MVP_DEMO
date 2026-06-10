@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { PlannedWO, TicketData } from "../types";
 import { tipoStyle, MESI } from "../types";
+import { localDateStr } from "../../lib/datetime";
 
 interface Props {
   wos: PlannedWO[];
@@ -25,7 +26,7 @@ function buildCalendarGrid(mese: Date): (string | null)[][] {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dd = new Date(year, month, d);
-    cells.push(dd.toISOString().slice(0, 10));
+    cells.push(localDateStr(dd));
   }
 
   // Riempi fino al multiplo di 7
@@ -49,7 +50,7 @@ const DOT_COLOR: Record<string, string> = {
 
 export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, onDayClick }: Props) {
   const [panelDay, setPanelDay] = useState<string | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
 
   // Mappa data → WOs
   const wosByDay: Record<string, PlannedWO[]> = {};
@@ -127,7 +128,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
               const dayWOs = wosByDay[dayStr] ?? [];
               const isToday = dayStr === today;
               const isSelected = panelDay === dayStr;
-              const currentMonth = dayStr.slice(0, 7) === mese.toISOString().slice(0, 7);
+              const currentMonth = dayStr.slice(0, 7) === localDateStr(mese).slice(0, 7);
 
               return (
                 <div
