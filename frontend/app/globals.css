@@ -2497,3 +2497,86 @@ input:focus, select:focus, textarea:focus {
   transform: scale(0.96);
   opacity: 0.85;
 }
+
+/* ── Mobile redesign stile iOS — animazioni e griglie responsive ─────────── */
+@keyframes mFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes mScaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes mSlideIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes mEmergencyRing {
+  0%   { box-shadow: 0 0 0 0 rgba(255,69,58,0.45); }
+  70%  { box-shadow: 0 0 0 16px rgba(255,69,58,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,69,58,0); }
+}
+@keyframes mBreath {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+@keyframes mRecPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,69,58,0.40); }
+  100% { box-shadow: 0 0 0 22px rgba(255,69,58,0); }
+}
+
+.m-fade-up  { animation: mFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.m-scale-in { animation: mScaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.m-slide-in { animation: mSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.m-d1 { animation-delay: 0.05s; }
+.m-d2 { animation-delay: 0.12s; }
+.m-d3 { animation-delay: 0.19s; }
+.m-d4 { animation-delay: 0.26s; }
+.m-d5 { animation-delay: 0.33s; }
+
+/* Area scrollabile interna (la pagina non scrolla mai) */
+.m-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.m-scroll::-webkit-scrollbar { display: none; }
+
+/* Griglia tile home: 1 colonna su phone portrait, 2 su tablet/landscape */
+.m-tiles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+@media (min-width: 700px), (orientation: landscape) and (min-height: 380px) {
+  .m-tiles { grid-template-columns: 1fr 1fr; }
+}
+
+/* Liste responsive: 1 colonna phone, 2 colonne tablet */
+.m-cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-content: start;
+}
+@media (min-width: 700px) {
+  .m-cols { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+}
+
+/* Contenuto centrato con larghezza massima da tablet */
+.m-page {
+  width: 100%;
+  max-width: 1024px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-fade-up, .m-scale-in, .m-slide-in { animation: none; }
+}
