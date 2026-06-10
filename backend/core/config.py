@@ -19,7 +19,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL") or os.getenv("openai_model", "gpt-4.1-m
 
 # Versioning
 VERSION = "3.3.1"
-BUILD_DATE = "2026-06-02"
+BUILD_DATE = "2026-06-10"
 
 
 def init_backend() -> None:
