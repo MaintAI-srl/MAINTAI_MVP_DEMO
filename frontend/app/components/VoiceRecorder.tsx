@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Mic, Square, Check } from "lucide-react";
 
 type Props = {
   onTranscript: (text: string) => void;
@@ -213,12 +214,13 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
             onClick={() => { onTranscript(fallbackText.trim()); setFallbackText(""); }}
             style={{
               padding: "0 18px", borderRadius: 12, border: "none", flexShrink: 0,
-              background: fallbackText.trim() ? "linear-gradient(135deg,#3b82f6,#1d4ed8)" : "rgba(255,255,255,0.06)",
+              background: fallbackText.trim() ? "linear-gradient(135deg,#0A84FF,#0064D2)" : "rgba(255,255,255,0.06)",
               color: fallbackText.trim() ? "#fff" : "rgba(255,255,255,0.25)",
               fontWeight: 800, fontSize: 14, cursor: fallbackText.trim() ? "pointer" : "default",
+              display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            ✓
+            <Check size={18} strokeWidth={2.6} />
           </button>
         </div>
       </div>
@@ -236,22 +238,24 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: 8,
-          height: 54,
-          borderRadius: 16,
+          gap: 9,
+          height: 56,
+          borderRadius: 18,
           border: state === "recording"
-            ? "2px solid #ef4444"
-            : "2px solid rgba(91,143,255,0.35)",
+            ? "1.5px solid rgba(255,69,58,0.6)"
+            : "1.5px solid rgba(10,132,255,0.4)",
           background: state === "recording"
-            ? "rgba(239,68,68,0.12)"
-            : "rgba(91,143,255,0.08)",
-          color: state === "recording" ? "#f87171" : "#90b8ff",
+            ? "rgba(255,69,58,0.13)"
+            : "rgba(10,132,255,0.10)",
+          color: state === "recording" ? "#FF6961" : "#6CB4FF",
           fontWeight: 800,
           fontSize: 14,
+          letterSpacing: "0.04em",
           cursor: disabled ? "not-allowed" : "pointer",
-          transition: "all 0.2s",
+          transition: "background 0.25s, border-color 0.25s, color 0.25s",
           position: "relative",
           overflow: "hidden",
+          width: "100%",
         }}
       >
         {/* Pulse glow while recording */}
@@ -260,20 +264,26 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
             style={{
               position: "absolute",
               inset: 0,
-              background: "radial-gradient(ellipse at 50% 50%, rgba(239,68,68,0.15) 0%, transparent 70%)",
+              background: "radial-gradient(ellipse at 50% 50%, rgba(255,69,58,0.16) 0%, transparent 70%)",
               animation: "voicePulse 1s infinite",
             }}
           />
         )}
-        <span style={{ fontSize: 20, zIndex: 1 }}>
-          {state === "recording" ? "⏹" : "🎙️"}
+        <span style={{
+          zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+          width: 30, height: 30, borderRadius: "50%",
+          background: state === "recording" ? "rgba(255,69,58,0.22)" : "rgba(10,132,255,0.18)",
+        }}>
+          {state === "recording"
+            ? <Square size={13} strokeWidth={2.4} fill="currentColor" />
+            : <Mic size={16} strokeWidth={2.2} />}
         </span>
         <span style={{ zIndex: 1 }}>
           {state === "processing"
             ? "ATTIVAZIONE MICROFONO…"
             : state === "recording"
-              ? `STOP REGISTRAZIONE  ${formatTime(elapsed)}`
-              : "🎙️ REGISTRA NOTA VOCALE"}
+              ? `STOP  ${formatTime(elapsed)}`
+              : "REGISTRA NOTA VOCALE"}
         </span>
       </button>
 

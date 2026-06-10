@@ -256,48 +256,65 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Layout dedicato per la pagina mobile tecnici — full-screen, no sidebar
+  // Layout dedicato per la pagina mobile tecnici — full-screen, no sidebar, no scroll pagina
   if (pathname === "/mobile") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "var(--background)" }}>
-        {/* Topbar compatta mobile */}
+      <div style={{
+        display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden",
+        background: "radial-gradient(1200px 500px at 50% -10%, rgba(10,132,255,0.10), transparent 60%), #0B0F1A",
+      }}>
+        {/* Topbar in vetro smerigliato */}
         <header style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "10px 16px",
-          background: "var(--surface-1, #0b1120)",
-          borderBottom: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
-          flexShrink: 0,
+          paddingTop: "calc(10px + env(safe-area-inset-top, 0px))",
+          background: "rgba(15,20,35,0.62)",
+          backdropFilter: "blur(24px) saturate(1.6)",
+          WebkitBackdropFilter: "blur(24px) saturate(1.6)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          flexShrink: 0, zIndex: 100,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src="/logo.png" alt="MaintAI" style={{ width: 26, height: 26, objectFit: "contain" }} />
+            <img src="/logo.png" alt="MaintAI" style={{ width: 28, height: 28, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(10,132,255,0.45))" }} />
             <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>MaintAI</div>
-              <div style={{ fontSize: 10, color: "var(--cobalt, #5b8fff)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Campo</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#F5F5F7", lineHeight: 1, letterSpacing: "-0.02em" }}>MaintAI</div>
+              <div style={{ fontSize: 9, color: "#0A84FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", marginTop: 2 }}>Campo</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{user?.username}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{
+              fontSize: 12, color: "rgba(235,235,245,0.6)", fontWeight: 600,
+              maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>{user?.username}</span>
             <button
+              className="m-press"
               onClick={toggleTheme}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "var(--text-muted)", fontSize: 16, lineHeight: 1 }}
+              style={{
+                background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)",
+                cursor: "pointer", color: "rgba(235,235,245,0.6)",
+                width: 34, height: 34, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
               title={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
             >
-              {theme === "dark" ? <Sun size={16} strokeWidth={1.8} /> : <Moon size={16} strokeWidth={1.8} />}
+              {theme === "dark" ? <Sun size={15} strokeWidth={1.8} /> : <Moon size={15} strokeWidth={1.8} />}
             </button>
             <button
+              className="m-press"
               onClick={logout}
+              aria-label="Esci"
               style={{
-                background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)",
-                color: "#f87171", borderRadius: 8, padding: "6px 12px",
-                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                background: "rgba(255,69,58,0.10)", border: "1px solid rgba(255,69,58,0.25)",
+                color: "#FF6961", borderRadius: "50%", width: 34, height: 34,
+                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
               }}
             >
-              Esci
+              <LogOut size={15} strokeWidth={2} />
             </button>
           </div>
         </header>
-        {/* Contenuto scrollabile */}
-        <main style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}>
+        {/* Contenuto: la pagina gestisce internamente le aree scrollabili */}
+        <main style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {children}
         </main>
       </div>
