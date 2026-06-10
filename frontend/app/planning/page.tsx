@@ -18,6 +18,7 @@ import {
   useDroppable,
 } from "@dnd-kit/core";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { localDateStr } from "../lib/datetime";
 import { notify } from "@/lib/toast";
 import { format, addDays, subDays, parseISO, startOfWeek, isToday } from "date-fns";
 import { it } from "date-fns/locale";
@@ -666,7 +667,7 @@ function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
   onClose: () => void;
 }) {
   const [tecnicoId, setTecnicoId] = useState<number>((tecnici.find(t => isTecnicoOperativo(t)) ?? tecnici[0])?.id ?? 0);
-  const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState(localDateStr());
   const [oraInizio, setOraInizio] = useState(8);
   const durata = ticket.durata_stimata_ore || 1;
   const fineDecimale = oraInizio + durata;

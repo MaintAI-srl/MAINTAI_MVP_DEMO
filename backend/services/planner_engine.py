@@ -397,7 +397,9 @@ class PlannerEngine:
                         if t_obj:
                             start_ore = _ore_start_di_giorno(t_obj.orario_inizio)
                             start_delta = (a.start.hour + a.start.minute / 60.0) - start_ore
-                            slot_start = max(0, int(start_delta * 60 / sm))
+                            # round() come in _commit_allocation: stessa strategia di
+                            # arrotondamento per locked e nuove allocazioni
+                            slot_start = max(0, int(round(start_delta * 60 / sm)))
                             slots_n = _slots_needed(durata, sm)
                             for s in range(slot_start, min(slot_start + slots_n, len(grid))):
                                 grid[s] = True

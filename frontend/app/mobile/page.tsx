@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
+import { localDatetimeApiStr, localDateStr } from "../lib/datetime";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import UploadAllegati from "../components/UploadAllegati";
@@ -816,11 +817,11 @@ export default function MobileHomePage() {
   const updateStatus = async (tid: number, newStato: string) => {
     try {
       const body: Record<string, string | null> = { stato: newStato };
-      if (newStato === "In corso") body.execution_start = new Date().toISOString();
-      else if (newStato === "Chiuso") body.execution_finish = new Date().toISOString();
+      if (newStato === "In corso") body.execution_start = localDatetimeApiStr();
+      else if (newStato === "Chiuso") body.execution_finish = localDatetimeApiStr();
       await apiPut(`/tickets/${tid}`, body);
       setTickets(prev => prev.map(t =>
-        t.id === tid ? { ...t, stato: newStato, execution_start: newStato === "In corso" ? new Date().toISOString() : t.execution_start } : t
+        t.id === tid ? { ...t, stato: newStato, execution_start: newStato === "In corso" ? localDatetimeApiStr() : t.execution_start } : t
       ));
       // Se stiamo chiudendo o mettendo in pausa, torna alla lista
       if (newStato === "Chiuso" || newStato === "Pianificato") {
@@ -973,7 +974,7 @@ export default function MobileHomePage() {
     if (!tecnicoId) return;
     setLoadingPiano(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = localDateStr();
       const res = await apiGet<{ items: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&stato=Pianificato,In corso&limit=100`);
       const items = res.items ?? [];
       const todayItems = items.filter(t => {

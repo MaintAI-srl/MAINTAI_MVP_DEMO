@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from "@dnd-kit/core";
 import { apiPatch, apiGet } from "../lib/api";
+import { localDatetimeStr, localDatetimeApiStr, datetimeLocalToApi } from "../lib/datetime";
 import { notify } from "@/lib/toast";
 
 type Tecnico = { id: number; nome: string; cognome: string; specializzazione?: string | null };
@@ -210,7 +211,8 @@ function KanbanPianificaModal({
     const d = new Date();
     d.setDate(d.getDate() + days);
     d.setHours(hours, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
+    // Ora locale (non UTC): il valore alimenta un input datetime-local
+    return localDatetimeStr(d);
   };
   const [date, setDate] = useState(getISO(0, 8));
   const [selectedPreset, setSelectedPreset] = useState<string>("Oggi 08:00");
@@ -358,11 +360,11 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
       if (nuovoStato === "Aperto") body.is_manual_plan = false;
       if (nuovoStato === "In corso") {
         body.asset_stato = "stopped";
-        body.execution_start = new Date().toISOString();
+        body.execution_start = localDatetimeApiStr();
       }
       if (nuovoStato === "Chiuso") {
         body.asset_stato = "service";
-        body.execution_finish = new Date().toISOString();
+        body.execution_finish = localDatetimeApiStr();
       }
       await apiPatch(`/tickets/${ticketId}`, body);
       onRefresh();
@@ -377,8 +379,8 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
     const { ticketId, durataOre } = pianificaRequest;
     setPianificaRequest(null);
 
-    const start = new Date(date).toISOString();
-    const end = new Date(new Date(date).getTime() + durataOre * 3600000).toISOString();
+    const start = datetimeLocalToApi(date) ?? localDatetimeApiStr();
+    const end = localDatetimeApiStr(new Date(new Date(date).getTime() + durataOre * 3600000));
 
     const prev = local;
     setLocal(l => l.map(t => t.id === ticketId ? { ...t, stato: "Pianificato", planned_start: start, is_manual_plan: true } : t));

@@ -1021,9 +1021,12 @@ def calculate_plan_efficiency(
     skill_score = max(0, 100 - (skill_ko / max(n_total, 1)) * 100)
 
     # 5. Ottimizzazione meteo (10%)
+    # Conta solo i WO principali (non continuazioni), coerentemente con n_planned
+    # al denominatore — altrimenti lo score può azzerarsi artificialmente.
     wo_with_meteo_warning = sum(
         1 for w in planned
-        if any(
+        if not w.get("is_continuation")
+        and any(
             "meteo" in (x or "").lower()
             or "pioggia" in (x or "").lower()
             or "vento" in (x or "").lower()
@@ -1031,7 +1034,7 @@ def calculate_plan_efficiency(
             for x in w.get("warnings", [])
         )
     )
-    meteo_score = max(0, 100 - (wo_with_meteo_warning / max(n_planned, 1)) * 100)
+    meteo_score = max(0, 100 - (wo_with_meteo_warning / n_planned) * 100) if n_planned else 100
 
     efficiency = (
         copertura    * 0.30

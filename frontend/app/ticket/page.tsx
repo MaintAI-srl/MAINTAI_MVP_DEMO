@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { API_BASE, apiGet, apiPost, apiPut, apiPatch } from "../lib/api";
+import { localDatetimeStr, localDatetimeApiStr, datetimeLocalToApi } from "../lib/datetime";
 import { notify } from "@/lib/toast";
 import { SkeletonTable } from "../components/Skeleton";
 import { Button } from "@/components/ui/button";
@@ -129,7 +130,8 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
     const d = new Date();
     d.setDate(d.getDate() + days);
     d.setHours(hours, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
+    // Ora locale (non UTC): il valore alimenta un input datetime-local
+    return localDatetimeStr(d);
   };
   const [date, setDate] = useState(getISO(0, 8));
   const [tecnicoId, setTecnicoId] = useState<number | null>(null);
@@ -391,10 +393,11 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       if (stato === "Pianificato") { body.is_manual_plan = true; body.tecnico_id = tecnicoId; }
       if (stato === "Aperto") { body.is_manual_plan = false; body.tecnico_id = null; }
 
-      body.planned_start = plannedStart ? new Date(plannedStart).toISOString() : null;
-      body.planned_finish = plannedFinish ? new Date(plannedFinish).toISOString() : null;
-      body.execution_start = executionStart ? new Date(executionStart).toISOString() : null;
-      body.execution_finish = executionFinish ? new Date(executionFinish).toISOString() : null;
+      // Invia datetime naive in ora locale (convenzione backend) — niente toISOString/UTC
+      body.planned_start = datetimeLocalToApi(plannedStart);
+      body.planned_finish = datetimeLocalToApi(plannedFinish);
+      body.execution_start = datetimeLocalToApi(executionStart);
+      body.execution_finish = datetimeLocalToApi(executionFinish);
 
       await apiPut(`/tickets/${ticket.id}`, body);
       onSaved();
@@ -954,8 +957,8 @@ export default function TicketPage() {
           setPianificaModal(null);
           setUpdatingId(ticketId);
           try {
-            const start = new Date(plannedDate).toISOString();
-            const end = new Date(new Date(plannedDate).getTime() + durataOre * 3600000).toISOString();
+            const start = datetimeLocalToApi(plannedDate);
+            const end = localDatetimeApiStr(new Date(new Date(plannedDate).getTime() + durataOre * 3600000));
             await apiPut(`/tickets/${ticketId}`, { stato: "Pianificato", planned_start: start, planned_finish: end, tecnico_id: tecnicoId, is_manual_plan: true });
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
           } catch (err) { statusUpdateError(err); }
@@ -984,11 +987,11 @@ export default function TicketPage() {
       if (nuovoStato === "Aperto") { body.planned_start = null; body.planned_finish = null; body.is_manual_plan = false; }
       if (nuovoStato === "In corso") {
         body.asset_stato = "stopped";
-        body.execution_start = new Date().toISOString();
+        body.execution_start = localDatetimeApiStr();
       }
       if (nuovoStato === "Chiuso") {
         body.asset_stato = "service";
-        body.execution_finish = new Date().toISOString();
+        body.execution_finish = localDatetimeApiStr();
       }
       await apiPut(`/tickets/${ticketId}`, body);
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
@@ -1003,7 +1006,7 @@ export default function TicketPage() {
         onConfirm: async (plannedDate: string, tecnicoId: number) => {
           setPianificaModal(null);
           try {
-            const start = new Date(plannedDate).toISOString();
+            const start = datetimeLocalToApi(plannedDate);
             await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Pianificato", planned_start: start, tecnico_id: tecnicoId, is_manual_plan: true });
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
@@ -1031,8 +1034,8 @@ export default function TicketPage() {
         ids: Array.from(selectedIds),
         stato: nuovoStato,
         asset_stato: nuovoStato === "In corso" ? "stopped" : nuovoStato === "Chiuso" ? "service" : undefined,
-        execution_start: nuovoStato === "In corso" ? new Date().toISOString() : undefined,
-        execution_finish: nuovoStato === "Chiuso" ? new Date().toISOString() : undefined,
+        execution_start: nuovoStato === "In corso" ? localDatetimeApiStr() : undefined,
+        execution_finish: nuovoStato === "Chiuso" ? localDatetimeApiStr() : undefined,
       });
       setSelectedIds(new Set());
       await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);

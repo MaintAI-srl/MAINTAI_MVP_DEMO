@@ -2,7 +2,6 @@
 WeatherService — usa Open-Meteo (nessuna API key richiesta)
 """
 from __future__ import annotations
-import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
@@ -10,7 +9,6 @@ import httpx
 from backend.core.logging_config import get_logger
 
 logger = get_logger(__name__)
-_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,7 +65,7 @@ async def get_weather_forecast(
             is_high_wind=(wind_val or 0.0) > 40.0,
         )
     except Exception as exc:
-        _logger.warning(
+        logger.warning(
             "WeatherService: impossibile recuperare meteo per (%s, %s, %s): %s",
             lat, lon, target_date, exc
         )
@@ -106,16 +104,22 @@ async def get_forecast_for_scheduler(lat: float, lon: float, days: int = 14) -> 
             wind_max = daily.get("windspeed_10m_max", [])
             rain_sum = daily.get("rain_sum", [])
 
+            def _at(arr: list, i: int, default=None):
+                """Open-Meteo può restituire null o array più corti di `time`."""
+                return arr[i] if i < len(arr) and arr[i] is not None else default
+
             forecast_map = {}
             for i in range(len(times)):
                 d = date.fromisoformat(times[i])
+                code = _at(codes, i, 0)
+                rain = _at(rain_sum, i, 0.0)
                 forecast_map[d] = {
-                    "code": codes[i],
-                    "temp_max": temp_max[i],
-                    "wind_max": wind_max[i],
-                    "rain_sum": rain_sum[i],
-                    "is_sunny": codes[i] in [0, 1, 2, 3], # Clear or mainly clear
-                    "is_rainy": rain_sum[i] > 0.5 or codes[i] in [51, 53, 55, 61, 63, 65, 80, 81, 82]
+                    "code": code,
+                    "temp_max": _at(temp_max, i),
+                    "wind_max": _at(wind_max, i),
+                    "rain_sum": rain,
+                    "is_sunny": code in [0, 1, 2, 3], # Clear or mainly clear
+                    "is_rainy": rain > 0.5 or code in [51, 53, 55, 61, 63, 65, 80, 81, 82]
                 }
             return forecast_map
 
