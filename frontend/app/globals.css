@@ -2484,3 +2484,16 @@ input:focus, select:focus, textarea:focus {
 :root[data-theme='light'] [style*="rgba(148,163,184"] {
   color: var(--text-muted) !important;
 }
+
+/* ── Mobile — feedback pressione stile iOS ──────────────────────────────── */
+.m-press {
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.4, 1), opacity 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.m-press:active:not(:disabled) {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
