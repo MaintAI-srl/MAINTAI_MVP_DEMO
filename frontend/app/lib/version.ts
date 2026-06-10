@@ -1,5 +1,5 @@
 export const VERSION = "3.3.0";
-export const BUILD_DATE = "2026-05-25";
+export const BUILD_DATE = "2026-06-10";
 export const DEPLOY_VERSION = process.env.NEXT_PUBLIC_DEPLOY_VERSION || VERSION;
 export const DEPLOY_BUILD_DATE = process.env.NEXT_PUBLIC_DEPLOY_BUILD_DATE || BUILD_DATE;
 export const DISPLAY_VERSION = DEPLOY_VERSION;
