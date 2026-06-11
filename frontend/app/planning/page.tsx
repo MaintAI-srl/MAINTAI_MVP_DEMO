@@ -1,22 +1,20 @@
 "use client";
 
-// Estensione window per il global hover tooltip handler nel Gantt
-type WindowWithGantt = Window & {
-  __setHoverTooltip?: (ticket: import("./types").TicketData | null, e?: React.MouseEvent) => void;
-};
-
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import {
   DndContext,
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   useDraggable,
   useDroppable,
 } from "@dnd-kit/core";
+import type { CollisionDetection } from "@dnd-kit/core";
 import { apiGet, apiPost, apiPut } from "../lib/api";
 import { localDateStr } from "../lib/datetime";
 import { notify } from "@/lib/toast";
@@ -76,6 +74,9 @@ const PRIO_COLORS: Record<string, string> = {
   Media: "#f59e0b",
   Bassa: "#22c55e",
 };
+
+// Riferimento stabile per i tecnici senza ticket (evita re-render delle righe memoizzate)
+const EMPTY_TICKETS: TicketData[] = [];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,29 +138,35 @@ function plannedDate(ticket: TicketData): string | null {
   return parsed?.date ?? null;
 }
 
-function scheduledHoursFor(
-  tickets: TicketData[],
-  tecnicoId: number,
-  date: string,
-  excludeTicketId?: number,
-): number {
-  return tickets.reduce((sum, ticket) => {
-    if (ticket.id === excludeTicketId) return sum;
-    if (ticket.tecnico_id !== tecnicoId) return sum;
-    if (plannedDate(ticket) !== date) return sum;
-    return sum + ticketHours(ticket);
-  }, 0);
+// Mappa "tecnicoId|YYYY-MM-DD" → ore assegnate. Precalcolata una sola volta per
+// render: ogni cella del Gantt legge la capacità in O(1) invece di scandire
+// tutti i ticket (era il collo di bottiglia del drag-and-drop).
+type AssignedHoursMap = Map<string, number>;
+
+function buildAssignedHours(tickets: TicketData[]): AssignedHoursMap {
+  const map: AssignedHoursMap = new Map();
+  for (const t of tickets) {
+    if (t.tecnico_id == null) continue;
+    const date = plannedDate(t);
+    if (!date) continue;
+    const key = `${t.tecnico_id}|${date}`;
+    map.set(key, (map.get(key) ?? 0) + ticketHours(t));
+  }
+  return map;
 }
 
 function capacityInfo(
   tecnico: TecnicoData,
   date: string,
-  tickets: TicketData[],
+  assignedHours: AssignedHoursMap,
   excludeTicket?: TicketData | null,
 ) {
   const operativo = isTecnicoOperativo(tecnico, date);
   const capacity = operativo ? Number(tecnico.ore_giornaliere || 8) : 0;
-  const assigned = scheduledHoursFor(tickets, tecnico.id, date, excludeTicket?.id);
+  let assigned = assignedHours.get(`${tecnico.id}|${date}`) ?? 0;
+  if (excludeTicket && excludeTicket.tecnico_id === tecnico.id && plannedDate(excludeTicket) === date) {
+    assigned = Math.max(0, assigned - ticketHours(excludeTicket));
+  }
   const remaining = Math.max(0, capacity - assigned);
   const needed = ticketHours(excludeTicket);
   const canAccept = operativo && (!excludeTicket || remaining >= needed);
@@ -196,9 +203,14 @@ function computeLanes(dayWOs: TicketData[]) {
   return { laneMap, totalLanes };
 }
 
-// ─── TicketBlock (draggable nel Gantt) ────────────────────────────────────────
+// ─── TicketBlock (draggable nel Gantt — stesso sistema delle card Kanban) ─────
 
-function TicketBlock({ ticket, view, onClick, onHover }: { ticket: TicketData; view: ViewMode; onClick: () => void; onHover?: (t: TicketData | null, e?: React.MouseEvent) => void }) {
+const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onHover }: {
+  ticket: TicketData;
+  view: ViewMode;
+  onTicketClick: (t: TicketData) => void;
+  onHover?: (t: TicketData | null, e?: React.MouseEvent) => void;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `t-${ticket.id}`,
     data: { ticket },
@@ -214,45 +226,51 @@ function TicketBlock({ ticket, view, onClick, onHover }: { ticket: TicketData; v
     return (
       <div
         ref={setNodeRef} {...listeners} {...attributes}
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
         style={{
           position: "absolute",
-          width: Math.max(36, dur * HOUR_W - 4),
-          height: ROW_H - 12,
-          background: s.bg,
-          border: `1px solid ${s.border}`,
+          width: Math.max(40, dur * HOUR_W - 6),
+          height: ROW_H - 14,
+          background: `linear-gradient(180deg, color-mix(in srgb, ${s.border} 16%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 7%, var(--bg-elevated)))`,
+          border: `1px solid color-mix(in srgb, ${s.border} 45%, transparent)`,
           borderLeft: `3px solid ${s.border}`,
-          borderRadius: 8,
-          padding: "7px 9px",
+          borderRadius: 10,
+          padding: "6px 9px",
           cursor: isDragging ? "grabbing" : "grab",
           opacity: isDragging ? 0.25 : 1,
           overflow: "hidden",
           userSelect: "none",
+          touchAction: "none",
           boxSizing: "border-box",
           zIndex: isDragging ? 0 : 2,
-          boxShadow: `0 10px 24px rgba(0,0,0,0.42), 0 0 16px ${s.border}22, inset 0 1px 0 rgba(255,255,255,0.12)`,
-          transition: "filter 0.12s, transform 0.12s",
+          boxShadow: isDragging ? "none" : "0 2px 8px rgba(0,0,0,0.25)",
+          transition: isDragging ? "none" : "filter 0.12s, border-color 0.12s",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: 3,
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.16)";
-          (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)";
           if (onHover && !isDragging) onHover(ticket, e);
         }}
         onMouseMove={(e) => {
           if (onHover && !isDragging) onHover(ticket, e);
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
-          (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+          (e.currentTarget as HTMLDivElement).style.filter = "";
           if (onHover) onHover(null);
         }}
       >
-        <div style={{ fontSize: 9, color: s.text, opacity: 0.7, letterSpacing: "0.08em" }}>{ticket.tipo} · {dur}h</div>
-        <div style={{ fontSize: 11, color: s.text, fontWeight: 700, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ fontSize: 9, fontWeight: 800, color: s.text, background: `${s.border}26`, border: `1px solid ${s.border}55`, padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>{ticket.tipo}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>{dur}h</span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.25 }}>
           {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
         </div>
         {ticket.asset_name && (
-          <div style={{ fontSize: 9, color: s.text, opacity: 0.6, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.asset_name}</div>
+          <div style={{ fontSize: 9, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.asset_name}</div>
         )}
       </div>
     );
@@ -261,48 +279,50 @@ function TicketBlock({ ticket, view, onClick, onHover }: { ticket: TicketData; v
   return (
     <div
       ref={setNodeRef} {...listeners} {...attributes}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
       style={{
-        background: s.bg, border: `1px solid ${s.border}`, borderLeft: `3px solid ${s.border}`,
+        background: `linear-gradient(180deg, color-mix(in srgb, ${s.border} 14%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 6%, var(--bg-elevated)))`,
+        border: `1px solid color-mix(in srgb, ${s.border} 40%, transparent)`,
+        borderLeft: `3px solid ${s.border}`,
         borderRadius: 8, padding: "5px 7px", marginBottom: 4,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.25 : 1,
-        overflow: "hidden", userSelect: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
-        boxShadow: `0 8px 18px rgba(0,0,0,0.36), 0 0 14px ${s.border}18, inset 0 1px 0 rgba(255,255,255,0.12)`,
-        transition: "filter 0.12s, transform 0.12s",
+        overflow: "hidden", userSelect: "none", touchAction: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
+        boxShadow: isDragging ? "none" : "0 2px 6px rgba(0,0,0,0.2)",
+        transition: isDragging ? "none" : "filter 0.12s, border-color 0.12s",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.16)";
+        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)";
         if (onHover && !isDragging) onHover(ticket, e);
       }}
       onMouseMove={(e) => {
         if (onHover && !isDragging) onHover(ticket, e);
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
+        (e.currentTarget as HTMLDivElement).style.filter = "";
         if (onHover) onHover(null);
       }}
     >
       <div style={{
         fontSize: 10,
-        color: s.text,
+        color: "var(--text-primary)",
         fontWeight: 700,
         overflow: "hidden",
         display: "-webkit-box",
         WebkitLineClamp: 2,
         WebkitBoxOrient: "vertical",
         whiteSpace: "normal",
-        lineHeight: 1.12,
+        lineHeight: 1.2,
       }}>
         {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
       </div>
-      <div style={{ fontSize: 9, color: s.text, opacity: 0.7 }}>{ticket.tipo} · {dur}h</div>
+      <div style={{ fontSize: 9, color: s.text, fontWeight: 700, marginTop: 2 }}>{ticket.tipo} · {dur}h</div>
     </div>
   );
-}
+});
 
 // ─── UnscheduledItem (sidebar sinistra, draggabile) ───────────────────────────
 
-function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () => void }) {
+const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick }: { ticket: TicketData; onTicketClick: (t: TicketData) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `t-${ticket.id}`,
     data: { ticket },
@@ -313,11 +333,12 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
   return (
     <div
       ref={setNodeRef} {...listeners} {...attributes}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
       style={{
         background: "var(--border-subtle)", border: "1px solid var(--border-subtle)", borderLeft: `3px solid ${s.border}`,
-        borderRadius: 6, padding: "8px 10px", marginBottom: 6,
+        borderRadius: 8, padding: "8px 10px", marginBottom: 6,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.35 : 1, userSelect: "none",
+        touchAction: "none",
         boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
         transition: "background 0.12s, border-color 0.12s",
       }}
@@ -338,11 +359,11 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
       <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
     </div>
   );
-}
+});
 
 // ─── TecnicoLabel ─────────────────────────────────────────────────────────────
 
-function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number } }) {
+const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number } }) {
   const operativo = isTecnicoOperativo(tecnico);
   const cap = capacity?.capacity ?? (operativo ? Number(tecnico.ore_giornaliere || 8) : 0);
   const remaining = capacity?.remaining ?? cap;
@@ -412,12 +433,13 @@ function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: 
       </div>
     </div>
   );
-}
+});
 
 // ─── DayRow ───────────────────────────────────────────────────────────────────
 
-function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketClick }: {
-  tecnico: TecnicoData; tickets: TicketData[]; allTickets: TicketData[]; day: Date; draggingTicket: TicketData | null; onTicketClick: (t: TicketData) => void;
+const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, draggingTicket, onTicketClick, onHover }: {
+  tecnico: TecnicoData; tickets: TicketData[]; assignedHours: AssignedHoursMap; day: Date; draggingTicket: TicketData | null;
+  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void;
 }) {
   const dateStr = format(day, "yyyy-MM-dd");
   const { setNodeRef, isOver } = useDroppable({
@@ -426,8 +448,8 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
   });
   const dayTickets = tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; });
   const { laneMap, totalLanes } = computeLanes(dayTickets);
-  const cap = capacityInfo(tecnico, dateStr, allTickets);
-  const dropCap = capacityInfo(tecnico, dateStr, allTickets, draggingTicket);
+  const cap = capacityInfo(tecnico, dateStr, assignedHours);
+  const dropCap = capacityInfo(tecnico, dateStr, assignedHours, draggingTicket);
   
   const zoom = useZoom();
   const HOUR_W = BASE_HOUR_W * zoom;
@@ -447,24 +469,26 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
       <div ref={setNodeRef} style={{
         position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
         background: validDrop
-          ? `linear-gradient(90deg, rgba(31,232,255,0.18), rgba(56,217,120,0.09)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(31,232,255,0.12) ${HOUR_W - 1}px, rgba(31,232,255,0.12) ${HOUR_W}px)`
+          ? `linear-gradient(90deg, rgba(52,211,153,0.14), rgba(52,211,153,0.05)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(52,211,153,0.14) ${HOUR_W - 1}px, rgba(52,211,153,0.14) ${HOUR_W}px)`
           : invalidDrop
-            ? `linear-gradient(90deg, rgba(224,82,82,0.18), rgba(242,184,75,0.08)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(224,82,82,0.12) ${HOUR_W - 1}px, rgba(224,82,82,0.12) ${HOUR_W}px)`
+            ? `linear-gradient(90deg, rgba(248,113,113,0.14), rgba(248,113,113,0.05)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(248,113,113,0.12) ${HOUR_W - 1}px, rgba(248,113,113,0.12) ${HOUR_W}px)`
             : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(31,78,107,0.14) ${HOUR_W - 1}px, rgba(31,78,107,0.14) ${HOUR_W}px)`,
-        boxShadow: validDrop ? "inset 0 0 0 2px rgba(31,232,255,0.55), inset 0 0 32px rgba(31,232,255,0.12)" : invalidDrop ? "inset 0 0 0 2px rgba(224,82,82,0.55)" : "none",
-        transition: "background 0.12s, box-shadow 0.12s",
+        boxShadow: validDrop ? "inset 0 0 0 2px rgba(52,211,153,0.55), inset 0 0 32px rgba(52,211,153,0.10)" : invalidDrop ? "inset 0 0 0 2px rgba(248,113,113,0.55)" : "none",
+        transition: "background 0.15s, box-shadow 0.15s",
       }}>
         {isOver && draggingTicket && (
           <div style={{
             position: "absolute", right: 12, top: 10, zIndex: 4,
-            fontSize: 11, fontWeight: 900,
-            color: dropCap.canAccept ? "#a6f6ff" : "#fca5a5",
-            background: dropCap.canAccept ? "var(--surface-2)" : "rgba(254,226,226,0.96)",
-            border: `1px solid ${dropCap.canAccept ? "rgba(31,232,255,0.48)" : "rgba(224,82,82,0.58)"}`,
-            borderRadius: 999, padding: "5px 10px",
-            boxShadow: dropCap.canAccept ? "0 0 18px rgba(31,232,255,0.18)" : "0 0 18px rgba(224,82,82,0.18)",
+            fontSize: 11, fontWeight: 800,
+            color: dropCap.canAccept ? "#34d399" : "#f87171",
+            background: "var(--surface-2)",
+            border: `2px dashed ${dropCap.canAccept ? "#34d399" : "#f87171"}aa`,
+            borderRadius: 10, padding: "6px 12px",
+            boxShadow: dropCap.canAccept ? "0 0 18px rgba(52,211,153,0.25)" : "0 0 18px rgba(248,113,113,0.25)",
+            animation: "pulse 1s ease-in-out infinite",
+            pointerEvents: "none",
           }}>
-            {dropCap.canAccept ? `Disponibile: ${dropCap.remaining.toFixed(1)}h` : !dropCap.operativo ? "Non disponibile" : `Capienza insufficiente: ${dropCap.remaining.toFixed(1)}h`}
+            {dropCap.canAccept ? `↓ Rilascia qui · ${dropCap.remaining.toFixed(1)}h libere` : !dropCap.operativo ? "✕ Non disponibile" : `✕ Capienza insufficiente (${dropCap.remaining.toFixed(1)}h)`}
           </div>
         )}
         {dayTickets.map((t) => {
@@ -474,7 +498,7 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
           const top = 6 + laneInfo.lane * (laneHeight + 4);
           return (
             <div key={t.gantt_key ?? t.id} style={{ position: "absolute", left, top, zIndex: 2 }}>
-              <TicketBlock ticket={t} view="day" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as WindowWithGantt).__setHoverTooltip?.(tk, e)} />
+              <TicketBlock ticket={t} view="day" onTicketClick={onTicketClick} onHover={onHover} />
             </div>
           );
         })}
@@ -502,20 +526,20 @@ function DayRow({ tecnico, tickets, allTickets, day, draggingTicket, onTicketCli
       </div>
     </div>
   );
-}
+});
 
 // ─── DayCell ──────────────────────────────────────────────────────────────────
 
-function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketClick, cellW }: {
-  tecnico: TecnicoData; date: string; tickets: TicketData[]; allTickets: TicketData[]; draggingTicket: TicketData | null;
-  onTicketClick: (t: TicketData) => void; cellW: number;
+const DayCell = memo(function DayCell({ tecnico, date, tickets, assignedHours, draggingTicket, onTicketClick, onHover, cellW }: {
+  tecnico: TecnicoData; date: string; tickets: TicketData[]; assignedHours: AssignedHoursMap; draggingTicket: TicketData | null;
+  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void; cellW: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `cell-${tecnico.id}-${date}`,
     data: { tecnico_id: tecnico.id, date },
   });
-  const cap = capacityInfo(tecnico, date, allTickets);
-  const dropCap = capacityInfo(tecnico, date, allTickets, draggingTicket);
+  const cap = capacityInfo(tecnico, date, assignedHours);
+  const dropCap = capacityInfo(tecnico, date, assignedHours, draggingTicket);
   const validDrop = isOver && draggingTicket && dropCap.canAccept;
   const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
   
@@ -535,16 +559,16 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
       width: cellW, minWidth: cellW, minHeight: ROW_H, padding: "4px 3px",
       borderRight: "1px solid rgba(31,78,107,0.18)",
       background: validDrop
-        ? "linear-gradient(180deg, rgba(31,232,255,0.18), rgba(56,217,120,0.08))"
+        ? "linear-gradient(180deg, rgba(52,211,153,0.16), rgba(52,211,153,0.05))"
         : invalidDrop
-          ? "linear-gradient(180deg, rgba(224,82,82,0.2), rgba(242,184,75,0.08))"
+          ? "linear-gradient(180deg, rgba(248,113,113,0.16), rgba(248,113,113,0.05))"
             : assenzaGiorno
             ? "linear-gradient(180deg, rgba(224,82,82,0.12), rgba(224,82,82,0.04))"
             : cap.operativo && cap.remaining > 0
               ? "linear-gradient(180deg, rgba(37,99,235,0.06), transparent)"
               : "linear-gradient(180deg, rgba(224,82,82,0.08), rgba(217,119,6,0.04))",
-      boxShadow: validDrop ? "inset 0 0 0 2px rgba(31,232,255,0.55), inset 0 0 26px rgba(31,232,255,0.13)" : invalidDrop ? "inset 0 0 0 2px rgba(224,82,82,0.55)" : "none",
-      transition: "background 0.12s, box-shadow 0.12s", overflow: "hidden",
+      boxShadow: validDrop ? "inset 0 0 0 2px rgba(52,211,153,0.55), inset 0 0 26px rgba(52,211,153,0.12)" : invalidDrop ? "inset 0 0 0 2px rgba(248,113,113,0.55)" : "none",
+      transition: "background 0.15s, box-shadow 0.15s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
       position: "relative",
     }}>
@@ -567,22 +591,41 @@ function DayCell({ tecnico, date, tickets, allTickets, draggingTicket, onTicketC
         <span>{cap.remaining.toFixed(1)}h</span>
         <span style={{ opacity: 0.62 }}>/ {cap.capacity.toFixed(0)}h</span>
       </div>
-      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onClick={() => onTicketClick(t)} onHover={(tk, e) => (window as WindowWithGantt).__setHoverTooltip?.(tk, e)} />)}
+      {isOver && draggingTicket && (
+        <div style={{
+          fontSize: 10, fontWeight: 800, textAlign: "center",
+          color: dropCap.canAccept ? "#34d399" : "#f87171",
+          padding: "8px 2px",
+          border: `2px dashed ${dropCap.canAccept ? "#34d399" : "#f87171"}88`,
+          borderRadius: 8, marginBottom: 3,
+          background: dropCap.canAccept ? "rgba(52,211,153,0.07)" : "rgba(248,113,113,0.07)",
+          animation: "pulse 1s ease-in-out infinite",
+          pointerEvents: "none", lineHeight: 1.35, flexShrink: 0,
+        }}>
+          {dropCap.canAccept
+            ? <>↓ Rilascia qui<br />{dropCap.remaining.toFixed(1)}h libere</>
+            : !dropCap.operativo
+              ? "✕ Non disponibile"
+              : <>✕ Capienza piena<br />{dropCap.remaining.toFixed(1)}h libere</>}
+        </div>
+      )}
+      {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onTicketClick={onTicketClick} onHover={onHover} />)}
     </div>
   );
-}
+});
 
 // ─── MultiDayRow ──────────────────────────────────────────────────────────────
 
-function MultiDayRow({ tecnico, tickets, allTickets, days, view, draggingTicket, onTicketClick }: {
-  tecnico: TecnicoData; tickets: TicketData[]; allTickets: TicketData[]; days: Date[]; view: ViewMode; draggingTicket: TicketData | null; onTicketClick: (t: TicketData) => void;
+const MultiDayRow = memo(function MultiDayRow({ tecnico, tickets, assignedHours, days, view, draggingTicket, onTicketClick, onHover }: {
+  tecnico: TecnicoData; tickets: TicketData[]; assignedHours: AssignedHoursMap; days: Date[]; view: ViewMode; draggingTicket: TicketData | null;
+  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void;
 }) {
   const zoom = useZoom();
   const DAY_W = BASE_DAY_W * zoom;
   const ROW_H = BASE_ROW_H * zoom;
   const cellW = view === "week" ? DAY_W : Math.round(DAY_W * 0.75);
   const rowCapacity = days.reduce((acc, day) => {
-    const c = capacityInfo(tecnico, format(day, "yyyy-MM-dd"), allTickets);
+    const c = capacityInfo(tecnico, format(day, "yyyy-MM-dd"), assignedHours);
     acc.capacity += c.capacity;
     acc.assigned += c.assigned;
     acc.remaining += c.remaining;
@@ -597,12 +640,53 @@ function MultiDayRow({ tecnico, tickets, allTickets, days, view, draggingTicket,
           <DayCell
             key={dateStr} tecnico={tecnico} date={dateStr}
             tickets={tickets.filter((t) => { const p = parseStart(t); return p && p.date === dateStr; })}
-            allTickets={allTickets}
+            assignedHours={assignedHours}
             draggingTicket={draggingTicket}
-            onTicketClick={onTicketClick} cellW={cellW}
+            onTicketClick={onTicketClick} onHover={onHover} cellW={cellW}
           />
         );
       })}
+    </div>
+  );
+});
+
+// ─── DragGhostCard (overlay durante il drag — stesso stile del Kanban) ────────
+
+function DragGhostCard({ ticket }: { ticket: TicketData }) {
+  const s = tipoStyle(ticket.tipo);
+  const prioColor = PRIO_COLORS[ticket.priorita] ?? "#6b7280";
+  return (
+    <div style={{
+      background: "var(--bg-elevated)",
+      border: `2px solid ${s.border}`,
+      borderRadius: 12,
+      padding: "12px 14px",
+      minWidth: 200, maxWidth: 280,
+      boxShadow: `0 20px 60px rgba(0,0,0,0.7), 0 0 24px ${s.border}55`,
+      transform: "rotate(2deg) scale(1.02)",
+      pointerEvents: "none", userSelect: "none",
+      display: "flex", flexDirection: "column", gap: 8,
+      cursor: "grabbing",
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.35 }}>
+        {ticket.titolo}
+      </div>
+      {ticket.asset_name && (
+        <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ opacity: 0.7 }}>📦</span> {ticket.asset_name}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 800, color: s.text, background: `${s.border}22`, border: `1px solid ${s.border}55`, letterSpacing: "0.05em" }}>
+          {ticket.tipo} · #{ticket.id}
+        </span>
+        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 700, textTransform: "uppercase", color: prioColor, background: `${prioColor}15`, border: `1px solid ${prioColor}30` }}>
+          {ticket.priorita}
+        </span>
+        <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", fontWeight: 700 }}>
+          {ticketHours(ticket)}h
+        </span>
+      </div>
     </div>
   );
 }
@@ -743,7 +827,7 @@ export default function PianificazionePage() {
   const [draggingTicket, setDraggingTicket] = useState<TicketData | null>(null);
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
   const [filterTipo, setFilterTipo] = useState("");
-  const [selectedWO, setSelectedWO] = useState<{ wo: PlannedWO; ticket: TicketData; tecnico: TecnicoData } | null>(null);
+  const [selectedWO, setSelectedWO] = useState<{ wo: PlannedWO; ticket: TicketData; tecnico: TecnicoData | null } | null>(null);
   const [effPanelOpen, setEffPanelOpen] = useState(true);
   const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
 
@@ -755,18 +839,24 @@ export default function PianificazionePage() {
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [replanModal, setReplanModal] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [hoverTooltip, setHoverTooltip] = useState<{ ticket: TicketData; x: number; y: number } | null>(null);
-  
-  // Set global handler for deeply nested TicketBlocks
-  useEffect(() => {
-    (window as WindowWithGantt).__setHoverTooltip = (ticket: TicketData | null, e?: React.MouseEvent) => {
-      if (!ticket || !e) {
-        setHoverTooltip(null);
-      } else {
-        setHoverTooltip({ ticket, x: e.clientX, y: e.clientY });
+
+  // Tooltip hover: lo stato cambia solo quando cambia il ticket; la posizione
+  // viene aggiornata direttamente sul DOM (nessun re-render per mousemove —
+  // era la causa principale della lentezza del Gantt).
+  const [hoverTicket, setHoverTicket] = useState<TicketData | null>(null);
+  const hoverPosRef = useRef({ x: 0, y: 0 });
+  const tooltipElRef = useRef<HTMLDivElement | null>(null);
+
+  const handleHover = useCallback((ticket: TicketData | null, e?: React.MouseEvent) => {
+    if (e) {
+      hoverPosRef.current = { x: e.clientX, y: e.clientY };
+      const el = tooltipElRef.current;
+      if (el) {
+        el.style.left = `${e.clientX + 15}px`;
+        el.style.top = `${e.clientY + 15}px`;
       }
-    };
-    return () => { delete (window as WindowWithGantt).__setHoverTooltip; };
+    }
+    setHoverTicket((prev) => (prev === ticket ? prev : ticket));
   }, []);
 
   // Selettore orizzonte pianificazione (#14)
@@ -777,7 +867,14 @@ export default function PianificazionePage() {
   const [manualEval, setManualEval] = useState<{ score: number; breakdown: EfficiencyBreakdown } | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // Stessa logica del Kanban ma più precisa per le celle del Gantt: vince la
+  // cella sotto il puntatore, con fallback all'intersezione dei rettangoli.
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const pointerCollisions = pointerWithin(args);
+    return pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+  }, []);
 
   // ── Dati piano ──────────────────────────────────────────────────────────────
   const planJson = piano?.plan_json ?? { planned_workorders: [], deferred_workorders: [], fermo_assets: [], global_warnings: [] };
@@ -854,6 +951,20 @@ export default function PianificazionePage() {
 
     return [...lockedOrPersisted, ...draftTickets];
   }, [piano?.id, piano?.status, planJson?.planned_workorders, scheduledTickets, ticketMap]);
+
+  // ── Mappe precalcolate per il Gantt (capacità O(1), righe stabili) ──────────
+  const assignedHours = useMemo(() => buildAssignedHours(ganttTickets), [ganttTickets]);
+
+  const ticketsByTecnico = useMemo(() => {
+    const map = new Map<number, TicketData[]>();
+    for (const t of ganttTickets) {
+      if (t.tecnico_id == null) continue;
+      const arr = map.get(t.tecnico_id);
+      if (arr) arr.push(t);
+      else map.set(t.tecnico_id, [t]);
+    }
+    return map;
+  }, [ganttTickets]);
 
   // ── Caricamento dati ────────────────────────────────────────────────────────
   const loadStorico = useCallback(async () => {
@@ -981,7 +1092,7 @@ export default function PianificazionePage() {
       const ticket = ticketMap.get(ticketId) ?? ticketDaPianificare;
       const tecnico = tecnicoMap.get(tecnicoId);
       if (ticket && tecnico) {
-        const c = capacityInfo(tecnico, data, ganttTickets, ticket);
+        const c = capacityInfo(tecnico, data, assignedHours, ticket);
         if (!c.operativo) {
           notify.warning(`${tecnico.nome} ${tecnico.cognome ?? ""} non disponibile: ticket non pianificato`);
           return;
@@ -1027,7 +1138,10 @@ export default function PianificazionePage() {
   // ── DnD: drag start ─────────────────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
     const ticket = (event.active.data.current as { ticket?: TicketData })?.ticket;
-    if (ticket) setDraggingTicket(ticket);
+    if (ticket) {
+      setDraggingTicket(ticket);
+      setHoverTicket(null);
+    }
   }
 
   // ── DnD: drag end ───────────────────────────────────────────────────────────
@@ -1044,7 +1158,7 @@ export default function PianificazionePage() {
     const targetTecnico = tecnicoMap.get(dropTarget.tecnico_id);
     if (!targetTecnico) return;
 
-    const dropCapacity = capacityInfo(targetTecnico, dropTarget.date, ganttTickets, droppedTicket);
+    const dropCapacity = capacityInfo(targetTecnico, dropTarget.date, assignedHours, droppedTicket);
     if (!dropCapacity.operativo) {
       notify.warning(`${targetTecnico.nome} ${targetTecnico.cognome ?? ""} non disponibile: assegnazione rifiutata`);
       return;
@@ -1133,10 +1247,9 @@ export default function PianificazionePage() {
     setCurrentDate((d) => (dir === 1 ? addDays(d, delta) : subDays(d, delta)));
   }
 
-  const days = getDays(currentDate, view);
+  const days = useMemo(() => getDays(currentDate, view), [currentDate, view]);
   const cellW = view === "week" ? BASE_DAY_W * zoom : Math.round(BASE_DAY_W * zoom * 0.75);
   const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * (BASE_HOUR_W * zoom) : days.length * cellW);
-  const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
   const visibleUnscheduledTickets = unscheduledTickets;
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
   const columnCapacity = useMemo(() => {
@@ -1144,7 +1257,7 @@ export default function PianificazionePage() {
     days.forEach((day) => {
       const date = format(day, "yyyy-MM-dd");
       const totals = tecnici.reduce((acc, tecnico) => {
-        const c = capacityInfo(tecnico, date, ganttTickets);
+        const c = capacityInfo(tecnico, date, assignedHours);
         acc.capacity += c.capacity;
         acc.assigned += c.assigned;
         acc.remaining += c.remaining;
@@ -1154,7 +1267,23 @@ export default function PianificazionePage() {
       map.set(date, totals);
     });
     return map;
-  }, [days, tecnici, ganttTickets]);
+  }, [days, tecnici, assignedHours]);
+
+  // Click su un blocco del Gantt: callback stabile (non invalida la memo delle righe)
+  const handleTicketClick = useCallback((t: TicketData) => {
+    // Se esiste un WO nel piano per questo ticket, apre il drawer explainability
+    const wo = piano?.plan_json?.planned_workorders?.find((w) => w.wo_id === t.id) ?? null;
+    if (wo) {
+      const tec = tecnicoMap.get(wo.technician_id)
+        ?? (t.tecnico_id != null ? tecnicoMap.get(t.tecnico_id) : undefined)
+        ?? null;
+      setSelectedWO({ wo, ticket: ticketMap.get(t.id) ?? t, tecnico: tec });
+    } else {
+      setDetailTicket(t);
+    }
+  }, [piano, tecnicoMap, ticketMap]);
+
+  const openTicketDetail = useCallback((t: TicketData) => setDetailTicket(t), []);
   const visibleTotals = useMemo(() => {
     return days.reduce((acc, day) => {
       const c = columnCapacity.get(format(day, "yyyy-MM-dd"));
@@ -1174,7 +1303,7 @@ export default function PianificazionePage() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <ZoomContext.Provider value={zoom}>
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setDraggingTicket(null)}>
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--surface-0)", fontFamily: "'IBM Plex Mono', monospace", color: "var(--text-primary)" }}>
 
         {/* ── TOOLBAR ── */}
@@ -1418,7 +1547,7 @@ export default function PianificazionePage() {
                 <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Nessun ticket da pianificare</div>
               ) : (
                 filteredUnscheduled.map((t) => (
-                  <UnscheduledItem key={t.id} ticket={t} onClick={() => setDetailTicket(t)} />
+                  <UnscheduledItem key={t.id} ticket={t} onTicketClick={openTicketDetail} />
                 ))
               )}
             </div>
@@ -1492,28 +1621,18 @@ export default function PianificazionePage() {
                   <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 13 }}>Nessun tecnico attivo trovato</div>
                 ) : (
                   tecnici.map((tecnico) => {
-                    const tickets = ganttTickets.filter((t) => t.tecnico_id === tecnico.id);
-                    const handleTicketClick = (t: TicketData) => {
-                      // Se esiste un WO nel piano per questo ticket, apre il drawer explainability
-                      const wo = planJson?.planned_workorders?.find((w) => w.wo_id === t.id) ?? null;
-                      if (wo) {
-                        const tec = tecnicoMap.get(wo.technician_id) ?? null;
-                        const ticket = ticketMap.get(t.id) ?? t;
-                        setSelectedWO({ wo, ticket, tecnico: tec ?? tecnico });
-                      } else {
-                        setDetailTicket(t);
-                      }
-                    };
+                    const tickets = ticketsByTecnico.get(tecnico.id) ?? EMPTY_TICKETS;
                     if (view === "day") {
                       return (
                         <DayRow
                           key={tecnico.id}
                           tecnico={tecnico}
                           tickets={tickets}
-                          allTickets={ganttTickets}
+                          assignedHours={assignedHours}
                           day={days[0]!}
                           draggingTicket={draggingTicket}
                           onTicketClick={handleTicketClick}
+                          onHover={handleHover}
                         />
                       );
                     }
@@ -1522,11 +1641,12 @@ export default function PianificazionePage() {
                         key={tecnico.id}
                         tecnico={tecnico}
                         tickets={tickets}
-                        allTickets={ganttTickets}
+                        assignedHours={assignedHours}
                         days={days}
                         view={view}
                         draggingTicket={draggingTicket}
                         onTicketClick={handleTicketClick}
+                        onHover={handleHover}
                       />
                     );
                   })
@@ -1548,24 +1668,9 @@ export default function PianificazionePage() {
           <StoricoPiani piani={storico} onRefresh={loadStorico} />
         </div>
 
-        {/* Drag overlay */}
+        {/* DragOverlay: card flottante ad alta visibilità — stesso sistema del Kanban */}
         <DragOverlay dropAnimation={null}>
-          {draggingTicket && (() => {
-            const s = tipoStyle(draggingTicket.tipo);
-            return (
-              <div style={{
-                background: s.bg, border: `2px solid ${s.border}`, borderRadius: 6,
-                padding: "8px 12px", color: s.text, fontSize: 12, fontWeight: 600,
-                boxShadow: "0 10px 30px rgba(0,0,0,0.6)", opacity: 0.92,
-                pointerEvents: "none", userSelect: "none", minWidth: 160,
-                transform: "rotate(2deg)",
-              }}>
-                <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 3 }}>{draggingTicket.tipo} · #{draggingTicket.id}</div>
-                <div>{draggingTicket.titolo}</div>
-                <div style={{ fontSize: 10, opacity: 0.7, marginTop: 3 }}>{draggingTicket.durata_stimata_ore || 1}h</div>
-              </div>
-            );
-          })()}
+          {draggingTicket ? <DragGhostCard ticket={draggingTicket} /> : null}
         </DragOverlay>
       </div>
 
@@ -1590,40 +1695,40 @@ export default function PianificazionePage() {
         onClose={() => setSelectedWO(null)}
       />
 
-      {/* Hover Tooltip (Nuvoletta Descrittiva) */}
-      {hoverTooltip && !draggingTicket && (
-        <div style={{
-          position: "fixed", top: hoverTooltip.y + 15, left: hoverTooltip.x + 15, zIndex: 10000,
+      {/* Hover Tooltip (Nuvoletta Descrittiva) — posizione aggiornata via DOM ref, zero re-render */}
+      {hoverTicket && !draggingTicket && (
+        <div ref={tooltipElRef} style={{
+          position: "fixed", top: hoverPosRef.current.y + 15, left: hoverPosRef.current.x + 15, zIndex: 10000,
           background: "rgba(10, 22, 40, 0.95)", backdropFilter: "blur(8px)",
-          border: `1px solid ${tipoStyle(hoverTooltip.ticket.tipo).border}`,
+          border: `1px solid ${tipoStyle(hoverTicket.tipo).border}`,
           borderRadius: 8, padding: "10px 14px", color: "#f8fafc", width: 280,
           boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.2)",
           pointerEvents: "none", transition: "opacity 0.1s",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: tipoStyle(hoverTooltip.ticket.tipo).text, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {hoverTooltip.ticket.tipo} · #{hoverTooltip.ticket.id}
+            <span style={{ fontSize: 11, fontWeight: 800, color: tipoStyle(hoverTicket.tipo).text, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {hoverTicket.tipo} · #{hoverTicket.id}
             </span>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>
-              {ticketHours(hoverTooltip.ticket)}h
+              {ticketHours(hoverTicket)}h
             </span>
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3, marginBottom: 4 }}>
-            {hoverTooltip.ticket.titolo}
+            {hoverTicket.titolo}
           </div>
           <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.4 }}>
-            {hoverTooltip.ticket.descrizione && hoverTooltip.ticket.descrizione.length > 80
-              ? hoverTooltip.ticket.descrizione.substring(0, 80) + "..."
-              : hoverTooltip.ticket.descrizione || "Nessuna descrizione."}
+            {hoverTicket.descrizione && hoverTicket.descrizione.length > 80
+              ? hoverTicket.descrizione.substring(0, 80) + "..."
+              : hoverTicket.descrizione || "Nessuna descrizione."}
           </div>
-          {(hoverTooltip.ticket.asset_name || hoverTooltip.ticket.impianto_name || hoverTooltip.ticket.sito_name) && (
+          {(hoverTicket.asset_name || hoverTicket.impianto_name || hoverTicket.sito_name) && (
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-default)", fontSize: 10, color: "var(--text-muted)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ color: "#64748b" }}>📍</span> 
-                {hoverTooltip.ticket.sito_name} › {hoverTooltip.ticket.impianto_name}
+                <span style={{ color: "#64748b" }}>📍</span>
+                {hoverTicket.sito_name} › {hoverTicket.impianto_name}
               </div>
               <div style={{ fontWeight: 600, color: "#e2e8f0", marginTop: 2, paddingLeft: 16 }}>
-                {hoverTooltip.ticket.asset_name}
+                {hoverTicket.asset_name}
               </div>
             </div>
           )}
@@ -1644,6 +1749,10 @@ export default function PianificazionePage() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
+        }
       `}</style>
     </DndContext>
     </ZoomContext.Provider>
