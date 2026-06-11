@@ -1,4 +1,3 @@
-import re
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,18 +9,18 @@ from backend.core.security import (
     verify_password, get_password_hash, create_access_token,
     ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user_payload,
     COOKIE_NAME, COOKIE_MAX_AGE, COOKIE_SECURE, COOKIE_SAMESITE,
+    STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE,
 )
-from backend.core.rate_limiter import limiter
+from backend.core.rate_limiter import limiter, _real_client_ip
 from backend.core.logger_db import db_info, db_warn, db_error
-
-# Regex: Min 8, 1 uppercase, 1 lowercase, 1 number, 1 special
-STRONG_PWD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-])[A-Za-z\d@$!%*?&#^_-]{8,}$")
+from backend.services.security_monitor import record_failed_login, record_successful_login
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login")
-@limiter.limit("20/minute")
+@limiter.limit("5/minute")
 def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    client_ip = _real_client_ip(request)
 
     user = (
         db.query(Utente)
@@ -30,7 +29,8 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         .first()
     )
     if not user or not verify_password(form_data.password, user.password_hash):
-        db_warn("AUTH", f"Tentativo di login fallito per utente: {form_data.username}")
+        db_warn("AUTH", f"Tentativo di login fallito per utente: {form_data.username}", {"ip": client_ip})
+        record_failed_login(form_data.username, client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username o password errati",
@@ -70,7 +70,8 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         path="/",
     )
 
-    db_info("AUTH", f"Login effettuato con successo: {user.username}", {"ruolo": user.ruolo, "tenant_id": user.tenant_id})
+    record_successful_login(user.username)
+    db_info("AUTH", f"Login effettuato con successo: {user.username}", {"ruolo": user.ruolo, "tenant_id": user.tenant_id, "ip": client_ip})
 
     return {
         "message": "Autenticazione completata. Credenziali emesse nel cookie.",
@@ -149,7 +150,7 @@ def change_password(
         raise HTTPException(status_code=400, detail="Password attuale errata")
 
     if not STRONG_PWD_REGEX.match(data.new_password):
-        raise HTTPException(status_code=422, detail="La password deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali.")
+        raise HTTPException(status_code=422, detail=PASSWORD_POLICY_MESSAGE)
 
     user.password_hash = get_password_hash(data.new_password)
     user.token_version += 1

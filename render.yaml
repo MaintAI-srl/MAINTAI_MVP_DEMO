@@ -5,7 +5,8 @@ services:
     branch: main
     autoDeploy: true
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    # --no-server-header: non esporre "Server: uvicorn" (ISO 27002 A.8.9 — fingerprinting)
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT --no-server-header
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
