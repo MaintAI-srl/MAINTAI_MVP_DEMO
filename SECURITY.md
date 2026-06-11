@@ -1,6 +1,6 @@
 # MaintAI — Security Policy
 
-**Versione documento:** 1.0 — 2026-06-09
+**Versione documento:** 1.1 — 2026-06-11
 **Owner:** Security & Engineering MaintAI
 **Contatto sicurezza:** security@maintai.io
 **Vulnerability disclosure:** security@maintai.io (PGP su richiesta)
@@ -88,10 +88,12 @@ Framework applicati:
 - **Offboarding**: `is_active=False` e/o bump `token_version` → revoca immediata di tutte le sessioni.
 - **Revisione accessi**: trimestrale (review ruoli utenti per tenant).
 
-**Password policy** (enforced in `backend/api/routes/auth.py` e `utenti.py`):
+**Password policy** (centralizzata in `backend/core/security.py`, enforced in
+`backend/api/routes/auth.py` e `utenti.py`):
 - Hashing **bcrypt** (cost di default della libreria, salt per-hash).
-- Complessità: minuscole + maiuscole + numeri + simboli; lunghezza minima 8.
-  *Raccomandazione enterprise/NIS2: portare il minimo a 12 caratteri (vedi backlog SEC-009).*
+- Complessità: minuscole + maiuscole + numeri + simboli; **lunghezza minima 12**
+  (allineamento enterprise/NIS2 — SEC-009 chiuso il 2026-06-11; le password
+  esistenti restano valide, la policy si applica a creazione/cambio/reset).
 - Nessun hashing debole (MD5/SHA1/SHA256 plain) usato per le password.
 
 ---
@@ -122,25 +124,32 @@ con `timestamp`, `level`, `module`, `message`, `extra_info`, `tenant_id`. Il log
 standard è sempre aggiuntivo.
 
 **Eventi tracciati** (obbligatori NIS2/ISO A.8.15):
-- Login riuscito / fallito (con contesto).
+- Login riuscito / fallito (**con indirizzo IP reale del client**, attraversando i proxy Cloudflare/Render).
 - Logout (+ inserimento JTI in blacklist).
 - Cambio/reset password.
 - Anomalie CSRF (Origin/Referer mismatch o mancanti).
+- Alert di sicurezza del security monitor (modulo `SECURITY`, livello ERROR).
 - Errori applicativi (handler centralizzato `AppError`/`generic_error_handler`).
-- *Backlog:* arricchire con `ip_address`, `user_id`, `result` su tutte le operazioni CRUD critiche (Asset/WorkOrder/Plan/User) ed export dati (vedi SEC-007).
+- *Backlog:* arricchire con `ip_address`, `user_id`, `result` su tutte le operazioni CRUD critiche (Asset/WorkOrder/Plan/User) ed export dati.
 
 **Cosa NON loggare mai:** password (anche in chiaro temporaneo), token JWT completi,
 chiavi API, contenuto integrale di PII sensibili.
 
-**Retention:**
-- Target policy: **minimo 12 mesi** per i log di sicurezza (NIS2 / ISO A.8.15).
-- Stato attuale: il `retention_service` purga solo i ticket soft-deleted dopo 30 giorni.
-  La retention/rotation formale dei `SystemLog` a 12 mesi è in backlog (SEC-007).
+**Retention (SEC-007 chiuso il 2026-06-11):**
+- Policy: **minimo 12 mesi** per i log di sicurezza (NIS2 / ISO A.8.15), enforced dal codice.
+- `retention_service.cleanup_old_system_logs()` (job giornaliero) elimina solo i
+  `SystemLog` più vecchi della retention; configurabile via `LOG_RETENTION_DAYS`
+  **solo verso l'alto** — valori sotto i 365 giorni vengono riportati al minimo di compliance.
+- Lo stesso job purga i ticket soft-deleted dopo 30 giorni e le voci scadute
+  della blacklist JTI (`cleanup_expired_revoked_tokens`, 30 giorni).
 - Accesso ai log: solo ruoli amministrativi del tenant + superadmin, via `/admin/logs`.
 
-**Intrusion detection (baseline / backlog):**
-- I login falliti sono già loggati (`db_warn AUTH`).
-- *Da implementare:* alerting su >10 login falliti/5min per utente e >50 risposte 401/403/min per IP.
+**Intrusion detection (SEC-008 chiuso il 2026-06-11)** — `backend/services/security_monitor.py`:
+- Alert persistente in `SystemLog` (modulo `SECURITY`, ERROR) se ≥10 login falliti
+  in 5 minuti per lo stesso username, o ≥30 login falliti in 5 minuti dallo stesso IP.
+- Rate limiting su `/auth/login` ridotto a **5 richieste/minuto per IP** (slowapi).
+- Contatori in-memory a finestra scorrevole; in deployment multi-worker i contatori
+  sono per-worker (limite documentato e accettato per l'architettura attuale).
 
 ---
 

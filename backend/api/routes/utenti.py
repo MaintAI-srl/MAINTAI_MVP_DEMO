@@ -1,20 +1,19 @@
-import re
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_user_payload, get_current_tenant_id, get_password_hash
+from backend.core.security import (
+    get_current_user_payload, get_current_tenant_id, get_password_hash,
+    STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE,
+)
 from backend.core.logger_db import db_info
 from backend.db.modelli import Utente, Tecnico
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/utenti", tags=["utenti"])
-
-# Regex: Min 8, 1 uppercase, 1 lowercase, 1 number, 1 special
-STRONG_PWD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-])[A-Za-z\d@$!%*?&#^_-]{8,}$")
 
 RUOLI_VALIDI = {"responsabile", "tecnico"}
 
@@ -89,10 +88,7 @@ def create_utente(
         raise HTTPException(status_code=422, detail=f"Ruolo non valido. Valori ammessi: {', '.join(sorted(RUOLI_VALIDI))}")
 
     if not STRONG_PWD_REGEX.match(data.password):
-        raise HTTPException(
-            status_code=422,
-            detail="La password deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali (@$!%*?&#^_-).",
-        )
+        raise HTTPException(status_code=422, detail=PASSWORD_POLICY_MESSAGE)
 
     existing = db.query(Utente).filter(Utente.username == username).first()
     if existing:
@@ -138,10 +134,7 @@ def reset_password(
         raise HTTPException(status_code=404, detail="Utente non trovato.")
 
     if not STRONG_PWD_REGEX.match(data.new_password):
-        raise HTTPException(
-            status_code=422,
-            detail="La password deve avere almeno 8 caratteri, contenere maiuscole, minuscole, numeri e simboli speciali (@$!%*?&#^_-).",
-        )
+        raise HTTPException(status_code=422, detail=PASSWORD_POLICY_MESSAGE)
 
     user.password_hash = get_password_hash(data.new_password)
     user.token_version += 1  # Invalida JWT vecchi

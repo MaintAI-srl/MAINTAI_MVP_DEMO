@@ -126,6 +126,22 @@ async def _extract_token(
     )
 
 
+# ── Password policy ──────────────────────────────────────────────────────────
+# Min 12 caratteri, almeno 1 maiuscola, 1 minuscola, 1 numero, 1 simbolo.
+# Centralizzata qui: usata da /auth/change-password e dalle route /utenti.
+# (NIS2 Art.21 §2j / ISO 27002 A.5.17 — allineamento enterprise, SEC-009)
+
+import re
+
+STRONG_PWD_REGEX = re.compile(
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_-])[A-Za-z\d@$!%*?&#^_-]{12,}$"
+)
+PASSWORD_POLICY_MESSAGE = (
+    "La password deve avere almeno 12 caratteri e contenere maiuscole, "
+    "minuscole, numeri e simboli speciali (@$!%*?&#^_-)."
+)
+
+
 # ── Password hashing ─────────────────────────────────────────────────────────
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

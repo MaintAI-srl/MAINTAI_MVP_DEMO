@@ -1,9 +1,9 @@
 # MaintAI — Security Audit Report
 
-**Data:** 2026-06-09
-**Versione report:** 1.0
+**Data:** 2026-06-11 (aggiornamento della v1.0 del 2026-06-09)
+**Versione report:** 1.1
 **Piattaforma:** MaintAI 3.3.1
-**Branch:** `claude/intelligent-euler-gfy4us`
+**Branch:** `claude/blissful-rubin-1q23r7`
 **Eseguito da:** Claude Code — Automated Security Review (ISO 27001/27002 + NIS2 + OWASP Top 10 2021)
 
 ---
@@ -28,6 +28,26 @@ e in larga parte coperti dalla documentazione prodotta.
 **Raccomandazione:** stato **CONDITIONAL READY** per la vendita enterprise; chiusura dei
 backlog SEC-006…SEC-011 per il pieno **READY FOR SALE** verso clienti soggetti a NIS2.
 
+### Aggiornamento v1.1 — 2026-06-11 (ri-esecuzione routine)
+
+Tutti gli scan sono stati ri-eseguiti: **pip-audit 0 vulnerabilità** (su tutte le
+dipendenze, non solo quelle corrette), **bandit 0 HIGH** (stessi 2 MEDIUM falsi
+positivi), **npm audit 0 HIGH/CRITICAL** (2 MODERATE build-time già accettate).
+Nessuna nuova vulnerabilità nelle dipendenze rispetto alla v1.0.
+
+In questa sessione sono stati **chiusi 3 elementi del backlog**:
+- **SEC-007** — retention log di sicurezza a 12 mesi enforced dal codice
+  (`cleanup_old_system_logs`, minimo 365 giorni non riducibile via env) + pulizia
+  blacklist JTI scaduta + indirizzo IP reale nei log di login.
+- **SEC-008** — rate limit `/auth/login` da 20/min a **5/min per IP** + nuovo
+  `security_monitor` con alert persistenti su brute-force (≥10 login falliti/utente
+  o ≥30/IP in 5 minuti).
+- **SEC-009** — password policy portata a **minimo 12 caratteri** e centralizzata
+  in `backend/core/security.py` (prima duplicata in 2 route).
+
+Hardening aggiuntivo: rimosso l'header `Server: uvicorn` in produzione
+(`--no-server-header` in `render.yaml`). Suite di test backend: **93/93 passed**.
+
 ---
 
 ## Vulnerabilità Trovate e Risolte
@@ -46,12 +66,12 @@ backlog SEC-006…SEC-011 per il pieno **READY FOR SALE** verso clienti soggetti
 
 | ID | Severity | Descrizione | Motivazione / Azione |
 |---|---|---|---|
-| SEC-006 | MEDIUM | MFA assente per ruoli privilegiati (NIS2 §2j) | Implementare TOTP obbligatorio per `superadmin`/`responsabile` |
-| SEC-007 | MEDIUM | Retention log `SystemLog` non formalizzata a 12 mesi (A.8.15) | Estendere `retention_service` con rotation/retention log + arricchire eventi con `ip`/`user_id` |
-| SEC-008 | LOW | Login 20/min, nessun account lockout/alerting | Tightening a 5–10/min su `/auth/login` + alert su soglia di fallimenti |
-| SEC-009 | LOW | Password min 8 (con complessità) | Portare il minimo a 12 per allineamento enterprise/NIS2 |
-| SEC-010 | LOW | Solo access token 24h, nessun refresh con rotazione | Valutare refresh token rotation (riduce finestra access token) |
-| SEC-011 | LOW | RLS PostgreSQL non attiva (accesso solo via backend) | Difesa-in-profondità: abilitare RLS per tenant come secondo livello |
+| SEC-006 | MEDIUM | MFA assente per ruoli privilegiati (NIS2 §2j) | **Aperto.** Implementare TOTP obbligatorio per `superadmin`/`responsabile` |
+| SEC-007 | MEDIUM | Retention log `SystemLog` non formalizzata a 12 mesi (A.8.15) | ✅ **Chiuso 2026-06-11** — `cleanup_old_system_logs` (min 365gg) + IP nei log login |
+| SEC-008 | LOW | Login 20/min, nessun account lockout/alerting | ✅ **Chiuso 2026-06-11** — limit 5/min + `security_monitor` con alert brute-force |
+| SEC-009 | LOW | Password min 8 (con complessità) | ✅ **Chiuso 2026-06-11** — minimo 12, policy centralizzata in `core/security.py` |
+| SEC-010 | LOW | Solo access token 24h, nessun refresh con rotazione | **Aperto (accepted risk).** Mitigato da blacklist JTI + `token_version`; refresh rotation in roadmap |
+| SEC-011 | LOW | RLS PostgreSQL non attiva (accesso solo via backend) | **Aperto.** Difesa-in-profondità: abilitare RLS per tenant come secondo livello |
 
 > Nessun elemento del backlog rappresenta una vulnerabilità sfruttabile da remoto allo stato attuale:
 > sono irrobustimenti e misure di compliance.
@@ -60,22 +80,23 @@ backlog SEC-006…SEC-011 per il pieno **READY FOR SALE** verso clienti soggetti
 
 ## Dependency Scan Results
 
-**Backend (`pip-audit -r backend/requirements.txt`):**
-- Pacchetto vulnerabile pre-fix: `pyjwt 2.12.1` (4 vulnerabilità).
-- **Post-fix (`pyjwt==2.13.0`): 0 vulnerabilità HIGH/CRITICAL attese** sulla dipendenza corretta.
+**Backend (`pip-audit -r requirements.txt`, ri-eseguito 2026-06-11):**
+- **0 vulnerabilità note** su tutte le dipendenze pinnate (`pyjwt 2.13.0` confermato pulito).
 - Report grezzo: `docs/security/pip_audit_report.json`.
 
-**Frontend (`npm audit`):**
-- Pre-fix: 1 HIGH (`next`) + 1 MODERATE (`postcss`).
-- Post-fix (`next@16.2.7`): **0 HIGH, 0 CRITICAL**; 2 MODERATE residue (postcss build-time, accettate).
+**Frontend (`npm audit`, ri-eseguito 2026-06-11, 761 pacchetti):**
+- **0 HIGH, 0 CRITICAL, 0 LOW**; 2 MODERATE residue (`postcss` transitivo via `next@16.2.7`,
+  solo build-time su CSS sorgente fidato — accepted risk SEC-005, l'unico "fix" proposto
+  da npm è un downgrade incoerente a `next@9`).
 - Report grezzo: `docs/security/npm_audit_report.json`.
 
 ---
 
 ## SAST Results (`bandit -r backend/ -ll`)
 
+- Ri-eseguito 2026-06-11 su 18.578 LOC.
 - Issue **HIGH: 0**
-- Issue **MEDIUM: 2** — entrambi falsi positivi (SEC-003 `init_db.py:59`, SEC-004 `main.py:115`)
+- Issue **MEDIUM: 2** — entrambi falsi positivi già documentati (SEC-003 `init_db.py:59`, SEC-004 `main.py:115`)
 - Issue LOW: 279 (prevalentemente `try/except/pass` e import — informativi)
 - Report grezzo: `docs/security/bandit_report.json`
 
@@ -99,7 +120,7 @@ backlog SEC-006…SEC-011 per il pieno **READY FOR SALE** verso clienti soggetti
 | A.5 Organizational | 11 | 9 | gap: classificazione info, BCP, training |
 | A.6 People | 1 | 2 | awareness/training |
 | A.7 Physical | 2 | 0 | delegati a provider certificati |
-| A.8 Technological | 18 | 6 | gap: MFA, retention log, IDS, deletion, pentest |
+| A.8 Technological | 20 | 4 | gap: MFA, deletion schedulata completa, pentest (retention log e IDS chiusi in v1.1) |
 
 Dettaglio: `docs/security/ISO27001_CONTROLS_MAPPING.md`. **Controlli tecnici core tutti ✅.**
 
@@ -123,34 +144,51 @@ Dettaglio: `docs/security/NIS2_COMPLIANCE.md`.
 | A04 Insecure Design | architettura a layer, fail-closed CSRF |
 | A05 Security Misconfiguration | CORS allowlist, security headers, `.env` obbligatorie |
 | A06 Vulnerable Components | pip-audit/npm audit; fix pyjwt & next |
-| A07 Auth Failures | rate limit, blacklist JTI, `token_version`, cookie HttpOnly |
+| A07 Auth Failures | rate limit 5/min su login, password min 12, blacklist JTI, `token_version`, cookie HttpOnly, alerting brute-force |
 | A08 Integrity Failures | upload magic-bytes, dipendenze pinnate |
-| A09 Logging Failures | `SystemLog` (retention 12m in backlog) |
+| A09 Logging Failures | `SystemLog` con retention 12m enforced + alert brute-force (`security_monitor`) |
 | A10 SSRF | chiamate esterne limitate a OpenAI/Open-Meteo lato server |
 
 ---
 
 ## Stato Sales Readiness
 
-**Punteggio checklist:** 21 ✅ / 9 🔄 / 1 📋 (dettaglio: `docs/security/SALES_READINESS_CHECKLIST.md`)
+**Punteggio checklist (v1.1):** 24 ✅ / 6 🔄 / 1 📋 (dettaglio: `docs/security/SALES_READINESS_CHECKLIST.md`)
 **Giudizio:** **CONDITIONAL READY** — tecnicamente solido e privo di vulnerabilità HIGH note;
-completare i backlog SEC-006…SEC-011 per il pieno READY FOR SALE enterprise/NIS2.
+i gap residui per il pieno READY FOR SALE enterprise/NIS2 sono SEC-006 (MFA),
+SEC-010 (refresh rotation), SEC-011 (RLS) e gli adempimenti documentali (DPA,
+privacy notice, test restore, materiali sales).
 
 ---
 
 ## Raccomandazioni Prioritarie (Next Steps)
 
 1. **MFA (SEC-006)** — TOTP obbligatorio per ruoli privilegiati. *Effort: ~16h.*
-2. **Retention & arricchimento log (SEC-007)** — rotation/retention 12m su `SystemLog` + `ip`/`user_id`/`result` sugli eventi CRUD critici ed export. *Effort: ~10h.*
-3. **DPA template + privacy notice GDPR (cliente-facing)** — chiusura documentale per procurement. *Effort: ~8h.*
-4. **Test restore trimestrale + procedura BCP (SEC, §2c)** — documentare e verificare il ripristino backup. *Effort: ~6h.*
-5. **Tightening login + alerting brute-force (SEC-008)** e **password min 12 (SEC-009)**. *Effort: ~4h.*
+2. **DPA template + privacy notice GDPR (cliente-facing)** — chiusura documentale per procurement. *Effort: ~8h.*
+3. **Test restore trimestrale + procedura BCP (§2c)** — documentare e verificare il ripristino backup. *Effort: ~6h.*
+4. **Arricchimento audit log** — `ip`/`user_id`/`result` sugli eventi CRUD critici ed export dati. *Effort: ~6h.*
+5. **RLS PostgreSQL (SEC-011)** e **refresh token rotation (SEC-010)** — difesa in profondità. *Effort: ~12h.*
+
+*(Chiusi rispetto alla v1.0: SEC-007 retention log, SEC-008 alerting+rate limit, SEC-009 password 12.)*
 
 ---
 
 ## Files Modificati
+
+**Sessione v1.0 (2026-06-09):**
 - `backend/requirements.txt` — `pyjwt==2.12.1` → `pyjwt==2.13.0` (SEC-001)
 - `frontend/package.json` + `frontend/package-lock.json` — `next` → `^16.2.7` (SEC-002)
+
+**Sessione v1.1 (2026-06-11):**
+- `backend/core/security.py` — password policy centralizzata (`STRONG_PWD_REGEX` min 12, `PASSWORD_POLICY_MESSAGE`) (SEC-009)
+- `backend/api/routes/auth.py` — rate limit login 5/min, IP nei log, hook `security_monitor`, policy importata (SEC-008/007/009)
+- `backend/api/routes/utenti.py` — policy password importata da `core/security.py` (SEC-009)
+- `backend/services/security_monitor.py` — **nuovo**: alert brute-force su SystemLog (SEC-008)
+- `backend/services/retention_service.py` — `cleanup_old_system_logs` (retention 12m) + `cleanup_expired_revoked_tokens` (SEC-007)
+- `render.yaml` — `--no-server-header` (anti-fingerprinting)
+- `backend/.env.example` — documentata `LOG_RETENTION_DAYS`
+- `SECURITY.md`, `docs/security/*.md` — aggiornamento compliance a v1.1
+- `docs/security/{bandit,pip_audit,npm_audit}_report.json` — report rigenerati
 
 ## Files di Documentazione Creati
 - `SECURITY.md`

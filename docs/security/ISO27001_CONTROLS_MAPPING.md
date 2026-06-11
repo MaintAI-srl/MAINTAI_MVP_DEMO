@@ -79,8 +79,8 @@ Legenda stato: ✅ Implementato · 🔄 In corso / parziale · 📋 Pianificato/
 | A.8.10 | Information deletion | Soft delete + hard delete schedulato (`retention_service`) | 🔄 |
 | A.8.12 | Data leakage prevention | No secret nel codice/log; serving file forzato `attachment` | ✅ |
 | A.8.13 | Information backup | Backup gestiti Supabase (cifrati) | ✅ |
-| A.8.15 | Logging | `SystemLog` strutturato; eventi auth/CSRF/errori | ✅ / 🔄 retention 12m |
-| A.8.16 | Monitoring activities | Log + handler errori; IDS/alerting da formalizzare | 🔄 |
+| A.8.15 | Logging | `SystemLog` strutturato; login con IP; retention 12 mesi enforced (`cleanup_old_system_logs`) | ✅ |
+| A.8.16 | Monitoring activities | `security_monitor`: alert su brute-force (≥10 fail/utente, ≥30 fail/IP in 5 min) + rate limit login 5/min | ✅ |
 | A.8.20 | Networks security | CORS allowlist, security headers, TLS, anti-CSRF | ✅ |
 | A.8.21 | Security of network services | HTTPS only, header sicuri lato API e frontend | ✅ |
 | A.8.23 | Web filtering | CSP frontend (`next.config.ts`) | ✅ |
@@ -100,7 +100,11 @@ Legenda stato: ✅ Implementato · 🔄 In corso / parziale · 📋 Pianificato/
 | A.5 Organizational | 11 | 8 | 1 | gap principali: classificazione, BCP, training |
 | A.6 People | 1 | 1 | 1 | training/awareness in corso |
 | A.7 Physical | 2 | 0 | 0 | delegati a provider certificati |
-| A.8 Technological | 18 | 6 | 0 | gap: MFA, retention log, IDS, deletion, pentest |
+| A.8 Technological | 20 | 4 | 0 | gap: MFA, deletion schedulata completa, pentest |
 
-**Controlli tecnici core (A.8.3/A.8.5/A.8.20/A.8.24/A.8.28): tutti ✅.**
-I gap residui sono prevalentemente organizzativi/operativi e tracciati come SEC-006…SEC-010 nel report di audit.
+**Controlli tecnici core (A.8.3/A.8.5/A.8.15/A.8.16/A.8.20/A.8.24/A.8.28): tutti ✅.**
+I gap residui sono prevalentemente organizzativi/operativi e tracciati come SEC-006/SEC-010/SEC-011 nel report di audit.
+
+*Aggiornamento 2026-06-11:* chiusi SEC-007 (retention log 12 mesi), SEC-008 (rate limit
+login 5/min + intrusion detection) e SEC-009 (password min 12); rimosso l'header
+`Server` di uvicorn in produzione (A.8.9).

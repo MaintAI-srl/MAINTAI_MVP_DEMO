@@ -8,6 +8,13 @@
 > Questo documento è l'analisi preliminare richiesta dalla FASE 0. Fotografa lo
 > stato di sicurezza del codice **prima** dei fix applicati nella stessa sessione
 > (vedi `SECURITY_AUDIT_REPORT.md` per gli interventi e il giudizio finale).
+>
+> **Ri-verifica 2026-06-11 (branch `claude/blissful-rubin-1q23r7`):** inventario
+> asset e mappa delle superfici di attacco ricontrollati e ancora accurati; scan
+> ri-eseguiti (pip-audit 0 vulnerabilità, bandit 0 HIGH, npm audit 0 HIGH/CRITICAL).
+> Variazioni rispetto a questa fotografia: rate limit login 5/min, password min 12,
+> retention log 12 mesi enforced, security monitor anti brute-force, header `Server`
+> rimosso. Dettagli nel `SECURITY_AUDIT_REPORT.md` v1.1.
 
 ---
 

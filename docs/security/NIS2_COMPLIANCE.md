@@ -32,7 +32,10 @@ della conformità NIS2 dei propri clienti.
 ### §2b — Gestione degli incidenti
 **✅ Implementato**
 - Procedura di Incident Response in `SECURITY.md` §6.
-- Audit trail in `SystemLog` per ricostruzione timeline.
+- Audit trail in `SystemLog` per ricostruzione timeline (login con indirizzo IP reale),
+  con retention minima 12 mesi enforced dal `retention_service`.
+- Rilevamento attivo: `security_monitor` genera alert persistenti su pattern di
+  brute-force (≥10 login falliti/utente o ≥30/IP in 5 minuti); rate limit login 5/min per IP.
 - Capacità di contenimento immediato: revoca sessioni (`token_version`, blacklist JTI), disabilitazione utenti (`is_active`).
 
 ### §2c — Continuità operativa e gestione delle crisi
@@ -66,7 +69,7 @@ della conformità NIS2 dei propri clienti.
 ### §2h — Politiche sull'uso della crittografia
 **✅ Implementato**
 - TLS 1.2+ su tutti i canali (HTTPS forzato, HSTS in produzione).
-- Password: bcrypt (salt per-hash).
+- Password: bcrypt (salt per-hash), policy minima 12 caratteri con complessità completa.
 - At-rest: Fernet per credenziali IMAP; `ENCRYPTION_KEY` obbligatoria e validata all'avvio.
 - JWT `HS256` con `JWT_SECRET` obbligatoria (≥32 byte) ed `exp` configurato.
 - Connessione DB con `sslmode=require`.
