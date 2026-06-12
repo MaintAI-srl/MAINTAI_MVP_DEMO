@@ -162,6 +162,8 @@ frontend/app/
     UploadAllegati.tsx     — upload file allegati
     AssenzeModal.tsx       — gestione assenze tecnici
   dashboard/               — KPI, grafici Recharts
+  controllo/               — Centro di Controllo: mappa Google Maps siti/impianti
+                             (fallback Leaflet/OSM senza API key), KPI supervisione
   ticket/                  — tabella paginata server-side, modal dettaglio, kanban
   planning/                — Piano AI Felix
     page.tsx               — pagina principale (fetch, stati, conferma, storico)
@@ -281,6 +283,9 @@ CORS_ORIGINS=https://maintai.vercel.app,https://...
 ### Variabili d'ambiente frontend (Vercel)
 ```
 NEXT_PUBLIC_API_BASE=https://maintai-v3.onrender.com
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...   # opzionale — mappa Google del Centro di Controllo (/controllo);
+                                      # senza key la pagina usa il fallback Leaflet/OpenStreetMap.
+                                      # Limitare la key per referrer HTTP nella console Google Cloud.
 ```
 
 ---

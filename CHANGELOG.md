@@ -5,6 +5,22 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Aggiunto
+- **Centro di Controllo** (`/controllo`) — vista geografica di supervisione trasferita e adattata da MaintAI Alpha e potenziata con **Google Maps JS API**:
+  - nuovo endpoint `GET /control-center/overview` (router `backend/api/routes/control_center.py`): per ogni sito del tenant restituisce posizione (media coordinate impianti, fallback geocoding Nominatim dell'indirizzo), stato aggregato asset (operativi/fermi/guasti), work order attivi (aperti/in corso/pianificati, breakdown) e riepilogo globale
+  - nuovo modulo attivabile `control_center` (backend + frontend), voce di menu "Centro di Controllo" nella sezione Dashboard
+  - mappa Google Maps con tema dark industrial, marker siti colorati per criticità (verde/ambra/rosso), marker impianti, InfoWindow con dettaglio e fit bounds automatico
+  - fallback automatico su OpenStreetMap/Leaflet quando `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` non è configurata
+  - KPI strip (siti critici, asset guasti, WO attivi, breakdown, tecnici disponibili), lista siti ordinata per criticità con pan/zoom su selezione, auto-refresh 60s
+- Nuova variabile d'ambiente frontend opzionale: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (limitare la key per referrer HTTP nella console Google Cloud)
+
+### Modificato
+- CSP frontend (`next.config.ts`): consentiti i domini Google Maps (`maps.googleapis.com`, `maps.gstatic.com`, `fonts.gstatic.com`) in `script-src`/`connect-src`/`font-src`
+
+---
+
 ## [2.8.2] — 2026-04-19
 
 ### Allineamento Versioni
