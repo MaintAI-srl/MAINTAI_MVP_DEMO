@@ -39,6 +39,21 @@ const REFRESH_MS = 60_000;
 
 const STATUS_ORDER: Record<SitoOverview["status"], number> = { critico: 0, attenzione: 1, ok: 2 };
 
+type TicketListItem = {
+  id: number;
+  titolo?: string | null;
+  descrizione?: string | null;
+  priorita?: string | null;
+  stato?: string | null;
+  tipo?: string | null;
+  asset_id?: number | null;
+  asset_name?: string | null;
+  impianto_name?: string | null;
+  sito_name?: string | null;
+  tecnico_id?: number | null;
+  created_at?: string | null;
+};
+
 function KpiTile({ label, value, accent, sub }: { label: string; value: number | string; accent: string; sub?: string }) {
   return (
     <div style={{
@@ -83,6 +98,34 @@ function formatTicketTime(value: string | null) {
   return date.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function ticketToBDTicket(ticket: TicketListItem): ControlCenterBDTicket | null {
+  const tipo = (ticket.tipo || "").trim().toUpperCase();
+  const priorita = (ticket.priorita || "").trim().toLowerCase();
+  const stato = ticket.stato || "";
+  const isActive = ["Aperto", "In corso", "Pianificato"].includes(stato);
+  if (!isActive || (tipo !== "BD" && priorita !== "emergenza")) return null;
+  return {
+    ticket_id: ticket.id,
+    titolo: ticket.titolo || `Ticket #${ticket.id}`,
+    descrizione: ticket.descrizione || "",
+    priorita: ticket.priorita || "",
+    stato,
+    tipo: ticket.tipo || "",
+    asset_id: ticket.asset_id ?? null,
+    asset_nome: ticket.asset_name || "",
+    impianto_id: null,
+    impianto_nome: ticket.impianto_name || "",
+    sito_id: null,
+    sito_nome: ticket.sito_name || "",
+    indirizzo: "",
+    tecnico_id: ticket.tecnico_id ?? null,
+    lat: null,
+    lon: null,
+    posizione_fonte: null,
+    created_at: ticket.created_at || null,
+  };
+}
+
 export default function ControlCenterPage() {
   const [data, setData] = useState<ControlCenterData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +138,26 @@ export default function ControlCenterPage() {
     if (!silent) setLoading(true);
     try {
       const d = await apiGet<ControlCenterData>("/control-center/overview");
-      setData(d);
+      let nextData = d;
+      if (!Array.isArray(d.bd_tickets) || d.bd_tickets.length === 0) {
+        const tickets = await apiGet<{ items?: TicketListItem[] }>("/tickets?stato=Aperto,In corso,Pianificato&limit=500")
+          .catch(() => ({ items: [] }));
+        const fallbackBD = (tickets.items ?? [])
+          .map(ticketToBDTicket)
+          .filter((ticket): ticket is ControlCenterBDTicket => ticket !== null);
+        if (fallbackBD.length > 0) {
+          nextData = {
+            ...d,
+            bd_tickets: fallbackBD,
+            summary: {
+              ...d.summary,
+              bd_attivi: d.summary.bd_attivi || fallbackBD.filter((t) => t.tipo?.trim().toUpperCase() === "BD").length,
+              emergenze_attive: d.summary.emergenze_attive || fallbackBD.filter((t) => t.priorita?.trim().toLowerCase() === "emergenza").length,
+            },
+          };
+        }
+      }
+      setData(nextData);
       setError(null);
       setLastUpdate(new Date());
     } catch (err: unknown) {
@@ -201,7 +263,7 @@ export default function ControlCenterPage() {
             <KpiTile label="Asset guasti" value={summary.asset_stati.out_of_service} accent="#ef4444" sub="Fuori servizio adesso" />
             <KpiTile label="WO attivi" value={summary.ticket_aperti + summary.ticket_in_corso} accent="#f59e0b" sub={`${summary.ticket_pianificati} pianificati`} />
             <KpiTile label="Breakdown attivi" value={summary.bd_attivi} accent="#ef4444" sub="BD aperti o in corso" />
-            <KpiTile label="Emergenze" value={summary.emergenze_attive} accent="#f97316" sub="Priorita massima" />
+            <KpiTile label="Emergenze" value={summary.emergenze_attive ?? 0} accent="#f97316" sub="Priorita massima" />
             <KpiTile label="Tecnici disponibili" value={`${summary.tecnici_disponibili}/${summary.tecnici}`} accent="#10d9b0" sub="In servizio oggi" />
           </div>
         )}
@@ -220,7 +282,7 @@ export default function ControlCenterPage() {
       )}
 
       {data && (
-        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 18, alignItems: "stretch", padding: "0 32px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 18, alignItems: "stretch", padding: "0 32px", order: 3 }}>
           {/* ── Lista siti ── */}
           <div style={{
             background: "var(--bg-card, var(--surface-2))", border: "1px solid var(--border-default)",
@@ -328,7 +390,7 @@ export default function ControlCenterPage() {
       )}
 
       {data && (
-        <div style={{ padding: "18px 32px 0" }}>
+        <div style={{ padding: "0 32px 18px", order: 2 }}>
           <div style={{
             background: "linear-gradient(180deg, rgba(239,68,68,0.08), var(--bg-card, var(--surface-2)))",
             border: "1px solid rgba(239,68,68,0.28)",
@@ -440,9 +502,13 @@ export default function ControlCenterPage() {
                           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{selectedBD.indirizzo}</div>
                         )}
                       </div>
-                      {selectedBD.lat !== null && selectedBD.lon !== null && (
+                      {(selectedBD.lat !== null && selectedBD.lon !== null || selectedBD.indirizzo || selectedBD.sito_nome || selectedBD.asset_nome) && (
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${selectedBD.lat},${selectedBD.lon}`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            selectedBD.lat !== null && selectedBD.lon !== null
+                              ? `${selectedBD.lat},${selectedBD.lon}`
+                              : (selectedBD.indirizzo || selectedBD.sito_nome || selectedBD.asset_nome)
+                          )}`}
                           target="_blank"
                           rel="noreferrer"
                           style={{

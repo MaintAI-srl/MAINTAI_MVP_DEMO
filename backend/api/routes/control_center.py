@@ -109,7 +109,7 @@ async def control_center_overview(
             bucket["in_corso"] += cnt
         elif stato == "Pianificato":
             bucket["pianificati"] += cnt
-        if (tipo or "").upper() == "BD" and stato in ("Aperto", "In corso"):
+        if (tipo or "").strip().upper() == "BD" and stato in ("Aperto", "In corso"):
             bucket["bd_attivi"] += cnt
 
     # ── Coordinate per sito: media impianti → fallback geocoding indirizzo ────
@@ -193,8 +193,8 @@ async def control_center_overview(
             Ticket.deleted_at.is_(None),
             Ticket.stato.in_(ACTIVE_TICKET_STATES),
             or_(
-                func.upper(Ticket.tipo) == "BD",
-                func.lower(Ticket.priorita) == "emergenza",
+                func.upper(func.trim(Ticket.tipo)) == "BD",
+                func.lower(func.trim(Ticket.priorita)) == "emergenza",
             ),
         )
         .order_by(Ticket.created_at.desc())
@@ -280,7 +280,7 @@ async def control_center_overview(
         .filter(
             Ticket.tenant_id == tenant_id,
             Ticket.deleted_at.is_(None),
-            Ticket.tipo == "BD",
+            func.upper(func.trim(Ticket.tipo)) == "BD",
             Ticket.stato.in_(("Aperto", "In corso")),
         )
         .scalar()

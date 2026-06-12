@@ -128,8 +128,14 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
   const { emergenza, tecnici_consigliati, tutti_tecnici } = data;
   const hasCoordsEmergenza = emergenza.lat !== null && emergenza.lon !== null;
   const mapsRouteUrl = (tec: TecnicoMapData) => {
-    if (tec.lat === null || tec.lon === null || emergenza.lat === null || emergenza.lon === null) return null;
-    return `https://www.google.com/maps/dir/?api=1&origin=${tec.lat},${tec.lon}&destination=${emergenza.lat},${emergenza.lon}&travelmode=driving`;
+    const origin = tec.lat !== null && tec.lon !== null
+      ? `${tec.lat},${tec.lon}`
+      : (tec.indirizzo_corrente || tec.nome || "");
+    const destination = emergenza.lat !== null && emergenza.lon !== null
+      ? `${emergenza.lat},${emergenza.lon}`
+      : (emergenza.indirizzo || emergenza.sito || emergenza.asset_nome || emergenza.ticket_titolo || "");
+    if (!origin || !destination) return null;
+    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
   };
 
   return (
