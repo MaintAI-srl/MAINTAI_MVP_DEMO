@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import "./globals.css";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { moduleForPath, type ModuleId } from "./lib/modules";
+import { moduleForPath } from "./lib/modules";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
 import QuickTicketModal from "./components/QuickTicketModal";
 import GuideBot from "./components/GuideBot";
 import { VERSION } from "./lib/version";
+import { getVisibleNavGroups, PAGE_LABELS } from "./lib/navigation";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
@@ -21,80 +22,12 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
 import {
-  LayoutDashboard,
-  Users, Wrench, CalendarDays, Building, UploadCloud,
-  ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
-  Activity, Cpu, Zap, BrainCircuit, Gauge, ShieldCheck, TrendingUp, Radar
+  LogOut,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 // Fonts now loaded above individually
-
-type NavItem = { href: string; label: string; icon: React.ReactNode; module?: ModuleId; adminOnly?: boolean; superadminOnly?: boolean };
-const NAV: { section: string; items: NavItem[] }[] = [
-  {
-    section: "DASHBOARD",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} strokeWidth={1.8} />, module: "dashboard" },
-      { href: "/controllo", label: "Centro di Controllo", icon: <Radar size={14} strokeWidth={1.8} />, module: "control_center" },
-    ],
-  },
-  {
-    section: "OPERAZIONI",
-    items: [
-      { href: "/ticket",     label: "Ticket",               icon: <Activity size={14} strokeWidth={1.8} />, module: "tickets" },
-      { href: "/planning",   label: "Pianificazione",       icon: <Zap size={14} strokeWidth={1.8} />, module: "planning" },
-      { href: "/diagnostic", label: "Analisi Ingegneria AI", icon: <BrainCircuit size={14} strokeWidth={1.8} />, module: "diagnostic_ai" },
-    ],
-  },
-  {
-    section: "RISORSE",
-    items: [
-      { href: "/asset",    label: "Siti & Asset",         icon: <Cpu size={14} strokeWidth={1.8} />, module: "assets" },
-      { href: "/tecnici",  label: "Tecnici",              icon: <Users size={14} strokeWidth={1.8} />, module: "technicians" },
-      { href: "/piani",    label: "Piani di Manutenzione", icon: <Wrench size={14} strokeWidth={1.8} />, module: "maintenance_plans" },
-      { href: "/scadenze", label: "Scadenziario",         icon: <CalendarDays size={14} strokeWidth={1.8} />, module: "deadlines" },
-      { href: "/condizioni", label: "Dati Misure Asset",   icon: <Gauge size={14} strokeWidth={1.8} />, module: "condition_maintenance" },
-    ],
-  },
-  {
-    section: "IMPOSTAZIONI",
-    items: [
-      { href: "/report/economico",   label: "Report Economico",      icon: <TrendingUp size={14} strokeWidth={1.8} />,  module: "economic_reports", adminOnly: true },
-      { href: "/compliance",        label: "Scadenzario Attestati", icon: <ShieldCheck size={14} strokeWidth={1.8} />, module: "compliance", adminOnly: true },
-      { href: "/admin/tenants",     label: "Clienti",          icon: <Building size={14} strokeWidth={1.8} />,    module: "tenant_admin", superadminOnly: true },
-      { href: "/admin/bulk-import", label: "Import Massivo",   icon: <UploadCloud size={14} strokeWidth={1.8} />, module: "bulk_import", adminOnly: true },
-      { href: "/admin/logs",        label: "Log di Sistema",   icon: <ScrollText size={14} strokeWidth={1.8} />,  module: "system_logs", adminOnly: true },
-      { href: "/admin/email",       label: "Email to Ticket",  icon: <Mail size={14} strokeWidth={1.8} />,        module: "email_to_ticket", adminOnly: true },
-      { href: "/profilo",           label: "Mio Profilo",      icon: <UserCheck size={14} strokeWidth={1.8} /> },
-      { href: "/admin/utenti",      label: "Gestione Utenti",  icon: <UserCog size={14} strokeWidth={1.8} />,     module: "user_admin", adminOnly: true },
-    ],
-  },
-];
-
-const PAGE_LABELS: Record<string, string> = {
-  "/dashboard":          "Dashboard",
-  "/controllo":          "Centro di Controllo",
-  "/asset":              "Siti & Asset",
-  "/assets":             "Asset",
-  "/impianti":           "Impianti",
-  "/tecnici":            "Tecnici",
-  "/planning":           "Pianificazione",
-  "/ticket":             "Ticket",
-  "/diagnostic":         "Analisi Ingegneria AI",
-  "/piani":              "Piani di Manutenzione",
-  "/piani-manutenzione": "Piani di Manutenzione",
-  "/scadenze":           "Scadenziario",
-  "/condizioni":          "Dati Misure Asset",
-  "/admin/tenants":      "Clienti",
-  "/admin/bulk-import":  "Import Massivo",
-  "/admin/logs":         "Log di Sistema",
-  "/admin/email":        "Email to Ticket",
-  "/admin/utenti":       "Gestione Utenti",
-  "/profilo":            "Mio Profilo",
-  "/compliance":         "Scadenzario Attestati",
-  "/report/economico":   "Report Economico",
-  "/storico":            "Storico Interventi",
-};
 
 function GlobalOfflineIndicator() {
   const [isOnline, setIsOnline] = useState(true);
@@ -171,18 +104,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const isSuperadmin = user?.ruolo === "superadmin";
 
   const filteredNav = useMemo(() => {
-    return NAV.map(section => ({
-      ...section,
-      items: section.items.filter((item) => {
-        if (item.module && !isModuleEnabled(item.module)) return false;
-        if (item.superadminOnly && !isSuperadmin) return false;
-        if (item.adminOnly && user?.ruolo !== "responsabile" && !isSuperadmin) return false;
-        if (!isTecnico) return true;
-        const visibleForTecnico = ["/ticket", "/asset", "/profilo"];
-        return visibleForTecnico.includes(item.href);
-      })
-    })).filter(section => section.items.length > 0);
-  }, [isModuleEnabled, isSuperadmin, isTecnico, user?.ruolo]);
+    return getVisibleNavGroups({
+      role: user?.ruolo,
+      isModuleEnabled,
+    });
+  }, [isModuleEnabled, user?.ruolo]);
 
   const firstAvailableHref = filteredNav[0]?.items[0]?.href ?? "/profilo";
   const notificationsEnabled = isModuleEnabled("deadlines") || isModuleEnabled("tickets");
@@ -323,11 +249,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const pageLabel = Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI";
+  const pageLabel = pathname === "/"
+    ? "Home"
+    : Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI";
 
   const sectionLabel = filteredNav.find((group) =>
     group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
-  )?.section ?? "OPERAZIONI";
+  )?.section ?? (pathname === "/" ? "HOME" : "OPERAZIONI");
 
   return (
     <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`}>
@@ -346,7 +274,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
         {/* ── LOGO ──────────────────────────────────────── */}
-        <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={closeSidebarOnMobile}>
+        <Link href="/" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={closeSidebarOnMobile}>
           {/* Logo con glow */}
           <div className="sidebar-logo-icon" style={{ background: "var(--cobalt-dim)", border: "1px solid var(--cobalt-border)", boxShadow: "var(--glow-cobalt)" }}>
             <img
@@ -371,6 +299,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 {group.items.map((item) => {
                   const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                  const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
@@ -379,7 +308,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                       className={active ? "nav-item active" : "nav-item"}
                     >
                       <span className="nav-icon">
-                        {item.icon}
+                        <Icon size={14} strokeWidth={1.8} />
                       </span>
                       {item.label}
                     </Link>
