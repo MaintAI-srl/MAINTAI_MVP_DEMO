@@ -140,6 +140,7 @@ def reset_password(
     user.token_version += 1  # Invalida JWT vecchi
     db.commit()
 
+    # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- logga solo username (audit trail), nessuna credenziale
     logger.info("Password resettata per utente %s da %s", user.username, payload.get("sub"))
     return {"ok": True, "message": f"Password di '{user.username}' aggiornata. Sessioni precedenti invalidate."}
 

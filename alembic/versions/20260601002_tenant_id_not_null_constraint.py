@@ -72,6 +72,7 @@ def upgrade() -> None:
             # Nessuna transazione aperta dalla migration precedente (e' stata committata).
             # ALTER TABLE acquisce AccessExclusiveLock senza deadlock.
             bind.execute(
+                # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text -- DDL con identificatore da OPERATIONAL_TABLES (lista hardcoded), nessun input utente
                 sa.text(f"ALTER TABLE {table} ALTER COLUMN tenant_id SET NOT NULL")
             )
         log.info("P1-09: NOT NULL applicato su %s.tenant_id", table)
@@ -94,5 +95,6 @@ def downgrade() -> None:
                 batch_op.alter_column('tenant_id', existing_type=sa.Integer(), nullable=True)
         else:
             bind.execute(
+                # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text -- DDL con identificatore da OPERATIONAL_TABLES (lista hardcoded), nessun input utente
                 sa.text(f"ALTER TABLE {table} ALTER COLUMN tenant_id DROP NOT NULL")
             )

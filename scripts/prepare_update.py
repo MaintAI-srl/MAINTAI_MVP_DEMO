@@ -20,6 +20,7 @@ Output:
 
 import subprocess
 import json
+import shutil
 import sys
 import os
 from pathlib import Path
@@ -76,13 +77,15 @@ def sign_file(file_path: Path, private_key: str) -> str:
     env["TAURI_SIGNING_PRIVATE_KEY"] = private_key
     env["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = ""
 
+    # shutil.which risolve npx.cmd su Windows: niente shell=True (SAST subprocess-shell-true)
+    npx = shutil.which("npx") or "npx"
     result = subprocess.run(
-        ["npx", "@tauri-apps/cli@2", "signer", "sign", str(file_path)],
+        [npx, "@tauri-apps/cli@2", "signer", "sign", str(file_path)],
         capture_output=True,
         text=True,
         env=env,
         cwd=str(ROOT / "frontend"),
-        shell=True,
+        shell=False,
     )
 
     if result.returncode != 0:

@@ -56,6 +56,7 @@ def _seed_tenant_and_migrate_data():
         for table in tables:
             try:
                 # Update tramite SQL testuale per velocità, ma con parametri sicuri
+                # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text -- identificatore da `tables` (lista hardcoded), valori parametrizzati
                 db.execute(text(f"UPDATE {table} SET tenant_id=:tid WHERE tenant_id IS NULL"), {"tid": tenant_id})
             except Exception:
                 pass

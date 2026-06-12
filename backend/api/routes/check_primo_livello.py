@@ -142,7 +142,9 @@ def rotate_qr_token(
         f"Token QR ruotato per asset {asset_id}",
         {"tenant_id": tenant_id, "new_token_prefix": check.public_token[:8]},
     )
-    logger.info("Token QR ruotato per asset %s (nuovo token: %s…)", asset_id, check.public_token[:8])
+    # Il prefisso del token resta solo nel log strutturato db_info; niente token nei log testuali.
+    # int() esplicito: il path param è già int (FastAPI), serve solo a chiudere il taint CodeQL (log injection).
+    logger.info("Codice QR check ruotato per asset %s", int(asset_id))
     return {
         "public_token": check.public_token,
         "token_expires_at": check.token_expires_at.isoformat() if check.token_expires_at else None,
@@ -246,7 +248,7 @@ def segnala_anomalia_pubblica(
         f"Anomalia segnalata su asset {check.asset_id} via check pubblico (token={public_token[:8]}…)",
         {"tenant_id": check.tenant_id, "ticket_id": ticket.id},
     )
-    logger.info("Ticket BD #%s creato da check pubblico token %s", ticket.id, public_token[:8])
+    logger.info("Ticket BD #%s creato da check pubblico", ticket.id)
 
     # P1-05: risposta pubblica — solo ticket_id e messaggio (NON tenant_id né public_token)
     return {"ticket_id": ticket.id, "messaggio": f"Segnalazione ricevuta — Ticket #{ticket.id} aperto"}

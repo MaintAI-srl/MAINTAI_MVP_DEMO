@@ -55,6 +55,7 @@ def upgrade() -> None:
         if not _column_exists(bind, table, 'tenant_id'):
             continue
         result = bind.execute(
+            # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text -- identificatore da OPERATIONAL_TABLES (lista hardcoded), valori parametrizzati
             sa.text(f"UPDATE {table} SET tenant_id = :tid WHERE tenant_id IS NULL"),
             {"tid": fallback_tid},
         )
