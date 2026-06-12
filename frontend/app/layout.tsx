@@ -24,7 +24,7 @@ import {
   LayoutDashboard,
   Users, Wrench, CalendarDays, Building, UploadCloud,
   ScrollText, Mail, UserCheck, UserCog, LogOut, Sun, Moon,
-  Activity, Cpu, Zap, BrainCircuit, Gauge, ShieldCheck, TrendingUp
+  Activity, Cpu, Zap, BrainCircuit, Gauge, ShieldCheck, TrendingUp, Radar
 } from "lucide-react";
 
 // Fonts now loaded above individually
@@ -35,6 +35,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: "DASHBOARD",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} strokeWidth={1.8} />, module: "dashboard" },
+      { href: "/controllo", label: "Centro di Controllo", icon: <Radar size={14} strokeWidth={1.8} />, module: "control_center" },
     ],
   },
   {
@@ -72,6 +73,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
 
 const PAGE_LABELS: Record<string, string> = {
   "/dashboard":          "Dashboard",
+  "/controllo":          "Centro di Controllo",
   "/asset":              "Siti & Asset",
   "/assets":             "Asset",
   "/impianti":           "Impianti",

@@ -20,13 +20,14 @@ const deployVersion = readDeployVersion();
 // SEC-03 — Header di sicurezza (solo build web; il build statico Tauri non supporta headers()).
 // La CSP è volutamente permissiva su script/style (Next richiede 'unsafe-inline'/'unsafe-eval'
 // per l'hydration). connect-src include API backend e Supabase Storage.
+// I domini Google Maps (script/connect/font) servono al Centro di Controllo (/controllo).
 const cspDirectives = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://maintai-v3.onrender.com https://*.onrender.com https://*.supabase.co",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "connect-src 'self' https://maintai-v3.onrender.com https://*.onrender.com https://*.supabase.co https://maps.googleapis.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

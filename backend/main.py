@@ -50,6 +50,7 @@ try:
     from backend.api.routes.attestati import router as attestati_router
     from backend.api.routes.report import router as report_router
     from backend.api.routes.emergency import router as emergency_router
+    from backend.api.routes.control_center import router as control_center_router
     from backend.api.routes.asset_documenti import router as asset_documenti_router
     from backend.core.config import init_backend
     from backend.core.security import IS_PRODUCTION
@@ -931,6 +932,7 @@ _MODULE_ROUTERS = [
     (attestati_router, "compliance"),
     (report_router, "economic_reports"),
     (emergency_router, "emergency"),
+    (control_center_router, "control_center"),
 ]
 for _router, _module_id in _MODULE_ROUTERS:
     _include_module_router(_router, _module_id)

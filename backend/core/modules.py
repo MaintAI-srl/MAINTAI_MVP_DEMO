@@ -140,6 +140,13 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         category="operazioni",
         requires=("tickets", "technicians"),
     ),
+    "control_center": ModuleDefinition(
+        id="control_center",
+        name="Centro di Controllo",
+        description="Mappa di supervisione siti con stato asset e work order.",
+        category="operazioni",
+        requires=("assets",),
+    ),
     "mobile_app": ModuleDefinition(
         id="mobile_app",
         name="App tecnico",
