@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { apiGet } from "../lib/api";
+import { apiGet, apiPost } from "../lib/api";
 import { notify } from "@/lib/toast";
 import GoogleControlMap from "./components/GoogleControlMap";
-import type { ControlCenterData, SitoOverview } from "./types";
+import type { ControlCenterBDTicket, ControlCenterData, SitoOverview } from "./types";
 import { STATUS_COLORS, STATUS_LABELS } from "./types";
 
 const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -19,6 +19,18 @@ const LeafletControlMap = dynamic(() => import("./components/LeafletControlMap")
       background: "var(--surface-2)", borderRadius: 10, color: "var(--text-muted)", fontSize: 13,
     }}>
       Caricamento mappa...
+    </div>
+  ),
+});
+
+const EmergencyMap = dynamic(() => import("../components/EmergencyMap"), {
+  ssr: false,
+  loading: () => (
+    <div style={{
+      minHeight: 240, display: "flex", alignItems: "center", justifyContent: "center",
+      background: "var(--surface-2)", borderRadius: 10, color: "var(--text-muted)", fontSize: 13,
+    }}>
+      Calcolo tecnici piu vicini...
     </div>
   ),
 });
@@ -58,11 +70,25 @@ function StatusBadge({ status }: { status: SitoOverview["status"] }) {
   );
 }
 
+function priorityColor(priority: string, tipo: string) {
+  if (priority?.toLowerCase() === "emergenza") return "#ef4444";
+  if (tipo?.toUpperCase() === "BD") return "#f97316";
+  return "#f59e0b";
+}
+
+function formatTicketTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function ControlCenterPage() {
   const [data, setData] = useState<ControlCenterData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSitoId, setSelectedSitoId] = useState<number | null>(null);
+  const [selectedBD, setSelectedBD] = useState<ControlCenterBDTicket | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const load = useCallback(async (silent = false) => {
@@ -105,6 +131,26 @@ export default function ControlCenterPage() {
   );
 
   const summary = data?.summary;
+  const bdTickets = data?.bd_tickets ?? [];
+
+  const handleDispatch = useCallback(async (tecnicoId: number) => {
+    if (!selectedBD) return;
+    try {
+      const res = await apiPost<{ tecnico_nome: string; stato: string }>(
+        `/emergency/assign/${selectedBD.ticket_id}`,
+        { tecnico_id: tecnicoId }
+      );
+      notify.success(
+        `Ticket assegnato a ${res.tecnico_nome}. Il mobile lo avvisera con allarme sonoro e visivo.`,
+        "DISPATCH"
+      );
+      await load(true);
+      setSelectedBD((prev) => prev ? { ...prev, tecnico_id: tecnicoId, stato: res.stato } : prev);
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore assegnazione tecnico", "DISPATCH");
+      throw err;
+    }
+  }, [load, selectedBD]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", paddingBottom: 40 }}>
@@ -155,6 +201,7 @@ export default function ControlCenterPage() {
             <KpiTile label="Asset guasti" value={summary.asset_stati.out_of_service} accent="#ef4444" sub="Fuori servizio adesso" />
             <KpiTile label="WO attivi" value={summary.ticket_aperti + summary.ticket_in_corso} accent="#f59e0b" sub={`${summary.ticket_pianificati} pianificati`} />
             <KpiTile label="Breakdown attivi" value={summary.bd_attivi} accent="#ef4444" sub="BD aperti o in corso" />
+            <KpiTile label="Emergenze" value={summary.emergenze_attive} accent="#f97316" sub="Priorita massima" />
             <KpiTile label="Tecnici disponibili" value={`${summary.tecnici_disponibili}/${summary.tecnici}`} accent="#10d9b0" sub="In servizio oggi" />
           </div>
         )}
@@ -276,6 +323,142 @@ export default function ControlCenterPage() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {data && (
+        <div style={{ padding: "18px 32px 0" }}>
+          <div style={{
+            background: "linear-gradient(180deg, rgba(239,68,68,0.08), var(--bg-card, var(--surface-2)))",
+            border: "1px solid rgba(239,68,68,0.28)",
+            borderRadius: 14,
+            padding: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, marginBottom: 12, flexWrap: "wrap" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: "var(--text-primary)" }}>
+                  BD / Emergenze operative
+                </h2>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                  Seleziona un guasto per vedere i 3 tecnici piu vicini e dispatchare l&apos;intervento.
+                </p>
+              </div>
+              <span style={{
+                fontSize: 11, color: "#ef4444", background: "rgba(239,68,68,0.12)",
+                border: "1px solid rgba(239,68,68,0.35)", borderRadius: 999, padding: "4px 10px", fontWeight: 800,
+              }}>
+                {bdTickets.length} attivi
+              </span>
+            </div>
+
+            {bdTickets.length === 0 ? (
+              <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "22px 8px", textAlign: "center" }}>
+                Nessun breakdown o emergenza attiva.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: selectedBD ? "minmax(280px, 420px) 1fr" : "1fr", gap: 16, alignItems: "start" }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: selectedBD ? "1fr" : "repeat(auto-fill, minmax(260px, 1fr))",
+                  gap: 10,
+                  maxHeight: selectedBD ? 520 : "none",
+                  overflowY: selectedBD ? "auto" : "visible",
+                }}>
+                  {bdTickets.map((ticket) => {
+                    const active = selectedBD?.ticket_id === ticket.ticket_id;
+                    const color = priorityColor(ticket.priorita, ticket.tipo);
+                    return (
+                      <button
+                        key={ticket.ticket_id}
+                        onClick={() => {
+                          setSelectedBD(active ? null : ticket);
+                          if (ticket.sito_id) setSelectedSitoId(ticket.sito_id);
+                        }}
+                        style={{
+                          textAlign: "left",
+                          cursor: "pointer",
+                          background: active ? `${color}18` : "var(--surface-2)",
+                          border: active ? `1px solid ${color}66` : "1px solid var(--border-default)",
+                          borderLeft: `4px solid ${color}`,
+                          borderRadius: 10,
+                          padding: "12px 13px",
+                          color: "var(--text-primary)",
+                          transition: "all .15s",
+                          minHeight: 116,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase", color }}>
+                              {ticket.priorita?.toLowerCase() === "emergenza" ? "Emergenza" : ticket.tipo || "BD"}
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 800, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {ticket.titolo || `Ticket #${ticket.ticket_id}`}
+                            </div>
+                          </div>
+                          <span style={{
+                            fontSize: 10, fontWeight: 800, color,
+                            background: `${color}14`, border: `1px solid ${color}44`,
+                            borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap",
+                          }}>
+                            {ticket.stato}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                          {ticket.asset_nome && <div>{ticket.asset_nome}</div>}
+                          <div style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {ticket.sito_nome || ticket.impianto_nome || "Sito non definito"}
+                          </div>
+                          <div style={{ color: "var(--text-muted)" }}>
+                            {ticket.tecnico_id ? "Tecnico gia assegnato" : "Da assegnare"}
+                            {ticket.created_at ? ` - ${formatTicketTime(ticket.created_at)}` : ""}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedBD && (
+                  <div style={{
+                    background: "rgba(10,15,30,0.45)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: 12,
+                    padding: 14,
+                    minWidth: 0,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10, fontWeight: 900, color: "#ef4444", letterSpacing: ".14em", textTransform: "uppercase" }}>
+                          Dispatch tecnico
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text-primary)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {selectedBD.titolo}
+                        </div>
+                        {selectedBD.indirizzo && (
+                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{selectedBD.indirizzo}</div>
+                        )}
+                      </div>
+                      {selectedBD.lat !== null && selectedBD.lon !== null && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${selectedBD.lat},${selectedBD.lon}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontSize: 11, color: "#60a5fa", border: "1px solid rgba(96,165,250,.35)",
+                            borderRadius: 8, padding: "5px 9px", textDecoration: "none", whiteSpace: "nowrap",
+                          }}
+                        >
+                          Apri su Maps
+                        </a>
+                      )}
+                    </div>
+                    <EmergencyMap ticketId={selectedBD.ticket_id} onAssign={handleDispatch} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

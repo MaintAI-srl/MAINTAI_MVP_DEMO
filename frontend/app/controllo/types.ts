@@ -28,6 +28,27 @@ export type ImpiantoMarker = {
   asset_guasti: number;
 };
 
+export type ControlCenterBDTicket = {
+  ticket_id: number;
+  titolo: string;
+  descrizione: string;
+  priorita: string;
+  stato: string;
+  tipo: string;
+  asset_id: number | null;
+  asset_nome: string;
+  impianto_id: number | null;
+  impianto_nome: string;
+  sito_id: number | null;
+  sito_nome: string;
+  indirizzo: string;
+  tecnico_id: number | null;
+  lat: number | null;
+  lon: number | null;
+  posizione_fonte: "asset" | "impianto" | "geocoding" | null;
+  created_at: string | null;
+};
+
 export type ControlCenterSummary = {
   n_siti: number;
   siti_critici: number;
@@ -37,6 +58,7 @@ export type ControlCenterSummary = {
   ticket_in_corso: number;
   ticket_pianificati: number;
   bd_attivi: number;
+  emergenze_attive: number;
   tecnici: number;
   tecnici_disponibili: number;
 };
@@ -44,6 +66,7 @@ export type ControlCenterSummary = {
 export type ControlCenterData = {
   siti: SitoOverview[];
   impianti: ImpiantoMarker[];
+  bd_tickets: ControlCenterBDTicket[];
   summary: ControlCenterSummary;
 };
 

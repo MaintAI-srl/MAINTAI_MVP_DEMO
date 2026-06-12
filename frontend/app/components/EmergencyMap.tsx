@@ -37,7 +37,7 @@ interface EmergencyResponse {
 
 interface EmergencyMapProps {
   ticketId: number;
-  onAssign?: (tecnicoId: number) => void;
+  onAssign?: (tecnicoId: number) => void | Promise<void>;
 }
 
 function fonteBadge(fonte: string) {
@@ -58,13 +58,11 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTecnicoId, setActiveTecnicoId] = useState<number | null>(null);
+  const [assigningId, setAssigningId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ticketId) return;
-    // TODO(sec-04): revisione umana - accettato come init di loading state prima di chiamata asincrona
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- init loading state prima del fetch; pattern standard data fetching
     setLoading(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetta errore prima del fetch; pattern standard data fetching
     setError(null);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;
@@ -129,6 +127,10 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
 
   const { emergenza, tecnici_consigliati, tutti_tecnici } = data;
   const hasCoordsEmergenza = emergenza.lat !== null && emergenza.lon !== null;
+  const mapsRouteUrl = (tec: TecnicoMapData) => {
+    if (tec.lat === null || tec.lon === null || emergenza.lat === null || emergenza.lon === null) return null;
+    return `https://www.google.com/maps/dir/?api=1&origin=${tec.lat},${tec.lon}&destination=${emergenza.lat},${emergenza.lon}&travelmode=driving`;
+  };
 
   return (
     <div style={{ marginTop: "16px" }}>
@@ -185,6 +187,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
             const badge = fonteBadge(tec.posizione_fonte);
             const rankColor = TOP3_COLORS[idx] ?? "#94a3b8";
             const isActive = tec.tecnico_id === activeTecnicoId;
+            const routeUrl = mapsRouteUrl(tec);
 
             return (
               <div
@@ -236,6 +239,17 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                       {tec.telefono}
                     </a>
                   )}
+                  {routeUrl && (
+                    <a
+                      href={routeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: "11px", color: "#60a5fa", textDecoration: "none", fontWeight: 700 }}
+                    >
+                      Strada Google Maps
+                    </a>
+                  )}
                 </div>
 
                 {tec.indirizzo_corrente && (
@@ -246,10 +260,17 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
 
                 {onAssign && (
                   <button
-                    onClick={(e) => {
+                    disabled={assigningId === tec.tecnico_id}
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      onAssign(tec.tecnico_id);
-                      notify.success(`${tec.nome} assegnato al ticket`);
+                      try {
+                        setAssigningId(tec.tecnico_id);
+                        await onAssign(tec.tecnico_id);
+                      } catch {
+                        notify.error("Assegnazione non completata");
+                      } finally {
+                        setAssigningId(null);
+                      }
                     }}
                     style={{
                       marginTop: "8px",
@@ -259,12 +280,13 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                       border: `1px solid ${rankColor}55`,
                       color: rankColor,
                       borderRadius: "6px",
-                      cursor: "pointer",
+                      cursor: assigningId === tec.tecnico_id ? "wait" : "pointer",
                       fontSize: "11px",
                       fontWeight: 700,
+                      opacity: assigningId === tec.tecnico_id ? 0.7 : 1,
                     }}
                   >
-                    Assegna questo tecnico
+                    {assigningId === tec.tecnico_id ? "Assegnazione..." : "Assegna questo tecnico"}
                   </button>
                 )}
               </div>

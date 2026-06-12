@@ -6,17 +6,18 @@ Usa Nominatim (OSM) per il geocoding con cache in-memory.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from math import atan2, cos, radians, sin, sqrt
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel as PydanticModel
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.logger_db import db_error, db_info
-from backend.core.security import get_current_tenant_id
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.db.modelli import Asset, Impianto, Sito, Tecnico, Ticket, TecnicoAssenza
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,10 @@ router = APIRouter()
 
 # ── Cache geocoding in-memory (indirizzo → (lat, lon) oppure None) ────────────
 _geo_cache: dict[str, tuple[float, float] | None] = {}
+
+
+class EmergencyAssignRequest(PydanticModel):
+    tecnico_id: int
 
 
 async def _geocode(address: str) -> tuple[float, float] | None:
@@ -278,4 +283,79 @@ async def nearest_technicians(
         },
         "tecnici_consigliati": tutti_ordinati[:3],
         "tutti_tecnici": tutti_ordinati,
+    }
+
+
+@router.post("/emergency/assign/{ticket_id}")
+def assign_emergency_ticket(
+    ticket_id: int,
+    data: EmergencyAssignRequest,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    payload: dict = Depends(require_roles("responsabile")),
+):
+    """
+    Dispatch rapido da Centro di Controllo: assegna un BD/emergenza a un tecnico.
+
+    Il mobile non usa Web Push: rileva il nuovo ticket assegnato con polling e
+    avvia allarme sonoro/visivo lato browser.
+    """
+    ticket = (
+        db.query(Ticket)
+        .filter(
+            Ticket.id == ticket_id,
+            Ticket.tenant_id == tenant_id,
+            Ticket.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    if ticket.stato in ("Chiuso", "Eliminato"):
+        raise HTTPException(status_code=400, detail="Ticket gia chiuso o eliminato")
+    if (ticket.tipo or "").upper() != "BD" and (ticket.priorita or "").lower() != "emergenza":
+        raise HTTPException(status_code=400, detail="Dispatch rapido consentito solo per BD o emergenze")
+
+    tecnico = (
+        db.query(Tecnico)
+        .filter(Tecnico.id == data.tecnico_id, Tecnico.tenant_id == tenant_id)
+        .first()
+    )
+    if not tecnico:
+        raise HTTPException(status_code=404, detail="Tecnico non trovato")
+    if not _tecnico_is_available(tecnico, db, tenant_id):
+        raise HTTPException(status_code=400, detail="Tecnico non disponibile oggi")
+
+    now = datetime.now(timezone.utc)
+    ticket.tecnico_id = tecnico.id
+    if ticket.stato == "Aperto":
+        ticket.stato = "Pianificato"
+    if ticket.planned_start is None:
+        ticket.planned_start = now
+    if ticket.planned_finish is None:
+        hours = float(ticket.durata_stimata_ore or 1)
+        ticket.planned_finish = now + timedelta(hours=hours)
+    ticket.is_manual_plan = True
+    ticket.updated_at = now
+
+    db.commit()
+    db.refresh(ticket)
+
+    username = payload.get("sub") or payload.get("username") or "sistema"
+    nome_tecnico = f"{tecnico.nome or ''} {tecnico.cognome or ''}".strip() or f"Tecnico #{tecnico.id}"
+    db_info(
+        "EMERGENCY",
+        f"Dispatch ticket {ticket_id} a {nome_tecnico} da {username}",
+        {"ticket_id": ticket_id, "tecnico_id": tecnico.id, "stato": ticket.stato},
+        tenant_id=tenant_id,
+    )
+
+    return {
+        "ticket_id": ticket.id,
+        "tecnico_id": tecnico.id,
+        "tecnico_nome": nome_tecnico,
+        "stato": ticket.stato,
+        "planned_start": ticket.planned_start.isoformat() if ticket.planned_start else None,
+        "planned_finish": ticket.planned_finish.isoformat() if ticket.planned_finish else None,
+        "notifica_mobile": "polling_bd_emergenza",
     }

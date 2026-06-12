@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from backend.api.routes.dashboard import _asset_stato_key
@@ -50,6 +50,7 @@ async def control_center_overview(
       "siti": [{sito_id, nome, citta, indirizzo, lat, lon, posizione_fonte,
                 n_impianti, n_asset, asset_stati, ticket, status}],
       "impianti": [{impianto_id, nome, sito_id, lat, lon, n_asset, asset_guasti}],
+      "bd_tickets": [{ticket_id, titolo, priorita, stato, tipo, sito_id, lat, lon, ...}],
       "summary": {n_siti, siti_critici, assets, asset_stati, ticket_aperti,
                   ticket_in_corso, ticket_pianificati, bd_attivi,
                   tecnici, tecnici_disponibili}
@@ -180,6 +181,78 @@ async def control_center_overview(
         if imp.latitude is not None and imp.longitude is not None
     ]
 
+    # Breakdown ed emergenze attive per la console operativa. Include anche ticket
+    # senza coordinate: il pannello puo comunque aprire il dispatch tecnici.
+    alert_rows = (
+        db.query(Ticket, Asset, Impianto, Sito)
+        .outerjoin(Asset, Ticket.asset_id == Asset.id)
+        .outerjoin(Impianto, Asset.impianto_id == Impianto.id)
+        .outerjoin(Sito, Impianto.sito_id == Sito.id)
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.deleted_at.is_(None),
+            Ticket.stato.in_(ACTIVE_TICKET_STATES),
+            or_(
+                func.upper(Ticket.tipo) == "BD",
+                func.lower(Ticket.priorita) == "emergenza",
+            ),
+        )
+        .order_by(Ticket.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    bd_tickets_payload = []
+    emergenze_attive_tot = 0
+    for ticket_obj, asset_obj, imp_obj, sito_obj in alert_rows:
+        is_emergenza = (ticket_obj.priorita or "").lower() == "emergenza"
+        if is_emergenza:
+            emergenze_attive_tot += 1
+
+        lat = lon = None
+        posizione_fonte = None
+        if asset_obj and asset_obj.latitude is not None and asset_obj.longitude is not None:
+            lat = asset_obj.latitude
+            lon = asset_obj.longitude
+            posizione_fonte = "asset"
+        elif imp_obj and imp_obj.latitude is not None and imp_obj.longitude is not None:
+            lat = imp_obj.latitude
+            lon = imp_obj.longitude
+            posizione_fonte = "impianto"
+        elif sito_obj:
+            indirizzo = _build_sito_address(sito_obj)
+            geo = await _geocode(indirizzo) if indirizzo else None
+            if geo:
+                lat, lon = geo
+                posizione_fonte = "geocoding"
+
+        bd_tickets_payload.append({
+            "ticket_id": ticket_obj.id,
+            "titolo": ticket_obj.titolo or "",
+            "descrizione": ticket_obj.descrizione or "",
+            "priorita": ticket_obj.priorita or "",
+            "stato": ticket_obj.stato or "",
+            "tipo": ticket_obj.tipo or "",
+            "asset_id": asset_obj.id if asset_obj else None,
+            "asset_nome": asset_obj.nome if asset_obj else "",
+            "impianto_id": imp_obj.id if imp_obj else None,
+            "impianto_nome": imp_obj.nome if imp_obj else "",
+            "sito_id": sito_obj.id if sito_obj else None,
+            "sito_nome": sito_obj.nome if sito_obj else "",
+            "indirizzo": _build_sito_address(sito_obj) if sito_obj else "",
+            "tecnico_id": ticket_obj.tecnico_id,
+            "lat": round(float(lat), 6) if lat is not None else None,
+            "lon": round(float(lon), 6) if lon is not None else None,
+            "posizione_fonte": posizione_fonte,
+            "created_at": ticket_obj.created_at.isoformat() if ticket_obj.created_at else None,
+        })
+
+    bd_tickets_payload.sort(
+        key=lambda t: (
+            0 if (t["priorita"] or "").lower() == "emergenza" else 1,
+            0 if t["stato"] == "Aperto" else 1,
+        )
+    )
+
     # ── Riepilogo globale (tenant-wide, come la dashboard) ────────────────────
     asset_tot_rows = (
         db.query(Asset.stato, func.count(Asset.id))
@@ -224,6 +297,7 @@ async def control_center_overview(
     return {
         "siti": siti_payload,
         "impianti": impianti_payload,
+        "bd_tickets": bd_tickets_payload,
         "summary": {
             "n_siti": len(siti),
             "siti_critici": siti_critici,
@@ -237,6 +311,7 @@ async def control_center_overview(
             "ticket_in_corso": ticket_tot.get("In corso", 0),
             "ticket_pianificati": ticket_tot.get("Pianificato", 0),
             "bd_attivi": bd_attivi_tot,
+            "emergenze_attive": emergenze_attive_tot,
             "tecnici": tecnici_total,
             "tecnici_disponibili": tecnici_disp,
         },

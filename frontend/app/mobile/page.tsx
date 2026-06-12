@@ -112,6 +112,13 @@ function tipoMeta(t: string): { Icon: typeof Wrench; label: string; color: strin
   }
 }
 
+function isDispatchAlertTicket(ticket: Pick<Ticket, "tipo" | "priorita" | "stato">): boolean {
+  return ticket.stato !== "Chiuso" && (
+    ticket.priorita?.toLowerCase() === "emergenza" ||
+    ticket.tipo?.toUpperCase() === "BD"
+  );
+}
+
 // ── Icona in squircle tinta ───────────────────────────────────────────────────
 function IconBadge({ Icon, color, size = 44, iconSize = 20 }: { Icon: typeof Wrench; color: string; size?: number; iconSize?: number }) {
   return (
@@ -829,8 +836,10 @@ export default function MobileHomePage() {
 
   // Traccia ID emergenze già viste — evita falsi allarmi al primo caricamento
   const seenEmergencyIds = useRef<Set<number>>(new Set());
+  const activeViewRef = useRef<Ticket | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { activeViewRef.current = activeView; }, [activeView]);
 
   useEffect(() => {
     if (!user?.userid || !mounted) return;
@@ -849,21 +858,21 @@ export default function MobileHomePage() {
       // Primo caricamento: segna tutte le emergenze come già viste (nessun allarme)
       if (isInitialLoad) {
         items.forEach(t => {
-          if (t.priorita?.toLowerCase() === "emergenza") {
+          if (isDispatchAlertTicket(t)) {
             seenEmergencyIds.current.add(t.id);
           }
         });
       }
       // Se c'è un ticket in corso e nessuna vista attiva, apri automaticamente
       const inCorso = items.find(t => t.stato === "In corso");
-      if (inCorso && !activeView) setActiveView(inCorso);
+      if (inCorso && !activeViewRef.current) setActiveView(inCorso);
     } catch {
       notify.error("Errore nel caricamento degli interventi.", "MOBILE");
     }
     setLoading(false);
-  }, [tecnicoId, mounted]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tecnicoId, mounted]);
 
-  useEffect(() => { loadTickets(true); }, [loadTickets]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadTickets(true); }, [loadTickets]);
 
   // ── Polling 30s per nuove emergenze assegnate ─────────────────────────────
   useEffect(() => {
@@ -873,7 +882,7 @@ export default function MobileHomePage() {
         const d = await apiGet<{ items?: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
         const items: Ticket[] = d.items ?? [];
         items.forEach(t => {
-          if (t.priorita?.toLowerCase() === "emergenza" && !seenEmergencyIds.current.has(t.id)) {
+          if (isDispatchAlertTicket(t) && !seenEmergencyIds.current.has(t.id)) {
             seenEmergencyIds.current.add(t.id);
             triggerEmergencyAlert(t.titolo);
           }
@@ -883,7 +892,7 @@ export default function MobileHomePage() {
     };
     const id = setInterval(poll, 30_000);
     return () => clearInterval(id);
-  }, [tecnicoId, mounted]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tecnicoId, mounted]);
 
   const updateStatus = async (tid: number, newStato: string) => {
     try {
@@ -1563,7 +1572,7 @@ export default function MobileHomePage() {
   if (homeView === "piano_odierno") return renderPianoOdierno();
 
   // ── Home ─────────────────────────────────────────────────────────────────
-  const emergenze = tickets.filter(t => t.priorita?.toLowerCase() === "emergenza" && t.stato !== "Chiuso");
+  const emergenze = tickets.filter(isDispatchAlertTicket);
   const inCorsoList = tickets.filter(t => t.stato === "In corso");
 
   return (
@@ -1631,7 +1640,7 @@ export default function MobileHomePage() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 11, color: C.red, textTransform: "uppercase", letterSpacing: "0.1em", animation: "mBreath 1.4s ease-in-out infinite" }}>
-              Emergenza assegnata
+              BD / emergenza assegnata
             </div>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.text, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {t.titolo}
