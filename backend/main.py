@@ -169,7 +169,17 @@ def _run_alembic_upgrade() -> None:
     _ensure_columns()
 
 
-def _check_database_connection() -> None:
+def _is_database_auth_block(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return (
+        "ecircuitbreaker" in msg
+        or "authentication" in msg
+        or "password authentication failed" in msg
+        or "tenant or user not found" in msg
+    )
+
+
+def _check_database_connection() -> bool:
     """Verifica la raggiungibilità del DB allo startup con retry a backoff esponenziale.
 
     Un fail-fast immediato è controproducente su Render: se il DB rifiuta l'auth
@@ -193,15 +203,10 @@ def _check_database_connection() -> None:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             logger.info("Database raggiungibile (%s)", DATABASE_URL.split("://", 1)[0])
-            return
+            return True
         except Exception as exc:
             last_exc = exc
-            msg = str(exc).lower()
-            is_auth_failure = (
-                "ecircuitbreaker" in msg
-                or "authentication" in msg
-                or "tenant or user not found" in msg
-            )
+            is_auth_failure = _is_database_auth_block(exc)
             if is_auth_failure:
                 logger.error(
                     "Autenticazione DB rifiutata dal pooler/server (tentativo %d/%d). "
@@ -211,6 +216,11 @@ def _check_database_connection() -> None:
                     "Errore: %s",
                     attempt + 1, len(backoffs) + 1, exc,
                 )
+                logger.error(
+                    "Startup in modalita degradata: interrompo i retry DB per evitare "
+                    "crash-loop Render e ulteriori blocchi ECIRCUITBREAKER su Supabase."
+                )
+                return False
             else:
                 logger.warning(
                     "DB non raggiungibile (tentativo %d/%d): %s",
@@ -766,19 +776,23 @@ def _ensure_columns() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import traceback
+    db_ready = False
     print("🚀 APP LIFESPAN STARTING...")
     try:
         setup_logging()
         print("✅ logging configured")
         init_backend()
         print("✅ backend initialized")
-        _check_database_connection()
+        db_ready = _check_database_connection()
         print("✅ database connection checked")
-        _run_alembic_upgrade()  
+        if db_ready:
+            _run_alembic_upgrade()
         print("✅ migrations checked")
-        init_db()               
+        if db_ready:
+            init_db()
         print("✅ main db initialized")
-        _ensure_columns()       
+        if db_ready:
+            _ensure_columns()
         print("✅ ensure_columns (post-init) done")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
@@ -786,13 +800,15 @@ async def lifespan(app: FastAPI):
         raise e
 
     # Avvio tasks in background coerente con i moduli attivi.
-    background_tasks: list[asyncio.Task] = [
-        asyncio.create_task(run_retention_job()),
-    ]
-    if is_module_enabled("email_to_ticket"):
+    background_tasks: list[asyncio.Task] = []
+    if db_ready:
+        background_tasks.append(asyncio.create_task(run_retention_job()))
+    if db_ready and is_module_enabled("email_to_ticket"):
         background_tasks.append(asyncio.create_task(email_poller_task()))
-    if is_module_enabled("maintenance_plans") and is_module_enabled("tickets"):
+    if db_ready and is_module_enabled("maintenance_plans") and is_module_enabled("tickets"):
         background_tasks.append(asyncio.create_task(run_auto_ticket_job()))
+    if not db_ready:
+        print("background tasks DB skipped in degraded startup")
     print(f"✅ background tasks started ({len(background_tasks)})")
 
     yield
