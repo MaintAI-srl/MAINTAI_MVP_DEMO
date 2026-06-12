@@ -7,7 +7,7 @@ class TenantCreate(BaseModel):
     nome: str = Field(..., min_length=1, description="Nome del cliente/azienda")
     slug: str = Field(..., min_length=2, pattern=r"^[a-z0-9\-]+$", description="Identificatore univoco (solo minuscole, numeri, trattini)")
     admin_username: str = Field(..., min_length=3, description="Username admin per questo tenant")
-    admin_password: str = Field(..., min_length=8, description="Password admin (min 8 caratteri)")
+    admin_password: str = Field(..., min_length=12, description="Password admin (min 12 caratteri, policy centralizzata in core/security.py)")
 
 
 class TenantUpdate(BaseModel):

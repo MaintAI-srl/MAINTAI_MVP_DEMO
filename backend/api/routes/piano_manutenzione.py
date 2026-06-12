@@ -34,6 +34,7 @@ from sqlalchemy import func
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, check_tenant_ownership, require_roles
 from backend.core.logger_db import db_info, db_error
+from backend.core.file_validation import validate_upload
 from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione, Asset, Manuale, piano_asset_association
 from backend.services.condition_maintenance_service import (
     METRIC_RUNNING_HOURS,
@@ -758,6 +759,12 @@ async def import_pdf_to_piano(
             detail=f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB consentiti.",
         )
 
+    # Validazione magic bytes: deve essere un vero PDF
+    try:
+        validate_upload(content, file.filename or "upload.pdf", {"pdf"})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"File PDF non valido: {exc}")
+
     result = smart_read_pdf(content)
     text = result.get("text", "")
 
@@ -830,6 +837,18 @@ async def import_excel_to_piano(
         )
 
     filename = (file.filename or "").lower()
+
+    # Validazione magic bytes per xlsx (famiglia ZIP); csv è testuale e non sniffabile
+    if filename.endswith(".xlsx"):
+        try:
+            validate_upload(content, file.filename or "upload.xlsx", {"xlsx"})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"File Excel non valido: {exc}")
+    elif filename.endswith(".csv"):
+        try:
+            validate_upload(content, file.filename or "upload.csv", {"csv"})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"File CSV non valido: {exc}")
 
     rows = []
     if filename.endswith(".csv"):
