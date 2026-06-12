@@ -124,7 +124,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (isTecnico && (pathname === "/dashboard" || pathname === "/")) {
+    if (isTecnico && pathname === "/dashboard") {
       router.push("/mobile");
     }
   }, [isTecnico, pathname, router]);

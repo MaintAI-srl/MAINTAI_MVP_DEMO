@@ -139,8 +139,7 @@ export default function LoginPage() {
         auth.login(data.username, data.ruolo, data.userid, data.tenant_id, data.tenant_nome);
         setBackendOk(true);
 
-        if (data.ruolo === "tecnico") router.push("/mobile");
-        else router.push("/dashboard");
+        router.push("/");
         return;
 
       } catch (err: unknown) {
