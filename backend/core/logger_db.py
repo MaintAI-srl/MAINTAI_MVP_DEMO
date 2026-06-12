@@ -1,9 +1,55 @@
 import json
+import re
 
 from sqlalchemy.orm import Session
 
 from backend.core.database import SessionLocal
 from backend.db.modelli import SystemLog
+
+# ── Redaction centralizzata (privacy/security, ISO 27002 A.8.15) ─────────────
+# Chiavi il cui valore non deve MAI finire in SystemLog.extra_info.
+_SENSITIVE_KEYS = (
+    "password", "passwd", "pwd", "token", "access_token", "refresh_token",
+    "authorization", "cookie", "secret", "api_key", "apikey", "raw", "prompt",
+    "jwt", "credential", "session",
+)
+_REDACTED = "[REDACTED]"
+
+# Pattern di segreti dentro stringhe libere (messaggi, snippet raw).
+_SECRET_PATTERNS = [
+    re.compile(r"sk-[A-Za-z0-9_-]{8,}"),                      # OpenAI API key
+    re.compile(r"Bearer\s+[A-Za-z0-9._-]{16,}", re.I),         # header Authorization
+    re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9._-]{8,}"),  # JWT
+    re.compile(r"(postgres(?:ql)?|mysql|imaps?)://[^\s@]+:[^\s@]+@", re.I),  # URL con credenziali
+]
+
+# Le stringhe extra_info molto lunghe (es. risposte raw AI) vengono troncate.
+_MAX_EXTRA_LEN = 4000
+
+
+def _redact_text(value: str) -> str:
+    for pattern in _SECRET_PATTERNS:
+        value = pattern.sub(_REDACTED, value)
+    return value
+
+
+def _is_sensitive_key(key) -> bool:
+    k = str(key).lower()
+    return any(s in k for s in _SENSITIVE_KEYS)
+
+
+def _redact(value):
+    """Redaction ricorsiva di dict/list; le stringhe passano dai pattern di segreti."""
+    if isinstance(value, dict):
+        return {
+            k: (_REDACTED if _is_sensitive_key(k) else _redact(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_redact(v) for v in value]
+    if isinstance(value, str):
+        return _redact_text(value)
+    return value
 
 
 def _normalize_args(args: tuple, extra=None, tenant_id=None):
@@ -31,12 +77,17 @@ def _normalize_args(args: tuple, extra=None, tenant_id=None):
 def _serialize_extra(extra):
     if extra is None:
         return None
+    extra = _redact(extra)
     if isinstance(extra, str):
-        return extra
-    try:
-        return json.dumps(extra, ensure_ascii=False, default=str)
-    except TypeError:
-        return str(extra)
+        serialized = extra
+    else:
+        try:
+            serialized = json.dumps(extra, ensure_ascii=False, default=str)
+        except TypeError:
+            serialized = str(extra)
+    if len(serialized) > _MAX_EXTRA_LEN:
+        serialized = serialized[:_MAX_EXTRA_LEN] + "…[TRUNCATED]"
+    return serialized
 
 
 def log_to_db(level: str, *args, extra: dict = None, tenant_id: int = None):
@@ -52,7 +103,7 @@ def log_to_db(level: str, *args, extra: dict = None, tenant_id: int = None):
         new_log = SystemLog(
             level=str(level).upper(),
             module=module,
-            message=message,
+            message=_redact_text(message),
             extra_info=_serialize_extra(extra),
             tenant_id=tenant_id,
         )

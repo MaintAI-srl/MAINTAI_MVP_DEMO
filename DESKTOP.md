@@ -186,3 +186,23 @@ Installa `@tauri-apps/cli`, `cross-env` e tutte le dipendenze esistenti.
 | CORS error in desktop build | Verifica che `http://tauri.localhost` sia in `_DEFAULT_ORIGINS` del backend |
 | Cookie JWT non funziona | WebView2 supporta cookie — verifica `SameSite` del cookie |
 | Render.com lento al primo avvio | Il backend cold start può impiegare 30–60s; BackendStatus lo indica |
+
+---
+
+## Sicurezza del client desktop
+
+- **Token JWT in localStorage (rischio accettato, documentato).** Il WebView Tauri non
+  riceve cookie HttpOnly in modo affidabile, quindi al login il backend restituisce
+  `access_token` nel body JSON **solo per i client desktop** (Origin Tauri o header
+  `X-Client: desktop`; per il web il token vive esclusivamente nel cookie HttpOnly).
+  Il client desktop lo conserva in `localStorage` (`maintai_jwt`): un eventuale XSS
+  dentro l'app desktop potrebbe leggerlo. Mitigazioni: CSP definita in
+  `tauri.conf.json` (niente `csp: null`), contenuto solo locale (`frontendDist`),
+  nessun plugin `shell`, token con scadenza 24h + blacklist JTI al logout.
+- **CSP**: definita in `src-tauri/tauri.conf.json` → `app.security.csp`. Se si
+  aggiungono endpoint/CDN esterni vanno aggiunti a `connect-src`/`img-src`.
+- **Capability**: `src-tauri/capabilities/default.json` espone solo `core:default`
+  e `updater:default`. Non reintrodurre `shell:default` senza una necessità reale.
+- **Chiave di firma updater**: la chiave privata Tauri NON deve mai essere committata
+  (generata a suo tempo fuori dal repo come `tauri_signing_key.txt`); conservarla in
+  un secret manager e proteggerla con password non vuota.

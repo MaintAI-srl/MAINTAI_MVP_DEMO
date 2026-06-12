@@ -89,7 +89,10 @@ export default function LoginPage() {
       credentials: "include",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        ...(isTauri() ? { "Origin": "http://tauri.localhost" } : {}),
+        // X-Client: desktop — chiede al backend il token nel body (i WebView Tauri
+        // non hanno cookie HttpOnly). L'header Origin manuale è ignorato dai browser
+        // ma il WebView Tauri invia comunque http://tauri.localhost come Origin reale.
+        ...(isTauri() ? { "Origin": "http://tauri.localhost", "X-Client": "desktop" } : {}),
       },
       body: formBody,
     };

@@ -117,17 +117,30 @@ _PRIVATE_ORIGIN_HINTS = ("localhost", "127.0.0.1", "192.168.", "10.", "172.16.",
 
 def _load_origins() -> list[str]:
     """Legge CORS_ORIGINS dal .env (comma-separated). Aggiunge sempre gli origin di
-    produzione; quelli di sviluppo solo fuori dalla produzione. In produzione avvisa
-    se CORS_ORIGINS contiene esplicitamente origin locali/privati."""
+    produzione; quelli di sviluppo solo fuori dalla produzione.
+
+    Fail-closed: il middleware usa `allow_credentials=True`, quindi un wildcard `*`
+    è sempre vietato (startup abort). In produzione anche gli origin locali/privati
+    in CORS_ORIGINS bloccano lo startup — fanno eccezione solo gli origin Tauri
+    (`tauri.localhost`) già presenti nell'allowlist di produzione."""
     raw = os.getenv("CORS_ORIGINS", "")
     origins = [o.strip() for o in raw.split(",") if o.strip()] if raw.strip() else []
 
+    if any(o == "*" or o.endswith("://*") for o in origins):
+        raise RuntimeError(
+            "CORS_ORIGINS contiene un wildcard '*': vietato con allow_credentials=True. "
+            "Specificare gli origin in modo esplicito."
+        )
+
     if IS_PRODUCTION:
-        bad = [o for o in origins if any(h in o for h in _PRIVATE_ORIGIN_HINTS)]
+        bad = [
+            o for o in origins
+            if o not in _PROD_ORIGINS and any(h in o for h in _PRIVATE_ORIGIN_HINTS)
+        ]
         if bad:
-            import logging
-            logging.getLogger(__name__).warning(
-                "CORS in produzione: rimuovere gli origin locali/privati da CORS_ORIGINS: %s", bad
+            raise RuntimeError(
+                f"CORS in produzione: origin locali/privati vietati in CORS_ORIGINS: {bad}. "
+                "Rimuoverli dalla variabile d'ambiente prima del deploy."
             )
 
     defaults = _PROD_ORIGINS if IS_PRODUCTION else (_PROD_ORIGINS + _DEV_ORIGINS)
@@ -805,7 +818,7 @@ app.add_middleware(
     allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Tenant-Id", "X-Requested-With", "Accept", "Origin"],
+    allow_headers=["Content-Type", "Authorization", "X-Tenant-Id", "X-Requested-With", "Accept", "Origin", "X-Client"],
 )
 
 from fastapi.responses import JSONResponse

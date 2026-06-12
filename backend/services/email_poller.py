@@ -13,6 +13,7 @@ from backend.core import storage
 import mimetypes
 
 from backend.services.ai.anonymization_service import anonymizer
+from backend.core.file_validation import validate_upload
 
 logger = logging.getLogger("email_poller")
 ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx', '.csv', '.txt'}
@@ -115,7 +116,19 @@ def parse_and_create_tickets(db: Session, config: EmailConfig):
                             dimensione,
                         )
                         continue
-                        
+
+                    # Validazione magic bytes + contenuto (non blocca la creazione del ticket)
+                    allowed_exts_plain = {e.lstrip(".") for e in ALLOWED_EXTENSIONS}
+                    try:
+                        validate_upload(payload, safe_filename, allowed_exts_plain)
+                    except ValueError as val_err:
+                        logger.warning(
+                            "Allegato email ignorato (validazione fallita): %s — %s",
+                            safe_filename,
+                            val_err,
+                        )
+                        continue
+
                     stored_filename = f"email_{new_ticket.id}_{uuid.uuid4().hex[:8]}_{safe_filename}"
                     url = storage.save_file(payload, stored_filename)
                         
