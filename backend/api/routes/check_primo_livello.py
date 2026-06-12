@@ -143,7 +143,8 @@ def rotate_qr_token(
         {"tenant_id": tenant_id, "new_token_prefix": check.public_token[:8]},
     )
     # Il prefisso del token resta solo nel log strutturato db_info; niente token nei log testuali.
-    logger.info("Codice QR check ruotato per asset %s", asset_id)
+    # int() esplicito: il path param è già int (FastAPI), serve solo a chiudere il taint CodeQL (log injection).
+    logger.info("Codice QR check ruotato per asset %s", int(asset_id))
     return {
         "public_token": check.public_token,
         "token_expires_at": check.token_expires_at.isoformat() if check.token_expires_at else None,
