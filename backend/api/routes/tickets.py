@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel as PydanticModel
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, get_current_user_payload
+from backend.core.security import get_current_tenant_id, get_current_user_payload, require_roles
 from backend.repositories.ticket_repository import ticket_repository, _ticket_to_dict
 from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.logging_config import get_logger
@@ -60,6 +60,31 @@ def _aggiorna_scadenza_piano(db: Session, ticket: Ticket):
         if latest:
             att.condition_last_done_hours = latest.value
     db.commit()
+
+
+# ── Matrice ruoli ticket (RBAC) ───────────────────────────────────────────────
+# tecnico:       aggiornamento esecuzione (In corso/Chiuso/pausa), allegati, firma,
+#                creazione ticket da campo. NON pianifica, NON assegna, NON elimina.
+# responsabile:  tutto il resto (bulk update, eliminazione, pianificazione, sync).
+# superadmin:    override completo (gestito da require_roles).
+_PLANNING_FIELDS = {"tecnico_id", "planned_start", "planned_finish", "is_manual_plan"}
+
+
+def _enforce_ticket_update_rbac(payload: dict, data: TicketUpdate) -> None:
+    """Blocca per i tecnici le operazioni riservate al responsabile su PATCH/PUT singolo."""
+    if payload.get("ruolo", "") != "tecnico":
+        return
+    if data.stato == "Eliminato":
+        raise HTTPException(
+            status_code=403,
+            detail="Operazione riservata al responsabile: eliminazione ticket.",
+        )
+    touched = _PLANNING_FIELDS & data.model_fields_set
+    if touched:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Operazione riservata al responsabile: modifica campi di pianificazione ({', '.join(sorted(touched))}).",
+        )
 
 
 def _validate_ticket_update(data: TicketUpdate, ticket: Ticket) -> None:
@@ -212,6 +237,7 @@ def get_ticket(ticket_id: int, db: Session = Depends(get_db), tenant_id: int = D
 def sync_ticket_hierarchy(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
 ):
     """Backfill: popola sito_name e impianto_name su tutti i ticket del tenant."""
     tickets = (
@@ -317,7 +343,12 @@ def create_ticket(
 
 
 @router.patch("/tickets/bulk-status")
-def bulk_update_status(data: BulkStatusUpdate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), payload: dict = Depends(get_current_user_payload)):
+def bulk_update_status(
+    data: BulkStatusUpdate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    payload: dict = Depends(require_roles("responsabile")),
+):
     if data.stato not in STATI_VALIDI:
         raise HTTPException(
             status_code=400,
@@ -390,6 +421,8 @@ def patch_ticket(
     payload: dict = Depends(get_current_user_payload),
 ):
     """PATCH parziale per singolo ticket (usato da Kanban e aggiornamenti veloci)."""
+    _enforce_ticket_update_rbac(payload, data)
+
     ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id, include_deleted=True)
     if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
@@ -431,6 +464,8 @@ def update_ticket(
     tenant_id: int = Depends(get_current_tenant_id),
     payload: dict = Depends(get_current_user_payload),
 ):
+    _enforce_ticket_update_rbac(payload, data)
+
     ticket_orm = ticket_repository.get_by_id(db, ticket_id, tenant_id, include_deleted=True)
     if not ticket_orm:
         raise AppError(status_code=404, message=f"Ticket {ticket_id} non trovato")
@@ -528,34 +563,50 @@ def export_tickets_csv(db: Session = Depends(get_db), tenant_id: int = Depends(g
 import os
 import uuid
 from fastapi import UploadFile, File, HTTPException
+from fastapi.responses import Response
 from backend.db.modelli import TicketAllegato
 from backend.core import storage
+from backend.core.file_validation import validate_upload, sniff_ext, safe_serving, sanitize_filename_header
+
+# Estensioni senza punto per validate_upload
+_ALLOWED_UPLOAD_EXTS_PLAIN = {
+    'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp',
+    'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
+    'mp4', 'mov', 'zip',
+}
+
 
 @router.post("/tickets/{ticket_id}/allegati")
-async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+async def upload_ticket_allegato(
+    ticket_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket non trovato")
 
-    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
-    if ext and ext not in ALLOWED_UPLOAD_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Tipo file non consentito: '{ext}'. Estensioni ammesse: {', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}",
-        )
-    unique_filename = f"{uuid.uuid4()}{ext}"
     content = await file.read()
     if len(content) > MAX_ALLEGATO_BYTES:
         raise HTTPException(
             status_code=413,
             detail=f"File troppo grande: massimo {MAX_ALLEGATO_BYTES // (1024*1024)} MB consentiti.",
         )
-    url = storage.save_file(content, unique_filename)
+
+    # Validazione completa: whitelist estensione + magic bytes + protezione HTML
+    try:
+        canonical_ext = validate_upload(content, file.filename, _ALLOWED_UPLOAD_EXTS_PLAIN)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    unique_filename = f"{uuid.uuid4()}.{canonical_ext}"
+    internal_path = storage.save_file(content, unique_filename)
 
     allegato = TicketAllegato(
         ticket_id=ticket_id,
         nome_file=file.filename or unique_filename,
-        percorso=url,
+        percorso=internal_path,
         tipo_mime=file.content_type,
         dimensione_bytes=len(content),
         tenant_id=tenant_id,
@@ -564,28 +615,89 @@ async def upload_ticket_allegato(ticket_id: int, file: UploadFile = File(...), d
     db.commit()
     db.refresh(allegato)
 
-    return {"id": allegato.id, "nome_file": allegato.nome_file, "url": allegato.percorso, "tipo_mime": allegato.tipo_mime}
+    download_url = f"/tickets/allegati/{allegato.id}/download"
+    return {
+        "id": allegato.id,
+        "nome_file": allegato.nome_file,
+        "url": download_url,
+        "tipo_mime": allegato.tipo_mime,
+    }
+
 
 @router.get("/tickets/{ticket_id}/allegati")
-def get_ticket_allegati(ticket_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+def get_ticket_allegati(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket non trovato")
     allegati = db.query(TicketAllegato).filter(
         TicketAllegato.ticket_id == ticket_id,
-        TicketAllegato.tenant_id == tenant_id
+        TicketAllegato.tenant_id == tenant_id,
     ).all()
     return [
-        {"id": a.id, "nome_file": a.nome_file, "url": a.percorso, "tipo_mime": a.tipo_mime,
-         "creato_il": a.creato_il.isoformat() if a.creato_il else None}
+        {
+            "id": a.id,
+            "nome_file": a.nome_file,
+            "url": f"/tickets/allegati/{a.id}/download",
+            "tipo_mime": a.tipo_mime,
+            "creato_il": a.creato_il.isoformat() if a.creato_il else None,
+        }
         for a in allegati
     ]
+
+
+@router.get("/tickets/allegati/{allegato_id}/download")
+def download_ticket_allegato(
+    allegato_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Scarica un allegato del ticket in modo autenticato e sicuro.
+    Filtra per tenant_id (404 se non appartiene al tenant).
+    Serve il file con Content-Type da whitelist (ignora quello del client),
+    X-Content-Type-Options: nosniff e Content-Disposition sicuro.
+    Compatibile con percorsi storici (URL Supabase pubblico, /uploads/...).
+    """
+    allegato = db.query(TicketAllegato).filter(
+        TicketAllegato.id == allegato_id,
+        TicketAllegato.tenant_id == tenant_id,
+    ).first()
+    if not allegato:
+        raise HTTPException(status_code=404, detail="Allegato non trovato")
+
+    try:
+        content = storage.read_file(allegato.percorso)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File non trovato nello storage")
+    except ValueError as exc:
+        logger.error("Path traversal tentativo su allegato %d: %s", allegato_id, exc)
+        raise HTTPException(status_code=400, detail="Percorso file non valido")
+
+    mime_type, disposition = safe_serving(allegato.nome_file)
+    safe_name = sanitize_filename_header(allegato.nome_file)
+    headers = {
+        "Content-Disposition": f'{disposition}; filename="{safe_name}"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+    }
+    return Response(content=content, media_type=mime_type, headers=headers)
+
 
 import base64
 import binascii
 
+
 @router.post("/tickets/{ticket_id}/firma")
-async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):
+async def upload_ticket_firma(
+    ticket_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket non trovato")
@@ -610,10 +722,52 @@ async def upload_ticket_firma(ticket_id: int, data: dict, db: Session = Depends(
             detail=f"Firma troppo grande: massimo {MAX_FIRMA_BYTES // (1024*1024)} MB consentiti.",
         )
 
-    url = storage.save_file(content, filename)
+    # Verifica magic bytes: deve essere davvero un PNG
+    if sniff_ext(content) != "png":
+        raise HTTPException(
+            status_code=400,
+            detail="Il contenuto della firma non è un'immagine PNG valida.",
+        )
 
-    ticket.firma_percorso = url
+    internal_path = storage.save_file(content, filename)
+    ticket.firma_percorso = internal_path
     db.commit()
-    return {"url": ticket.firma_percorso}
+    return {"url": f"/tickets/{ticket_id}/firma"}
+
+
+@router.get("/tickets/{ticket_id}/firma")
+def get_ticket_firma(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Restituisce la firma del ticket in modo autenticato e sicuro.
+    Filtra per tenant_id (404 se non appartiene al tenant).
+    Serve inline come image/png con nosniff.
+    """
+    ticket = db.query(Ticket).filter(
+        Ticket.id == ticket_id,
+        Ticket.tenant_id == tenant_id,
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    if not ticket.firma_percorso:
+        raise HTTPException(status_code=404, detail="Firma non presente per questo ticket")
+
+    try:
+        content = storage.read_file(ticket.firma_percorso)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File firma non trovato nello storage")
+    except ValueError as exc:
+        logger.error("Path traversal tentativo su firma ticket %d: %s", ticket_id, exc)
+        raise HTTPException(status_code=400, detail="Percorso firma non valido")
+
+    headers = {
+        "Content-Disposition": 'inline; filename="firma.png"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+    }
+    return Response(content=content, media_type="image/png", headers=headers)
 
 

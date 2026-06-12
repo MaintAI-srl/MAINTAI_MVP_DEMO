@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.security import require_superadmin
+from backend.core.file_validation import validate_upload
 from backend.db.modelli import Asset, Impianto, Sito
 
 logger = logging.getLogger(__name__)
@@ -388,6 +389,13 @@ async def preview_import(
     content = await file.read()
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(413, f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB.")
+
+    # Validazione magic bytes: xlsx è famiglia ZIP (PK\x03\x04)
+    try:
+        validate_upload(content, file.filename, {"xlsx"})
+    except ValueError as exc:
+        raise HTTPException(400, f"File Excel non valido: {exc}")
+
     try:
         wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
     except Exception as e:
@@ -490,6 +498,13 @@ async def execute_import(
     content = await file.read()
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(413, f"File troppo grande: massimo {MAX_IMPORT_BYTES // (1024 * 1024)} MB.")
+
+    # Validazione magic bytes: xlsx è famiglia ZIP (PK\x03\x04)
+    try:
+        validate_upload(content, file.filename, {"xlsx"})
+    except ValueError as exc:
+        raise HTTPException(400, f"File Excel non valido: {exc}")
+
     try:
         wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
     except Exception as e:

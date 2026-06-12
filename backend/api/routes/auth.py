@@ -9,13 +9,32 @@ from backend.core.security import (
     verify_password, get_password_hash, create_access_token,
     ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user_payload,
     COOKIE_NAME, COOKIE_MAX_AGE, COOKIE_SECURE, COOKIE_SAMESITE,
-    STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE,
+    STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE, IS_PRODUCTION,
 )
 from backend.core.rate_limiter import limiter, _real_client_ip
 from backend.core.logger_db import db_info, db_warn, db_error
 from backend.services.security_monitor import record_failed_login, record_successful_login
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Origin del WebView Tauri (desktop). Il client web usa SOLO il cookie HttpOnly;
+# il token nel body JSON serve unicamente ai client nativi, che non hanno cookie.
+_TAURI_ORIGINS = {"http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"}
+
+
+def _is_desktop_client(request: Request) -> bool:
+    """True se il login arriva dal client desktop Tauri (o lo dichiara via header).
+
+    Il token va nel body SOLO per questi client: per il web resta esclusivamente
+    nel cookie HttpOnly (il token in body finirebbe esposto a XSS/localStorage).
+    Fuori produzione il token è sempre incluso (sviluppo desktop su localhost).
+    """
+    origin = request.headers.get("origin", "")
+    if origin in _TAURI_ORIGINS:
+        return True
+    if request.headers.get("x-client", "").strip().lower() == "desktop":
+        return True
+    return not IS_PRODUCTION
 
 @router.post("/login")
 @limiter.limit("5/minute")
@@ -73,16 +92,20 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
     record_successful_login(user.username)
     db_info("AUTH", f"Login effettuato con successo: {user.username}", {"ruolo": user.ruolo, "tenant_id": user.tenant_id, "ip": client_ip})
 
-    return {
+    body = {
         "message": "Autenticazione completata. Credenziali emesse nel cookie.",
         "token_type": "bearer",
-        "access_token": access_token,   # incluso per client nativi (Tauri) che non usano cookie
         "ruolo": user.ruolo,
         "username": user.username,
         "userid": user.id,
         "tenant_id": user.tenant_id,
         "tenant_nome": user.tenant.nome if user.tenant else None,
     }
+    if _is_desktop_client(request):
+        # Solo client nativi (Tauri): niente cookie HttpOnly nel WebView,
+        # il token viene conservato dal client (rischio XSS documentato in DESKTOP.md).
+        body["access_token"] = access_token
+    return body
 
 
 @router.get("/me")
