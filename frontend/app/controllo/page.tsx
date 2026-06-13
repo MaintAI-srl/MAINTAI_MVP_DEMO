@@ -47,6 +47,19 @@ type NearestTechniciansResponse = {
   tutti_tecnici: ControlCenterRouteTecnico[];
 };
 
+type RoadRouteInfo = {
+  tecnico_id: number;
+  distanza_km: number;
+  durata_min: number;
+};
+
+type OsrmRouteResponse = {
+  routes?: Array<{
+    distance?: number;
+    duration?: number;
+  }>;
+};
+
 function KpiTile({ label, value, accent, sub }: { label: string; value: number | string; accent: string; sub?: string }) {
   return (
     <div style={{
@@ -91,13 +104,9 @@ function formatTicketTime(value: string | null) {
   return date.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-function mapsRouteUrl(tec: ControlCenterRouteTecnico, ticket: ControlCenterBDTicket): string | null {
-  const origin = tec.lat !== null && tec.lon !== null ? `${tec.lat},${tec.lon}` : (tec.indirizzo_corrente || tec.nome || "");
-  const destination = ticket.lat !== null && ticket.lon !== null
-    ? `${ticket.lat},${ticket.lon}`
-    : (ticket.indirizzo || ticket.sito_nome || ticket.asset_nome || ticket.titolo || "");
-  if (!origin || !destination) return null;
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+function formatRoadRoute(route?: RoadRouteInfo) {
+  if (!route) return "Percorso stradale sulla mappa";
+  return `${route.distanza_km.toFixed(1)} km strada - ${Math.max(1, Math.round(route.durata_min))} min`;
 }
 
 function ticketToBDTicket(ticket: TicketListItem): ControlCenterBDTicket | null {
@@ -137,6 +146,8 @@ export default function ControlCenterPage() {
   const [nearestTecnici, setNearestTecnici] = useState<ControlCenterRouteTecnico[]>([]);
   const [nearestLoading, setNearestLoading] = useState(false);
   const [nearestError, setNearestError] = useState<string | null>(null);
+  const [roadRoutes, setRoadRoutes] = useState<Record<number, RoadRouteInfo>>({});
+  const [roadRoutesLoading, setRoadRoutesLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const load = useCallback(async (silent = false) => {
@@ -211,6 +222,8 @@ export default function ControlCenterPage() {
       setNearestTecnici([]);
       setNearestError(null);
       setNearestLoading(false);
+      setRoadRoutes({});
+      setRoadRoutesLoading(false);
       return;
     }
     let cancelled = false;
@@ -231,6 +244,55 @@ export default function ControlCenterPage() {
       });
     return () => { cancelled = true; };
   }, [selectedBD]);
+
+  useEffect(() => {
+    const selectedHasCoords = selectedBD?.lat !== null && selectedBD?.lon !== null;
+    const tecniciMappabili = nearestTecnici
+      .slice(0, 3)
+      .filter((tec) => tec.lat !== null && tec.lon !== null);
+
+    if (!selectedBD || !selectedHasCoords || tecniciMappabili.length === 0) {
+      setRoadRoutes({});
+      setRoadRoutesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setRoadRoutesLoading(true);
+
+    Promise.all(
+      tecniciMappabili.map(async (tec) => {
+        const response = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/${tec.lon},${tec.lat};${selectedBD.lon},${selectedBD.lat}?overview=false`
+        );
+        if (!response.ok) return null;
+        const json = (await response.json()) as OsrmRouteResponse;
+        const route = json.routes?.[0];
+        if (route?.distance == null || route.duration == null) return null;
+        return {
+          tecnico_id: tec.tecnico_id,
+          distanza_km: route.distance / 1000,
+          durata_min: route.duration / 60,
+        };
+      })
+    )
+      .then((routes) => {
+        if (cancelled) return;
+        const next: Record<number, RoadRouteInfo> = {};
+        routes.forEach((route) => {
+          if (route) next[route.tecnico_id] = route;
+        });
+        setRoadRoutes(next);
+      })
+      .catch(() => {
+        if (!cancelled) setRoadRoutes({});
+      })
+      .finally(() => {
+        if (!cancelled) setRoadRoutesLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [nearestTecnici, selectedBD]);
 
   const handleDispatch = useCallback(async (tecnicoId: number) => {
     if (!selectedBD) return;
@@ -551,22 +613,15 @@ export default function ControlCenterPage() {
                           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{selectedBD.indirizzo}</div>
                         )}
                       </div>
-                      {(selectedBD.lat !== null && selectedBD.lon !== null || selectedBD.indirizzo || selectedBD.sito_nome || selectedBD.asset_nome) && (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                            selectedBD.lat !== null && selectedBD.lon !== null
-                              ? `${selectedBD.lat},${selectedBD.lon}`
-                              : (selectedBD.indirizzo || selectedBD.sito_nome || selectedBD.asset_nome)
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
+                      {(selectedBD.lat !== null && selectedBD.lon !== null) && (
+                        <span
                           style={{
                             fontSize: 11, color: "#60a5fa", border: "1px solid rgba(96,165,250,.35)",
-                            borderRadius: 8, padding: "5px 9px", textDecoration: "none", whiteSpace: "nowrap",
+                            borderRadius: 8, padding: "5px 9px", whiteSpace: "nowrap",
                           }}
                         >
-                          Apri su Maps
-                        </a>
+                          Posizione su mappa
+                        </span>
                       )}
                     </div>
                     <div style={{ marginTop: 12 }}>
@@ -594,9 +649,9 @@ export default function ControlCenterPage() {
                       )}
                       <div style={{ display: "grid", gap: 9 }}>
                         {nearestTecnici.slice(0, 3).map((tec, idx) => {
-                          const routeUrl = mapsRouteUrl(tec, selectedBD);
                           const color = ["#22c55e", "#fbbf24", "#f97316"][idx] ?? "#94a3b8";
                           const hasRoadRoute = tec.lat !== null && tec.lon !== null && selectedBD.lat !== null && selectedBD.lon !== null;
+                          const roadRoute = roadRoutes[tec.tecnico_id];
                           return (
                             <div
                               key={tec.tecnico_id}
@@ -613,8 +668,9 @@ export default function ControlCenterPage() {
                                   <div style={{ fontSize: 12, color, fontWeight: 900 }}>#{idx + 1} piu vicino</div>
                                   <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }}>{tec.nome}</div>
                                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                                    {tec.distanza_km !== null ? `${tec.distanza_km} km stimati` : "distanza N/D"}
-                                    {hasRoadRoute ? " - percorso stradale sulla mappa" : " - apri Maps per percorso"}
+                                    {hasRoadRoute
+                                      ? (roadRoutesLoading && !roadRoute ? "Calcolo percorso MaintAI..." : formatRoadRoute(roadRoute))
+                                      : "Coordinate mancanti: percorso interno non disponibile"}
                                   </div>
                                   {tec.indirizzo_corrente && (
                                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -623,24 +679,20 @@ export default function ControlCenterPage() {
                                   )}
                                 </div>
                                 <div style={{ display: "flex", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                  {routeUrl && (
-                                    <a
-                                      href={routeUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
+                                  {hasRoadRoute && (
+                                    <span
                                       style={{
                                         fontSize: 11,
                                         color: "#60a5fa",
                                         border: "1px solid rgba(96,165,250,.35)",
                                         borderRadius: 8,
                                         padding: "6px 9px",
-                                        textDecoration: "none",
                                         fontWeight: 800,
                                         whiteSpace: "nowrap",
                                       }}
                                     >
-                                      Strada Maps
-                                    </a>
+                                      Percorso MaintAI
+                                    </span>
                                   )}
                                   <button
                                     onClick={() => handleDispatch(tec.tecnico_id)}
