@@ -793,8 +793,15 @@ async def lifespan(app: FastAPI):
         if db_ready:
             init_db()
         print("✅ main db initialized")
-        if db_ready:
+        # _ensure_columns è idempotente, crea la propria connessione e cattura gli
+        # errori per-statement: eseguilo SEMPRE (best-effort), anche se il check di
+        # boot ha fallito per un blip transitorio del pooler. Altrimenti lo schema
+        # resta disallineato dal modello ORM (colonne nuove mancanti) e ogni query
+        # sulla tabella interessata fallisce con 500 finché non si rilancia il deploy.
+        try:
             _ensure_columns()
+        except Exception as _ec:
+            print(f"⚠️ ensure_columns best-effort fallito: {_ec}")
         print("✅ ensure_columns (post-init) done")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
