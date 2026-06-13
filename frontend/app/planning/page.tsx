@@ -27,7 +27,6 @@ import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import WODetailDrawer from "./components/WODetailDrawer";
 import DeferredWOPanel from "./components/DeferredWOPanel";
 import ReplanModal from "./components/ReplanModal";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import type {
   TicketData,
@@ -891,19 +890,44 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
   const blocked = isPast || !tecnicoId || !!conflict || fineOltreGiornata || tecnicoSupportoId === tecnicoId;
   const s = tipoStyle(ticket.tipo);
 
+  // Chiusura con ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <Sheet open={true} onOpenChange={(o) => (!o && onClose())}>
-      <SheetContent
-        side="right"
-        className="p-0"
-        style={{ background: "var(--surface-2)", color: "var(--text-primary)", display: "flex", flexDirection: "column", minWidth: 420, borderLeft: "1px solid var(--border-strong)" }}
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9998,
+        background: "rgba(2,6,23,0.55)", backdropFilter: "blur(3px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        style={{
+          position: "relative",
+          width: "min(480px, 96vw)", maxHeight: "90vh",
+          background: "var(--surface-2)", color: "var(--text-primary)",
+          border: "1px solid var(--border-strong)", borderRadius: 14,
+          boxShadow: "0 28px 70px rgba(2,6,23,0.45)",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+          zIndex: 9999,
+        }}
       >
+        <button onClick={onClose} aria-label="Chiudi" style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 8, color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, zIndex: 2 }}>×</button>
         <div style={{ padding: "24px 28px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--cobalt)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Pianifica intervento</div>
-          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 18, fontWeight: 800 }}>
+          <div style={{ color: "var(--text-primary)", fontSize: 18, fontWeight: 800, paddingRight: 28 }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: s.text, background: `${s.border}1f`, border: `1px solid ${s.border}66`, padding: "2px 7px", borderRadius: 5, marginRight: 8 }}>{ticket.tipo}</span>
             #{ticket.id} — {ticket.titolo}
-          </SheetTitle>
+          </div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Durata stimata: {durata}h · {ticket.asset_name ?? "—"}</div>
         </div>
 
@@ -993,8 +1017,8 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
             ✓ Pianifica ({oraInizio} – {oraFineLabel})
           </button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   );
 }
 
