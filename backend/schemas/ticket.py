@@ -16,6 +16,7 @@ class TicketCreate(BaseModel):
     fascia_oraria: str
     descrizione: str | None = Field(default=None, max_length=5000)
     tecnico_id: int | None = None
+    tecnico_supporto_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
     piano_manutenzione_id: int | None = None
@@ -30,6 +31,7 @@ class TicketUpdate(BaseModel):
     fascia_oraria: str | None = None
     durata_stimata_ore: float | None = Field(default=None, gt=0)
     tecnico_id: int | None = None
+    tecnico_supporto_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
     execution_start: Optional[datetime] = None
@@ -57,6 +59,7 @@ class TicketResponse(BaseModel):
     fascia_oraria: str
     descrizione: str | None = None
     tecnico_id: int | None = None
+    tecnico_supporto_id: int | None = None
     attivita_manutenzione_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None

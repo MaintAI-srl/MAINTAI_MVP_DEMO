@@ -14,10 +14,13 @@ export interface TicketData {
   fascia_oraria: string;
   descrizione: string | null;
   tecnico_id: number | null;
+  tecnico_supporto_id?: number | null;
   planned_start: string | null;
   planned_finish: string | null;
   gantt_key?: string;
   is_plan_draft?: boolean;
+  /** true quando il blocco è la copia renderizzata sulla riga del tecnico di supporto */
+  is_support?: boolean;
 }
 
 export interface TecnicoData {
@@ -157,12 +160,14 @@ export interface ReplanResult {
   plan_json: PlanJson;
 }
 
-// Colori per tipo ticket
+// Colori per tipo ticket — tonalità chiare e leggibili su tema light.
+// `bg` resta come fallback; i blocchi del Gantt costruiscono lo sfondo via color-mix
+// a partire da `border` per adattarsi al tema attivo.
 export const TIPO_COLORS: Record<string, { bg: string; text: string; border: string; borderStyle?: string }> = {
-  BD: { bg: "linear-gradient(135deg,#7f1d1d,#991b1b)", text: "#fca5a5", border: "#ef4444" },
-  PM: { bg: "linear-gradient(135deg,#14532d,#166534)", text: "#86efac", border: "#22c55e" },
-  CM: { bg: "linear-gradient(135deg,#78350f,#92400e)", text: "#fcd34d", border: "#f59e0b" },
-  CONT: { bg: "#4c1d95", text: "#c4b5fd", border: "#a855f7", borderStyle: "dashed" },
+  BD: { bg: "linear-gradient(135deg,#fee2e2,#fecaca)", text: "#b91c1c", border: "#ef4444" },
+  PM: { bg: "linear-gradient(135deg,#dcfce7,#bbf7d0)", text: "#15803d", border: "#22c55e" },
+  CM: { bg: "linear-gradient(135deg,#fef3c7,#fde68a)", text: "#b45309", border: "#f59e0b" },
+  CONT: { bg: "linear-gradient(135deg,#ede9fe,#ddd6fe)", text: "#7c3aed", border: "#a855f7", borderStyle: "dashed" },
 };
 
 export function tipoStyle(tipo: string, isCont = false) {

@@ -41,6 +41,15 @@ def _planning_today() -> date_type:
     return datetime.now(tz).date() + timedelta(days=1)
 
 
+def _today_local() -> date_type:
+    """Data odierna corrente (Europe/Rome) — usata per impedire pianificazioni nel passato."""
+    try:
+        tz = ZoneInfo("Europe/Rome")
+    except Exception:
+        tz = datetime.now().astimezone().tzinfo
+    return datetime.now(tz).date()
+
+
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 class GeneratePlanRequest(BaseModel):
@@ -61,6 +70,8 @@ class MoveTicketRequest(BaseModel):
     new_start_hour: Optional[int] = None   # 0-23 — None = mantieni orario corrente
     new_start_minute: Optional[int] = None # 0 o 30 — None = mantieni orario corrente
     tecnico_id: Optional[int] = None       # None = mantieni tecnico corrente
+    tecnico_supporto_id: Optional[int] = None  # secondo operatore opzionale
+    set_supporto: bool = False             # True = applica tecnico_supporto_id (anche se None → rimuove)
 
 
 def _wo_count(plan: GeneratedPlan) -> int:
@@ -455,6 +466,26 @@ def move_ticket_in_plan(
     if not ticket:
         raise HTTPException(status_code=404, detail=f"Ticket {data.ticket_id} non trovato")
 
+    # Le attività iniziate da un tecnico (In corso) o concluse (Chiuso) non sono
+    # più spostabili: lo stato è guidato dall'app mobile sul campo.
+    if ticket.stato in ("In corso", "Chiuso"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Il ticket #{ticket.id} è in stato '{ticket.stato}' e non può essere ripianificato.",
+        )
+
+    # Non è consentito pianificare prima della data odierna corrente.
+    if data.new_date:
+        try:
+            requested_date = datetime.strptime(data.new_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Formato data non valido: {data.new_date}")
+        if requested_date < _today_local():
+            raise HTTPException(
+                status_code=400,
+                detail="Non è possibile pianificare un intervento in una data passata.",
+            )
+
     # Calcola nuovi planned_start / planned_finish
     current_start = ticket.planned_start
     current_finish = ticket.planned_finish
@@ -497,6 +528,8 @@ def move_ticket_in_plan(
     ticket.planned_start = new_start
     ticket.planned_finish = new_finish
     ticket.tecnico_id = new_tecnico_id
+    if data.set_supporto:
+        ticket.tecnico_supporto_id = data.tecnico_supporto_id
     if ticket.stato == "Aperto":
         ticket.stato = "Pianificato"
 

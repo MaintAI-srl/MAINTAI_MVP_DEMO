@@ -115,6 +115,61 @@ function ticketHours(ticket: TicketData | null | undefined): number {
   return Math.max(0.5, Number(ticket?.durata_stimata_ore) || 1);
 }
 
+// ─── Helpers sovrapposizione orari ───────────────────────────────────────────
+// Intervalli occupati (in ore decimali) per un tecnico in una data, considerando
+// sia gli interventi dove è principale sia quelli dove è di supporto.
+function busyIntervalsForTecnico(
+  tickets: TicketData[],
+  tecnicoId: number,
+  date: string,
+  excludeTicketId: number,
+): Array<[number, number]> {
+  const res: Array<[number, number]> = [];
+  for (const t of tickets) {
+    if (t.id === excludeTicketId) continue;
+    if (t.is_support) continue; // evita doppio conteggio: le copie supporto derivano dall'originale
+    const isPrimary = t.tecnico_id === tecnicoId;
+    const isSupport = t.tecnico_supporto_id === tecnicoId;
+    if (!isPrimary && !isSupport) continue;
+    const p = parseStart(t);
+    if (!p || p.date !== date) continue;
+    const start = p.hour + p.minute / 60;
+    res.push([start, start + ticketHours(t)]);
+  }
+  return res;
+}
+
+function intervalsOverlap(intervals: Array<[number, number]>, start: number, end: number): boolean {
+  return intervals.some(([s, e]) => start < e - 1e-6 && end > s + 1e-6);
+}
+
+// Primo orario utile (ore decimali) in cui un intervento di durata `dur` entra senza
+// sovrapporsi, all'interno della giornata lavorativa. Ritorna null se non c'è spazio.
+function firstFreeSlot(
+  intervals: Array<[number, number]>,
+  dur: number,
+  dayStart = DAY_START_H,
+  dayEnd = DAY_END_H,
+  minStart = DAY_START_H,
+): number | null {
+  const start0 = Math.max(dayStart, minStart);
+  for (let t = start0; t + dur <= dayEnd + 1e-9; t += 0.5) {
+    if (!intervalsOverlap(intervals, t, t + dur)) return t;
+  }
+  return null;
+}
+
+function decToHHMM(dec: number): string {
+  const h = Math.floor(dec);
+  const m = Math.round((dec - h) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function hhmmToDec(s: string): number {
+  const [h, m] = s.split(":").map((x) => parseInt(x, 10));
+  return (h || 0) + (m || 0) / 60;
+}
+
 function isTecnicoOperativo(tecnico: TecnicoData, dataToCheck?: string): boolean {
   // Se viene fornita una data specifica, controlla ESCLUSIVAMENTE le assenze per quella data.
   // Ignora lo "stato" globale che potrebbe essere riferito solo ad oggi (es. "Ferie").
@@ -220,30 +275,72 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
   // useZoom deve essere chiamato unconditionally (rules-of-hooks)
   const zoom = useZoom();
 
+  // ── Stato attività ──────────────────────────────────────────────────────────
+  // In corso  → iniziata dal tecnico via mobile: NON spostabile, LED giallo lampeggiante.
+  // Chiuso    → conclusa: fissa, non spostabile.
+  // is_support→ copia renderizzata sulla riga del tecnico di supporto: non spostabile.
+  const isSupport = !!ticket.is_support;
+  const inProgress = ticket.stato === "In corso";
+  const locked = ticket.stato === "Chiuso";
+  const hasSupport = ticket.tecnico_supporto_id != null;
+  const movable = !isSupport && !inProgress && !locked;
+
+  // Bordo sinistro: giallo per "in corso", grigio per "chiuso", colore tipo altrimenti.
+  const leftBorderColor = inProgress ? "#eab308" : locked ? "#94a3b8" : s.border;
+  const dragProps = movable ? { ...listeners, ...attributes } : {};
+  const baseOpacity = isDragging ? 0.25 : locked ? 0.78 : isSupport ? 0.82 : 1;
+
+  // LED giallo lampeggiante (in corso) — angolo in alto a destra del blocco.
+  const led = inProgress ? (
+    <span aria-label="In corso" style={{
+      position: "absolute", top: 4, right: 5, width: 9, height: 9, borderRadius: "50%",
+      background: "#facc15", boxShadow: "0 0 7px 1px rgba(250,204,21,0.85)",
+      animation: "blinkLed 1s ease-in-out infinite", zIndex: 3, pointerEvents: "none",
+    }} />
+  ) : null;
+
+  const stateTag = isSupport
+    ? <span style={{ fontSize: 8, fontWeight: 900, color: "#475569", background: "rgba(148,163,184,0.22)", border: "1px solid rgba(148,163,184,0.5)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>SUPPORTO</span>
+    : inProgress
+      ? <span style={{ fontSize: 8, fontWeight: 900, color: "#a16207", background: "rgba(250,204,21,0.18)", border: "1px solid rgba(234,179,8,0.55)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>IN CORSO</span>
+      : locked
+        ? <span style={{ fontSize: 8, fontWeight: 900, color: "#475569", background: "rgba(148,163,184,0.2)", border: "1px solid rgba(148,163,184,0.5)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>🔒 CHIUSO</span>
+        : null;
+
+  const supportBadge = hasSupport && !isSupport ? (
+    <span title="Intervento con tecnico di supporto" style={{
+      fontSize: 8, fontWeight: 900, color: "#1d4ed8", background: "rgba(59,130,246,0.14)",
+      border: "1px solid rgba(59,130,246,0.5)", padding: "1px 5px", borderRadius: 999,
+      letterSpacing: "0.04em", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 2,
+    }}>👥 +1</span>
+  ) : null;
+
   if (view === "day") {
     const HOUR_W = BASE_HOUR_W * zoom;
     const ROW_H = BASE_ROW_H * zoom;
     return (
       <div
-        ref={setNodeRef} {...listeners} {...attributes}
+        ref={setNodeRef} {...dragProps}
         onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
         style={{
           position: "absolute",
           width: Math.max(40, dur * HOUR_W - 6),
           height: ROW_H - 14,
-          background: `linear-gradient(180deg, color-mix(in srgb, ${s.border} 16%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 7%, var(--bg-elevated)))`,
-          border: `1px solid color-mix(in srgb, ${s.border} 45%, transparent)`,
-          borderLeft: `3px solid ${s.border}`,
+          background: isSupport
+            ? "repeating-linear-gradient(135deg, color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)), color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)) 6px, var(--bg-elevated) 6px, var(--bg-elevated) 12px)"
+            : `linear-gradient(180deg, color-mix(in srgb, ${s.border} 18%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 9%, var(--bg-elevated)))`,
+          border: `1px solid color-mix(in srgb, ${leftBorderColor} 50%, transparent)`,
+          borderLeft: `3px ${isSupport ? "dashed" : "solid"} ${leftBorderColor}`,
           borderRadius: 10,
           padding: "6px 9px",
-          cursor: isDragging ? "grabbing" : "grab",
-          opacity: isDragging ? 0.25 : 1,
+          cursor: movable ? (isDragging ? "grabbing" : "grab") : "default",
+          opacity: baseOpacity,
           overflow: "hidden",
           userSelect: "none",
           touchAction: "none",
           boxSizing: "border-box",
           zIndex: isDragging ? 0 : 2,
-          boxShadow: isDragging ? "none" : "0 2px 8px rgba(0,0,0,0.25)",
+          boxShadow: isDragging ? "none" : "0 2px 8px rgba(15,23,42,0.16)",
           transition: isDragging ? "none" : "filter 0.12s, border-color 0.12s",
           display: "flex",
           flexDirection: "column",
@@ -251,7 +348,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
           gap: 3,
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)";
+          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.06)";
           if (onHover && !isDragging) onHover(ticket, e);
         }}
         onMouseMove={(e) => {
@@ -262,9 +359,12 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
           if (onHover) onHover(null);
         }}
       >
+        {led}
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: s.text, background: `${s.border}26`, border: `1px solid ${s.border}55`, padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>{ticket.tipo}</span>
+          <span style={{ fontSize: 9, fontWeight: 800, color: s.text, background: `${s.border}22`, border: `1px solid ${s.border}66`, padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>{ticket.tipo}</span>
           <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>{dur}h</span>
+          {stateTag}
+          {supportBadge}
         </div>
         <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.25 }}>
           {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
@@ -278,20 +378,23 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
 
   return (
     <div
-      ref={setNodeRef} {...listeners} {...attributes}
+      ref={setNodeRef} {...dragProps}
       onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
       style={{
-        background: `linear-gradient(180deg, color-mix(in srgb, ${s.border} 14%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 6%, var(--bg-elevated)))`,
-        border: `1px solid color-mix(in srgb, ${s.border} 40%, transparent)`,
-        borderLeft: `3px solid ${s.border}`,
+        position: "relative",
+        background: isSupport
+          ? "repeating-linear-gradient(135deg, color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)), color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)) 6px, var(--bg-elevated) 6px, var(--bg-elevated) 12px)"
+          : `linear-gradient(180deg, color-mix(in srgb, ${s.border} 16%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 8%, var(--bg-elevated)))`,
+        border: `1px solid color-mix(in srgb, ${leftBorderColor} 45%, transparent)`,
+        borderLeft: `3px ${isSupport ? "dashed" : "solid"} ${leftBorderColor}`,
         borderRadius: 8, padding: "5px 7px", marginBottom: 4,
-        cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.25 : 1,
+        cursor: movable ? (isDragging ? "grabbing" : "grab") : "default", opacity: baseOpacity,
         overflow: "hidden", userSelect: "none", touchAction: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
-        boxShadow: isDragging ? "none" : "0 2px 6px rgba(0,0,0,0.2)",
+        boxShadow: isDragging ? "none" : "0 2px 6px rgba(15,23,42,0.12)",
         transition: isDragging ? "none" : "filter 0.12s, border-color 0.12s",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.15)";
+        (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.06)";
         if (onHover && !isDragging) onHover(ticket, e);
       }}
       onMouseMove={(e) => {
@@ -302,6 +405,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
         if (onHover) onHover(null);
       }}
     >
+      {led}
       <div style={{
         fontSize: 10,
         color: "var(--text-primary)",
@@ -315,7 +419,11 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
       }}>
         {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
       </div>
-      <div style={{ fontSize: 9, color: s.text, fontWeight: 700, marginTop: 2 }}>{ticket.tipo} · {dur}h</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 9, color: s.text, fontWeight: 700 }}>{ticket.tipo} · {dur}h</span>
+        {stateTag}
+        {supportBadge}
+      </div>
     </div>
   );
 });
@@ -363,22 +471,22 @@ const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick }:
 
 // ─── TecnicoLabel ─────────────────────────────────────────────────────────────
 
-const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number } }) {
+const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity, rowIdx = 0 }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number }; rowIdx?: number }) {
   const operativo = isTecnicoOperativo(tecnico);
   const cap = capacity?.capacity ?? (operativo ? Number(tecnico.ore_giornaliere || 8) : 0);
   const remaining = capacity?.remaining ?? cap;
   const assigned = capacity?.assigned ?? 0;
   const usagePct = cap > 0 ? clamp((assigned / cap) * 100, 0, 100) : 0;
-  
+
   // Display row differently only if the capacity is 0 across the viewed period
   const totalOperativo = cap > 0 || operativo;
-  
+
   return (
     <div style={{
       width: LABEL_W, minWidth: LABEL_W, padding: "0 14px",
       display: "flex", alignItems: "center",
-      borderRight: "1px solid var(--border-default)",
-      background: "var(--surface-2)",
+      borderRight: "2px solid var(--border-strong)",
+      background: rowIdx % 2 === 1 ? "var(--surface-3)" : "var(--surface-2)",
       position: "sticky", left: 0, zIndex: 3,
       opacity: totalOperativo ? 1 : 0.72,
     }}>
@@ -437,9 +545,9 @@ const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity }: { tecnico
 
 // ─── DayRow ───────────────────────────────────────────────────────────────────
 
-const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, draggingTicket, onTicketClick, onHover }: {
+const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, draggingTicket, onTicketClick, onHover, rowIdx = 0 }: {
   tecnico: TecnicoData; tickets: TicketData[]; assignedHours: AssignedHoursMap; day: Date; draggingTicket: TicketData | null;
-  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void;
+  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void; rowIdx?: number;
 }) {
   const dateStr = format(day, "yyyy-MM-dd");
   const { setNodeRef, isOver } = useDroppable({
@@ -463,17 +571,19 @@ const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, drag
   const invalidDrop = isOver && draggingTicket && !dropCap.canAccept;
   const validDrop = isOver && draggingTicket && dropCap.canAccept;
 
+  const stripe = rowIdx % 2 === 1 ? "var(--surface-3)" : "transparent";
+
   return (
-    <div style={{ display: "flex", height: dynamicHeight, borderBottom: "1px solid rgba(31,78,107,0.25)" }}>
-      <TecnicoLabel tecnico={tecnico} capacity={cap} />
+    <div style={{ display: "flex", height: dynamicHeight, borderBottom: "1px solid var(--border-strong)" }}>
+      <TecnicoLabel tecnico={tecnico} capacity={cap} rowIdx={rowIdx} />
       <div ref={setNodeRef} style={{
         position: "relative", width: timelineW, minWidth: timelineW, height: "100%",
         background: validDrop
-          ? `linear-gradient(90deg, rgba(52,211,153,0.14), rgba(52,211,153,0.05)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(52,211,153,0.14) ${HOUR_W - 1}px, rgba(52,211,153,0.14) ${HOUR_W}px)`
+          ? `linear-gradient(90deg, rgba(34,197,94,0.16), rgba(34,197,94,0.06)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, var(--border-default) ${HOUR_W - 1}px, var(--border-default) ${HOUR_W}px)`
           : invalidDrop
-            ? `linear-gradient(90deg, rgba(248,113,113,0.14), rgba(248,113,113,0.05)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(248,113,113,0.12) ${HOUR_W - 1}px, rgba(248,113,113,0.12) ${HOUR_W}px)`
-            : `repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, rgba(31,78,107,0.14) ${HOUR_W - 1}px, rgba(31,78,107,0.14) ${HOUR_W}px)`,
-        boxShadow: validDrop ? "inset 0 0 0 2px rgba(52,211,153,0.55), inset 0 0 32px rgba(52,211,153,0.10)" : invalidDrop ? "inset 0 0 0 2px rgba(248,113,113,0.55)" : "none",
+            ? `linear-gradient(90deg, rgba(239,68,68,0.16), rgba(239,68,68,0.06)), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, var(--border-default) ${HOUR_W - 1}px, var(--border-default) ${HOUR_W}px)`
+            : `linear-gradient(0deg, ${stripe}, ${stripe}), repeating-linear-gradient(90deg, transparent 0, transparent ${HOUR_W - 1}px, var(--border-default) ${HOUR_W - 1}px, var(--border-default) ${HOUR_W}px)`,
+        boxShadow: validDrop ? "inset 0 0 0 2px rgba(34,197,94,0.6), inset 0 0 32px rgba(34,197,94,0.10)" : invalidDrop ? "inset 0 0 0 2px rgba(239,68,68,0.6)" : "none",
         transition: "background 0.15s, box-shadow 0.15s",
       }}>
         {isOver && draggingTicket && (
@@ -557,35 +667,36 @@ const DayCell = memo(function DayCell({ tecnico, date, tickets, assignedHours, d
   return (
     <div ref={setNodeRef} style={{
       width: cellW, minWidth: cellW, minHeight: ROW_H, padding: "4px 3px",
-      borderRight: "1px solid rgba(31,78,107,0.18)",
+      borderRight: "1px solid var(--border-default)",
       background: validDrop
-        ? "linear-gradient(180deg, rgba(52,211,153,0.16), rgba(52,211,153,0.05))"
+        ? "linear-gradient(180deg, rgba(34,197,94,0.18), rgba(34,197,94,0.06))"
         : invalidDrop
-          ? "linear-gradient(180deg, rgba(248,113,113,0.16), rgba(248,113,113,0.05))"
+          ? "linear-gradient(180deg, rgba(239,68,68,0.18), rgba(239,68,68,0.06))"
             : assenzaGiorno
-            ? "linear-gradient(180deg, rgba(224,82,82,0.12), rgba(224,82,82,0.04))"
+            ? "linear-gradient(180deg, rgba(239,68,68,0.10), rgba(239,68,68,0.03))"
             : cap.operativo && cap.remaining > 0
-              ? "linear-gradient(180deg, rgba(37,99,235,0.06), transparent)"
-              : "linear-gradient(180deg, rgba(224,82,82,0.08), rgba(217,119,6,0.04))",
-      boxShadow: validDrop ? "inset 0 0 0 2px rgba(52,211,153,0.55), inset 0 0 26px rgba(52,211,153,0.12)" : invalidDrop ? "inset 0 0 0 2px rgba(248,113,113,0.55)" : "none",
+              ? "transparent"
+              : "linear-gradient(180deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03))",
+      boxShadow: validDrop ? "inset 0 0 0 2px rgba(34,197,94,0.6), inset 0 0 26px rgba(34,197,94,0.12)" : invalidDrop ? "inset 0 0 0 2px rgba(239,68,68,0.6)" : "none",
       transition: "background 0.15s, box-shadow 0.15s", overflow: "hidden",
       display: "flex", flexDirection: "column", gap: 1,
       position: "relative",
     }}>
       {assenzaGiorno && (
         <div style={{
-          position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)",
-          fontSize: 10, color: "#fca5a5", fontWeight: 800, textTransform: "uppercase",
-          letterSpacing: "0.08em", background: "rgba(224,82,82,0.2)",
-          border: "1px solid rgba(224,82,82,0.35)", borderRadius: 4,
-          padding: "1px 6px", whiteSpace: "nowrap", pointerEvents: "none",
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          fontSize: 10, color: "var(--text-danger)", fontWeight: 900, textTransform: "uppercase",
+          letterSpacing: "0.08em", background: "rgba(239,68,68,0.14)",
+          border: "1px solid rgba(239,68,68,0.4)", borderRadius: 6,
+          padding: "3px 8px", whiteSpace: "nowrap", pointerEvents: "none", zIndex: 2,
+          textAlign: "center",
         }}>
           {assenzaGiorno.tipo_assenza}
         </div>
       )}
       <div style={{
         display: "flex", justifyContent: "center", alignItems: "center", gap: 4,
-        fontSize: 9, fontWeight: 900, color: cap.remaining > 0 ? "rgba(166,246,255,0.72)" : "rgba(252,165,165,0.82)",
+        fontSize: 9, fontWeight: 900, color: cap.remaining > 0 ? "var(--text-secondary)" : "var(--text-danger)",
         padding: "1px 4px 3px", flexShrink: 0, whiteSpace: "nowrap", lineHeight: 1,
       }}>
         <span>{cap.remaining.toFixed(1)}h</span>
@@ -616,9 +727,9 @@ const DayCell = memo(function DayCell({ tecnico, date, tickets, assignedHours, d
 
 // ─── MultiDayRow ──────────────────────────────────────────────────────────────
 
-const MultiDayRow = memo(function MultiDayRow({ tecnico, tickets, assignedHours, days, view, draggingTicket, onTicketClick, onHover }: {
+const MultiDayRow = memo(function MultiDayRow({ tecnico, tickets, assignedHours, days, view, draggingTicket, onTicketClick, onHover, rowIdx = 0 }: {
   tecnico: TecnicoData; tickets: TicketData[]; assignedHours: AssignedHoursMap; days: Date[]; view: ViewMode; draggingTicket: TicketData | null;
-  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void;
+  onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void; rowIdx?: number;
 }) {
   const zoom = useZoom();
   const DAY_W = BASE_DAY_W * zoom;
@@ -632,8 +743,8 @@ const MultiDayRow = memo(function MultiDayRow({ tecnico, tickets, assignedHours,
     return acc;
   }, { capacity: 0, assigned: 0, remaining: 0 });
   return (
-    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid rgba(31,78,107,0.25)" }}>
-      <TecnicoLabel tecnico={tecnico} capacity={rowCapacity} />
+    <div style={{ display: "flex", minHeight: ROW_H, borderBottom: "1px solid var(--border-strong)", background: rowIdx % 2 === 1 ? "var(--surface-3)" : "transparent" }}>
+      <TecnicoLabel tecnico={tecnico} capacity={rowCapacity} rowIdx={rowIdx} />
       {days.map((day) => {
         const dateStr = format(day, "yyyy-MM-dd");
         return (
@@ -739,74 +850,147 @@ function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: 
 
 // ─── Modale pianificazione manuale ────────────────────────────────────────────
 
-const SLOT_PRESETS = [
-  { label: "08:00", h: 8 }, { label: "09:00", h: 9 }, { label: "10:00", h: 10 },
-  { label: "11:00", h: 11 }, { label: "13:00", h: 13 }, { label: "14:00", h: 14 },
-  { label: "15:00", h: 15 }, { label: "16:00", h: 16 },
-];
+const SLOT_PRESETS = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
 
-function ModalePianificaManuale({ ticket, tecnici, onSave, onClose }: {
-  ticket: TicketData; tecnici: TecnicoData[];
-  onSave: (ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) => void;
+function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoId, defaultDate, defaultStart, onSave, onClose }: {
+  ticket: TicketData; tecnici: TecnicoData[]; ganttTickets: TicketData[];
+  defaultTecnicoId?: number | null; defaultDate?: string | null; defaultStart?: string | null;
+  onSave: (ticketId: number, tecnicoId: number, data: string, start: string, finish: string, tecnicoSupportoId: number | null) => void;
   onClose: () => void;
 }) {
-  const [tecnicoId, setTecnicoId] = useState<number>((tecnici.find(t => isTecnicoOperativo(t)) ?? tecnici[0])?.id ?? 0);
-  const [data, setData] = useState(localDateStr());
-  const [oraInizio, setOraInizio] = useState(8);
-  const durata = ticket.durata_stimata_ore || 1;
-  const fineDecimale = oraInizio + durata;
-  const oraFineLabel = `${String(Math.floor(fineDecimale)).padStart(2, "0")}:${String(Math.round((fineDecimale - Math.floor(fineDecimale)) * 60)).padStart(2, "0")}`;
+  const todayStr = localDateStr();
+  const [tecnicoId, setTecnicoId] = useState<number>(
+    defaultTecnicoId ?? ticket.tecnico_id ?? (tecnici.find(t => isTecnicoOperativo(t)) ?? tecnici[0])?.id ?? 0
+  );
+  const [tecnicoSupportoId, setTecnicoSupportoId] = useState<number>(ticket.tecnico_supporto_id ?? 0);
+  const initialDate = (defaultDate && defaultDate >= todayStr) ? defaultDate : (defaultDate ?? todayStr);
+  const [data, setData] = useState<string>(initialDate < todayStr ? todayStr : initialDate);
+  const [oraInizio, setOraInizio] = useState<string>(defaultStart ?? "08:00");
+
+  const durata = ticketHours(ticket);
+  const startDec = hhmmToDec(oraInizio);
+  const fineDec = startDec + durata;
+  const oraFineLabel = decToHHMM(fineDec);
+
+  const isPast = data < todayStr;
+
+  // Intervalli occupati del tecnico principale e del supporto nella data scelta.
+  const conflict = useMemo(() => {
+    if (isPast) return null;
+    const checkTec = (tecId: number, label: string) => {
+      if (!tecId) return null;
+      const busy = busyIntervalsForTecnico(ganttTickets, tecId, data, ticket.id);
+      if (!intervalsOverlap(busy, startDec, fineDec)) return null;
+      const free = firstFreeSlot(busy, durata);
+      return { who: label, suggestion: free != null ? decToHHMM(free) : null };
+    };
+    return checkTec(tecnicoId, "tecnico") ?? (tecnicoSupportoId ? checkTec(tecnicoSupportoId, "supporto") : null);
+  }, [ganttTickets, tecnicoId, tecnicoSupportoId, data, startDec, fineDec, durata, ticket.id, isPast]);
+
+  const fineOltreGiornata = fineDec > DAY_END_H + 1e-9;
+  const blocked = isPast || !tecnicoId || !!conflict || fineOltreGiornata || tecnicoSupportoId === tecnicoId;
+  const s = tipoStyle(ticket.tipo);
 
   return (
     <Sheet open={true} onOpenChange={(o) => (!o && onClose())}>
       <SheetContent
         side="right"
-        className="p-0 border-l border-slate-800"
-        style={{ background: "var(--surface-2)", color: "var(--text-primary)", display: "flex", flexDirection: "column", minWidth: 400 }}
+        className="p-0"
+        style={{ background: "var(--surface-2)", color: "var(--text-primary)", display: "flex", flexDirection: "column", minWidth: 420, borderLeft: "1px solid var(--border-strong)" }}
       >
         <div style={{ padding: "24px 28px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#3b82f6", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Pianifica Manualmente</div>
-          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 20, fontWeight: 800 }}>#{ticket.id} — {ticket.titolo}</SheetTitle>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--cobalt)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Pianifica intervento</div>
+          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 18, fontWeight: 800 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: s.text, background: `${s.border}1f`, border: `1px solid ${s.border}66`, padding: "2px 7px", borderRadius: 5, marginRight: 8 }}>{ticket.tipo}</span>
+            #{ticket.id} — {ticket.titolo}
+          </SheetTitle>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Durata stimata: {durata}h · {ticket.asset_name ?? "—"}</div>
         </div>
 
-        <div style={{ flex: 1, padding: "28px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ flex: 1, padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
           <div>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO ASSEGNATO</label>
             <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
               {tecnici.map((t) => (
-                <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t)}>
-                  {t.nome} {t.cognome ?? ""} · {isTecnicoOperativo(t) ? `${t.ore_giornaliere || 8}h/gg` : `non disponibile (${t.stato})`}
+                <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t, data)}>
+                  {t.nome} {t.cognome ?? ""} · {isTecnicoOperativo(t, data) ? `${t.ore_giornaliere || 8}h/gg` : `non disponibile`}
                 </option>
               ))}
             </select>
           </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO DI SUPPORTO (opzionale)</label>
+            <select value={tecnicoSupportoId} onChange={(e) => setTecnicoSupportoId(Number(e.target.value))} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
+              <option value={0}>Nessuno</option>
+              {tecnici.filter(t => t.id !== tecnicoId).map((t) => (
+                <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t, data)}>
+                  {t.nome} {t.cognome ?? ""} {isTecnicoOperativo(t, data) ? "" : "· non disponibile"}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>DATA</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
+            <input type="date" value={data} min={todayStr} onChange={(e) => setData(e.target.value < todayStr ? todayStr : e.target.value)} style={{ width: "100%", background: "var(--surface-1)", border: `1px solid ${isPast ? "var(--text-danger)" : "var(--border-default)"}`, color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
+            {isPast && <div style={{ fontSize: 11, color: "var(--text-danger)", marginTop: 6, fontWeight: 600 }}>Non è possibile pianificare in una data passata.</div>}
           </div>
+
           <div>
             <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>ORA INIZIO</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <input type="time" value={oraInizio} step={1800} onChange={(e) => setOraInizio(e.target.value || "08:00")} style={{ background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "8px 10px", fontSize: 14 }} />
+              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>→ fine {oraFineLabel}</span>
+            </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {SLOT_PRESETS.map((p) => (
-                <button key={p.h} onClick={() => setOraInizio(p.h)} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p.h ? "var(--cobalt-border)" : "var(--border-default)"}`, background: oraInizio === p.h ? "var(--cobalt-dim)" : "var(--surface-1)", color: oraInizio === p.h ? "var(--cobalt)" : "var(--text-muted)", fontWeight: oraInizio === p.h ? 700 : 500 }}>
-                  {p.label}
+                <button key={p} onClick={() => setOraInizio(p)} style={{ fontSize: 12, padding: "5px 11px", borderRadius: 6, cursor: "pointer", border: `1px solid ${oraInizio === p ? "var(--cobalt-border)" : "var(--border-default)"}`, background: oraInizio === p ? "var(--cobalt-dim)" : "var(--surface-1)", color: oraInizio === p ? "var(--cobalt)" : "var(--text-muted)", fontWeight: oraInizio === p ? 700 : 500 }}>
+                  {p}
                 </button>
               ))}
             </div>
+            {fineOltreGiornata && !conflict && (
+              <div style={{ fontSize: 11, color: "var(--text-warning)", marginTop: 8, fontWeight: 600 }}>
+                L&apos;intervento supera l&apos;orario di fine giornata ({decToHHMM(DAY_END_H)}).
+              </div>
+            )}
           </div>
+
+          {conflict && (
+            <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ fontSize: 12, color: "var(--text-danger)", fontWeight: 700, marginBottom: 4 }}>
+                ⚠ Sovrapposizione con un&apos;altra attività ({conflict.who === "supporto" ? "tecnico di supporto" : "tecnico assegnato"}).
+              </div>
+              {conflict.suggestion ? (
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  Primo orario utile per questo giorno:{" "}
+                  <button onClick={() => setOraInizio(conflict.suggestion!)} style={{ background: "var(--cobalt-dim)", border: "1px solid var(--cobalt-border)", color: "var(--cobalt)", borderRadius: 6, padding: "2px 9px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                    {conflict.suggestion}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Nessuno slot libero in giornata: scegli un&apos;altra data.</div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div style={{ padding: "20px 28px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid #334155", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Annulla</button>
+        <div style={{ padding: "18px 28px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Annulla</button>
           <button
+            disabled={blocked}
             onClick={() => {
-              const pad = (n: number) => String(n).padStart(2, "0");
-              onSave(ticket.id, tecnicoId, data, `${data}T${pad(oraInizio)}:00:00`, `${data}T${oraFineLabel}:00`);
+              onSave(
+                ticket.id, tecnicoId, data,
+                `${data}T${oraInizio}:00`, `${data}T${oraFineLabel}:00`,
+                tecnicoSupportoId || null,
+              );
               onClose();
             }}
-            style={{ padding: "9px 24px", background: "linear-gradient(135deg, #3b82f6, #2563eb)", border: "none", color: "#ffffff", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}
+            style={{ padding: "9px 24px", background: blocked ? "var(--surface-4)" : "linear-gradient(135deg, #3b82f6, #2563eb)", border: "none", color: blocked ? "var(--text-disabled)" : "#ffffff", borderRadius: 8, cursor: blocked ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, boxShadow: blocked ? "none" : "0 4px 12px rgba(59,130,246,0.3)" }}
           >
-            ✓ Pianifica ({String(oraInizio).padStart(2, "0")}:00 – {oraFineLabel})
+            ✓ Pianifica ({oraInizio} – {oraFineLabel})
           </button>
         </div>
       </SheetContent>
@@ -829,7 +1013,8 @@ export default function PianificazionePage() {
   const [filterTipo, setFilterTipo] = useState("");
   const [selectedWO, setSelectedWO] = useState<{ wo: PlannedWO; ticket: TicketData; tecnico: TecnicoData | null } | null>(null);
   const [effPanelOpen, setEffPanelOpen] = useState(true);
-  const [ticketDaPianificare, setTicketDaPianificare] = useState<TicketData | null>(null);
+  // Modale pianificazione: aperta al drop di un ticket sul Gantt (orario + supporto + anti-overlap)
+  const [planModal, setPlanModal] = useState<{ ticket: TicketData; tecnicoId: number; date: string; startTime: string } | null>(null);
 
   // Piano AI state
   const [piano, setPiano] = useState<GeneratedPlan | null>(null);
@@ -957,11 +1142,21 @@ export default function PianificazionePage() {
 
   const ticketsByTecnico = useMemo(() => {
     const map = new Map<number, TicketData[]>();
-    for (const t of ganttTickets) {
-      if (t.tecnico_id == null) continue;
-      const arr = map.get(t.tecnico_id);
+    const push = (tecId: number, t: TicketData) => {
+      const arr = map.get(tecId);
       if (arr) arr.push(t);
-      else map.set(t.tecnico_id, [t]);
+      else map.set(tecId, [t]);
+    };
+    for (const t of ganttTickets) {
+      if (t.tecnico_id != null) push(t.tecnico_id, t);
+      // Lavoro multi-tecnico: renderizza una copia "supporto" sulla riga del secondo operatore.
+      if (t.tecnico_supporto_id != null && t.tecnico_supporto_id !== t.tecnico_id) {
+        push(t.tecnico_supporto_id, {
+          ...t,
+          is_support: true,
+          gantt_key: `${t.gantt_key ?? t.id}-support-${t.tecnico_supporto_id}`,
+        });
+      }
     }
     return map;
   }, [ganttTickets]);
@@ -1025,14 +1220,16 @@ export default function PianificazionePage() {
     try {
       const [tecniciRes, activeRes, planRes] = await Promise.all([
         apiGet<TecnicoAPI[]>("/tecnici"),
-        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso"),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso,Chiuso"),
         apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
       ]);
 
       setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));
       const activeTickets = activeRes.items ?? [];
+      // Pianificati/in corso/chiusi con orario → sul Gantt (i chiusi restano fissi).
       const scheduled = activeTickets.filter((t) => t.planned_start != null);
-      const unscheduled = activeTickets.filter((t) => t.planned_start == null);
+      // Sidebar "non pianificati": solo ticket ancora aperti senza orario.
+      const unscheduled = activeTickets.filter((t) => t.planned_start == null && t.stato === "Aperto");
       setScheduledTickets(scheduled);
       setUnscheduledTickets(unscheduled);
       setPiano(planRes);
@@ -1087,48 +1284,62 @@ export default function PianificazionePage() {
   }
 
   // ── Pianificazione manuale ──────────────────────────────────────────────────
-  async function savePianificazioneManuale(ticketId: number, tecnicoId: number, data: string, start?: string, finish?: string) {
+  async function savePianificazioneManuale(
+    ticketId: number,
+    tecnicoId: number,
+    data: string,
+    start: string,
+    finish: string,
+    tecnicoSupportoId: number | null,
+  ) {
     try {
-      const ticket = ticketMap.get(ticketId) ?? ticketDaPianificare;
+      const ticket = ticketMap.get(ticketId) ?? planModal?.ticket ?? null;
       const tecnico = tecnicoMap.get(tecnicoId);
-      if (ticket && tecnico) {
-        const c = capacityInfo(tecnico, data, assignedHours, ticket);
-        if (!c.operativo) {
-          notify.warning(`${tecnico.nome} ${tecnico.cognome ?? ""} non disponibile: ticket non pianificato`);
-          return;
-        }
-        if (c.remaining < ticketHours(ticket)) {
-          notify.warning(`Capienza insufficiente: servono ${ticketHours(ticket).toFixed(1)}h, restano ${c.remaining.toFixed(1)}h`);
-          return;
-        }
-        
-        // --- OPTIMISTIC UPDATE ---
-        const newStart = start ?? `${data}T08:00:00`;
-        const newFinish = finish ?? `${data}T17:00:00`;
-        
-        const updateTicketList = (list: TicketData[]) => {
-          return list.map(t => t.id === ticketId ? { ...t, tecnico_id: tecnicoId, planned_start: newStart, planned_finish: newFinish, stato: "Pianificato" } : t);
-        };
-        
-        if (ticket.planned_start) {
-          setScheduledTickets(prev => updateTicketList(prev));
-        } else {
-          const updatedTicket = { ...ticket, tecnico_id: tecnicoId, planned_start: newStart, planned_finish: newFinish, stato: "Pianificato" };
-          setScheduledTickets(prev => [...prev, updatedTicket]);
-          setUnscheduledTickets(prev => prev.filter(t => t.id !== ticketId));
-        }
-        // -------------------------
+      if (!ticket || !tecnico) return;
 
-        await apiPut(`/tickets/${ticketId}`, {
-          tecnico_id: tecnicoId,
-          planned_start: newStart,
-          planned_finish: newFinish,
-          stato: "Pianificato",
-          is_manual_plan: true,
-        });
-        notify.success(`Ticket #${ticketId} pianificato`);
-        loadData(true); // background sync
+      // Guardia finale: niente date passate.
+      if (data < localDateStr()) {
+        notify.warning("Non è possibile pianificare un intervento in una data passata.");
+        return;
       }
+      if (!isTecnicoOperativo(tecnico, data)) {
+        notify.warning(`${tecnico.nome} ${tecnico.cognome ?? ""} non disponibile: ticket non pianificato`);
+        return;
+      }
+
+      // --- OPTIMISTIC UPDATE ---
+      const patch = {
+        tecnico_id: tecnicoId,
+        tecnico_supporto_id: tecnicoSupportoId,
+        planned_start: start,
+        planned_finish: finish,
+        stato: "Pianificato",
+      };
+      const updateTicketList = (list: TicketData[]) =>
+        list.map(t => (t.id === ticketId ? { ...t, ...patch } : t));
+
+      if (ticket.planned_start) {
+        setScheduledTickets(prev => updateTicketList(prev));
+      } else {
+        setScheduledTickets(prev => [...prev, { ...ticket, ...patch }]);
+        setUnscheduledTickets(prev => prev.filter(t => t.id !== ticketId));
+      }
+      // -------------------------
+
+      await apiPut(`/tickets/${ticketId}`, {
+        tecnico_id: tecnicoId,
+        tecnico_supporto_id: tecnicoSupportoId,
+        planned_start: start,
+        planned_finish: finish,
+        stato: "Pianificato",
+        is_manual_plan: true,
+      });
+      notify.success(
+        tecnicoSupportoId
+          ? `Ticket #${ticketId} pianificato (2 tecnici)`
+          : `Ticket #${ticketId} pianificato`,
+      );
+      loadData(true); // background sync
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore salvataggio");
       loadData(true); // revert in case of error
@@ -1158,18 +1369,27 @@ export default function PianificazionePage() {
     const targetTecnico = tecnicoMap.get(dropTarget.tecnico_id);
     if (!targetTecnico) return;
 
-    const dropCapacity = capacityInfo(targetTecnico, dropTarget.date, assignedHours, droppedTicket);
-    if (!dropCapacity.operativo) {
-      notify.warning(`${targetTecnico.nome} ${targetTecnico.cognome ?? ""} non disponibile: assegnazione rifiutata`);
-      return;
-    }
-    if (dropCapacity.remaining < ticketHours(droppedTicket)) {
-      notify.warning(`Capienza insufficiente per ${targetTecnico.nome}: restano ${dropCapacity.remaining.toFixed(1)}h, il ticket richiede ${ticketHours(droppedTicket).toFixed(1)}h`);
+    // Le attività iniziate/concluse non sono spostabili.
+    if (droppedTicket.stato === "In corso" || droppedTicket.stato === "Chiuso") {
+      notify.warning(`Il ticket #${droppedTicket.id} è "${droppedTicket.stato}" e non può essere ripianificato.`);
       return;
     }
 
-    let newHour = 8;
-    let newMinute = 0;
+    // Non si può pianificare prima della data odierna corrente.
+    const todayStr = localDateStr();
+    if (dropTarget.date < todayStr) {
+      notify.warning("Non è possibile pianificare un intervento in una data passata.");
+      return;
+    }
+
+    if (!isTecnicoOperativo(targetTecnico, dropTarget.date)) {
+      notify.warning(`${targetTecnico.nome} ${targetTecnico.cognome ?? ""} non disponibile in questa data.`);
+      return;
+    }
+
+    // Orario di partenza suggerito dalla posizione del drop (solo vista giorno),
+    // altrimenti primo slot libero del tecnico per quella giornata.
+    let startTime = "08:00";
     if (view === "day") {
       const droppableRect = over.rect;
       const draggedRect = event.active.rect.current.translated;
@@ -1177,69 +1397,23 @@ export default function PianificazionePage() {
         const relX = Math.max(0, draggedRect.left - droppableRect.left);
         const totalMin = (relX / (BASE_HOUR_W * zoom)) * 60;
         const rounded = Math.round(totalMin / 30) * 30;
-        newHour = clamp(DAY_START_H + Math.floor(rounded / 60), DAY_START_H, DAY_END_H - 1);
-        newMinute = rounded % 60;
+        const h = clamp(DAY_START_H + Math.floor(rounded / 60), DAY_START_H, DAY_END_H - 1);
+        startTime = `${String(h).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`;
       }
-    }
-
-    // --- OPTIMISTIC UPDATE ---
-    const newStartStr = `${String(newHour).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}`;
-    const durationHours = droppedTicket.durata_stimata_ore || 1;
-    const newEndDec = newHour + (newMinute/60) + durationHours;
-    const newEndH = Math.floor(newEndDec);
-    const newEndM = Math.round((newEndDec - newEndH) * 60);
-    const newEndStr = `${String(newEndH).padStart(2, "0")}:${String(newEndM).padStart(2, "0")}`;
-
-    if (piano?.status === "draft") {
-       // Optimistic update for draft
-       const newWos = [...(piano.plan_json?.planned_workorders || [])];
-       const woIndex = newWos.findIndex(w => w.wo_id === droppedTicket.id);
-       if (woIndex >= 0) {
-           newWos[woIndex] = {
-               ...newWos[woIndex],
-               technician_id: dropTarget.tecnico_id,
-               planned_date: dropTarget.date,
-               planned_start_time: newStartStr,
-               planned_end_time: newEndStr,
-           };
-           setPiano({
-               ...piano,
-               plan_json: {
-                   ...piano.plan_json,
-                   planned_workorders: newWos
-               }
-           });
-       }
     } else {
-       // Optimistic update for confirmed/db
-       const newStartIso = `${dropTarget.date}T${newStartStr}:00`;
-       const newEndIso = `${dropTarget.date}T${newEndStr}:00`;
-       const updateTicketList = (list: TicketData[]) => list.map(t => t.id === droppedTicket.id ? { ...t, tecnico_id: dropTarget.tecnico_id ?? null, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" } : t);
-       
-       if (droppedTicket.planned_start) {
-         setScheduledTickets(prev => updateTicketList(prev));
-       } else {
-         setScheduledTickets(prev => [...prev, { ...droppedTicket, tecnico_id: dropTarget.tecnico_id ?? null, planned_start: newStartIso, planned_finish: newEndIso, stato: "Pianificato" }]);
-         setUnscheduledTickets(prev => prev.filter(t => t.id !== droppedTicket.id));
-       }
+      const busy = busyIntervalsForTecnico(ganttTickets, dropTarget.tecnico_id, dropTarget.date, droppedTicket.id);
+      const free = firstFreeSlot(busy, ticketHours(droppedTicket));
+      if (free != null) startTime = decToHHMM(free);
     }
-    // -------------------------
 
-    try {
-      await apiPost("/planning/move-ticket", {
-        ticket_id: droppedTicket.id,
-        new_date: dropTarget.date,
-        new_start_hour: newHour,
-        new_start_minute: newMinute,
-        tecnico_id: dropTarget.tecnico_id,
-        skip_engine_validation: piano?.status === "draft",
-      });
-      notify.success(`Ticket #${droppedTicket.id} spostato`);
-      loadData(true);
-    } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore spostamento ticket");
-      loadData(true);
-    }
+    // Apre la modale: chiede orario di inizio e (opzionale) tecnico di supporto,
+    // validando le sovrapposizioni prima del salvataggio.
+    setPlanModal({
+      ticket: droppedTicket,
+      tecnicoId: dropTarget.tecnico_id,
+      date: dropTarget.date,
+      startTime,
+    });
   }
   // ── Navigazione data ────────────────────────────────────────────────────────
   function navigate(dir: 1 | -1) {
@@ -1620,12 +1794,13 @@ export default function PianificazionePage() {
                 {tecnici.length === 0 ? (
                   <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 13 }}>Nessun tecnico attivo trovato</div>
                 ) : (
-                  tecnici.map((tecnico) => {
+                  tecnici.map((tecnico, rowIdx) => {
                     const tickets = ticketsByTecnico.get(tecnico.id) ?? EMPTY_TICKETS;
                     if (view === "day") {
                       return (
                         <DayRow
                           key={tecnico.id}
+                          rowIdx={rowIdx}
                           tecnico={tecnico}
                           tickets={tickets}
                           assignedHours={assignedHours}
@@ -1639,6 +1814,7 @@ export default function PianificazionePage() {
                     return (
                       <MultiDayRow
                         key={tecnico.id}
+                        rowIdx={rowIdx}
                         tecnico={tecnico}
                         tickets={tickets}
                         assignedHours={assignedHours}
@@ -1678,12 +1854,16 @@ export default function PianificazionePage() {
       {detailTicket && <TicketDetailDrawer ticket={detailTicket} onClose={() => setDetailTicket(null)} />}
 
       {/* Modale pianificazione manuale */}
-      {ticketDaPianificare && (
+      {planModal && (
         <ModalePianificaManuale
-          ticket={ticketDaPianificare}
+          ticket={planModal.ticket}
           tecnici={tecnici}
+          ganttTickets={ganttTickets}
+          defaultTecnicoId={planModal.tecnicoId}
+          defaultDate={planModal.date}
+          defaultStart={planModal.startTime}
           onSave={savePianificazioneManuale}
-          onClose={() => setTicketDaPianificare(null)}
+          onClose={() => setPlanModal(null)}
         />
       )}
 
@@ -1752,6 +1932,10 @@ export default function PianificazionePage() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.55; }
+        }
+        @keyframes blinkLed {
+          0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 7px 1px rgba(250,204,21,0.9); }
+          50%      { opacity: 0.35; transform: scale(0.82); box-shadow: 0 0 3px 0px rgba(250,204,21,0.45); }
         }
       `}</style>
     </DndContext>

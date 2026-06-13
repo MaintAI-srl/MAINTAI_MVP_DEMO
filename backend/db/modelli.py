@@ -225,6 +225,10 @@ class Ticket(Base):
     # Multi-tecnico — numero tecnici richiesti (workaround: default 1 finché non campo DB reale)
     tecnici_richiesti = Column(Integer, default=1, nullable=True)
 
+    # Multi-tecnico — tecnico di supporto opzionale assegnato all'intervento.
+    # Il tecnico principale resta `tecnico_id`; questo è il secondo operatore.
+    tecnico_supporto_id = Column(Integer, ForeignKey("tecnici.id"), nullable=True)
+
     # Note eliminazione — motivo obbligatorio alla cancellazione
     eliminazione_note = Column(Text, nullable=True)
 
@@ -250,7 +254,10 @@ class Ticket(Base):
     in_attesa_ricambio = Column(Boolean, default=False) # flag "bloccato in attesa ricambio"
 
     asset = relationship("Asset", back_populates="tickets")
-    tecnico = relationship("Tecnico")
+    # Due FK verso `tecnici` (tecnico_id + tecnico_supporto_id): va indicato esplicitamente
+    # quale colonna usa ciascuna relationship, altrimenti il mapper non sa risolvere il join.
+    tecnico = relationship("Tecnico", foreign_keys=[tecnico_id])
+    tecnico_supporto = relationship("Tecnico", foreign_keys=[tecnico_supporto_id])
     piano_manutenzione = relationship("PianoManutenzione", back_populates="tickets")
     children = relationship("Ticket", foreign_keys="Ticket.parent_id", back_populates="parent", lazy="dynamic", cascade="all, delete-orphan")
     parent = relationship("Ticket", foreign_keys="Ticket.parent_id", remote_side="Ticket.id", back_populates="children")

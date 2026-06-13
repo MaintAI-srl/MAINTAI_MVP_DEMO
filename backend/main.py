@@ -275,6 +275,8 @@ def _ensure_columns() -> None:
         ("ticket", "deleted_at",                       "ALTER TABLE ticket ADD COLUMN {ifne}deleted_at TIMESTAMP"),
         # ticket — multi-tecnico (numero tecnici richiesti, default 1)
         ("ticket", "tecnici_richiesti",                "ALTER TABLE ticket ADD COLUMN {ifne}tecnici_richiesti INTEGER DEFAULT 1"),
+        # ticket — tecnico di supporto opzionale (secondo operatore)
+        ("ticket", "tecnico_supporto_id",              "ALTER TABLE ticket ADD COLUMN {ifne}tecnico_supporto_id INTEGER"),
         # attivita_manutenzione — codice univoco per piani creati manualmente
         ("attivita_manutenzione", "codice",            "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}codice VARCHAR"),
         ("attivita_manutenzione", "nome",              "ALTER TABLE attivita_manutenzione ADD COLUMN {ifne}nome VARCHAR"),
