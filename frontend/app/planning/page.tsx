@@ -438,7 +438,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
 
 // ─── UnscheduledItem (sidebar sinistra, draggabile) ───────────────────────────
 
-const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick }: { ticket: TicketData; onTicketClick: (t: TicketData) => void }) {
+const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick, postposto, postposeReason }: { ticket: TicketData; onTicketClick: (t: TicketData) => void; postposto?: boolean; postposeReason?: string }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `t-${ticket.id}`,
     data: { ticket },
@@ -450,26 +450,32 @@ const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick }:
     <div
       ref={setNodeRef} {...listeners} {...attributes}
       onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
+      title={postposto && postposeReason ? `Rimandato: ${postposeReason}` : undefined}
       style={{
-        background: "var(--border-subtle)", border: "1px solid var(--border-subtle)", borderLeft: `3px solid ${s.border}`,
+        background: postposto ? "rgba(239,68,68,0.07)" : "var(--border-subtle)",
+        border: postposto ? "1px solid rgba(239,68,68,0.55)" : "1px solid var(--border-subtle)",
+        borderLeft: `3px solid ${postposto ? "#ef4444" : s.border}`,
         borderRadius: 8, padding: "8px 10px", marginBottom: 6,
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.35 : 1, userSelect: "none",
         touchAction: "none",
         boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
         transition: "background 0.12s, border-color 0.12s",
+        animation: postposto ? "blinkPostposto 1.1s ease-in-out infinite" : undefined,
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.background = "rgba(59,130,246,0.05)";
         (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(59,130,246,0.2)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background = "var(--border-subtle)";
-        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-subtle)";
+        (e.currentTarget as HTMLDivElement).style.background = postposto ? "rgba(239,68,68,0.07)" : "var(--border-subtle)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = postposto ? "rgba(239,68,68,0.55)" : "var(--border-subtle)";
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
         <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}22`, border: `1px solid ${s.border}44`, padding: "1px 5px", borderRadius: 4 }}>{ticket.tipo}</span>
-        <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>
+        {postposto
+          ? <span style={{ fontSize: 9, fontWeight: 900, color: "#fca5a5", background: "rgba(239,68,68,0.16)", border: "1px solid rgba(239,68,68,0.6)", padding: "1px 6px", borderRadius: 4, letterSpacing: "0.06em" }}>RIMANDATO</span>
+          : <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>}
       </div>
       <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{ticket.titolo}</div>
       <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
@@ -1130,6 +1136,17 @@ export default function PianificazionePage() {
   }, [storico]);
 
   // ── Statistiche backlog ─────────────────────────────────────────────────────
+  // Ticket "rimandati" dalla proposta corrente (deferred) → lampeggiano in sidebar
+  const deferredMap = useMemo(() => {
+    const m = new Map<number, string>();
+    if (piano?.status === "draft") {
+      (planJson?.deferred_workorders ?? []).forEach((d) => {
+        if (d.wo_id != null) m.set(d.wo_id, d.reason);
+      });
+    }
+    return m;
+  }, [piano?.status, planJson?.deferred_workorders]);
+
   const tipoCounts = useMemo(() => {
     const counts = { BD: 0, PM: 0, CM: 0 };
     const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
@@ -1472,7 +1489,16 @@ export default function PianificazionePage() {
   const days = useMemo(() => getDays(currentDate, view), [currentDate, view]);
   const cellW = view === "week" ? BASE_DAY_W * zoom : Math.round(BASE_DAY_W * zoom * 0.75);
   const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * (BASE_HOUR_W * zoom) : days.length * cellW);
-  const visibleUnscheduledTickets = unscheduledTickets;
+  // In modalità proposta i ticket già piazzati nella bozza sono sul Gantt:
+  // la sidebar mostra solo quelli NON pianificati (i "rimandati"), che lampeggiano.
+  const draftPlannedIds = useMemo(
+    () => new Set((piano?.status === "draft" ? planJson?.planned_workorders ?? [] : []).map((wo) => wo.wo_id)),
+    [piano?.status, planJson?.planned_workorders],
+  );
+  const visibleUnscheduledTickets = useMemo(
+    () => unscheduledTickets.filter((t) => !draftPlannedIds.has(t.id)),
+    [unscheduledTickets, draftPlannedIds],
+  );
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
   const columnCapacity = useMemo(() => {
     const map = new Map<string, { capacity: number; assigned: number; remaining: number; unavailable: number }>();
@@ -1812,7 +1838,7 @@ export default function PianificazionePage() {
                 <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Nessun ticket da pianificare</div>
               ) : (
                 filteredUnscheduled.map((t) => (
-                  <UnscheduledItem key={t.id} ticket={t} onTicketClick={openTicketDetail} />
+                  <UnscheduledItem key={t.id} ticket={t} onTicketClick={openTicketDetail} postposto={deferredMap.has(t.id)} postposeReason={deferredMap.get(t.id)} />
                 ))
               )}
             </div>
@@ -2028,6 +2054,10 @@ export default function PianificazionePage() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.55; }
+        }
+        @keyframes blinkPostposto {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.0); border-color: rgba(239,68,68,0.55); }
+          50%      { box-shadow: 0 0 10px 1px rgba(239,68,68,0.55); border-color: rgba(239,68,68,0.95); }
         }
         @keyframes blinkLed {
           0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 7px 1px rgba(250,204,21,0.9); }

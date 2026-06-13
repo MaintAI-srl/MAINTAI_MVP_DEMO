@@ -21,12 +21,11 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from backend.db.modelli import Asset, Tecnico, Ticket, TecnicoAssenza
+from backend.db.modelli import Asset, AttivitaManutenzione, Tecnico, Ticket, TecnicoAssenza
 from backend.services.adaptive_estimator import get_duration_correction_factor
 from backend.services.ai_planner_service import calculate_plan_efficiency
 from backend.services.planner_engine_bridge import (
     _build_assenze_map,
-    _has_job_skills,
     _split_competenze,
     _TIPO_IMPLICITI,
 )
@@ -64,16 +63,24 @@ def _build_sched_technicians(
     assenze_map: Dict[int, List[date_type]],
     workday_end_hour: int = 17,
 ) -> List[SchedTechnician]:
-    """Converte i tecnici ORM in SchedTechnician con skill implicite PM/CM/BD."""
+    """
+    Converte i tecnici ORM in SchedTechnician.
+
+    Ogni tecnico attivo riceve SEMPRE le competenze implicite PM/CM/BD: la
+    manutenzione "generica" (ticket senza competenza_richiesta specifica, che usa
+    il tipo come proxy) può essere svolta da qualsiasi tecnico. Le job-skill
+    specifiche (Meccanico, Elettricista, ...) restano per i ticket che richiedono
+    esplicitamente quella competenza. Questo evita che i ticket generici finiscano
+    tutti su un solo tecnico lasciando vuoti quelli con job-skill.
+    """
     result: List[SchedTechnician] = []
     for t in tecnici:
         if (t.stato or "").lower() not in ("in servizio", "in_servizio"):
             continue
         comp = _split_competenze(t.competenze)
-        if not _has_job_skills(comp):
-            for tipo in _TIPO_IMPLICITI:
-                if tipo not in comp:
-                    comp.append(tipo)
+        for tipo in _TIPO_IMPLICITI:
+            if tipo not in comp:
+                comp.append(tipo)
 
         orario_inizio = t.orario_inizio or "08:00"
         try:
@@ -110,12 +117,21 @@ def _build_sched_tickets(
     db: Optional[Session],
     tenant_id: Optional[int],
     planning_start: date_type,
+    scadenze_map: Optional[Dict[int, date_type]] = None,
 ) -> List[SchedTicket]:
+    scadenze_map = scadenze_map or {}
     result: List[SchedTicket] = []
     for t in tickets:
         asset = asset_map.get(t.asset_id) if t.asset_id else None
         site_id: Optional[int] = asset.impianto_id if asset else None
         criticality: Optional[str] = getattr(asset, "criticita", None) if asset else None
+
+        # Scadenziario: giorni alla prossima scadenza PM dell'asset (None = nessuna)
+        deadline_days: Optional[int] = None
+        scad = scadenze_map.get(t.asset_id) if t.asset_id else None
+        if scad is not None:
+            scad_date = scad.date() if isinstance(scad, datetime) else scad
+            deadline_days = (scad_date - planning_start).days
 
         durata_base = float(t.durata_stimata_ore or 2.0)
         durata_corretta = durata_base
@@ -156,6 +172,7 @@ def _build_sched_tickets(
             materials_ready=not in_attesa,
             materials_required=in_attesa,
             age_days=eta_giorni,
+            deadline_days=deadline_days,
         ))
     return result
 
@@ -260,9 +277,27 @@ async def generate_auto_schedule_plan(
     assets = asset_q.all() if asset_q is not None else []
     asset_map: Dict[int, Asset] = {a.id: a for a in assets}
 
+    # ── Scadenziario: prossima scadenza PM per asset (la più imminente) ────────
+    scadenze_map: Dict[int, date_type] = {}
+    if asset_id_set:
+        scad_q = db.query(
+            AttivitaManutenzione.asset_id,
+            AttivitaManutenzione.prossima_scadenza,
+        ).filter(
+            AttivitaManutenzione.asset_id.in_(asset_id_set),
+            AttivitaManutenzione.prossima_scadenza.isnot(None),
+        )
+        if tenant_id:
+            scad_q = scad_q.filter(AttivitaManutenzione.tenant_id == tenant_id)
+        for asset_id, prossima in scad_q.order_by(AttivitaManutenzione.prossima_scadenza.asc()).all():
+            if asset_id not in scadenze_map:
+                scadenze_map[asset_id] = prossima
+
     # ── Conversione ──────────────────────────────────────────────────────────
     sched_techs = _build_sched_technicians(tecnici, assenze_map, workday_end_hour=workday_end_hour)
-    sched_tickets = _build_sched_tickets(tickets, asset_map, db=db, tenant_id=tenant_id, planning_start=today)
+    sched_tickets = _build_sched_tickets(
+        tickets, asset_map, db=db, tenant_id=tenant_id, planning_start=today, scadenze_map=scadenze_map,
+    )
     locked_blocks = _build_locked_blocks(locked_tickets)
 
     if not sched_techs:
