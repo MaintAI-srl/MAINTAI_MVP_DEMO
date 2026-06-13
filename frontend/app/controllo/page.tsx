@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { apiGet, apiPost } from "../lib/api";
 import { notify } from "@/lib/toast";
 import GoogleControlMap from "./components/GoogleControlMap";
+import { controlCenterTechnicianPlace, controlCenterTicketPlace, resolvePlaceLatLon } from "./geo";
 import type { ControlCenterBDTicket, ControlCenterData, ControlCenterRouteTecnico, SitoOverview } from "./types";
 import { STATUS_COLORS, STATUS_LABELS } from "./types";
 
@@ -246,12 +247,11 @@ export default function ControlCenterPage() {
   }, [selectedBD]);
 
   useEffect(() => {
-    const selectedHasCoords = selectedBD?.lat !== null && selectedBD?.lon !== null;
     const tecniciMappabili = nearestTecnici
       .slice(0, 3)
-      .filter((tec) => tec.lat !== null && tec.lon !== null);
+      .filter((tec) => (tec.lat !== null && tec.lon !== null) || Boolean(controlCenterTechnicianPlace(tec)));
 
-    if (!selectedBD || !selectedHasCoords || tecniciMappabili.length === 0) {
+    if (!selectedBD || (!controlCenterTicketPlace(selectedBD) && (selectedBD.lat === null || selectedBD.lon === null)) || tecniciMappabili.length === 0) {
       setRoadRoutes({});
       setRoadRoutesLoading(false);
       return;
@@ -259,11 +259,23 @@ export default function ControlCenterPage() {
 
     let cancelled = false;
     setRoadRoutesLoading(true);
+    const destinationPromise = resolvePlaceLatLon(
+      selectedBD.lat,
+      selectedBD.lon,
+      controlCenterTicketPlace(selectedBD)
+    );
 
     Promise.all(
       tecniciMappabili.map(async (tec) => {
+        const destination = await destinationPromise;
+        const origin = await resolvePlaceLatLon(
+          tec.lat,
+          tec.lon,
+          controlCenterTechnicianPlace(tec)
+        );
+        if (!origin || !destination) return null;
         const response = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${tec.lon},${tec.lat};${selectedBD.lon},${selectedBD.lat}?overview=false`
+          `https://router.project-osrm.org/route/v1/driving/${origin.lon},${origin.lat};${destination.lon},${destination.lat}?overview=false`
         );
         if (!response.ok) return null;
         const json = (await response.json()) as OsrmRouteResponse;
@@ -613,14 +625,14 @@ export default function ControlCenterPage() {
                           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{selectedBD.indirizzo}</div>
                         )}
                       </div>
-                      {(selectedBD.lat !== null && selectedBD.lon !== null) && (
+                      {((selectedBD.lat !== null && selectedBD.lon !== null) || Boolean(controlCenterTicketPlace(selectedBD))) && (
                         <span
                           style={{
                             fontSize: 11, color: "#60a5fa", border: "1px solid rgba(96,165,250,.35)",
                             borderRadius: 8, padding: "5px 9px", whiteSpace: "nowrap",
                           }}
                         >
-                          Posizione su mappa
+                          Luogo su mappa
                         </span>
                       )}
                     </div>
@@ -650,7 +662,9 @@ export default function ControlCenterPage() {
                       <div style={{ display: "grid", gap: 9 }}>
                         {nearestTecnici.slice(0, 3).map((tec, idx) => {
                           const color = ["#22c55e", "#fbbf24", "#f97316"][idx] ?? "#94a3b8";
-                          const hasRoadRoute = tec.lat !== null && tec.lon !== null && selectedBD.lat !== null && selectedBD.lon !== null;
+                          const hasRoadRoute =
+                            ((tec.lat !== null && tec.lon !== null) || Boolean(controlCenterTechnicianPlace(tec))) &&
+                            ((selectedBD.lat !== null && selectedBD.lon !== null) || Boolean(controlCenterTicketPlace(selectedBD)));
                           const roadRoute = roadRoutes[tec.tecnico_id];
                           return (
                             <div
@@ -669,8 +683,8 @@ export default function ControlCenterPage() {
                                   <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }}>{tec.nome}</div>
                                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
                                     {hasRoadRoute
-                                      ? (roadRoutesLoading && !roadRoute ? "Calcolo percorso MaintAI..." : formatRoadRoute(roadRoute))
-                                      : "Coordinate mancanti: percorso interno non disponibile"}
+                                      ? (roadRoutesLoading && !roadRoute ? "Calcolo percorso MaintAI..." : roadRoute ? formatRoadRoute(roadRoute) : "Percorso interno non calcolabile")
+                                      : "Luogo tecnico o urgenza mancante"}
                                   </div>
                                   {tec.indirizzo_corrente && (
                                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

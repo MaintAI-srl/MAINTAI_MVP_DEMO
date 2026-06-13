@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { controlCenterTechnicianPlace, controlCenterTicketPlace, geocodePlace, type LatLon } from "../geo";
 import type { ControlCenterBDTicket, ControlCenterRouteTecnico, ImpiantoMarker, SitoOverview } from "../types";
 import { STATUS_COLORS, STATUS_LABELS } from "../types";
 
@@ -186,6 +187,7 @@ export default function GoogleControlMap({
   const infoRef = useRef<GInfoWindow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [resolvedEmergenze, setResolvedEmergenze] = useState<Record<number, LatLon>>({});
 
   // Inizializzazione mappa (una sola volta)
   useEffect(() => {
@@ -211,6 +213,29 @@ export default function GoogleControlMap({
       });
     return () => { cancelled = true; };
   }, [apiKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      emergenze.map(async (ticket) => {
+        if (ticket.lat !== null && ticket.lon !== null) {
+          return [ticket.ticket_id, { lat: ticket.lat, lon: ticket.lon }] as const;
+        }
+        const place = controlCenterTicketPlace(ticket);
+        if (!place) return null;
+        const point = await geocodePlace(place);
+        return point ? ([ticket.ticket_id, point] as const) : null;
+      })
+    ).then((items) => {
+      if (cancelled) return;
+      const next: Record<number, LatLon> = {};
+      items.forEach((item) => {
+        if (item) next[item[0]] = item[1];
+      });
+      setResolvedEmergenze(next);
+    });
+    return () => { cancelled = true; };
+  }, [emergenze]);
 
   // Sincronizza marker con i dati
   useEffect(() => {
@@ -292,12 +317,13 @@ export default function GoogleControlMap({
 
     // Marker urgenze/BD lampeggianti
     emergenze.forEach((ticket) => {
-      if (ticket.lat === null || ticket.lon === null) return;
+      const point = resolvedEmergenze[ticket.ticket_id];
+      if (!point) return;
       const isSelected = selectedEmergency?.ticket_id === ticket.ticket_id;
       const color = ticket.priorita?.toLowerCase() === "emergenza" ? "#ef4444" : "#f97316";
       const marker = new maps.Marker({
         map,
-        position: { lat: ticket.lat, lng: ticket.lon },
+        position: { lat: point.lat, lng: point.lon },
         title: ticket.titolo,
         zIndex: isSelected ? 80 : 60,
         icon: {
@@ -315,7 +341,7 @@ export default function GoogleControlMap({
         }
       });
       urgencyMarkersRef.current.push(marker);
-      bounds.extend({ lat: ticket.lat, lng: ticket.lon });
+      bounds.extend({ lat: point.lat, lng: point.lon });
       hasPoints = true;
     });
 
@@ -324,7 +350,7 @@ export default function GoogleControlMap({
     }
     // selectedSitoId escluso volutamente: il fit serve solo al refresh dati
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, siti, impianti, emergenze, selectedEmergency, onSelectSito, onSelectEmergency]);
+  }, [ready, siti, impianti, emergenze, resolvedEmergenze, selectedEmergency, onSelectSito, onSelectEmergency]);
 
   // Pan + InfoWindow quando viene selezionato un sito dalla lista
   useEffect(() => {
@@ -352,14 +378,22 @@ export default function GoogleControlMap({
     routeRenderersRef.current.forEach((renderer) => renderer.setMap(null));
     routeRenderersRef.current = [];
 
-    if (!selectedEmergency || selectedEmergency.lat === null || selectedEmergency.lon === null) return;
+    if (!selectedEmergency) return;
+    const selectedPoint = resolvedEmergenze[selectedEmergency.ticket_id];
+    const destination = selectedPoint
+      ? { lat: selectedPoint.lat, lng: selectedPoint.lon }
+      : controlCenterTicketPlace(selectedEmergency);
+    if (!destination) return;
     const service = new maps.DirectionsService();
     routeTecnici.slice(0, 3).forEach((tec, idx) => {
-      if (tec.lat === null || tec.lon === null) return;
+      const origin = tec.lat !== null && tec.lon !== null
+        ? { lat: tec.lat, lng: tec.lon }
+        : controlCenterTechnicianPlace(tec);
+      if (!origin) return;
       const renderer = new maps.DirectionsRenderer({
         map,
         suppressMarkers: true,
-        preserveViewport: true,
+        preserveViewport: false,
         polylineOptions: {
           strokeColor: ROUTE_COLORS[idx] ?? "#94a3b8",
           strokeOpacity: 0.95,
@@ -369,8 +403,8 @@ export default function GoogleControlMap({
       routeRenderersRef.current.push(renderer);
       service.route(
         {
-          origin: { lat: tec.lat, lng: tec.lon },
-          destination: { lat: selectedEmergency.lat, lng: selectedEmergency.lon },
+          origin,
+          destination,
           travelMode: maps.TravelMode.DRIVING,
         },
         (result, status) => {
@@ -379,9 +413,11 @@ export default function GoogleControlMap({
       );
     });
 
-    map.panTo({ lat: selectedEmergency.lat, lng: selectedEmergency.lon });
-    map.setZoom(12);
-  }, [ready, selectedEmergency, routeTecnici]);
+    if (selectedPoint) {
+      map.panTo({ lat: selectedPoint.lat, lng: selectedPoint.lon });
+      map.setZoom(12);
+    }
+  }, [ready, resolvedEmergenze, selectedEmergency, routeTecnici]);
 
   if (loadError) {
     return (

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import Link from "next/link";
+import { controlCenterTechnicianPlace, controlCenterTicketPlace, geocodePlace, resolvePlaceLatLon, type LatLon } from "../geo";
 import type { ControlCenterBDTicket, ControlCenterRouteTecnico, ImpiantoMarker, SitoOverview } from "../types";
 import { STATUS_COLORS, STATUS_LABELS } from "../types";
 
@@ -119,15 +120,20 @@ export default function LeafletControlMap({
   onSelectEmergency,
 }: LeafletControlMapProps) {
   const [roadRoutes, setRoadRoutes] = useState<RoadRoute[]>([]);
+  const [resolvedEmergenze, setResolvedEmergenze] = useState<Record<number, LatLon>>({});
   const points: [number, number][] = [];
   siti.forEach((s) => { if (s.lat !== null && s.lon !== null) points.push([s.lat, s.lon]); });
   impianti.forEach((i) => points.push([i.lat, i.lon]));
-  emergenze.forEach((e) => { if (e.lat !== null && e.lon !== null) points.push([e.lat, e.lon]); });
+  emergenze.forEach((e) => {
+    const point = resolvedEmergenze[e.ticket_id];
+    if (point) points.push([point.lat, point.lon]);
+  });
 
   const selectedSito = siti.find((s) => s.sito_id === selectedSitoId);
+  const selectedEmergencyPoint = selectedEmergency ? resolvedEmergenze[selectedEmergency.ticket_id] : null;
   const selectedPoint: [number, number] | null =
-    selectedEmergency && selectedEmergency.lat !== null && selectedEmergency.lon !== null
-      ? [selectedEmergency.lat, selectedEmergency.lon]
+    selectedEmergencyPoint
+      ? [selectedEmergencyPoint.lat, selectedEmergencyPoint.lon]
       : selectedSito && selectedSito.lat !== null && selectedSito.lon !== null
         ? [selectedSito.lat, selectedSito.lon]
         : null;
@@ -136,16 +142,49 @@ export default function LeafletControlMap({
 
   useEffect(() => {
     let cancelled = false;
+    Promise.all(
+      emergenze.map(async (ticket) => {
+        if (ticket.lat !== null && ticket.lon !== null) {
+          return [ticket.ticket_id, { lat: ticket.lat, lon: ticket.lon }] as const;
+        }
+        const place = controlCenterTicketPlace(ticket);
+        if (!place) return null;
+        const point = await geocodePlace(place);
+        return point ? ([ticket.ticket_id, point] as const) : null;
+      })
+    ).then((items) => {
+      if (cancelled) return;
+      const next: Record<number, LatLon> = {};
+      items.forEach((item) => {
+        if (item) next[item[0]] = item[1];
+      });
+      setResolvedEmergenze(next);
+    });
+    return () => { cancelled = true; };
+  }, [emergenze]);
+
+  useEffect(() => {
+    let cancelled = false;
     async function loadRoutes() {
-      if (!selectedEmergency || selectedEmergency.lat === null || selectedEmergency.lon === null) {
+      if (!selectedEmergency) {
+        setRoadRoutes([]);
+        return;
+      }
+      const destination = await resolvePlaceLatLon(
+        selectedEmergency.lat,
+        selectedEmergency.lon,
+        controlCenterTicketPlace(selectedEmergency)
+      );
+      if (!destination) {
         setRoadRoutes([]);
         return;
       }
       const routes = await Promise.all(
         routeTecnici.slice(0, 3).map(async (tec, idx) => {
-          if (tec.lat === null || tec.lon === null) return null;
+          const origin = await resolvePlaceLatLon(tec.lat, tec.lon, controlCenterTechnicianPlace(tec));
+          if (!origin) return null;
           const url =
-            `https://router.project-osrm.org/route/v1/driving/${tec.lon},${tec.lat};${selectedEmergency.lon},${selectedEmergency.lat}` +
+            `https://router.project-osrm.org/route/v1/driving/${origin.lon},${origin.lat};${destination.lon},${destination.lat}` +
             "?overview=full&geometries=geojson";
           try {
             const res = await fetch(url);
@@ -244,13 +283,14 @@ export default function LeafletControlMap({
       })}
 
       {emergenze.map((ticket) => {
-        if (ticket.lat === null || ticket.lon === null) return null;
+        const point = resolvedEmergenze[ticket.ticket_id];
+        if (!point) return null;
         const isEmergency = ticket.priorita?.toLowerCase() === "emergenza";
         const active = selectedEmergency?.ticket_id === ticket.ticket_id;
         return (
           <Marker
             key={`urg-${ticket.ticket_id}`}
-            position={[ticket.lat, ticket.lon]}
+            position={[point.lat, point.lon]}
             icon={urgencyIcon(isEmergency, active)}
             eventHandlers={{ click: () => onSelectEmergency(ticket) }}
           >
