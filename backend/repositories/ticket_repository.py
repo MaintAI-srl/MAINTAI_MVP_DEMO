@@ -49,6 +49,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "fascia_oraria": t.fascia_oraria or "",
         "descrizione": t.descrizione,
         "tecnico_id": t.tecnico_id,
+        "tecnico_supporto_id": getattr(t, "tecnico_supporto_id", None),
         "attivita_manutenzione_id": t.attivita_manutenzione_id,
         "planned_start": t.planned_start.isoformat() if t.planned_start else None,
         "planned_finish": t.planned_finish.isoformat() if t.planned_finish else None,
@@ -212,6 +213,10 @@ class TicketRepository:
             if data.tecnico_id:
                 check_tenant_ownership(db, Tecnico, data.tecnico_id, tenant_id)
             ticket.tecnico_id = data.tecnico_id
+        if "tecnico_supporto_id" in fields_set:
+            if data.tecnico_supporto_id:
+                check_tenant_ownership(db, Tecnico, data.tecnico_supporto_id, tenant_id)
+            ticket.tecnico_supporto_id = data.tecnico_supporto_id
         if "planned_start" in fields_set:
             ticket.planned_start = data.planned_start
         if "planned_finish" in fields_set:
@@ -227,6 +232,7 @@ class TicketRepository:
             ticket.planned_start = None
             ticket.planned_finish = None
             ticket.is_manual_plan = False
+            ticket.tecnico_supporto_id = None
             ticket.deleted_at = None
         elif data.stato is not None and data.stato != "Eliminato":
             ticket.deleted_at = None

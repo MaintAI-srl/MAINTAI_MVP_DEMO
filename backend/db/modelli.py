@@ -225,6 +225,10 @@ class Ticket(Base):
     # Multi-tecnico — numero tecnici richiesti (workaround: default 1 finché non campo DB reale)
     tecnici_richiesti = Column(Integer, default=1, nullable=True)
 
+    # Multi-tecnico — tecnico di supporto opzionale assegnato all'intervento.
+    # Il tecnico principale resta `tecnico_id`; questo è il secondo operatore.
+    tecnico_supporto_id = Column(Integer, ForeignKey("tecnici.id"), nullable=True)
+
     # Note eliminazione — motivo obbligatorio alla cancellazione
     eliminazione_note = Column(Text, nullable=True)
 
