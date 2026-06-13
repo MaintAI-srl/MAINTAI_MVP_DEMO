@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import React, { useEffect, useState } from "react";
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import Link from "next/link";
-import type { ImpiantoMarker, SitoOverview } from "../types";
+import type { ControlCenterBDTicket, ControlCenterRouteTecnico, ImpiantoMarker, SitoOverview } from "../types";
 import { STATUS_COLORS, STATUS_LABELS } from "../types";
 
 // Fallback OpenStreetMap del Centro di Controllo: usato quando
@@ -46,6 +46,36 @@ function impiantoIcon(hasGuasti: boolean) {
   });
 }
 
+function urgencyIcon(isEmergency: boolean, active: boolean) {
+  const color = isEmergency ? "#ef4444" : "#f97316";
+  const size = active ? 32 : 28;
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width:${size}px;height:${size}px;position:relative;display:flex;align-items:center;justify-content:center;
+    ">
+      <span style="
+        position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${color};
+        opacity:.28;animation:mControlPulse 1.25s ease-out infinite;
+      "></span>
+      <span style="
+        width:${Math.round(size * 0.48)}px;height:${Math.round(size * 0.48)}px;border-radius:50%;
+        background:${color};border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.45);z-index:1;
+      "></span>
+      <style>
+        @keyframes mControlPulse {
+          0% { transform:scale(.55); opacity:.55; }
+          70% { transform:scale(1.25); opacity:.08; }
+          100% { transform:scale(.55); opacity:.55; }
+        }
+      </style>
+    </div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
+
 function MapViewController({ points, selected }: { points: [number, number][]; selected: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
@@ -66,22 +96,78 @@ function MapViewController({ points, selected }: { points: [number, number][]; s
 interface LeafletControlMapProps {
   siti: SitoOverview[];
   impianti: ImpiantoMarker[];
+  emergenze: ControlCenterBDTicket[];
+  selectedEmergency: ControlCenterBDTicket | null;
+  routeTecnici: ControlCenterRouteTecnico[];
   selectedSitoId: number | null;
   onSelectSito: (id: number | null) => void;
+  onSelectEmergency: (ticket: ControlCenterBDTicket) => void;
 }
 
-export default function LeafletControlMap({ siti, impianti, selectedSitoId, onSelectSito }: LeafletControlMapProps) {
+const ROUTE_COLORS = ["#22c55e", "#fbbf24", "#f97316"];
+
+type RoadRoute = { tecnicoId: number; color: string; points: [number, number][] };
+
+export default function LeafletControlMap({
+  siti,
+  impianti,
+  emergenze,
+  selectedEmergency,
+  routeTecnici,
+  selectedSitoId,
+  onSelectSito,
+  onSelectEmergency,
+}: LeafletControlMapProps) {
+  const [roadRoutes, setRoadRoutes] = useState<RoadRoute[]>([]);
   const points: [number, number][] = [];
   siti.forEach((s) => { if (s.lat !== null && s.lon !== null) points.push([s.lat, s.lon]); });
   impianti.forEach((i) => points.push([i.lat, i.lon]));
+  emergenze.forEach((e) => { if (e.lat !== null && e.lon !== null) points.push([e.lat, e.lon]); });
 
   const selectedSito = siti.find((s) => s.sito_id === selectedSitoId);
   const selectedPoint: [number, number] | null =
-    selectedSito && selectedSito.lat !== null && selectedSito.lon !== null
-      ? [selectedSito.lat, selectedSito.lon]
-      : null;
+    selectedEmergency && selectedEmergency.lat !== null && selectedEmergency.lon !== null
+      ? [selectedEmergency.lat, selectedEmergency.lon]
+      : selectedSito && selectedSito.lat !== null && selectedSito.lon !== null
+        ? [selectedSito.lat, selectedSito.lon]
+        : null;
 
   const defaultCenter: [number, number] = points.length > 0 ? points[0] : [42.5, 12.5]; // Italia
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRoutes() {
+      if (!selectedEmergency || selectedEmergency.lat === null || selectedEmergency.lon === null) {
+        setRoadRoutes([]);
+        return;
+      }
+      const routes = await Promise.all(
+        routeTecnici.slice(0, 3).map(async (tec, idx) => {
+          if (tec.lat === null || tec.lon === null) return null;
+          const url =
+            `https://router.project-osrm.org/route/v1/driving/${tec.lon},${tec.lat};${selectedEmergency.lon},${selectedEmergency.lat}` +
+            "?overview=full&geometries=geojson";
+          try {
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            const json = await res.json() as { routes?: { geometry?: { coordinates?: [number, number][] } }[] };
+            const coords = json.routes?.[0]?.geometry?.coordinates;
+            if (!coords?.length) return null;
+            return {
+              tecnicoId: tec.tecnico_id,
+              color: ROUTE_COLORS[idx] ?? "#94a3b8",
+              points: coords.map(([lon, lat]) => [lat, lon] as [number, number]),
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (!cancelled) setRoadRoutes(routes.filter((route): route is RoadRoute => route !== null));
+    }
+    loadRoutes();
+    return () => { cancelled = true; };
+  }, [routeTecnici, selectedEmergency]);
 
   return (
     <MapContainer
@@ -98,6 +184,14 @@ export default function LeafletControlMap({ siti, impianti, selectedSitoId, onSe
       />
 
       <MapViewController points={points} selected={selectedPoint} />
+
+      {roadRoutes.map((route, idx) => (
+        <Polyline
+          key={`route-${route.tecnicoId}`}
+          positions={route.points}
+          pathOptions={{ color: route.color, weight: idx === 0 ? 5 : 4, opacity: 0.92 }}
+        />
+      ))}
 
       {impianti.map((imp) => (
         <Marker key={`imp-${imp.impianto_id}`} position={[imp.lat, imp.lon]} icon={impiantoIcon(imp.asset_guasti > 0)}>
@@ -143,6 +237,33 @@ export default function LeafletControlMap({ siti, impianti, selectedSitoId, onSe
                 <Link href="/asset" style={{ display: "inline-block", marginTop: 8, fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>
                   Apri Siti &amp; Asset →
                 </Link>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+
+      {emergenze.map((ticket) => {
+        if (ticket.lat === null || ticket.lon === null) return null;
+        const isEmergency = ticket.priorita?.toLowerCase() === "emergenza";
+        const active = selectedEmergency?.ticket_id === ticket.ticket_id;
+        return (
+          <Marker
+            key={`urg-${ticket.ticket_id}`}
+            position={[ticket.lat, ticket.lon]}
+            icon={urgencyIcon(isEmergency, active)}
+            eventHandlers={{ click: () => onSelectEmergency(ticket) }}
+          >
+            <Popup>
+              <div style={{ minWidth: 180 }}>
+                <div style={{ fontSize: 11, color: isEmergency ? "#ef4444" : "#f97316", fontWeight: 800, textTransform: "uppercase" }}>
+                  {isEmergency ? "Emergenza" : "Breakdown"}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 3 }}>{ticket.titolo}</div>
+                {ticket.asset_nome && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{ticket.asset_nome}</div>}
+                {(ticket.sito_nome || ticket.impianto_nome) && (
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{ticket.sito_nome || ticket.impianto_nome}</div>
+                )}
               </div>
             </Popup>
           </Marker>

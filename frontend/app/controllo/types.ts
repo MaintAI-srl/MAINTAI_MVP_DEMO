@@ -49,6 +49,18 @@ export type ControlCenterBDTicket = {
   created_at: string | null;
 };
 
+export type ControlCenterRouteTecnico = {
+  tecnico_id: number;
+  nome: string;
+  telefono?: string;
+  distanza_km: number | null;
+  posizione_fonte: "in_lavorazione" | "in_piano" | "sede";
+  indirizzo_corrente?: string;
+  lat: number | null;
+  lon: number | null;
+  stato?: string;
+};
+
 export type ControlCenterSummary = {
   n_siti: number;
   siti_critici: number;

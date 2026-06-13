@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { apiGet, apiPost } from "../lib/api";
 import { notify } from "@/lib/toast";
 import GoogleControlMap from "./components/GoogleControlMap";
-import type { ControlCenterBDTicket, ControlCenterData, SitoOverview } from "./types";
+import type { ControlCenterBDTicket, ControlCenterData, ControlCenterRouteTecnico, SitoOverview } from "./types";
 import { STATUS_COLORS, STATUS_LABELS } from "./types";
 
 const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -19,18 +19,6 @@ const LeafletControlMap = dynamic(() => import("./components/LeafletControlMap")
       background: "var(--surface-2)", borderRadius: 10, color: "var(--text-muted)", fontSize: 13,
     }}>
       Caricamento mappa...
-    </div>
-  ),
-});
-
-const EmergencyMap = dynamic(() => import("../components/EmergencyMap"), {
-  ssr: false,
-  loading: () => (
-    <div style={{
-      minHeight: 240, display: "flex", alignItems: "center", justifyContent: "center",
-      background: "var(--surface-2)", borderRadius: 10, color: "var(--text-muted)", fontSize: 13,
-    }}>
-      Calcolo tecnici piu vicini...
     </div>
   ),
 });
@@ -52,6 +40,11 @@ type TicketListItem = {
   sito_name?: string | null;
   tecnico_id?: number | null;
   created_at?: string | null;
+};
+
+type NearestTechniciansResponse = {
+  tecnici_consigliati: ControlCenterRouteTecnico[];
+  tutti_tecnici: ControlCenterRouteTecnico[];
 };
 
 function KpiTile({ label, value, accent, sub }: { label: string; value: number | string; accent: string; sub?: string }) {
@@ -98,6 +91,15 @@ function formatTicketTime(value: string | null) {
   return date.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function mapsRouteUrl(tec: ControlCenterRouteTecnico, ticket: ControlCenterBDTicket): string | null {
+  const origin = tec.lat !== null && tec.lon !== null ? `${tec.lat},${tec.lon}` : (tec.indirizzo_corrente || tec.nome || "");
+  const destination = ticket.lat !== null && ticket.lon !== null
+    ? `${ticket.lat},${ticket.lon}`
+    : (ticket.indirizzo || ticket.sito_nome || ticket.asset_nome || ticket.titolo || "");
+  if (!origin || !destination) return null;
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+}
+
 function ticketToBDTicket(ticket: TicketListItem): ControlCenterBDTicket | null {
   const tipo = (ticket.tipo || "").trim().toUpperCase();
   const priorita = (ticket.priorita || "").trim().toLowerCase();
@@ -132,6 +134,9 @@ export default function ControlCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSitoId, setSelectedSitoId] = useState<number | null>(null);
   const [selectedBD, setSelectedBD] = useState<ControlCenterBDTicket | null>(null);
+  const [nearestTecnici, setNearestTecnici] = useState<ControlCenterRouteTecnico[]>([]);
+  const [nearestLoading, setNearestLoading] = useState(false);
+  const [nearestError, setNearestError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const load = useCallback(async (silent = false) => {
@@ -194,6 +199,38 @@ export default function ControlCenterPage() {
 
   const summary = data?.summary;
   const bdTickets = data?.bd_tickets ?? [];
+  const hasEmergencyMapPoints = bdTickets.some((ticket) => ticket.lat !== null && ticket.lon !== null);
+
+  const selectEmergency = useCallback((ticket: ControlCenterBDTicket) => {
+    setSelectedBD(ticket);
+    if (ticket.sito_id) setSelectedSitoId(ticket.sito_id);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBD) {
+      setNearestTecnici([]);
+      setNearestError(null);
+      setNearestLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setNearestLoading(true);
+    setNearestError(null);
+    apiGet<NearestTechniciansResponse>(`/emergency/nearest-technicians/${selectedBD.ticket_id}`)
+      .then((res) => {
+        if (!cancelled) setNearestTecnici(res.tecnici_consigliati ?? []);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setNearestTecnici([]);
+          setNearestError(err instanceof Error ? err.message : "Errore calcolo tecnici vicini");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNearestLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedBD]);
 
   const handleDispatch = useCallback(async (tecnicoId: number) => {
     if (!selectedBD) return;
@@ -282,7 +319,7 @@ export default function ControlCenterPage() {
       )}
 
       {data && (
-        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 18, alignItems: "stretch", padding: "0 32px", order: 3 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 18, alignItems: "stretch", padding: "0 32px", order: 2 }}>
           {/* ── Lista siti ── */}
           <div style={{
             background: "var(--bg-card, var(--surface-2))", border: "1px solid var(--border-default)",
@@ -359,7 +396,7 @@ export default function ControlCenterPage() {
             </div>
 
             <div style={{ height: 600, borderRadius: 12, overflow: "hidden", border: "1px solid var(--border-default)", background: "var(--surface-2)" }}>
-              {sitiMappabili.length === 0 && data.impianti.length === 0 ? (
+              {sitiMappabili.length === 0 && data.impianti.length === 0 && !hasEmergencyMapPoints ? (
                 <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center" }}>
                   <div style={{ fontSize: 28 }}>🗺️</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Nessuna posizione disponibile</div>
@@ -373,15 +410,23 @@ export default function ControlCenterPage() {
                   apiKey={GMAPS_KEY}
                   siti={sitiMappabili}
                   impianti={data.impianti}
+                  emergenze={bdTickets}
+                  selectedEmergency={selectedBD}
+                  routeTecnici={nearestTecnici}
                   selectedSitoId={selectedSitoId}
                   onSelectSito={setSelectedSitoId}
+                  onSelectEmergency={selectEmergency}
                 />
               ) : (
                 <LeafletControlMap
                   siti={sitiMappabili}
                   impianti={data.impianti}
+                  emergenze={bdTickets}
+                  selectedEmergency={selectedBD}
+                  routeTecnici={nearestTecnici}
                   selectedSitoId={selectedSitoId}
                   onSelectSito={setSelectedSitoId}
+                  onSelectEmergency={selectEmergency}
                 />
               )}
             </div>
@@ -390,7 +435,7 @@ export default function ControlCenterPage() {
       )}
 
       {data && (
-        <div style={{ padding: "0 32px 18px", order: 2 }}>
+        <div style={{ padding: "18px 32px 0", order: 3 }}>
           <div style={{
             background: "linear-gradient(180deg, rgba(239,68,68,0.08), var(--bg-card, var(--surface-2)))",
             border: "1px solid rgba(239,68,68,0.28)",
@@ -403,7 +448,7 @@ export default function ControlCenterPage() {
                   BD / Emergenze operative
                 </h2>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-                  Seleziona un guasto per vedere i 3 tecnici piu vicini e dispatchare l&apos;intervento.
+                  Le urgenze lampeggiano sulla mappa. Clicca una card per calcolare i 3 tecnici piu vicini e mostrare il percorso stradale.
                 </p>
               </div>
               <span style={{
@@ -434,8 +479,12 @@ export default function ControlCenterPage() {
                       <button
                         key={ticket.ticket_id}
                         onClick={() => {
-                          setSelectedBD(active ? null : ticket);
-                          if (ticket.sito_id) setSelectedSitoId(ticket.sito_id);
+                          if (active) {
+                            setSelectedBD(null);
+                            setNearestTecnici([]);
+                          } else {
+                            selectEmergency(ticket);
+                          }
                         }}
                         style={{
                           textAlign: "left",
@@ -520,7 +569,102 @@ export default function ControlCenterPage() {
                         </a>
                       )}
                     </div>
-                    <EmergencyMap ticketId={selectedBD.ticket_id} onAssign={handleDispatch} />
+                    <div style={{ marginTop: 12 }}>
+                      {nearestLoading && (
+                        <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "18px 0" }}>
+                          Calcolo dei tecnici piu vicini...
+                        </div>
+                      )}
+                      {nearestError && (
+                        <div style={{
+                          color: "#fbbf24",
+                          background: "rgba(251,191,36,.08)",
+                          border: "1px solid rgba(251,191,36,.3)",
+                          borderRadius: 8,
+                          padding: "10px 12px",
+                          fontSize: 12,
+                        }}>
+                          {nearestError}
+                        </div>
+                      )}
+                      {!nearestLoading && !nearestError && nearestTecnici.length === 0 && (
+                        <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "18px 0" }}>
+                          Nessun tecnico disponibile con posizione calcolabile.
+                        </div>
+                      )}
+                      <div style={{ display: "grid", gap: 9 }}>
+                        {nearestTecnici.slice(0, 3).map((tec, idx) => {
+                          const routeUrl = mapsRouteUrl(tec, selectedBD);
+                          const color = ["#22c55e", "#fbbf24", "#f97316"][idx] ?? "#94a3b8";
+                          const hasRoadRoute = tec.lat !== null && tec.lon !== null && selectedBD.lat !== null && selectedBD.lon !== null;
+                          return (
+                            <div
+                              key={tec.tecnico_id}
+                              style={{
+                                background: "var(--surface-2)",
+                                border: "1px solid var(--border-default)",
+                                borderLeft: `4px solid ${color}`,
+                                borderRadius: 10,
+                                padding: "11px 12px",
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: 12, color, fontWeight: 900 }}>#{idx + 1} piu vicino</div>
+                                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }}>{tec.nome}</div>
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                    {tec.distanza_km !== null ? `${tec.distanza_km} km stimati` : "distanza N/D"}
+                                    {hasRoadRoute ? " - percorso stradale sulla mappa" : " - apri Maps per percorso"}
+                                  </div>
+                                  {tec.indirizzo_corrente && (
+                                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {tec.indirizzo_corrente}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ display: "flex", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                  {routeUrl && (
+                                    <a
+                                      href={routeUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#60a5fa",
+                                        border: "1px solid rgba(96,165,250,.35)",
+                                        borderRadius: 8,
+                                        padding: "6px 9px",
+                                        textDecoration: "none",
+                                        fontWeight: 800,
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      Strada Maps
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => handleDispatch(tec.tecnico_id)}
+                                    style={{
+                                      fontSize: 11,
+                                      color,
+                                      background: `${color}18`,
+                                      border: `1px solid ${color}55`,
+                                      borderRadius: 8,
+                                      padding: "6px 9px",
+                                      cursor: "pointer",
+                                      fontWeight: 900,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    Assegna
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

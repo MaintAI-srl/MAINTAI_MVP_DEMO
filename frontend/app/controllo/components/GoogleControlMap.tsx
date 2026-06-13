@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ImpiantoMarker, SitoOverview } from "../types";
+import type { ControlCenterBDTicket, ControlCenterRouteTecnico, ImpiantoMarker, SitoOverview } from "../types";
 import { STATUS_COLORS, STATUS_LABELS } from "../types";
 
 // ── Tipi minimi dell'API Google Maps (il progetto non include @types/google.maps) ──
@@ -21,12 +21,24 @@ type GInfoWindow = {
   close(): void;
   setContent(html: string): void;
 };
+type GDirectionsRenderer = {
+  setMap(m: GMap | null): void;
+  setDirections(result: unknown): void;
+};
+type GDirectionsService = {
+  route(request: Record<string, unknown>, callback: (result: unknown, status: string) => void): void;
+};
 type GMapsApi = {
   Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMap;
   Marker: new (opts: Record<string, unknown>) => GMarker;
   InfoWindow: new (opts?: Record<string, unknown>) => GInfoWindow;
   LatLngBounds: new () => GLatLngBounds;
+  Point: new (x: number, y: number) => unknown;
+  Size: new (w: number, h: number) => unknown;
+  DirectionsService: new () => GDirectionsService;
+  DirectionsRenderer: new (opts?: Record<string, unknown>) => GDirectionsRenderer;
   SymbolPath: { CIRCLE: unknown };
+  TravelMode: { DRIVING: string };
 };
 
 declare global {
@@ -113,20 +125,64 @@ function sitoInfoHtml(sito: SitoOverview): string {
     </div>`;
 }
 
+function urgencyIconDataUrl(color: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 42 42">
+    <circle cx="21" cy="21" r="16" fill="${color}" opacity="0.18">
+      <animate attributeName="r" values="10;19;10" dur="1.25s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.55;0.05;0.55" dur="1.25s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="21" cy="21" r="8" fill="${color}" stroke="#fff" stroke-width="3"/>
+  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function urgencyInfoHtml(ticket: ControlCenterBDTicket): string {
+  const isEmergency = ticket.priorita?.toLowerCase() === "emergenza";
+  const color = isEmergency ? "#ef4444" : "#f97316";
+  return `
+    <div style="font-family:Inter,sans-serif;min-width:220px;color:#111827;padding:2px 4px">
+      <div style="font-size:10px;font-weight:800;color:${color};text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">
+        ${isEmergency ? "Emergenza" : "Breakdown"}
+      </div>
+      <strong style="font-size:14px">${esc(ticket.titolo || `Ticket #${ticket.ticket_id}`)}</strong>
+      ${ticket.asset_nome ? `<div style="font-size:12px;color:#4b5563;margin-top:4px">${esc(ticket.asset_nome)}</div>` : ""}
+      ${ticket.sito_nome || ticket.impianto_nome ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(ticket.sito_nome || ticket.impianto_nome)}</div>` : ""}
+      <div style="font-size:11px;color:${color};font-weight:800;margin-top:6px">Clicca la card sotto la mappa per calcolare i tecnici</div>
+    </div>`;
+}
+
 interface GoogleControlMapProps {
   apiKey: string;
   siti: SitoOverview[];
   impianti: ImpiantoMarker[];
+  emergenze: ControlCenterBDTicket[];
+  selectedEmergency: ControlCenterBDTicket | null;
+  routeTecnici: ControlCenterRouteTecnico[];
   selectedSitoId: number | null;
   onSelectSito: (id: number | null) => void;
+  onSelectEmergency: (ticket: ControlCenterBDTicket) => void;
 }
 
-export default function GoogleControlMap({ apiKey, siti, impianti, selectedSitoId, onSelectSito }: GoogleControlMapProps) {
+const ROUTE_COLORS = ["#22c55e", "#fbbf24", "#f97316"];
+
+export default function GoogleControlMap({
+  apiKey,
+  siti,
+  impianti,
+  emergenze,
+  selectedEmergency,
+  routeTecnici,
+  selectedSitoId,
+  onSelectSito,
+  onSelectEmergency,
+}: GoogleControlMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapsRef = useRef<GMapsApi | null>(null);
   const mapRef = useRef<GMap | null>(null);
   const markersRef = useRef<Map<number, GMarker>>(new Map());
   const impMarkersRef = useRef<GMarker[]>([]);
+  const urgencyMarkersRef = useRef<GMarker[]>([]);
+  const routeRenderersRef = useRef<GDirectionsRenderer[]>([]);
   const infoRef = useRef<GInfoWindow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -166,6 +222,8 @@ export default function GoogleControlMap({ apiKey, siti, impianti, selectedSitoI
     markersRef.current.clear();
     impMarkersRef.current.forEach((m) => m.setMap(null));
     impMarkersRef.current = [];
+    urgencyMarkersRef.current.forEach((m) => m.setMap(null));
+    urgencyMarkersRef.current = [];
 
     const bounds = new maps.LatLngBounds();
     let hasPoints = false;
@@ -232,12 +290,41 @@ export default function GoogleControlMap({ apiKey, siti, impianti, selectedSitoI
       hasPoints = true;
     });
 
+    // Marker urgenze/BD lampeggianti
+    emergenze.forEach((ticket) => {
+      if (ticket.lat === null || ticket.lon === null) return;
+      const isSelected = selectedEmergency?.ticket_id === ticket.ticket_id;
+      const color = ticket.priorita?.toLowerCase() === "emergenza" ? "#ef4444" : "#f97316";
+      const marker = new maps.Marker({
+        map,
+        position: { lat: ticket.lat, lng: ticket.lon },
+        title: ticket.titolo,
+        zIndex: isSelected ? 80 : 60,
+        icon: {
+          url: urgencyIconDataUrl(color),
+          scaledSize: new maps.Size(isSelected ? 48 : 42, isSelected ? 48 : 42),
+          anchor: new maps.Point(isSelected ? 24 : 21, isSelected ? 24 : 21),
+        },
+      });
+      marker.addListener("click", () => {
+        onSelectEmergency(ticket);
+        const info = infoRef.current;
+        if (info) {
+          info.setContent(urgencyInfoHtml(ticket));
+          info.open({ map, anchor: marker });
+        }
+      });
+      urgencyMarkersRef.current.push(marker);
+      bounds.extend({ lat: ticket.lat, lng: ticket.lon });
+      hasPoints = true;
+    });
+
     if (hasPoints && !selectedSitoId) {
       map.fitBounds(bounds, 60);
     }
     // selectedSitoId escluso volutamente: il fit serve solo al refresh dati
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, siti, impianti, onSelectSito]);
+  }, [ready, siti, impianti, emergenze, selectedEmergency, onSelectSito, onSelectEmergency]);
 
   // Pan + InfoWindow quando viene selezionato un sito dalla lista
   useEffect(() => {
@@ -255,6 +342,46 @@ export default function GoogleControlMap({ apiKey, siti, impianti, selectedSitoI
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, selectedSitoId]);
+
+  // Rotte stradali top-3 verso l'urgenza selezionata
+  useEffect(() => {
+    const maps = mapsRef.current;
+    const map = mapRef.current;
+    if (!ready || !maps || !map) return;
+
+    routeRenderersRef.current.forEach((renderer) => renderer.setMap(null));
+    routeRenderersRef.current = [];
+
+    if (!selectedEmergency || selectedEmergency.lat === null || selectedEmergency.lon === null) return;
+    const service = new maps.DirectionsService();
+    routeTecnici.slice(0, 3).forEach((tec, idx) => {
+      if (tec.lat === null || tec.lon === null) return;
+      const renderer = new maps.DirectionsRenderer({
+        map,
+        suppressMarkers: true,
+        preserveViewport: true,
+        polylineOptions: {
+          strokeColor: ROUTE_COLORS[idx] ?? "#94a3b8",
+          strokeOpacity: 0.95,
+          strokeWeight: idx === 0 ? 5 : 4,
+        },
+      });
+      routeRenderersRef.current.push(renderer);
+      service.route(
+        {
+          origin: { lat: tec.lat, lng: tec.lon },
+          destination: { lat: selectedEmergency.lat, lng: selectedEmergency.lon },
+          travelMode: maps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === "OK" && result) renderer.setDirections(result);
+        }
+      );
+    });
+
+    map.panTo({ lat: selectedEmergency.lat, lng: selectedEmergency.lon });
+    map.setZoom(12);
+  }, [ready, selectedEmergency, routeTecnici]);
 
   if (loadError) {
     return (
