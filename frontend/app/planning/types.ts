@@ -81,6 +81,12 @@ export const REASON_CODE_LABELS: Record<string, { label: string; color: string }
   CAPACITY_EXCEEDED:     { label: "Capacità esaurita",     color: "#f97316" },
   LIMITATION_MISMATCH:   { label: "Limitazione operativa", color: "#a855f7" },
   MULTI_TECH_NOT_FOUND:  { label: "Multi-tecnico",         color: "#ec4899" },
+  // Codici motore auto-scheduling (Generazione piano)
+  NON_SCHEDULABILE_DATI_MANCANTI: { label: "Dati mancanti",      color: "#6b7280" },
+  NON_SCHEDULABILE_SKILL_ASSENTE: { label: "Skill assente",      color: "#ef4444" },
+  NON_SCHEDULABILE_SLOT_ASSENTE:  { label: "Nessuno slot",       color: "#f97316" },
+  NON_SCHEDULABILE_MATERIALI:     { label: "Materiali assenti",  color: "#f59e0b" },
+  NON_SCHEDULABILE_STATO:         { label: "Stato non valido",   color: "#a855f7" },
 };
 
 export interface EfficiencyBreakdown {
@@ -118,6 +124,34 @@ export interface PlanMetadata {
   workday_end_hour?: number;
 }
 
+export interface SchedulingSummaryTech {
+  technician_id: number;
+  name: string;
+  capacity_minutes: number;
+  scheduled_minutes: number;
+  utilization_percent: number;
+  saturo: boolean;
+}
+
+export interface SchedulingSummary {
+  total_tickets_analyzed: number;
+  tickets_scheduled: number;
+  tickets_excluded: number;
+  horizon_working_days?: number;
+  capacity_minutes?: number;
+  scheduled_minutes?: number;
+  utilization_percent?: number;
+  daily_capacity_minutes?: number;
+  daily_scheduled_minutes?: number;
+  daily_utilization_percent?: number;
+  weekly_capacity_minutes?: number;
+  weekly_scheduled_minutes?: number;
+  weekly_utilization_percent?: number;
+  technicians?: SchedulingSummaryTech[];
+  technicians_saturated?: number;
+  technicians_undersaturated?: number;
+}
+
 export interface PlanJson {
   planned_workorders: PlannedWO[];
   deferred_workorders: DeferredWO[];
@@ -127,6 +161,8 @@ export interface PlanJson {
   efficiency_breakdown?: EfficiencyBreakdown;
   efficiency_motivations?: EfficiencyMotivation[];
   plan_metadata?: PlanMetadata;
+  /** Riepilogo KPI del motore di auto-scheduling deterministico (Generazione piano). */
+  scheduling_summary?: SchedulingSummary;
 }
 
 export interface GeneratedPlan {

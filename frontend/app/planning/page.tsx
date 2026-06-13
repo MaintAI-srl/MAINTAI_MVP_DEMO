@@ -27,6 +27,7 @@ import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import WODetailDrawer from "./components/WODetailDrawer";
 import DeferredWOPanel from "./components/DeferredWOPanel";
 import ReplanModal from "./components/ReplanModal";
+import SchedulingSummaryModal from "./components/SchedulingSummaryModal";
 
 import type {
   TicketData,
@@ -34,13 +35,13 @@ import type {
   PlannedWO,
   GeneratedPlan,
   EfficiencyBreakdown,
+  SchedulingSummary,
 } from "./types";
 import { tipoStyle } from "./types";
 
 // ─── Tipi ─────────────────────────────────────────────────────────────────────
 
 type ViewMode = "day" | "week" | "2week";
-type EngineMode = "deterministic" | "ai";
 
 interface TecnicoAPI {
   id: number;
@@ -1052,10 +1053,13 @@ export default function PianificazionePage() {
   const [piano, setPiano] = useState<GeneratedPlan | null>(null);
   const [generando, setGenerando] = useState(false);
   const [confermando, setConfermando] = useState(false);
-  const [engineMode, setEngineMode] = useState<EngineMode>("ai");
   const [storico, setStorico] = useState<GeneratedPlan[]>([]);
   const [replanModal, setReplanModal] = useState(false);
   const [zoom, setZoom] = useState(1);
+
+  // Generazione piano (auto-scheduling deterministico)
+  const [scheduleMode, setScheduleMode] = useState<"proposta" | "auto">("proposta");
+  const [summaryModal, setSummaryModal] = useState<SchedulingSummary | null>(null);
 
   // Tooltip hover: lo stato cambia solo quando cambia il ticket; la posizione
   // viene aggiornata direttamente sul DOM (nessun re-render per mousemove —
@@ -1136,8 +1140,10 @@ export default function PianificazionePage() {
   }, [planJson?.planned_workorders, unscheduledTickets]);
 
   const ganttTickets = useMemo(() => {
-    if (!piano || piano.status === "draft") return scheduledTickets;
+    if (!piano) return scheduledTickets;
 
+    // Mostra anche i WO di un piano in bozza (proposta auto-scheduling) sul Gantt,
+    // così il planner può rivedere la proposta prima di confermarla.
     const draftWos = planJson?.planned_workorders ?? [];
     if (!draftWos.length) return scheduledTickets;
 
@@ -1201,46 +1207,56 @@ export default function PianificazionePage() {
     } catch { /* silenzioso */ }
   }, []);
 
-  // ── Genera piano AI ─────────────────────────────────────────────────────
+  // ── Generazione piano (auto-scheduling deterministico, no AI) ─────────────
   const [generandoStatus, setGenerandoStatus] = useState("Elaborazione...");
 
-  async function generateAIPlan() {
+  async function generatePlan() {
     setGenerando(true);
-    setGenerandoStatus("Avvio backend...");
+    setGenerandoStatus("Generazione piano in corso...");
     try {
-      // Warm-up ping: sveglia il server Render prima di fare la chiamata pesante
+      // Warm-up ping: sveglia il backend prima della richiesta (cold start Render)
       try {
         await apiGet<unknown>("/health", { signal: AbortSignal.timeout(5000) });
-        setGenerandoStatus("Analisi contesto...");
       } catch {
         setGenerandoStatus("Connessione backend...");
       }
 
-      setGenerandoStatus("Felix sta pianificando...");
+      setGenerandoStatus("Calcolo assegnazioni...");
       const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
         days: horizonDays,
-        mode: engineMode,
+        mode: "deterministic",
         include_weekends: includeWeekends,
         allow_overtime: allowOvertime,
       });
-      const { previous_efficiency_score: prevScore, ...cleanRes } = res;
-      const newScore = res.plan_json?.efficiency_score;
-      if (prevScore !== undefined && newScore !== undefined && newScore < prevScore) {
-        notify.warning(`Piano generato (score: ${Math.round(newScore)}) — inferiore al precedente (${Math.round(prevScore)})`);
+      const { previous_efficiency_score: _prev, ...cleanRes } = res;
+      void _prev;
+
+      const summary = cleanRes.plan_json?.scheduling_summary ?? null;
+      const nScheduled = summary?.tickets_scheduled ?? cleanRes.plan_json?.planned_workorders?.length ?? 0;
+
+      // Modalità conferma automatica: conferma subito il piano appena generato.
+      if (scheduleMode === "auto" && cleanRes.id) {
+        setGenerandoStatus("Conferma automatica...");
+        try {
+          const confirmed = await apiPost<GeneratedPlan>(`/planning/confirm/${cleanRes.id}`);
+          setPiano(confirmed ?? { ...cleanRes, status: "confirmed" });
+          notify.success(`Piano confermato — ${nScheduled} ticket schedulati`);
+          loadStorico();
+        } catch (ce: unknown) {
+          setPiano(cleanRes);
+          notify.error(ce instanceof Error ? ce.message : "Errore conferma automatica del piano");
+        }
       } else {
-        notify.success(newScore !== undefined ? `Piano generato — score ${Math.round(newScore)}` : "Piano generato");
+        setPiano(cleanRes);
+        notify.success(`Proposta generata — ${nScheduled} ticket schedulati`);
       }
-      setPiano(cleanRes);
+
       const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
       setCurrentDate(planStart ? parseISO(planStart) : new Date());
-      await loadData(); // aggiorna il Gantt con i ticket ora pianificati
+      if (summary) setSummaryModal(summary);
+      await loadData(); // aggiorna il Gantt con i ticket pianificati
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Errore generazione piano AI";
-      if (msg.includes("troppo tempo")) {
-        notify.error("Il server OpenAI ha impiegato troppo. Riprova — il backend è ora sveglio e sarà più veloce.");
-      } else {
-        notify.error(msg);
-      }
+      notify.error(e instanceof Error ? e.message : "Errore durante la generazione del piano");
     } finally {
       setGenerando(false);
       setGenerandoStatus("Elaborazione...");
@@ -1648,18 +1664,61 @@ export default function PianificazionePage() {
 
           {/* Toggle LUN-VEN e Turni Nascosti */}
 
-          {/* Genera Piano AI disattivato per demo */}
-          <button disabled title="Funzione temporaneamente disattivata per demo" style={{
-            background: "linear-gradient(135deg, rgba(29,78,216,0.42), rgba(124,58,237,0.42))",
-            border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, padding: "8px 20px",
-            fontSize: 12, fontWeight: 800, cursor: "not-allowed",
-            boxShadow: "none",
-            display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s", flexShrink: 0,
-          }}>
-            Genera Piano AI
+          {/* Selettore modalità: proposta (bozza) o conferma automatica */}
+          <div style={{ display: "flex", gap: 2, background: "var(--surface-3)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
+            {([["proposta", "Proposta"], ["auto", "Conferma auto"]] as const).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setScheduleMode(val)}
+                title={val === "proposta" ? "Genera una bozza da rivedere e confermare" : "Genera e conferma automaticamente il piano"}
+                style={{
+                  padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                  borderRadius: 5, border: "none",
+                  background: scheduleMode === val ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" : "transparent",
+                  color: scheduleMode === val ? "#fff" : "var(--text-muted)",
+                  cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Generazione piano — motore deterministico (saturazione ore) */}
+          <button
+            onClick={generatePlan}
+            disabled={generando}
+            title="Genera automaticamente il piano assegnando i ticket ai tecnici (no weekend)"
+            style={{
+              background: generando
+                ? "rgba(31,41,55,0.8)"
+                : "linear-gradient(135deg, #1d4ed8, #4f46e5)",
+              border: "1px solid rgba(99,102,241,0.45)", color: "#fff", borderRadius: 8, padding: "8px 20px",
+              fontSize: 12, fontWeight: 800, cursor: generando ? "wait" : "pointer",
+              boxShadow: generando ? "none" : "0 2px 10px rgba(79,70,229,0.4)",
+              display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s", flexShrink: 0,
+            }}
+          >
+            {generando ? generandoStatus : "Generazione piano"}
           </button>
 
-          {/* Pulsante Conferma Nascosto per richiesta utente */}
+          {/* Conferma proposta — visibile solo quando esiste una bozza da approvare */}
+          {piano?.status === "draft" && (planJson?.planned_workorders?.length ?? 0) > 0 && (
+            <button
+              onClick={confirmPlan}
+              disabled={confermando}
+              title="Applica la proposta: assegna i ticket ai tecnici e pianificali"
+              style={{
+                background: confermando ? "rgba(31,41,55,0.8)" : "linear-gradient(135deg, #16a34a, #22c55e)",
+                border: "1px solid rgba(34,197,94,0.5)", color: "#fff", borderRadius: 8, padding: "8px 18px",
+                fontSize: 12, fontWeight: 800, cursor: confermando ? "wait" : "pointer",
+                boxShadow: confermando ? "none" : "0 2px 10px rgba(22,163,74,0.4)",
+                display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              }}
+            >
+              {confermando ? "Conferma..." : "✓ Conferma proposta"}
+            </button>
+          )}
 
           {/* Ricalcola piano — DISATTIVATO (riattivare cambiando false → true) */}
           {false && piano && (
@@ -1958,6 +2017,11 @@ export default function PianificazionePage() {
           loadStorico();
         }}
       />
+
+      {/* Riepilogo KPI dopo la generazione piano */}
+      {summaryModal && (
+        <SchedulingSummaryModal summary={summaryModal} onClose={() => setSummaryModal(null)} />
+      )}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
