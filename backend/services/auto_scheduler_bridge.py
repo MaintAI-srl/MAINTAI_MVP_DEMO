@@ -271,9 +271,11 @@ async def generate_auto_schedule_plan(
             deferred=[{"wo_id": t.id, "reason": "Nessun tecnico attivo trovato"} for t in tickets],
         )
 
+    # Nota: non logghiamo valori provenienti direttamente dalla request (days,
+    # include_weekends) per evitare log-injection; usiamo solo conteggi interi.
     logger.info(
-        "AutoScheduler: avvio — %d ticket, %d locked, %d tecnici, orizzonte %dgg (weekend=%s)",
-        len(sched_tickets), len(locked_blocks), len(sched_techs), days, include_weekends,
+        "AutoScheduler: avvio — %d ticket, %d locked, %d tecnici (orizzonte %d gg)",
+        len(sched_tickets), len(locked_blocks), len(sched_techs), int(days),
     )
 
     try:
