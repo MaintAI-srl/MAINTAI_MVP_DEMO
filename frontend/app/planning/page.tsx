@@ -199,12 +199,20 @@ type AssignedHoursMap = Map<string, number>;
 
 function buildAssignedHours(tickets: TicketData[]): AssignedHoursMap {
   const map: AssignedHoursMap = new Map();
+  const add = (tecId: number, date: string, hours: number) => {
+    const key = `${tecId}|${date}`;
+    map.set(key, (map.get(key) ?? 0) + hours);
+  };
   for (const t of tickets) {
-    if (t.tecnico_id == null) continue;
+    if (t.is_support) continue; // le copie "supporto" derivano dall'originale: niente doppio conteggio
     const date = plannedDate(t);
     if (!date) continue;
-    const key = `${t.tecnico_id}|${date}`;
-    map.set(key, (map.get(key) ?? 0) + ticketHours(t));
+    const h = ticketHours(t);
+    if (t.tecnico_id != null) add(t.tecnico_id, date, h);
+    // Il tecnico di supporto è occupato per le stesse ore: scalalo dalla sua capacità.
+    if (t.tecnico_supporto_id != null && t.tecnico_supporto_id !== t.tecnico_id) {
+      add(t.tecnico_supporto_id, date, h);
+    }
   }
   return map;
 }
