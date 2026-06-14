@@ -292,6 +292,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
   const locked = ticket.stato === "Chiuso";
   const hasSupport = ticket.tecnico_supporto_id != null;
   const movable = !isSupport && !inProgress && !locked;
+  const priorityShifted = !!ticket.is_priority_shifted && !isSupport;
 
   // Bordo sinistro: giallo per "in corso", grigio per "chiuso", colore tipo altrimenti.
   const leftBorderColor = inProgress ? "#eab308" : locked ? "#94a3b8" : s.border;
@@ -323,12 +324,21 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
     }}>👥 +1</span>
   ) : null;
 
+  const shiftBadge = priorityShifted ? (
+    <span title={ticket.priority_shift_reason ?? undefined} style={{
+      fontSize: 8, fontWeight: 900, color: "#fbbf24", background: "rgba(245,158,11,0.16)",
+      border: "1px solid rgba(245,158,11,0.65)", padding: "1px 5px", borderRadius: 4,
+      letterSpacing: "0.06em", flexShrink: 0,
+    }}>SPOSTATO</span>
+  ) : null;
+
   if (view === "day") {
     const HOUR_W = BASE_HOUR_W * zoom;
     const ROW_H = BASE_ROW_H * zoom;
     return (
       <div
         ref={setNodeRef} {...dragProps}
+        title={ticket.priority_shift_reason ?? undefined}
         onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
         style={{
           position: "absolute",
@@ -337,7 +347,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
           background: isSupport
             ? "repeating-linear-gradient(135deg, color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)), color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)) 6px, var(--bg-elevated) 6px, var(--bg-elevated) 12px)"
             : `linear-gradient(180deg, color-mix(in srgb, ${s.border} 18%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 9%, var(--bg-elevated)))`,
-          border: `1px solid color-mix(in srgb, ${leftBorderColor} 50%, transparent)`,
+          border: priorityShifted ? "1px solid rgba(245,158,11,0.95)" : `1px solid color-mix(in srgb, ${leftBorderColor} 50%, transparent)`,
           borderLeft: `3px ${isSupport ? "dashed" : "solid"} ${leftBorderColor}`,
           borderRadius: 10,
           padding: "6px 9px",
@@ -348,7 +358,8 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
           touchAction: "none",
           boxSizing: "border-box",
           zIndex: isDragging ? 0 : 2,
-          boxShadow: isDragging ? "none" : "0 2px 8px rgba(15,23,42,0.16)",
+          boxShadow: isDragging ? "none" : priorityShifted ? "0 0 14px 2px rgba(245,158,11,0.42)" : "0 2px 8px rgba(15,23,42,0.16)",
+          animation: priorityShifted && !isDragging ? "priorityShiftPulse 1s ease-in-out infinite" : undefined,
           transition: isDragging ? "none" : "filter 0.12s, border-color 0.12s",
           display: "flex",
           flexDirection: "column",
@@ -373,6 +384,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
           <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>{dur}h</span>
           {stateTag}
           {supportBadge}
+          {shiftBadge}
         </div>
         <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.25 }}>
           {ticket.is_plan_draft ? "BOZZA · " : ""}{ticket.titolo}
@@ -387,18 +399,20 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
   return (
     <div
       ref={setNodeRef} {...dragProps}
+      title={ticket.priority_shift_reason ?? undefined}
       onClick={(e) => { e.stopPropagation(); onTicketClick(ticket); }}
       style={{
         position: "relative",
         background: isSupport
           ? "repeating-linear-gradient(135deg, color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)), color-mix(in srgb, #94a3b8 12%, var(--bg-elevated)) 6px, var(--bg-elevated) 6px, var(--bg-elevated) 12px)"
           : `linear-gradient(180deg, color-mix(in srgb, ${s.border} 16%, var(--bg-elevated)), color-mix(in srgb, ${s.border} 8%, var(--bg-elevated)))`,
-        border: `1px solid color-mix(in srgb, ${leftBorderColor} 45%, transparent)`,
+        border: priorityShifted ? "1px solid rgba(245,158,11,0.95)" : `1px solid color-mix(in srgb, ${leftBorderColor} 45%, transparent)`,
         borderLeft: `3px ${isSupport ? "dashed" : "solid"} ${leftBorderColor}`,
         borderRadius: 8, padding: "5px 7px", marginBottom: 4,
         cursor: movable ? (isDragging ? "grabbing" : "grab") : "default", opacity: baseOpacity,
         overflow: "hidden", userSelect: "none", touchAction: "none", width: "100%", boxSizing: "border-box", flexShrink: 0,
-        boxShadow: isDragging ? "none" : "0 2px 6px rgba(15,23,42,0.12)",
+        boxShadow: isDragging ? "none" : priorityShifted ? "0 0 13px 2px rgba(245,158,11,0.4)" : "0 2px 6px rgba(15,23,42,0.12)",
+        animation: priorityShifted && !isDragging ? "priorityShiftPulse 1s ease-in-out infinite" : undefined,
         transition: isDragging ? "none" : "filter 0.12s, border-color 0.12s",
       }}
       onMouseEnter={(e) => {
@@ -431,6 +445,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
         <span style={{ fontSize: 9, color: s.text, fontWeight: 700 }}>{ticket.tipo} · {dur}h</span>
         {stateTag}
         {supportBadge}
+        {shiftBadge}
       </div>
     </div>
   );
@@ -1047,6 +1062,8 @@ export default function PianificazionePage() {
   const [scheduledTickets, setScheduledTickets] = useState<TicketData[]>([]);
   const [unscheduledTickets, setUnscheduledTickets] = useState<TicketData[]>([]);
   const [optimisticPlannedIds, setOptimisticPlannedIds] = useState<Set<number>>(() => new Set());
+  const [movedTicketIds, setMovedTicketIds] = useState<Set<number>>(() => new Set());
+  const [movedTicketReasons, setMovedTicketReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [draggingTicket, setDraggingTicket] = useState<TicketData | null>(null);
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
@@ -1085,6 +1102,12 @@ export default function PianificazionePage() {
       }
     }
     setHoverTicket((prev) => (prev === ticket ? prev : ticket));
+  }, []);
+
+  const applyMovedTicketMarkers = useCallback((source: { moved_tickets?: number[]; plan_json?: { moved_tickets?: number[]; moved_ticket_reasons?: Record<string, string> } } | null | undefined) => {
+    const ids = source?.moved_tickets ?? source?.plan_json?.moved_tickets ?? [];
+    setMovedTicketIds(new Set(ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))));
+    setMovedTicketReasons(source?.plan_json?.moved_ticket_reasons ?? {});
   }, []);
 
   // Orizzonte auto-esteso lato backend (nessun selettore): il motore pianifica
@@ -1163,15 +1186,25 @@ export default function PianificazionePage() {
   }, [plannedPlanIds, unscheduledTickets]);
 
   const ganttTickets = useMemo(() => {
-    if (!piano) return scheduledTickets;
+    const markMoved = (ticket: TicketData): TicketData => {
+      const shifted = movedTicketIds.has(Number(ticket.id));
+      if (!shifted) return ticket;
+      return markMoved({
+        ...ticket,
+        is_priority_shifted: true,
+        priority_shift_reason: movedTicketReasons[String(ticket.id)] ?? "Spostato per priorita maggiore",
+      });
+    };
+
+    if (!piano) return scheduledTickets.map(markMoved);
 
     // Mostra anche i WO di un piano in bozza (proposta auto-scheduling) sul Gantt,
     // così il planner può rivedere la proposta prima di confermarla.
     const draftWos = planJson?.planned_workorders ?? [];
-    if (!draftWos.length) return scheduledTickets;
+    if (!draftWos.length) return scheduledTickets.map(markMoved);
 
     const draftIds = new Set(draftWos.map((wo) => wo.wo_id));
-    const lockedOrPersisted = scheduledTickets.filter((t) => !draftIds.has(t.id));
+    const lockedOrPersisted = scheduledTickets.filter((t) => !draftIds.has(t.id)).map(markMoved);
     const draftTickets: TicketData[] = draftWos.map((wo) => {
       const base = ticketMap.get(wo.wo_id);
       const start = planDateTime(wo.planned_date, wo.planned_start_time);
@@ -1196,7 +1229,7 @@ export default function PianificazionePage() {
     });
 
     return [...lockedOrPersisted, ...draftTickets];
-  }, [piano?.id, piano?.status, planJson?.planned_workorders, scheduledTickets, ticketMap]);
+  }, [piano, planJson?.planned_workorders, scheduledTickets, ticketMap, movedTicketIds, movedTicketReasons]);
 
   // ── Mappe precalcolate per il Gantt (capacità O(1), righe stabili) ──────────
   const assignedHours = useMemo(() => buildAssignedHours(ganttTickets), [ganttTickets]);
@@ -1252,6 +1285,7 @@ export default function PianificazionePage() {
       });
       const { previous_efficiency_score: _prev, ...cleanRes } = res;
       void _prev;
+      applyMovedTicketMarkers(cleanRes);
 
       const summary = cleanRes.plan_json?.scheduling_summary ?? null;
       const nScheduled = summary?.tickets_scheduled ?? cleanRes.plan_json?.planned_workorders?.length ?? 0;
@@ -1266,6 +1300,7 @@ export default function PianificazionePage() {
         setGenerandoStatus("Conferma automatica...");
         try {
           const confirmed = await apiPost<GeneratedPlan>(`/planning/confirm/${cleanRes.id}`);
+          applyMovedTicketMarkers(confirmed ?? cleanRes);
           setPiano(confirmed ?? { ...cleanRes, status: "confirmed" });
           notify.success(`Piano confermato — ${nScheduled} ticket schedulati`);
           loadStorico();
@@ -1317,12 +1352,13 @@ export default function PianificazionePage() {
       setScheduledTickets(scheduled);
       setUnscheduledTickets(unscheduled);
       setPiano(planRes);
+      if (planRes) applyMovedTicketMarkers(planRes);
     } catch (e: unknown) {
       if (!background) notify.error(e instanceof Error ? e.message : "Errore caricamento dati");
     } finally {
       if (!background) setLoading(false);
     }
-  }, []);
+  }, [applyMovedTicketMarkers]);
 
   useEffect(() => { loadData(); loadStorico(); }, [loadData, loadStorico]);
 
@@ -1345,6 +1381,7 @@ export default function PianificazionePage() {
     setConfermando(true);
     try {
       const confirmed = await apiPost<GeneratedPlan>(`/planning/confirm/${piano.id}`);
+      applyMovedTicketMarkers(confirmed ?? piano);
       setPiano(confirmed ?? { ...piano, status: "confirmed" });
       notify.success("Piano confermato");
       await loadData();
@@ -1360,6 +1397,8 @@ export default function PianificazionePage() {
     if (!confirm("Sei sicuro di voler svuotare il Gantt? Tutti i ticket torneranno nello stato 'Aperto'.")) return;
     try {
       await apiPost("/planning/clear");
+      setMovedTicketIds(new Set());
+      setMovedTicketReasons({});
       notify.success("Gantt svuotato con successo");
       await loadData();
     } catch (e: unknown) {
@@ -2034,7 +2073,8 @@ export default function PianificazionePage() {
         open={replanModal}
         piano={piano}
         onClose={() => setReplanModal(false)}
-        onSuccess={() => {
+        onSuccess={(result) => {
+          applyMovedTicketMarkers(result);
           setReplanModal(false);
           loadData();
           loadStorico();
@@ -2059,6 +2099,10 @@ export default function PianificazionePage() {
         @keyframes blinkLed {
           0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 7px 1px rgba(250,204,21,0.9); }
           50%      { opacity: 0.35; transform: scale(0.82); box-shadow: 0 0 3px 0px rgba(250,204,21,0.45); }
+        }
+        @keyframes priorityShiftPulse {
+          0%, 100% { box-shadow: 0 0 10px 1px rgba(245,158,11,0.25); }
+          50%      { box-shadow: 0 0 18px 3px rgba(245,158,11,0.72); }
         }
       `}</style>
     </DndContext>

@@ -141,6 +141,51 @@ def _planned_wo_interval(wo: dict) -> Optional[tuple[datetime, datetime]]:
     return start_dt, end_dt
 
 
+def _compute_moved_ticket_ids(previous_plan_json: Optional[dict], new_plan_json: dict) -> List[int]:
+    """WO moved between plans: technician, date, start or end changed."""
+    if not previous_plan_json:
+        return []
+
+    def _key(wo: dict) -> Optional[tuple]:
+        wo_id = wo.get("wo_id")
+        if wo_id is None or wo.get("is_continuation"):
+            return None
+        interval = _planned_wo_interval(wo)
+        start_iso = interval[0].isoformat() if interval else None
+        end_iso = interval[1].isoformat() if interval else None
+        return (
+            int(wo_id),
+            wo.get("technician_id"),
+            wo.get("planned_date"),
+            start_iso,
+            end_iso,
+        )
+
+    previous: Dict[int, tuple] = {}
+    for wo in previous_plan_json.get("planned_workorders") or []:
+        key = _key(wo)
+        if key:
+            previous[key[0]] = key
+
+    moved: List[int] = []
+    for wo in new_plan_json.get("planned_workorders") or []:
+        key = _key(wo)
+        if not key:
+            continue
+        old = previous.get(key[0])
+        if old and old != key:
+            moved.append(key[0])
+
+    return sorted(set(moved))
+
+
+def _attach_moved_ticket_metadata(plan_json: dict, moved_ticket_ids: List[int]) -> None:
+    plan_json["moved_tickets"] = moved_ticket_ids
+    if moved_ticket_ids:
+        reason = "Spostato per inserimento o ricalcolo di una priorita maggiore"
+        plan_json["moved_ticket_reasons"] = {str(tid): reason for tid in moved_ticket_ids}
+
+
 def _compute_completion_pct(plan: GeneratedPlan, db: Session) -> Optional[float]:
     """
     Percentuale di completamento del piano: ticket con stato 'Chiuso' / totale pianificati.
@@ -405,6 +450,16 @@ async def generate_plan(
         "workday_end_hour": 21 if data.allow_overtime else 17,
     })
 
+    previous_active_plan = db.query(GeneratedPlan).filter(
+        GeneratedPlan.tenant_id == tenant_id,
+        GeneratedPlan.status.in_(["draft", "confirmed"]),
+    ).order_by(GeneratedPlan.created_at.desc()).first()
+    moved_ticket_ids = _compute_moved_ticket_ids(
+        previous_active_plan.plan_json if previous_active_plan else None,
+        plan_json,
+    )
+    _attach_moved_ticket_metadata(plan_json, moved_ticket_ids)
+
     # Recupera score del piano confermato precedente per confronto nel frontend
     previous_confirmed = db.query(GeneratedPlan).filter(
         GeneratedPlan.tenant_id == tenant_id,
@@ -439,6 +494,8 @@ async def generate_plan(
     )
 
     result = _plan_to_dict(new_plan)
+    result["moved_tickets"] = moved_ticket_ids
+    result["disruption_cost"] = len(moved_ticket_ids)
     # Campi extra per confronto AI vs piano manuale/precedente (usati dal frontend)
     if previous_score is not None:
         result["previous_efficiency_score"] = previous_score
@@ -1297,6 +1354,10 @@ async def adaptive_replanning(
         db_error(db, "PLANNING", f"adaptive_replanning: errore bridge — {msg}", tenant_id=tenant_id)
         raise HTTPException(status_code=500, detail=f"Errore motore deterministico: {msg}")
 
+    moved_tickets = _compute_moved_ticket_ids(prev_plan.plan_json if prev_plan else None, new_plan_json)
+    disruption_cost = len(moved_tickets)
+    _attach_moved_ticket_metadata(new_plan_json, moved_tickets)
+
     # Salva come nuovo draft
     new_plan = GeneratedPlan(
         tenant_id=tenant_id,
@@ -1307,23 +1368,6 @@ async def adaptive_replanning(
     db.add(new_plan)
     db.commit()
     db.refresh(new_plan)
-
-    # Calcola disruption_cost: WO che hanno cambiato tecnico o data rispetto al piano precedente
-    disruption_cost = 0
-    moved_tickets: List[int] = []
-    if prev_plan and prev_plan.plan_json:
-        prev_wos = {
-            w["wo_id"]: w
-            for w in (prev_plan.plan_json.get("planned_workorders") or [])
-        }
-        for wo in (new_plan_json.get("planned_workorders") or []):
-            prev = prev_wos.get(wo["wo_id"])
-            if prev and (
-                prev.get("technician_id") != wo.get("technician_id")
-                or prev.get("planned_date") != wo.get("planned_date")
-            ):
-                disruption_cost += 1
-                moved_tickets.append(wo["wo_id"])
 
     db_info(
         db, "PLANNING",

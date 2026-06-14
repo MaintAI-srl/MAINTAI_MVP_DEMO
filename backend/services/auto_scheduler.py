@@ -45,6 +45,17 @@ DEFAULT_DURATION_MINUTES = 60
 # Saturazione (frazione) oltre la quale un tecnico è considerato "saturo"
 SATURATION_THRESHOLD = 0.90
 
+# Hard priority lanes requested by operations. Lower rank = planned first.
+PRIORITY_RULES_VERSION = "ops_priority_v1"
+PRIORITY_BD = 10
+PRIORITY_CM_ASSET_STOPPED = 20
+PRIORITY_PM_LEGAL = 30
+PRIORITY_PM_DUE_SOON = 40
+PRIORITY_PM_ALL = 50
+PRIORITY_CM_ASSET_RUNNING = 60
+PRIORITY_OTHER = 90
+PM_DUE_SOON_DAYS = 14
+
 
 # ── Strutture dati di input ───────────────────────────────────────────────────
 
@@ -80,8 +91,15 @@ class SchedTicket:
     age_days: int = 0
     # Giorni alla scadenza (scadenziario): negativo = scaduto, None = nessuna scadenza
     deadline_days: Optional[int] = None
+    # Campi operativi per priorita hard BD -> CM fermo -> PM legge -> PM scadenza -> PM -> CM.
+    work_type: Optional[str] = None          # BD | PM | CM
+    asset_status: Optional[str] = None       # OPERATIVO | FERMO PROG. | GUASTO | ...
+    legal_required: bool = False
     # Riempito a runtime
     score: float = 0.0
+    priority_rank: int = PRIORITY_OTHER
+    priority_class: str = "ALTRO"
+    priority_reason: str = "Classe non riconosciuta"
 
 
 @dataclass
@@ -218,6 +236,85 @@ def _deadline_score(deadline_days: Optional[int]) -> int:
     if deadline_days <= 14:
         return 10
     return 0
+
+
+def _normalized_text(*values: Optional[str]) -> str:
+    return " ".join(str(v or "").strip().lower() for v in values if v is not None)
+
+
+def _asset_is_stopped(status: Optional[str]) -> bool:
+    text = _normalized_text(status).replace("_", " ")
+    stopped_markers = (
+        "fermo",
+        "guasto",
+        "stopped",
+        "out of service",
+        "fuori servizio",
+        "non operativo",
+        "non in servizio",
+    )
+    return any(marker in text for marker in stopped_markers)
+
+
+def _ticket_mentions_stopped_asset(ticket: SchedTicket) -> bool:
+    text = _normalized_text(ticket.title)
+    stopped_markers = (
+        "fermo",
+        "bloccato",
+        "non funzionante",
+        "non parte",
+        "guasto",
+        "fuori servizio",
+    )
+    return any(marker in text for marker in stopped_markers)
+
+
+def _ticket_mentions_legal_requirement(ticket: SchedTicket) -> bool:
+    text = _normalized_text(ticket.title)
+    legal_markers = (
+        "legge",
+        "norma",
+        "normativo",
+        "d.lgs",
+        "dpr",
+        "obblig",
+        "verifica periodica",
+        "inail",
+        "ispesl",
+        "cei",
+        "uni ",
+        "sicurezza",
+    )
+    return any(marker in text for marker in legal_markers)
+
+
+def classify_ticket_priority(ticket: SchedTicket) -> Tuple[int, str, str]:
+    """
+    Hard operational order:
+    BD -> CM(asset stopped) -> PM(legal) -> PM(due soon) -> PM(all) -> CM(asset running).
+    Numeric score is only a tie-breaker inside the same lane.
+    """
+    tipo = (ticket.work_type or ticket.required_skill or "").strip().upper()
+
+    if tipo == "BD":
+        return PRIORITY_BD, "BD", "Breakdown: priorita massima"
+
+    if tipo == "CM" and (_asset_is_stopped(ticket.asset_status) or _ticket_mentions_stopped_asset(ticket)):
+        return PRIORITY_CM_ASSET_STOPPED, "CM_FERMO_ASSET", "CM su asset fermo o guasto"
+
+    if tipo == "PM" and (ticket.legal_required or _ticket_mentions_legal_requirement(ticket)):
+        return PRIORITY_PM_LEGAL, "PM_LEGGE", "PM normativa/obbligatoria"
+
+    if tipo == "PM" and ticket.deadline_days is not None and ticket.deadline_days <= PM_DUE_SOON_DAYS:
+        return PRIORITY_PM_DUE_SOON, "PM_IN_SCADENZA", f"PM in scadenza entro {PM_DUE_SOON_DAYS} giorni"
+
+    if tipo == "PM":
+        return PRIORITY_PM_ALL, "PM_TUTTE", "PM ordinaria"
+
+    if tipo == "CM":
+        return PRIORITY_CM_ASSET_RUNNING, "CM_ASSET_IN_FUNZIONE", "CM su asset in funzione"
+
+    return PRIORITY_OTHER, "ALTRO", "Tipo ticket non classificato"
 
 
 def calculate_ticket_score(ticket: SchedTicket, rare_skills: Optional[Set[str]] = None) -> float:
@@ -671,12 +768,17 @@ def auto_schedule_tickets(
         if not valid:
             result["excluded"].append({"ticket_id": ticket.id, "reason": reason})
             continue
+        rank, cls, priority_reason = classify_ticket_priority(ticket)
+        ticket.priority_rank = rank
+        ticket.priority_class = cls
+        ticket.priority_reason = priority_reason
         ticket.score = calculate_ticket_score(ticket, rare_skills=rare_skills)
         schedulable.append(ticket)
 
     # ── 2. Ordina i ticket (score desc, poi aging, durata, id per determinismo)─
     schedulable.sort(
         key=lambda t: (
+            t.priority_rank,
             -t.score,
             -t.age_days,
             -(_ticket_duration(t, apply_default=True) or 0),
@@ -764,6 +866,9 @@ def auto_schedule_tickets(
                 "duration_minutes": int(round((best.end - best.start).total_seconds() / 60.0)),
                 "score": best.score,
                 "reason": explain_assignment(best, availability),
+                "priority_rank": ticket.priority_rank,
+                "priority_class": ticket.priority_class,
+                "priority_reason": ticket.priority_reason,
             })
         else:
             reason = NON_SCHEDULABILE_SKILL_ASSENTE if not skill_found else NON_SCHEDULABILE_SLOT_ASSENTE

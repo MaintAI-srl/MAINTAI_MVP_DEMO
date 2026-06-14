@@ -21,6 +21,8 @@ export interface TicketData {
   is_plan_draft?: boolean;
   /** true quando il blocco è la copia renderizzata sulla riga del tecnico di supporto */
   is_support?: boolean;
+  is_priority_shifted?: boolean;
+  priority_shift_reason?: string | null;
 }
 
 export interface TecnicoData {
@@ -63,6 +65,9 @@ export interface PlannedWO {
   confidence_score?: number;
   risk_level?: "LOW" | "MEDIUM" | "HIGH";
   complexity?: "SIMPLE" | "STANDARD" | "COMPLEX";
+  priority_rank?: number | null;
+  priority_class?: string | null;
+  priority_reason?: string | null;
 }
 
 export interface DeferredWO {
@@ -163,6 +168,9 @@ export interface PlanJson {
   plan_metadata?: PlanMetadata;
   /** Riepilogo KPI del motore di auto-scheduling deterministico (Generazione piano). */
   scheduling_summary?: SchedulingSummary;
+  moved_tickets?: number[];
+  moved_ticket_reasons?: Record<string, string>;
+  priority_rules_version?: string;
 }
 
 export interface GeneratedPlan {

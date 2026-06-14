@@ -38,6 +38,7 @@ from backend.services.auto_scheduler import (
     CalendarBlock,
     SchedTechnician,
     SchedTicket,
+    PRIORITY_RULES_VERSION,
     auto_schedule_tickets,
     NON_SCHEDULABILE_DATI_MANCANTI,
     NON_SCHEDULABILE_MATERIALI,
@@ -51,6 +52,20 @@ logger = logging.getLogger(__name__)
 
 BACKLOG_STATUS_VALUES = ("aperto", "pianificato")
 LOCKED_STATUS_VALUES = ("pianificato", "in corso")
+LEGAL_PM_MARKERS = (
+    "legge",
+    "norma",
+    "normativo",
+    "d.lgs",
+    "dpr",
+    "obblig",
+    "verifica periodica",
+    "inail",
+    "ispesl",
+    "cei",
+    "uni ",
+    "sicurezza",
+)
 
 
 # ── Traduzione reason code → italiano ─────────────────────────────────────────
@@ -62,6 +77,11 @@ REASON_IT: Dict[str, str] = {
     NON_SCHEDULABILE_MATERIALI:     "Materiali non pronti (intervento bloccato)",
     NON_SCHEDULABILE_STATO:         "Stato ticket non compatibile con lo scheduling",
 }
+
+
+def _contains_legal_pm_marker(*values: Optional[str]) -> bool:
+    text = " ".join(str(v or "").strip().lower() for v in values if v is not None)
+    return any(marker in text for marker in LEGAL_PM_MARKERS)
 
 
 def _normalize_plan_consistency(plan_json: Dict[str, Any], tickets: List[Ticket]) -> None:
@@ -196,13 +216,24 @@ def _build_sched_tickets(
     tenant_id: Optional[int],
     planning_start: date_type,
     scadenze_map: Optional[Dict[int, date_type]] = None,
+    legal_activity_ids: Optional[Set[int]] = None,
 ) -> List[SchedTicket]:
     scadenze_map = scadenze_map or {}
+    legal_activity_ids = legal_activity_ids or set()
     result: List[SchedTicket] = []
     for t in tickets:
         asset = asset_map.get(t.asset_id) if t.asset_id else None
         site_id: Optional[int] = asset.impianto_id if asset else None
         criticality: Optional[str] = getattr(asset, "criticita", None) if asset else None
+        asset_status: Optional[str] = getattr(asset, "stato", None) if asset else None
+        work_type = (t.tipo or "CM").strip().upper()
+        legal_required = (
+            work_type == "PM"
+            and (
+                (t.attivita_manutenzione_id is not None and t.attivita_manutenzione_id in legal_activity_ids)
+                or _contains_legal_pm_marker(t.titolo, t.descrizione, t.origine_piano, t.origin_type)
+            )
+        )
 
         # Scadenziario: giorni alla prossima scadenza PM dell'asset (None = nessuna)
         deadline_days: Optional[int] = None
@@ -251,6 +282,9 @@ def _build_sched_tickets(
             materials_required=in_attesa,
             age_days=eta_giorni,
             deadline_days=deadline_days,
+            work_type=work_type,
+            asset_status=asset_status,
+            legal_required=legal_required,
         ))
     return result
 
@@ -434,10 +468,33 @@ async def generate_auto_schedule_plan(
             if asset_id not in scadenze_map:
                 scadenze_map[asset_id] = prossima
 
+    legal_activity_ids: Set[int] = set()
+    activity_ids = list({t.attivita_manutenzione_id for t in tickets if t.attivita_manutenzione_id})
+    if activity_ids:
+        legal_q = db.query(
+            AttivitaManutenzione.id,
+            AttivitaManutenzione.source_type,
+            AttivitaManutenzione.origine,
+            AttivitaManutenzione.codice,
+            AttivitaManutenzione.nome,
+            AttivitaManutenzione.descrizione,
+        ).filter(AttivitaManutenzione.id.in_(activity_ids))
+        if tenant_id:
+            legal_q = legal_q.filter(AttivitaManutenzione.tenant_id == tenant_id)
+        for activity_id, source_type, origine, codice, nome, descrizione in legal_q.all():
+            if _contains_legal_pm_marker(source_type, origine, codice, nome, descrizione):
+                legal_activity_ids.add(activity_id)
+
     # ── Conversione ──────────────────────────────────────────────────────────
     sched_techs = _build_sched_technicians(tecnici, assenze_map, workday_end_hour=workday_end_hour)
     sched_tickets = _build_sched_tickets(
-        tickets, asset_map, db=db, tenant_id=tenant_id, planning_start=today, scadenze_map=scadenze_map,
+        tickets,
+        asset_map,
+        db=db,
+        tenant_id=tenant_id,
+        planning_start=today,
+        scadenze_map=scadenze_map,
+        legal_activity_ids=legal_activity_ids,
     )
     locked_blocks = _build_locked_blocks(locked_tickets)
 
@@ -515,6 +572,9 @@ async def generate_auto_schedule_plan(
             "confidence_score":   confidence,
             "risk_level":         risk,
             "complexity":         complexity,
+            "priority_rank":      a.get("priority_rank"),
+            "priority_class":     a.get("priority_class"),
+            "priority_reason":    a.get("priority_reason"),
         })
 
     # ── Converti excluded → deferred_workorders ───────────────────────────────
@@ -533,6 +593,7 @@ async def generate_auto_schedule_plan(
         "fermo_assets":        [],
         "global_warnings":     [],
         "scheduling_summary":  result["summary"],
+        "priority_rules_version": PRIORITY_RULES_VERSION,
     }
     _normalize_plan_consistency(plan_json, tickets)
 

@@ -133,6 +133,42 @@ def test_deadline_overdue_scheduled_first_under_capacity():
     assert 1 in scheduled and 2 not in scheduled  # vince lo scaduto
 
 
+def test_operational_priority_lanes_are_hard_order():
+    techs = [make_tech(daily=480)]
+    bd = make_ticket(id=1, dur=60, priority="Bassa")
+    bd.work_type = "BD"
+
+    cm_fermo = make_ticket(id=2, dur=60, priority="Bassa")
+    cm_fermo.work_type = "CM"
+    cm_fermo.asset_status = "FERMO PROG."
+
+    pm_legge = make_ticket(id=3, dur=60, priority="Bassa")
+    pm_legge.work_type = "PM"
+    pm_legge.legal_required = True
+
+    pm_scadenza = make_ticket(id=4, dur=60, priority="Bassa")
+    pm_scadenza.work_type = "PM"
+    pm_scadenza.deadline_days = 7
+
+    pm_tutte = make_ticket(id=5, dur=60, priority="Bassa")
+    pm_tutte.work_type = "PM"
+
+    cm_funzione = make_ticket(id=6, dur=60, priority="Alta", crit="A")
+    cm_funzione.work_type = "CM"
+    cm_funzione.asset_status = "OPERATIVO"
+
+    res = run([cm_funzione, pm_tutte, pm_scadenza, pm_legge, cm_fermo, bd], techs, days=1)
+    assert [a["ticket_id"] for a in res["assignments"]] == [1, 2, 3, 4, 5, 6]
+    assert [a["priority_class"] for a in res["assignments"]] == [
+        "BD",
+        "CM_FERMO_ASSET",
+        "PM_LEGGE",
+        "PM_IN_SCADENZA",
+        "PM_TUTTE",
+        "CM_ASSET_IN_FUNZIONE",
+    ]
+
+
 # ── Acceptance: weekend ───────────────────────────────────────────────────────
 
 def test_no_weekend_assignments():
