@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from backend.core.security import get_password_hash
-from backend.db.modelli import Asset, GeneratedPlan, Tenant, Ticket, Utente
+from backend.db.modelli import Asset, GeneratedPlan, Tecnico, Tenant, Ticket, Utente
 
 
 def _make_user(db_session, tenant: Tenant, username: str = "planner_reg"):
@@ -153,3 +153,34 @@ def test_confirm_plan_aggrega_frammenti_stesso_ticket(client, db_session):
     db_session.refresh(ticket)
     assert ticket.planned_start == datetime.fromisoformat("2026-04-20T08:00:00")
     assert ticket.planned_finish == datetime.fromisoformat("2026-04-21T10:00:00")
+
+
+def test_generate_plan_usa_auto_scheduler_senza_ai_flag(client, db_session, monkeypatch):
+    monkeypatch.delenv("AI_PLANNING_ENABLED", raising=False)
+    tenant = _tenant(db_session, "tenant-auto-scheduler")
+    _make_user(db_session, tenant)
+    asset = _asset(db_session, tenant)
+    ticket = _ticket(db_session, tenant, asset, durata=2.0)
+    ticket.competenza_richiesta = "MECCANICO"
+    tecnico = Tecnico(
+        nome="Luca",
+        cognome="Rossi",
+        competenze="MECCANICO",
+        ore_giornaliere=8,
+        stato="in servizio",
+        orario_inizio="08:00",
+        orario_fine="17:00",
+        tenant_id=tenant.id,
+    )
+    db_session.add(tecnico)
+    db_session.commit()
+    _login(client)
+
+    response = client.post("/planning/generate", json={"days": 7, "mode": "auto"})
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "draft"
+    assert payload["plan_json"]["plan_metadata"]["generated_by"] == "deterministic"
+    assert payload["plan_json"]["planned_workorders"][0]["wo_id"] == ticket.id
+    assert payload["plan_json"]["scheduling_summary"]["tickets_scheduled"] == 1
