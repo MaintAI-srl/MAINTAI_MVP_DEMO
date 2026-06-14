@@ -1294,9 +1294,15 @@ export default function PianificazionePage() {
     if (!background) setLoading(true);
     try {
       const [tecniciRes, activeRes, planRes] = await Promise.all([
-        apiGet<TecnicoAPI[]>("/tecnici"),
-        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso,Chiuso"),
-        apiGet<GeneratedPlan | null>("/planning/current").catch(() => null),
+        apiGet<TecnicoAPI[]>("/tecnici", { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
+        apiGet<{ items: TicketData[] }>("/tickets?limit=200&stato=Aperto,Pianificato,In%20corso,Chiuso", {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+        }),
+        apiGet<GeneratedPlan | null>("/planning/current", {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+        }).catch(() => null),
       ]);
 
       setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));

@@ -1,5 +1,5 @@
 /**
- * MaintAI Service Worker v3.0
+ * MaintAI Service Worker v3.1
  *
  * Strategie cache:
  *   - HTML / bundle Next.js → Network-only (sempre aggiornati dal deploy Vercel)
@@ -20,7 +20,7 @@
  *   - AI/planning (dati sempre freschi)
  */
 
-const CACHE_NAME = "maintai-v3.0";
+const CACHE_NAME = "maintai-v3.1";
 
 const CACHEABLE_API_PATTERNS = [
   /\/tickets(\?|$)/,
@@ -44,14 +44,14 @@ const NEVER_CACHE_PATTERNS = [
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
-  console.log("[MaintAI SW] v3.0 installing...");
+  console.log("[MaintAI SW] v3.1 installing...");
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then(() => {}));
 });
 
 // ── Activate — pulisce cache obsolete ────────────────────────────────────────
 self.addEventListener("activate", (event) => {
-  console.log("[MaintAI SW] v3.0 activating...");
+  console.log("[MaintAI SW] v3.1 activating...");
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
@@ -71,6 +71,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
   if (!url.protocol.startsWith("http")) return;
+  if (request.cache === "no-store" || request.headers.get("Cache-Control")?.includes("no-store")) return;
 
   // HTML e bundle Next.js: sempre dalla rete
   if (
