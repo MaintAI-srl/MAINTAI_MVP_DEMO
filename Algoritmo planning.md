@@ -56,7 +56,8 @@ base giornaliera sia su base settimanale.
 | `site_id` | `Asset.impianto_id` | usato per il raggruppamento per sito |
 | `asset_id` | `Ticket.asset_id` | opzionale |
 | `status` | `Ticket.stato` | schedulabile se `Aperto`/`Pianificato` |
-| `required_skill` | `Ticket.competenza_richiesta` → fallback `Ticket.tipo` (PM/CM/BD) | |
+| `required_skill` | `Ticket.competenza_richiesta` → fallback `Ticket.tipo` (PM/CM/BD) | la manutenzione generica (solo tipo) può andare a **qualsiasi** tecnico |
+| `deadline` | `AttivitaManutenzione.prossima_scadenza` dell'asset (la più imminente) | scadenziario: i ticket scaduti/in scadenza prima |
 | `estimated_duration_minutes` | `Ticket.durata_stimata_ore × 60` | default 2h se mancante |
 | `priority` | `Ticket.priorita` | **NON** è SLA: serve solo per l'ordinamento |
 | `asset_criticality` | `Asset.criticita` (A/B/C) | |
@@ -70,7 +71,7 @@ base giornaliera sia su base settimanale.
 | Campo logico | Campo MaintAI |
 |---|---|
 | `id` / `name` | `Tecnico.id` / `nome cognome` |
-| `skills` | `Tecnico.competenze` (PM/CM/BD aggiunte implicitamente se nessuna job-skill) |
+| `skills` | `Tecnico.competenze` + **PM/CM/BD impliciti a ogni tecnico attivo** (chiunque può fare manutenzione generica; le job-skill restano per i ticket che le richiedono esplicitamente) |
 | `workday_start/end` | `Tecnico.orario_inizio/orario_fine` |
 | `daily_capacity_minutes` | `Tecnico.ore_giornaliere × 60` |
 | `weekly_capacity_minutes` | `daily_capacity_minutes × 5` |
@@ -110,7 +111,7 @@ auto_schedule_tickets(
 ## 6. Ordinamento ticket — `TicketScore`
 
 ```
-TicketScore = priorità tecnica + criticità asset + aging + rarità skill + durata utile
+TicketScore = priorità + criticità asset + aging + scadenza + rarità skill + durata utile
 ```
 
 | Componente | Pesi |
@@ -118,28 +119,37 @@ TicketScore = priorità tecnica + criticità asset + aging + rarità skill + dur
 | Priorità | Alta +40 · Media +20 · Bassa +5 |
 | Criticità asset | A/Alta +30 · B/Media +15 · C/Bassa +0 |
 | Aging | > 7gg +15 · > 3gg +10 · nuovo +0 |
+| **Scadenza** (scadenziario) | scaduto +60 · ≤ 3gg +35 · ≤ 7gg +20 · ≤ 14gg +10 · oltre +0 |
 | Rarità skill | skill rara (≤ 1 tecnico la possiede) +15 · comune +0 |
 | Durata utile | `min(durata_h, 8) × 2` (max +16) — i ticket lunghi prima, riempiono meglio |
 
 A parità di score: prima i più vecchi, poi i più lunghi, poi per `id` (determinismo).
+I ticket scaduti / in scadenza, avendo lo score più alto, vengono piazzati per primi
+e quindi sui giorni più vicini alla generazione (prima della scadenza).
 
 ---
 
 ## 7. Scoring slot — `SlotScore`
 
 ```
-SlotScore = skill_match + fill_score + daily_balance + weekly_balance
-            + site_grouping − fragmentation_penalty
+SlotScore = skill_match + fill_score + weekly_balance + daily_balance
+            + site_grouping + earliness − fragmentation_penalty
 ```
 
 | Componente | Pesi |
 |---|---|
 | **skill_match** | skill esatta (job-skill) +30 · skill generica (PM/CM/BD) +15 |
 | **fill_score** | residuo slot = 0 → +30 · ≤ 30min → +20 · ≤ 60min → +10 · oltre +0 |
-| **daily_balance** | saturazione giorno < 50% +20 · 50–80% +10 · > 80% +0 |
-| **weekly_balance** | saturazione settimana < 50% +20 · 50–80% +10 · > 80% +0 |
+| **weekly_balance** | `(1 − saturazione_settimana) × 25` — **continuo**: il tecnico meno saturo è sempre preferito |
+| **daily_balance** | `(1 − saturazione_giorno) × 15` — **continuo** |
 | **site_grouping** | stesso sito già presidiato in giornata +20 · sede base del tecnico +10 |
+| **earliness** | `(orizzonte − indice_giorno) / orizzonte × 8` — preferisci i giorni più vicini |
 | **fragmentation_penalty** | buco residuo > 120min −10 · 60–120min −5 · < 60min 0 |
+
+Il bilanciamento **continuo** (non a soglie) è ciò che distribuisce i ticket su
+**tutti** i tecnici invece di concentrarli sul primo: a parità di tutto, vince il
+tecnico meno carico. Il `site_grouping` resta un richiamo all'accorpamento finché
+il tecnico non è troppo saturo.
 
 **Overtime** = hard constraint: se l'intervento supera l'orario di fine giornata la
 proposta viene **scartata** (non penalizzata).
@@ -209,6 +219,12 @@ con selettore orizzonte (7/14/30 gg) e selettore modalità:
   visibile sul Gantt, da rivedere e confermare manualmente.
 - **Conferma auto**: genera e conferma subito il piano (ticket → `Pianificato`,
   tecnico assegnato, `planned_start/finish` scritti).
+
+Rigenerando il piano quando arrivano nuovi ticket, le priorità vengono ricalcolate
+sull'intero backlog. I ticket **rimandati** (non entrati nella proposta) restano
+nella sidebar «NON PIANIFICATI» con badge **RIMANDATO** e bordo rosso
+**lampeggiante**, così il planner vede subito cosa è stato posposto prima di
+approvare con **Conferma proposta**.
 
 Al termine viene mostrato un riepilogo KPI: ticket analizzati/schedulati/esclusi,
 saturazione giornaliera/settimanale/periodo e saturazione per tecnico.

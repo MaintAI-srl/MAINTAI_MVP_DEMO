@@ -116,6 +116,23 @@ def test_aging_increases_score():
     assert vecchio > nuovo
 
 
+def test_deadline_increases_score():
+    overdue = make_ticket(dur=60)
+    overdue.deadline_days = -2
+    normale = make_ticket(dur=60)
+    assert calculate_ticket_score(overdue) > calculate_ticket_score(normale)
+
+
+def test_deadline_overdue_scheduled_first_under_capacity():
+    techs = [make_tech(daily=120)]  # capacità per un solo ticket da 2h/giorno
+    normale = make_ticket(id=2, dur=120, priority="Bassa")
+    overdue = make_ticket(id=1, dur=120, priority="Bassa")
+    overdue.deadline_days = -2
+    res = run([normale, overdue], techs, days=1)  # 'normale' prima nell'input
+    scheduled = {a["ticket_id"] for a in res["assignments"]}
+    assert 1 in scheduled and 2 not in scheduled  # vince lo scaduto
+
+
 # ── Acceptance: weekend ───────────────────────────────────────────────────────
 
 def test_no_weekend_assignments():
@@ -329,6 +346,45 @@ def test_bridge_generates_plan_json(db_session):
         assert d.weekday() < 5
         assert wo["technician_id"] == tecnico.id
     assert plan.get("efficiency_score") is not None
+
+
+def test_bridge_distributes_across_job_skill_technicians(db_session):
+    """Ticket generici (tipo) devono andare a TUTTI i tecnici, non solo a uno."""
+    import asyncio
+    from backend.db.modelli import Asset, Tecnico, Ticket
+    from backend.services.auto_scheduler_bridge import generate_auto_schedule_plan
+
+    tenant = _seed_tenant(db_session)
+    db_session.add_all([
+        Tecnico(nome="Mario", cognome="Mecc", competenze="Meccanico", ore_giornaliere=8,
+                stato="in servizio", orario_inizio="08:00", orario_fine="17:00", tenant_id=tenant.id),
+        Tecnico(nome="Elio", cognome="Elet", competenze="Elettricista", ore_giornaliere=8,
+                stato="in servizio", orario_inizio="08:00", orario_fine="17:00", tenant_id=tenant.id),
+    ])
+    db_session.commit()
+
+    assets = []
+    for i in range(4):
+        a = Asset(nome=f"Asset{i}", impianto_id=100 + i, tenant_id=tenant.id)
+        db_session.add(a)
+        assets.append(a)
+    db_session.commit()
+    for a in assets:
+        db_session.refresh(a)
+        # competenza_richiesta=None → ticket "generico" (usa il tipo come proxy)
+        db_session.add(Ticket(
+            titolo=f"T{a.id}", asset_id=a.id, tipo="CM", priorita="Media",
+            stato="Aperto", durata_stimata_ore=2.0, tenant_id=tenant.id,
+        ))
+    db_session.commit()
+
+    plan = asyncio.run(generate_auto_schedule_plan(
+        db=db_session, days=7, tenant_id=tenant.id, start_date=MONDAY,
+    ))
+    # Tutti schedulati (skill generica copre entrambi i tecnici con job-skill)
+    assert plan["scheduling_summary"]["tickets_scheduled"] == 4
+    tech_ids = {wo["technician_id"] for wo in plan["planned_workorders"]}
+    assert len(tech_ids) == 2  # entrambi i tecnici impiegati, non solo uno
 
 
 def test_endpoint_generate_deterministic_not_blocked_by_ai_flag(client, db_session, monkeypatch):
