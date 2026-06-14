@@ -96,21 +96,51 @@ def test_repro_screenshot_fills_all_technicians(db_session):
     for wo in wos:
         by_tech[wo["technician_id"]] = by_tech.get(wo["technician_id"], 0) + 1
 
-    print("\n=== REPRO ===")
+    print("\n=== REPRO (demo: skill/materiali ignorati) ===")
     print(f"tickets totali: {total}")
     print(f"schedulati: {summary['tickets_scheduled']}  esclusi: {summary['tickets_excluded']}")
     print(f"effective_days: {plan['plan_metadata'].get('effective_days')}")
+    print(f"saturazione giornaliera: {summary.get('daily_utilization_percent')}%")
     print(f"per tecnico: {by_tech}")
     print(f"deferred reasons: {[(d['wo_id'], d.get('reason_code')) for d in deferred]}")
 
-    # Pinco (meccanico) DEVE ricevere lavoro generico
+    # DEMO: nessun blocco per skill/materiali → tutto il backlog è schedulato
+    assert summary["tickets_excluded"] == 0, "Nessun ticket deve essere escluso in modalità demo"
+    assert summary["tickets_scheduled"] == total
+    # Pinco (meccanico) DEVE ricevere lavoro (niente filtro skill)
     assert by_tech.get(pinco.id, 0) > 0, "Pinco (meccanico) è rimasto vuoto!"
-    # Tutti i 4 tecnici disponibili subito devono essere impiegati
+    # Tutti i 4 tecnici disponibili devono essere impiegati
     used = {luigi.id, pinco.id, dario.id, marco.id} & set(by_tech.keys())
     assert len(used) == 4, f"Non tutti i tecnici disponibili impiegati: {used}"
-    # I PLE vengono pianificati su luca al rientro dalle ferie (orizzonte esteso)
-    assert by_tech.get(luca.id, 0) == 2, "I ticket PLE non sono stati pianificati su luca al rientro"
-    # Solo il ticket con skill inesistente resta non schedulato
-    assert summary["tickets_excluded"] == 1
-    assert deferred[0]["reason_code"] == "NON_SCHEDULABILE_SKILL_ASSENTE"
-    assert summary["tickets_scheduled"] == total - 1, "Backlog non svuotato come atteso"
+    # La saturazione sui giorni usati deve essere alta (giornate riempite)
+    assert summary["daily_utilization_percent"] >= 70, "Giornate non riempite (saturazione bassa)"
+
+
+def test_repro_enforce_skill_defers_unmatched(db_session):
+    """Con vincoli attivi (enforce_skill=True) i ticket senza tecnico restano fuori."""
+    from backend.services.auto_scheduler_bridge import generate_auto_schedule_plan
+
+    tenant = Tenant(nome="T2", slug="repro2", is_active=True)
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+    t = Tecnico(nome="mecc", competenze="meccanico", ore_giornaliere=8, stato="in servizio",
+                orario_inizio="08:00", orario_fine="17:00", tenant_id=tenant.id)
+    db_session.add(t)
+    a = Asset(nome="A", tenant_id=tenant.id)
+    db_session.add(a)
+    db_session.commit()
+    db_session.refresh(a)
+    db_session.add(Ticket(titolo="ok", asset_id=a.id, tipo="PM", priorita="Media",
+                          stato="Aperto", durata_stimata_ore=2.0, tenant_id=tenant.id))
+    db_session.add(Ticket(titolo="sub", asset_id=a.id, tipo="CM", priorita="Media",
+                          stato="Aperto", durata_stimata_ore=2.0,
+                          competenza_richiesta="SOMMOZZATORE", tenant_id=tenant.id))
+    db_session.commit()
+
+    plan = asyncio.run(generate_auto_schedule_plan(
+        db=db_session, days=7, tenant_id=tenant.id, start_date=MONDAY, enforce_skill=True,
+    ))
+    assert plan["scheduling_summary"]["tickets_scheduled"] == 1
+    assert plan["scheduling_summary"]["tickets_excluded"] == 1
+    assert plan["deferred_workorders"][0]["reason_code"] == "NON_SCHEDULABILE_SKILL_ASSENTE"

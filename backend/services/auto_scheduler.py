@@ -144,13 +144,19 @@ def _ticket_duration(ticket: SchedTicket, apply_default: bool = False) -> Option
     return dur
 
 
-def is_ticket_schedulable(ticket: SchedTicket, apply_default_duration: bool = False) -> Tuple[bool, Optional[str]]:
+def is_ticket_schedulable(
+    ticket: SchedTicket,
+    apply_default_duration: bool = False,
+    enforce_materials: bool = True,
+) -> Tuple[bool, Optional[str]]:
     """
     Verifica i dati minimi richiesti per lo scheduling automatico.
 
     Ritorna (True, None) se schedulabile, altrimenti (False, reason_code).
     NB: la presenza di un tecnico compatibile / di uno slot NON è verificata qui
     (vengono valutate nel ciclo di assegnazione → SKILL_ASSENTE / SLOT_ASSENTE).
+
+    Se enforce_materials=False i materiali non bloccano la pianificazione (demo).
     """
     stato = (ticket.status or "").strip().lower()
     if stato in TERMINAL_STATES:
@@ -170,8 +176,8 @@ def is_ticket_schedulable(ticket: SchedTicket, apply_default_duration: bool = Fa
     if not (ticket.required_skill and ticket.required_skill.strip()):
         return False, NON_SCHEDULABILE_DATI_MANCANTI
 
-    # Materiali: se necessari e non pronti → escluso
-    if ticket.materials_required and not ticket.materials_ready:
+    # Materiali: se necessari e non pronti → escluso (salvo enforce_materials=False)
+    if enforce_materials and ticket.materials_required and not ticket.materials_ready:
         return False, NON_SCHEDULABILE_MATERIALI
 
     return True, None
@@ -506,8 +512,19 @@ def calculate_schedule_summary(
     total_excluded: int,
 ) -> Dict:
     """KPI di saturazione (giornaliera, settimanale, periodo) e per tecnico."""
-    working_set = set(working_days)
     active_techs = [t for t in technicians if t.active]
+
+    # I KPI di saturazione si calcolano solo fino all'ULTIMO giorno effettivamente
+    # usato: i giorni di buffer in coda all'orizzonte auto-esteso (vuoti perché il
+    # backlog è finito) non devono diluire la percentuale di saturazione.
+    used_dates = [
+        b.start.date() for b in calendar_blocks
+        if b.type == "TICKET" and b.start.date() in set(working_days)
+    ]
+    if used_dates:
+        last_used = max(used_dates)
+        working_days = [d for d in working_days if d <= last_used]
+    working_set = set(working_days)
 
     # Minuti occupati per (tech, day) — considera tutti i blocchi TICKET nell'orizzonte
     busy_by_tech_day: Dict[Tuple[int, date], int] = defaultdict(int)
@@ -555,12 +572,15 @@ def calculate_schedule_summary(
     total_sched = sum(day_sched.values())
     period_util = round(total_sched / total_cap * 100, 1) if total_cap > 0 else 0.0
 
-    # Per tecnico (sull'intero orizzonte)
+    # Per tecnico (sui giorni usati). I tecnici senza capacità nel periodo
+    # (es. interamente in ferie) sono esclusi dall'elenco per non sporcare i KPI.
     tech_rows = []
     n_saturated = 0
     n_undersaturated = 0
     for tech in active_techs:
         cap = sum(cap_for(tech, d) for d in working_days)
+        if cap <= 0:
+            continue
         sched = sum(busy_by_tech_day.get((tech.id, d), 0) for d in working_days)
         util = round(sched / cap * 100, 1) if cap > 0 else 0.0
         saturo = cap > 0 and (sched / cap) >= SATURATION_THRESHOLD
@@ -612,6 +632,8 @@ def auto_schedule_tickets(
     include_weekends: bool = False,
     mode: str = "weekly_fill",
     apply_default_duration: bool = True,
+    enforce_skill: bool = True,
+    enforce_materials: bool = True,
 ) -> Dict:
     """
     Auto-scheduling deterministico dei ticket con obiettivo di saturazione ore.
@@ -621,6 +643,11 @@ def auto_schedule_tickets(
       - excluded:    lista ticket non schedulabili (con reason_code)
       - summary:     KPI di saturazione giornaliera/settimanale/periodo
       - calendar_blocks: blocchi calendario creati (status PROPOSED)
+
+    Flag (per modalità demo):
+      - enforce_skill=False    → la skill richiesta non vincola: ogni ticket può
+        essere assegnato a qualsiasi tecnico disponibile.
+      - enforce_materials=False → i materiali non bloccano la pianificazione.
     """
     result: Dict = {"assignments": [], "excluded": [], "summary": {}, "calendar_blocks": []}
 
@@ -637,7 +664,10 @@ def auto_schedule_tickets(
 
     schedulable: List[SchedTicket] = []
     for ticket in tickets:
-        valid, reason = is_ticket_schedulable(ticket, apply_default_duration=apply_default_duration)
+        valid, reason = is_ticket_schedulable(
+            ticket, apply_default_duration=apply_default_duration,
+            enforce_materials=enforce_materials,
+        )
         if not valid:
             result["excluded"].append({"ticket_id": ticket.id, "reason": reason})
             continue
@@ -685,7 +715,7 @@ def auto_schedule_tickets(
                 continue  # hard-constraint ridondante ma esplicito
             best_on_day: Optional[_Candidate] = None
             for tech in active_techs:
-                if not has_required_skill(tech, ticket):
+                if enforce_skill and not has_required_skill(tech, ticket):
                     continue
                 skill_found = True
                 if not availability.has_daily_capacity(tech.id, day, duration):
