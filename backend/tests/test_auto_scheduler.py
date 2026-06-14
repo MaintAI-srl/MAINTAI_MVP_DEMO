@@ -396,6 +396,48 @@ def test_bridge_auto_extends_horizon_to_empty_backlog(db_session):
     assert plan["plan_metadata"]["effective_days"] > 7
 
 
+def test_bridge_analyzes_all_open_backlog_even_with_stale_planning_fields(db_session):
+    """Ticket Aperto con vecchi planned_* non devono sparire dal backlog analizzato."""
+    import asyncio
+    from datetime import datetime
+    from backend.db.modelli import Asset, Tecnico, Ticket
+    from backend.services.auto_scheduler_bridge import generate_auto_schedule_plan
+
+    tenant = _seed_tenant(db_session)
+    db_session.add(Tecnico(
+        nome="Planner", competenze="MECCANICO", ore_giornaliere=8, stato="in servizio",
+        orario_inizio="08:00", orario_fine="17:00", tenant_id=tenant.id,
+    ))
+    asset = Asset(nome="Linea", tenant_id=tenant.id)
+    db_session.add(asset)
+    db_session.commit()
+    db_session.refresh(asset)
+
+    stale_start = datetime(2026, 6, 15, 8, 0)
+    for i in range(79):
+        ticket = Ticket(
+            titolo=f"T{i}", asset_id=asset.id, tipo="CM", priorita="Media",
+            stato="Aperto", durata_stimata_ore=0.25, competenza_richiesta="MECCANICO",
+            tenant_id=tenant.id,
+        )
+        if i < 24:
+            ticket.tecnico_id = 999
+            ticket.planned_start = stale_start
+            ticket.planned_finish = stale_start
+            ticket.is_manual_plan = True
+        db_session.add(ticket)
+    db_session.commit()
+
+    plan = asyncio.run(generate_auto_schedule_plan(
+        db=db_session, days=7, tenant_id=tenant.id, start_date=MONDAY,
+    ))
+
+    assert plan["scheduling_summary"]["total_tickets_analyzed"] == 79
+    assert plan["scheduling_summary"]["tickets_scheduled"] == 79
+    assert plan["scheduling_summary"]["tickets_excluded"] == 0
+    assert len({wo["wo_id"] for wo in plan["planned_workorders"]}) == 79
+
+
 def test_bridge_summary_uses_unique_ticket_ids():
     """Il riepilogo non deve contare righe duplicate come ticket confermabili."""
     from backend.db.modelli import Ticket

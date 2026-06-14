@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Set
 # Evita orizzonti illimitati con backlog enormi pur "non fermandosi" ai 7 giorni.
 MAX_HORIZON_CALENDAR_DAYS = 180
 
-from sqlalchemy import or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from backend.db.modelli import Asset, AttivitaManutenzione, Tecnico, Ticket, TecnicoAssenza
@@ -48,6 +48,9 @@ from backend.services.auto_scheduler import (
 from backend.core.logger_db import db_info
 
 logger = logging.getLogger(__name__)
+
+BACKLOG_STATUS_VALUES = ("aperto", "pianificato")
+LOCKED_STATUS_VALUES = ("pianificato", "in corso")
 
 
 # ── Traduzione reason code → italiano ─────────────────────────────────────────
@@ -306,22 +309,56 @@ async def generate_auto_schedule_plan(
 
     today = start_date or date_type.today()
     horizon_end = today + timedelta(days=days - 1)
+    status_norm = func.lower(func.trim(Ticket.stato))
+
+    stale_open_query = db.query(Ticket).filter(
+        status_norm == "aperto",
+        Ticket.deleted_at.is_(None),
+        or_(
+            Ticket.tecnico_id.isnot(None),
+            Ticket.tecnico_supporto_id.isnot(None),
+            Ticket.planned_start.isnot(None),
+            Ticket.planned_finish.isnot(None),
+            Ticket.is_manual_plan.is_(True),
+        ),
+    )
+    if tenant_id:
+        stale_open_query = stale_open_query.filter(Ticket.tenant_id == tenant_id)
+    if asset_ids:
+        stale_open_query = stale_open_query.filter(Ticket.asset_id.in_(asset_ids))
+    stale_open_tickets = stale_open_query.all()
+    for ticket in stale_open_tickets:
+        ticket.tecnico_id = None
+        ticket.tecnico_supporto_id = None
+        ticket.planned_start = None
+        ticket.planned_finish = None
+        ticket.is_manual_plan = False
+    if stale_open_tickets:
+        logger.warning(
+            "AutoScheduler: bonificati %d ticket Aperto con pianificazione stale",
+            len(stale_open_tickets),
+        )
+        db.flush()
 
     # ── Ticket locked (già pianificati o manuali) ─────────────────────────────
     locked_query = db.query(Ticket).filter(
+        status_norm.in_(LOCKED_STATUS_VALUES),
+        Ticket.deleted_at.is_(None),
         or_(
-            Ticket.tecnico_id.isnot(None) & Ticket.planned_start.isnot(None),
+            and_(Ticket.tecnico_id.isnot(None), Ticket.planned_start.isnot(None)),
             Ticket.is_manual_plan.is_(True),
         )
     )
     if tenant_id:
         locked_query = locked_query.filter(Ticket.tenant_id == tenant_id)
+    if asset_ids:
+        locked_query = locked_query.filter(Ticket.asset_id.in_(asset_ids))
     locked_tickets = locked_query.all()
     locked_ids = {t.id for t in locked_tickets}
 
     # ── Ticket pianificabili (Aperto / Pianificato non assegnato) ─────────────
     ticket_query = db.query(Ticket).filter(
-        Ticket.stato.in_(["Aperto", "Pianificato"]),
+        status_norm.in_(BACKLOG_STATUS_VALUES),
         Ticket.deleted_at.is_(None),
     )
     if locked_ids:
@@ -522,13 +559,17 @@ async def generate_auto_schedule_plan(
             "ore_disponibili_effettive": efficiency.get("ore_disponibili_effettive"),
             "ore_assegnate": efficiency.get("ore_assegnate"),
             "effective_days": effective_days,
+            "stale_open_tickets_cleaned": len(stale_open_tickets),
         }
     except Exception as exc:  # pragma: no cover - best effort
         logger.warning("AutoScheduler: errore calcolo efficienza: %s", exc)
         plan_json["efficiency_score"] = 0
         plan_json["efficiency_breakdown"] = {}
         plan_json["efficiency_motivations"] = []
-        plan_json["plan_metadata"] = {"effective_days": effective_days}
+        plan_json["plan_metadata"] = {
+            "effective_days": effective_days,
+            "stale_open_tickets_cleaned": len(stale_open_tickets),
+        }
 
     if db is not None and tenant_id is not None:
         try:
