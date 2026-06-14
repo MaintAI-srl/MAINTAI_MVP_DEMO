@@ -346,6 +346,11 @@ async def generate_plan(
                 start_date=planning_start_date,
                 include_weekends=data.include_weekends,
                 workday_end_hour=21 if data.allow_overtime else 17,
+                # "Generazione piano" e' la modalita demo operativa: deve consumare
+                # tutto il backlog schedulabile senza lasciare ticket fermi per
+                # skill/materiali configurati nell'ambiente di deploy.
+                enforce_skill=False,
+                enforce_materials=False,
             )
             if "error" in plan_json:
                 msg = plan_json["error"]

@@ -441,6 +441,8 @@ def test_endpoint_generate_deterministic_not_blocked_by_ai_flag(client, db_sessi
     from backend.db.modelli import Asset, Tecnico, Ticket, Utente
 
     monkeypatch.delenv("AI_PLANNING_ENABLED", raising=False)
+    monkeypatch.setenv("SCHEDULER_ENFORCE_SKILL", "true")
+    monkeypatch.setenv("SCHEDULER_ENFORCE_MATERIALS", "true")
 
     tenant = _seed_tenant(db_session)
     db_session.add(Utente(
@@ -457,8 +459,8 @@ def test_endpoint_generate_deterministic_not_blocked_by_ai_flag(client, db_sessi
     db_session.refresh(asset)
     db_session.add(Ticket(
         titolo="Controllo", asset_id=asset.id, tipo="CM", priorita="Alta",
-        stato="Aperto", durata_stimata_ore=2.0, competenza_richiesta="MECCANICO",
-        tenant_id=tenant.id,
+        stato="Aperto", durata_stimata_ore=2.0, competenza_richiesta="SOMMOZZATORE",
+        in_attesa_ricambio=True, tenant_id=tenant.id,
     ))
     db_session.commit()
 
@@ -470,3 +472,6 @@ def test_endpoint_generate_deterministic_not_blocked_by_ai_flag(client, db_sessi
     body = res.json()
     assert body["plan_json"].get("scheduling_summary") is not None
     assert body["status"] == "draft"
+    summary = body["plan_json"]["scheduling_summary"]
+    assert summary["tickets_scheduled"] == 1
+    assert summary["tickets_excluded"] == 0
