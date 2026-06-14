@@ -1154,24 +1154,13 @@ export default function PianificazionePage() {
     return ids;
   }, [optimisticPlannedIds, planJson?.planned_workorders]);
 
-  const allPlanTicketsScheduled = useMemo(() => {
-    const summary = planJson?.scheduling_summary;
-    if (!summary) return false;
-    return (
-      summary.total_tickets_analyzed > 0 &&
-      summary.tickets_excluded === 0 &&
-      summary.tickets_scheduled >= summary.total_tickets_analyzed
-    );
-  }, [planJson?.scheduling_summary]);
-
   const tipoCounts = useMemo(() => {
     const counts = { BD: 0, PM: 0, CM: 0 };
-    if (allPlanTicketsScheduled) return counts;
     unscheduledTickets.filter((t) => !plannedPlanIds.has(Number(t.id))).forEach((t) => {
       if (t.tipo in counts) counts[t.tipo as keyof typeof counts]++;
     });
     return counts;
-  }, [allPlanTicketsScheduled, plannedPlanIds, unscheduledTickets]);
+  }, [plannedPlanIds, unscheduledTickets]);
 
   const ganttTickets = useMemo(() => {
     if (!piano) return scheduledTickets;
@@ -1314,20 +1303,11 @@ export default function PianificazionePage() {
       const activeTickets = activeRes.items ?? [];
       const planIds = new Set<number>(hidePlannedIds ?? []);
       (planRes?.plan_json?.planned_workorders ?? []).forEach((wo) => planIds.add(Number(wo.wo_id)));
-      const summary = planRes?.plan_json?.scheduling_summary;
-      const allScheduled = Boolean(
-        summary &&
-        summary.total_tickets_analyzed > 0 &&
-        summary.tickets_excluded === 0 &&
-        summary.tickets_scheduled >= summary.total_tickets_analyzed,
-      );
       setOptimisticPlannedIds(planIds);
       // Pianificati/in corso/chiusi con orario → sul Gantt (i chiusi restano fissi).
       const scheduled = activeTickets.filter((t) => t.planned_start != null);
       // Sidebar "non pianificati": solo ticket ancora aperti senza orario.
-      const unscheduled = allScheduled
-        ? []
-        : activeTickets.filter((t) => t.planned_start == null && t.stato === "Aperto" && !planIds.has(Number(t.id)));
+      const unscheduled = activeTickets.filter((t) => t.planned_start == null && t.stato === "Aperto" && !planIds.has(Number(t.id)));
       setScheduledTickets(scheduled);
       setUnscheduledTickets(unscheduled);
       setPiano(planRes);
@@ -1525,8 +1505,8 @@ export default function PianificazionePage() {
   // In modalità proposta i ticket già piazzati nella bozza sono sul Gantt:
   // la sidebar mostra solo quelli NON pianificati (i "rimandati"), che lampeggiano.
   const visibleUnscheduledTickets = useMemo(
-    () => allPlanTicketsScheduled ? [] : unscheduledTickets.filter((t) => !plannedPlanIds.has(Number(t.id))),
-    [allPlanTicketsScheduled, unscheduledTickets, plannedPlanIds],
+    () => unscheduledTickets.filter((t) => !plannedPlanIds.has(Number(t.id))),
+    [unscheduledTickets, plannedPlanIds],
   );
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
   const columnCapacity = useMemo(() => {

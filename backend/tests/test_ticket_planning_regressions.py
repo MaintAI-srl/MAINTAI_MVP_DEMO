@@ -155,6 +155,59 @@ def test_confirm_plan_aggrega_frammenti_stesso_ticket(client, db_session):
     assert ticket.planned_finish == datetime.fromisoformat("2026-04-21T10:00:00")
 
 
+def test_confirm_plan_rifiuta_wo_non_confermabili(client, db_session):
+    tenant = _tenant(db_session, "tenant-confirm-integrity")
+    _make_user(db_session, tenant)
+    asset = _asset(db_session, tenant)
+    ticket = _ticket(db_session, tenant, asset, durata=2.0)
+    missing_wo_id = ticket.id + 999
+    plan = GeneratedPlan(
+        status="draft",
+        horizon_days=7,
+        tenant_id=tenant.id,
+        plan_json={
+            "planned_workorders": [
+                {
+                    "wo_id": ticket.id,
+                    "technician_id": 1,
+                    "planned_date": "2026-04-20",
+                    "planned_start_time": "08:00",
+                    "planned_end_time": "10:00",
+                    "duration_hours": 2,
+                    "is_continuation": False,
+                    "parent_wo_id": None,
+                },
+                {
+                    "wo_id": missing_wo_id,
+                    "technician_id": 1,
+                    "planned_date": "2026-04-20",
+                    "planned_start_time": "10:00",
+                    "planned_end_time": "11:00",
+                    "duration_hours": 1,
+                    "is_continuation": False,
+                    "parent_wo_id": None,
+                },
+            ],
+            "deferred_workorders": [],
+            "fermo_assets": [],
+            "global_warnings": [],
+            "scheduling_summary": {
+                "total_tickets_analyzed": 2,
+                "tickets_scheduled": 2,
+                "tickets_excluded": 0,
+            },
+        },
+    )
+    db_session.add(plan)
+    db_session.commit()
+    db_session.refresh(plan)
+    _login(client)
+
+    response = client.post(f"/planning/confirm/{plan.id}")
+
+    assert response.status_code == 409, response.text
+
+
 def test_generate_plan_usa_auto_scheduler_senza_ai_flag(client, db_session, monkeypatch):
     monkeypatch.delenv("AI_PLANNING_ENABLED", raising=False)
     tenant = _tenant(db_session, "tenant-auto-scheduler")

@@ -346,11 +346,6 @@ async def generate_plan(
                 start_date=planning_start_date,
                 include_weekends=data.include_weekends,
                 workday_end_hour=21 if data.allow_overtime else 17,
-                # "Generazione piano" e' la modalita demo operativa: deve consumare
-                # tutto il backlog schedulabile senza lasciare ticket fermi per
-                # skill/materiali configurati nell'ambiente di deploy.
-                enforce_skill=False,
-                enforce_materials=False,
             )
             if "error" in plan_json:
                 msg = plan_json["error"]
@@ -747,33 +742,76 @@ def confirm_plan(
             if wo_id:
                 planned_by_wo.setdefault(int(wo_id), []).append(wo)
 
-        for wo_id, fragments in planned_by_wo.items():
-            ticket = db.query(Ticket).filter(
-                Ticket.id == wo_id,
-                Ticket.tenant_id == tenant_id,
-            ).first()
+        if not planned_by_wo:
+            raise HTTPException(status_code=400, detail="Il piano non contiene ticket pianificati da confermare")
 
-            if not ticket:
-                logger.warning("Confirm plan: ticket %s non trovato", wo_id)
-                continue
+        expected_scheduled = plan_data.get("scheduling_summary", {}).get("tickets_scheduled")
+        if expected_scheduled is not None and int(expected_scheduled) != len(planned_by_wo):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Piano incoerente: il riepilogo non corrisponde ai ticket unici "
+                    f"pianificati ({expected_scheduled} vs {len(planned_by_wo)}). Rigenera il piano."
+                ),
+            )
+
+        planned_ids = list(planned_by_wo.keys())
+        tickets_by_id = {
+            t.id: t
+            for t in db.query(Ticket).filter(
+                Ticket.id.in_(planned_ids),
+                Ticket.tenant_id == tenant_id,
+                Ticket.deleted_at.is_(None),
+            ).all()
+        }
+        missing_ids = sorted(set(planned_by_wo) - set(tickets_by_id))
+        if missing_ids:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Piano non confermabile: ticket non trovati o eliminati: {missing_ids}",
+            )
+
+        intervals_by_wo: dict[int, list[tuple[datetime, datetime]]] = {}
+        invalid_ids: list[int] = []
+        for wo_id, fragments in planned_by_wo.items():
+            intervals = [
+                parsed for parsed in (_planned_wo_interval(w) for w in fragments)
+                if parsed is not None
+            ]
+            if not intervals:
+                invalid_ids.append(wo_id)
+            else:
+                intervals_by_wo[wo_id] = intervals
+        if invalid_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Piano non confermabile: date/ore non valide per ticket {sorted(invalid_ids)}",
+            )
+
+        for wo_id, fragments in planned_by_wo.items():
+            ticket = tickets_by_id[wo_id]
+            if ticket.stato in ("In corso", "Chiuso", "Eliminato"):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Ticket #{wo_id} non confermabile perché è in stato '{ticket.stato}'. Rigenera il piano.",
+                )
 
             primary = next(
                 (w for w in fragments if not w.get("is_continuation", False)),
                 fragments[0],
             )
             tecnico_id = primary.get("technician_id")
+            if not tecnico_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Piano non confermabile: tecnico mancante per ticket #{wo_id}",
+                )
             ticket.tecnico_id = tecnico_id
             ticket.stato = "Pianificato"
 
-            intervals = [
-                parsed for parsed in (_planned_wo_interval(w) for w in fragments)
-                if parsed is not None
-            ]
-            if intervals:
-                ticket.planned_start = min(start for start, _ in intervals)
-                ticket.planned_finish = max(end for _, end in intervals)
-            else:
-                logger.warning("Confirm plan: impossibile parsare data/ora per ticket %s", wo_id)
+            intervals = intervals_by_wo[wo_id]
+            ticket.planned_start = min(start for start, _ in intervals)
+            ticket.planned_finish = max(end for _, end in intervals)
 
         # Aggiorna asset con fermo_on_schedule
         for fa in plan_data.get("fermo_assets", []):
@@ -806,6 +844,24 @@ def confirm_plan(
         plan.status = "confirmed"
         plan.confirmed_at = datetime.now(timezone.utc)
         plan.confirmed_by = confirmed_by
+
+        db.flush()
+        confirmed_count = db.query(func.count(Ticket.id)).filter(
+            Ticket.id.in_(planned_ids),
+            Ticket.tenant_id == tenant_id,
+            Ticket.stato == "Pianificato",
+            Ticket.tecnico_id.isnot(None),
+            Ticket.planned_start.isnot(None),
+            Ticket.planned_finish.isnot(None),
+        ).scalar()
+        if confirmed_count != len(planned_by_wo):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Conferma incompleta: non tutti i ticket pianificati sono stati aggiornati. "
+                    "Operazione annullata, rigenera il piano."
+                ),
+            )
 
         db.commit()
         db.refresh(plan)

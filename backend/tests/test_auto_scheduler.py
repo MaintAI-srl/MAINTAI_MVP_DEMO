@@ -396,6 +396,34 @@ def test_bridge_auto_extends_horizon_to_empty_backlog(db_session):
     assert plan["plan_metadata"]["effective_days"] > 7
 
 
+def test_bridge_summary_uses_unique_ticket_ids():
+    """Il riepilogo non deve contare righe duplicate come ticket confermabili."""
+    from backend.db.modelli import Ticket
+    from backend.services.auto_scheduler_bridge import _normalize_plan_consistency
+
+    plan_json = {
+        "planned_workorders": [
+            {"wo_id": 1, "planned_date": "2026-06-15", "planned_start_time": "08:00", "planned_end_time": "09:00"},
+            {"wo_id": 1, "planned_date": "2026-06-15", "planned_start_time": "09:00", "planned_end_time": "10:00"},
+        ],
+        "deferred_workorders": [],
+        "global_warnings": [],
+        "scheduling_summary": {
+            "total_tickets_analyzed": 2,
+            "tickets_scheduled": 2,
+            "tickets_excluded": 0,
+        },
+    }
+
+    _normalize_plan_consistency(plan_json, [Ticket(id=1), Ticket(id=2)])
+
+    assert len(plan_json["planned_workorders"]) == 1
+    assert plan_json["scheduling_summary"]["total_tickets_analyzed"] == 2
+    assert plan_json["scheduling_summary"]["tickets_scheduled"] == 1
+    assert plan_json["scheduling_summary"]["tickets_excluded"] == 1
+    assert plan_json["deferred_workorders"][0]["wo_id"] == 2
+
+
 def test_bridge_distributes_across_job_skill_technicians(db_session):
     """Ticket generici (tipo) devono andare a TUTTI i tecnici, non solo a uno."""
     import asyncio
@@ -457,12 +485,14 @@ def test_endpoint_generate_deterministic_not_blocked_by_ai_flag(client, db_sessi
     db_session.add(asset)
     db_session.commit()
     db_session.refresh(asset)
-    db_session.add(Ticket(
+    ticket = Ticket(
         titolo="Controllo", asset_id=asset.id, tipo="CM", priorita="Alta",
         stato="Aperto", durata_stimata_ore=2.0, competenza_richiesta="SOMMOZZATORE",
         in_attesa_ricambio=True, tenant_id=tenant.id,
-    ))
+    )
+    db_session.add(ticket)
     db_session.commit()
+    db_session.refresh(ticket)
 
     login = client.post("/auth/login", data={"username": "planner_as", "password": "Password123!"})
     assert login.status_code == 200, login.text
@@ -473,5 +503,7 @@ def test_endpoint_generate_deterministic_not_blocked_by_ai_flag(client, db_sessi
     assert body["plan_json"].get("scheduling_summary") is not None
     assert body["status"] == "draft"
     summary = body["plan_json"]["scheduling_summary"]
-    assert summary["tickets_scheduled"] == 1
-    assert summary["tickets_excluded"] == 0
+    assert summary["total_tickets_analyzed"] == 1
+    assert summary["tickets_scheduled"] == 0
+    assert summary["tickets_excluded"] == 1
+    assert body["plan_json"]["deferred_workorders"][0]["wo_id"] == ticket.id

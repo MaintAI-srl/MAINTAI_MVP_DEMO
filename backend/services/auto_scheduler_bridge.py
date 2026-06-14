@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import math
 from datetime import date as date_type, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 # Tetto di sicurezza all'auto-estensione dell'orizzonte (giorni di calendario).
 # Evita orizzonti illimitati con backlog enormi pur "non fermandosi" ai 7 giorni.
@@ -59,6 +59,76 @@ REASON_IT: Dict[str, str] = {
     NON_SCHEDULABILE_MATERIALI:     "Materiali non pronti (intervento bloccato)",
     NON_SCHEDULABILE_STATO:         "Stato ticket non compatibile con lo scheduling",
 }
+
+
+def _normalize_plan_consistency(plan_json: Dict[str, Any], tickets: List[Ticket]) -> None:
+    """Mantiene coerenti conteggi, WO unici e deferred prima di salvare il piano."""
+    ticket_ids: Set[int] = {int(t.id) for t in tickets if t.id is not None}
+    if not ticket_ids:
+        return
+
+    warnings = plan_json.setdefault("global_warnings", [])
+    planned = plan_json.get("planned_workorders") or []
+    normalized_planned: List[Dict[str, Any]] = []
+    scheduled_ids: Set[int] = set()
+    duplicate_ids: Set[int] = set()
+    unknown_ids: Set[int] = set()
+
+    for wo in planned:
+        try:
+            wo_id = int(wo.get("wo_id"))
+        except (TypeError, ValueError):
+            continue
+        if wo_id not in ticket_ids:
+            unknown_ids.add(wo_id)
+            continue
+        is_continuation = bool(wo.get("is_continuation", False))
+        if wo_id in scheduled_ids and not is_continuation:
+            duplicate_ids.add(wo_id)
+            continue
+        scheduled_ids.add(wo_id)
+        normalized_planned.append(wo)
+
+    deferred_by_id: Dict[int, Dict[str, Any]] = {}
+    for item in plan_json.get("deferred_workorders") or []:
+        try:
+            wo_id = int(item.get("wo_id"))
+        except (TypeError, ValueError):
+            continue
+        if wo_id in ticket_ids and wo_id not in scheduled_ids:
+            deferred_by_id[wo_id] = item
+
+    missing_ids = ticket_ids - scheduled_ids - set(deferred_by_id)
+    for wo_id in sorted(missing_ids):
+        deferred_by_id[wo_id] = {
+            "wo_id": wo_id,
+            "reason": REASON_IT[NON_SCHEDULABILE_SLOT_ASSENTE],
+            "reason_code": NON_SCHEDULABILE_SLOT_ASSENTE,
+        }
+
+    if duplicate_ids:
+        warnings.append(
+            "Rimosse assegnazioni duplicate dal piano: il riepilogo usa ticket unici."
+        )
+        logger.warning("AutoScheduler: WO duplicati rimossi dal plan_json: %s", sorted(duplicate_ids))
+    if unknown_ids:
+        warnings.append(
+            "Rimosse assegnazioni non confermabili per ticket non trovati nel tenant."
+        )
+        logger.warning("AutoScheduler: WO sconosciuti rimossi dal plan_json: %s", sorted(unknown_ids))
+    if missing_ids:
+        warnings.append(
+            "Alcuni ticket analizzati non risultavano assegnati: marcati come rimandati."
+        )
+        logger.warning("AutoScheduler: WO mancanti aggiunti ai deferred: %s", sorted(missing_ids))
+
+    plan_json["planned_workorders"] = normalized_planned
+    plan_json["deferred_workorders"] = list(deferred_by_id.values())
+
+    summary = plan_json.setdefault("scheduling_summary", {})
+    summary["total_tickets_analyzed"] = len(ticket_ids)
+    summary["tickets_scheduled"] = len(scheduled_ids)
+    summary["tickets_excluded"] = len(deferred_by_id)
 
 
 # ── Conversione ORM → strutture motore ────────────────────────────────────────
@@ -427,6 +497,7 @@ async def generate_auto_schedule_plan(
         "global_warnings":     [],
         "scheduling_summary":  result["summary"],
     }
+    _normalize_plan_consistency(plan_json, tickets)
 
     # ── Efficiency score (per il badge esistente) ─────────────────────────────
     tecnici_data = [
