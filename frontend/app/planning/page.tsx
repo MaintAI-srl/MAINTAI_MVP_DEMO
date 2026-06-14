@@ -1147,14 +1147,18 @@ export default function PianificazionePage() {
     return m;
   }, [piano?.status, planJson?.deferred_workorders]);
 
+  const plannedPlanIds = useMemo(
+    () => new Set((planJson?.planned_workorders ?? []).map((wo) => Number(wo.wo_id))),
+    [planJson?.planned_workorders],
+  );
+
   const tipoCounts = useMemo(() => {
     const counts = { BD: 0, PM: 0, CM: 0 };
-    const plannedDraftIds = new Set((planJson?.planned_workorders ?? []).map((wo) => wo.wo_id));
-    unscheduledTickets.filter((t) => !plannedDraftIds.has(t.id)).forEach((t) => {
+    unscheduledTickets.filter((t) => !plannedPlanIds.has(Number(t.id))).forEach((t) => {
       if (t.tipo in counts) counts[t.tipo as keyof typeof counts]++;
     });
     return counts;
-  }, [planJson?.planned_workorders, unscheduledTickets]);
+  }, [plannedPlanIds, unscheduledTickets]);
 
   const ganttTickets = useMemo(() => {
     if (!piano) return scheduledTickets;
@@ -1490,13 +1494,9 @@ export default function PianificazionePage() {
   const timelineMinW = LABEL_W + (view === "day" ? (DAY_END_H - DAY_START_H) * (BASE_HOUR_W * zoom) : days.length * cellW);
   // In modalità proposta i ticket già piazzati nella bozza sono sul Gantt:
   // la sidebar mostra solo quelli NON pianificati (i "rimandati"), che lampeggiano.
-  const draftPlannedIds = useMemo(
-    () => new Set((piano?.status === "draft" ? planJson?.planned_workorders ?? [] : []).map((wo) => wo.wo_id)),
-    [piano?.status, planJson?.planned_workorders],
-  );
   const visibleUnscheduledTickets = useMemo(
-    () => unscheduledTickets.filter((t) => !draftPlannedIds.has(t.id)),
-    [unscheduledTickets, draftPlannedIds],
+    () => unscheduledTickets.filter((t) => !plannedPlanIds.has(Number(t.id))),
+    [unscheduledTickets, plannedPlanIds],
   );
   const filteredUnscheduled = filterTipo ? visibleUnscheduledTickets.filter((t) => t.tipo === filterTipo) : visibleUnscheduledTickets;
   const columnCapacity = useMemo(() => {
