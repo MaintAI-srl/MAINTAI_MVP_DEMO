@@ -1086,8 +1086,8 @@ export default function PianificazionePage() {
     setHoverTicket((prev) => (prev === ticket ? prev : ticket));
   }, []);
 
-  // Selettore orizzonte pianificazione (#14)
-  const [horizonDays, setHorizonDays] = useState(7);
+  // Orizzonte auto-esteso lato backend (nessun selettore): il motore pianifica
+  // l'intero backlog estendendo i giorni necessari.
   const [includeWeekends, setIncludeWeekends] = useState(false);
   const [allowOvertime, setAllowOvertime] = useState(false);
 
@@ -1240,7 +1240,6 @@ export default function PianificazionePage() {
 
       setGenerandoStatus("Calcolo assegnazioni...");
       const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
-        days: horizonDays,
         mode: "deterministic",
         include_weekends: includeWeekends,
         allow_overtime: allowOvertime,
@@ -1667,26 +1666,8 @@ export default function PianificazionePage() {
 
           {/* Engine toggle Nascosto per richiesta utente */}
 
-          {/* Selettore orizzonte pianificazione */}
-          <div style={{ display: "flex", gap: 2, background: "var(--surface-3)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "3px", flexShrink: 0 }}>
-            {[7, 14, 30].map((d) => (
-              <button
-                key={d}
-                onClick={() => setHorizonDays(d)}
-                style={{
-                  padding: "4px 10px", fontSize: 11, fontWeight: 700,
-                  borderRadius: 5, border: "none",
-                  background: horizonDays === d ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" : "transparent",
-                  color: horizonDays === d ? "#fff" : "var(--text-muted)",
-                  cursor: "pointer", fontFamily: "inherit",
-                  transition: "all 0.12s",
-                  boxShadow: horizonDays === d ? "0 2px 8px rgba(99,102,241,0.4)" : "none",
-                }}
-              >
-                {d}gg
-              </button>
-            ))}
-          </div>
+          {/* Selettore orizzonte rimosso: il motore auto-estende l'orizzonte
+              fino a pianificare l'intero backlog (nessuna finestra fissa). */}
 
           {/* Toggle LUN-VEN e Turni Nascosti */}
 

@@ -387,19 +387,18 @@ def calculate_slot_score(
     slot_end: datetime,
     duration_minutes: int,
     availability: TechnicianAvailability,
-    day_index: int = 0,
-    horizon_len: int = 1,
 ) -> float:
     """
-    Punteggio di una possibile assegnazione (più alto = migliore).
+    Punteggio di un'assegnazione su un dato giorno. La scelta del GIORNO è gestita
+    dal greedy (vince sempre il primo giorno lavorativo con capacità, così le
+    giornate si riempiono completamente prima di passare alla successiva): qui si
+    sceglie il miglior (tecnico, slot) DENTRO quel giorno.
 
-    SlotScore = skill_match + fill_score + daily_balance + weekly_balance
-                + site_grouping + earliness - fragmentation_penalty
-    (l'overtime è un hard-constraint: gestito prima dello scoring).
+      SlotScore = skill_match + fill_score + tech_balance + site_grouping
+                  - fragmentation_penalty
 
-    Bilanciamento del carico CONTINUO: il tecnico meno saturo è sempre preferito,
-    così i ticket si distribuiscono su tutti i tecnici invece di concentrarsi sul
-    primo. Questo evita il caso "tutti i ticket a un solo tecnico".
+    tech_balance è CONTINUO: il tecnico meno saturo nella settimana è preferito, così
+    il carico si distribuisce su TUTTI i tecnici invece di concentrarsi su uno.
     """
     day = slot_start.date()
     score = 0.0
@@ -413,7 +412,7 @@ def calculate_slot_score(
     slot_minutes = (slot_end - slot_start).total_seconds() / 60.0
     residuo = slot_minutes - duration_minutes
 
-    # fill_score: premia gli slot riempiti bene
+    # fill_score: premia gli slot riempiti bene (compattezza nella giornata)
     if residuo <= 1e-6:
         score += 30
     elif residuo <= 30:
@@ -421,23 +420,15 @@ def calculate_slot_score(
     elif residuo <= 60:
         score += 10
 
-    # weekly_balance (continuo): tecnico meno saturo nella settimana → preferito
+    # tech_balance (continuo, dominante): distribuisci il carico su tutti i tecnici
     wsat = availability.weekly_saturation(technician.id, day)
-    score += max(0.0, 1.0 - wsat) * 25.0
+    score += max(0.0, 1.0 - wsat) * 30.0
 
-    # daily_balance (continuo): tecnico meno saturo nella giornata → preferito
-    dsat = availability.daily_saturation(technician.id, day)
-    score += max(0.0, 1.0 - dsat) * 15.0
-
-    # site_grouping: stesso sito di un altro ticket nello stesso giorno
+    # site_grouping: nudge minimo (non deve impedire la distribuzione)
     if availability.site_active_today(technician.id, day, ticket.site_id):
-        score += 20
+        score += 3
     elif technician.base_site_id is not None and technician.base_site_id == ticket.site_id:
-        score += 10
-
-    # earliness: preferisci i giorni più vicini alla generazione (tie-breaker)
-    if horizon_len > 0:
-        score += (horizon_len - day_index) / horizon_len * 8.0
+        score += 1
 
     # fragmentation_penalty: penalizza i buchi residui inutilizzabili
     if residuo > 120:
@@ -679,20 +670,24 @@ def auto_schedule_tickets(
         return result
 
     # ── 4. Assegnazione greedy ────────────────────────────────────────────────
+    # Strategia "riempi prima le giornate": per ogni ticket si sceglie il PRIMO
+    # giorno lavorativo con capacità (i giorni vicini si saturano prima dei lontani)
+    # e dentro quel giorno il miglior (tecnico, slot) per SlotScore. Così non si
+    # lasciano buchi: le giornate si riempiono su tutti i tecnici prima di passare
+    # al giorno successivo, e il backlog scorre nei giorni più vicini.
     for ticket in schedulable:
         duration = _ticket_duration(ticket, apply_default=apply_default_duration) or DEFAULT_DURATION_MINUTES
-        best: Optional[_Candidate] = None
         skill_found = False
+        best: Optional[_Candidate] = None
 
-        horizon_len = len(working_days)
-        for tech in active_techs:
-            if not has_required_skill(tech, ticket):
-                continue
-            skill_found = True
-
-            for day_index, day in enumerate(working_days):
-                if is_weekend(day):
-                    continue  # hard-constraint ridondante ma esplicito
+        for day in working_days:
+            if is_weekend(day):
+                continue  # hard-constraint ridondante ma esplicito
+            best_on_day: Optional[_Candidate] = None
+            for tech in active_techs:
+                if not has_required_skill(tech, ticket):
+                    continue
+                skill_found = True
                 if not availability.has_daily_capacity(tech.id, day, duration):
                     continue
                 if not availability.has_weekly_capacity(tech.id, day, duration):
@@ -712,15 +707,19 @@ def auto_schedule_tickets(
 
                     score = calculate_slot_score(
                         ticket, tech, slot_start, slot_end, duration, availability,
-                        day_index=day_index, horizon_len=horizon_len,
                     )
-                    if best is None or score > best.score:
-                        best = _Candidate(
+                    if best_on_day is None or score > best_on_day.score:
+                        best_on_day = _Candidate(
                             ticket=ticket, technician=tech,
                             start=start_dt, end=end_dt,
                             slot_start=slot_start, slot_end=slot_end,
                             score=score,
                         )
+
+            if best_on_day is not None:
+                # Primo giorno con una collocazione valida → vince (no buchi)
+                best = best_on_day
+                break
 
         if best is not None:
             block = create_assignment(best)
