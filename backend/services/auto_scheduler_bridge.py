@@ -216,11 +216,24 @@ async def generate_auto_schedule_plan(
     start_date: Optional[date_type] = None,
     include_weekends: bool = False,
     workday_end_hour: int = 17,
+    enforce_skill: Optional[bool] = None,
+    enforce_materials: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Genera un piano con il motore di auto-scheduling deterministico (saturazione ore).
     Ritorna plan_json compatibile col formato esistente + chiave scheduling_summary.
+
+    enforce_skill / enforce_materials: se None, vengono letti dalle env
+    SCHEDULER_ENFORCE_SKILL / SCHEDULER_ENFORCE_MATERIALS (default "false" → demo:
+    non si blocca la pianificazione per skill o materiali). Impostare le env a
+    "true" per riattivare i vincoli in produzione.
     """
+    import os
+    if enforce_skill is None:
+        enforce_skill = os.getenv("SCHEDULER_ENFORCE_SKILL", "false").lower() == "true"
+    if enforce_materials is None:
+        enforce_materials = os.getenv("SCHEDULER_ENFORCE_MATERIALS", "false").lower() == "true"
+
     today = start_date or date_type.today()
     horizon_end = today + timedelta(days=days - 1)
 
@@ -349,6 +362,8 @@ async def generate_auto_schedule_plan(
                 start_date=today,
                 end_date=horizon_end,
                 include_weekends=include_weekends,
+                enforce_skill=enforce_skill,
+                enforce_materials=enforce_materials,
             )
             slot_deferred = sum(
                 1 for e in result["excluded"]

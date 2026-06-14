@@ -110,6 +110,23 @@ auto_schedule_tickets(
    per `SlotScore`, riserva lo slot e aggiorna il calendario.
 6. Restituisce `assignments`, `excluded` (con reason code) e `summary` (KPI).
 
+### Modalità demo (skill e materiali non vincolanti)
+
+Per la demo, di default la pianificazione **non si ferma** per skill o materiali:
+ogni ticket può essere assegnato a qualsiasi tecnico disponibile e i materiali non
+pronti non bloccano. Si controlla via env (default `false` = demo):
+
+| Env | Default | Effetto se `true` |
+|---|---|---|
+| `SCHEDULER_ENFORCE_SKILL` | `false` | richiede la skill corretta (altrimenti `SKILL_ASSENTE`) |
+| `SCHEDULER_ENFORCE_MATERIALS` | `false` | esclude i ticket con materiali non pronti (`MATERIALI`) |
+
+Con i vincoli disattivati restano esclusi solo i ticket con **dati minimi mancanti**
+o in **stato terminale** (chiuso/eliminato).
+
+> I KPI di saturazione si calcolano sui **giorni effettivamente usati** (i giorni
+> di buffer in coda all'orizzonte auto-esteso non diluiscono la percentuale).
+
 ---
 
 ## 6. Ordinamento ticket — `TicketScore`
