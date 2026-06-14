@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 REASON_IT: Dict[str, str] = {
     NON_SCHEDULABILE_DATI_MANCANTI: "Dati minimi mancanti (durata, sito/asset o skill richiesta)",
     NON_SCHEDULABILE_SKILL_ASSENTE: "Nessun tecnico con la skill richiesta disponibile",
-    NON_SCHEDULABILE_SLOT_ASSENTE:  "Nessuno slot disponibile nel periodo selezionato",
+    NON_SCHEDULABILE_SLOT_ASSENTE:  "Nessuno slot disponibile: tecnici al completo o non disponibili nell'orizzonte",
     NON_SCHEDULABILE_MATERIALI:     "Materiali non pronti (intervento bloccato)",
     NON_SCHEDULABILE_STATO:         "Stato ticket non compatibile con lo scheduling",
 }
@@ -263,10 +263,11 @@ async def generate_auto_schedule_plan(
             deferred=[{"wo_id": t.id, "reason": "Nessun tecnico disponibile in servizio"} for t in tickets],
         )
 
-    # ── Auto-orizzonte: estendi finché tutto il backlog ci sta (no limite 7gg) ─
+    # ── Auto-orizzonte: stima iniziale (verrà esteso se servono più giorni) ────
     # Il pianificatore non si ferma a una finestra fissa: dimensiona l'orizzonte
-    # sul backlog (durata totale / capacità giornaliera dei tecnici) così da
-    # riempire i giorni lavorativi necessari, fino a un tetto di sicurezza.
+    # sul backlog (durata totale / capacità giornaliera dei tecnici) e poi lo
+    # estende finché tutto il backlog schedulabile entra (vedi loop più sotto),
+    # fino a un tetto di sicurezza.
     total_minutes_est = sum(int(round(float(t.durata_stimata_ore or 2.0) * 60)) for t in tickets)
     daily_cap_total = sum(int((t.ore_giornaliere or 8) * 60) for t in tecnici) or 1
     working_days_needed = math.ceil(total_minutes_est / daily_cap_total) + 1
@@ -274,17 +275,20 @@ async def generate_auto_schedule_plan(
     calendar_needed = math.ceil(working_days_needed * 7 / 5) + 4
     effective_days = min(MAX_HORIZON_CALENDAR_DAYS, max(days, calendar_needed))
     horizon_end = today + timedelta(days=effective_days - 1)
+    # Le assenze vengono caricate sull'intero orizzonte MASSIMO possibile, così le
+    # estensioni successive non devono ri-interrogare il DB.
+    max_horizon_end = today + timedelta(days=MAX_HORIZON_CALENDAR_DAYS - 1)
 
-    # ── Assenze ───────────────────────────────────────────────────────────────
+    # ── Assenze (su tutto l'orizzonte massimo) ────────────────────────────────
     tecnico_ids = [t.id for t in tecnici]
     assenze_q = db.query(TecnicoAssenza).filter(
         TecnicoAssenza.tecnico_id.in_(tecnico_ids),
         TecnicoAssenza.data_fine >= today,
-        TecnicoAssenza.data_inizio <= horizon_end,
+        TecnicoAssenza.data_inizio <= max_horizon_end,
     )
     if tenant_id:
         assenze_q = assenze_q.filter(TecnicoAssenza.tenant_id == tenant_id)
-    assenze_map = _build_assenze_map(assenze_q.all(), today, horizon_end)
+    assenze_map = _build_assenze_map(assenze_q.all(), today, max_horizon_end)
 
     # ── Asset map (criticità + sito) ──────────────────────────────────────────
     asset_id_set = list({t.asset_id for t in tickets if t.asset_id})
@@ -326,22 +330,42 @@ async def generate_auto_schedule_plan(
     # Nota: non logghiamo valori provenienti direttamente dalla request (days,
     # include_weekends) per evitare log-injection; usiamo solo conteggi interi.
     logger.info(
-        "AutoScheduler: avvio — %d ticket, %d locked, %d tecnici (orizzonte %d gg)",
-        len(sched_tickets), len(locked_blocks), len(sched_techs), int(days),
+        "AutoScheduler: avvio — %d ticket, %d locked, %d tecnici (orizzonte iniziale %d gg)",
+        len(sched_tickets), len(locked_blocks), len(sched_techs), int(effective_days),
     )
 
+    # ── Scheduling con auto-estensione dell'orizzonte ─────────────────────────
+    # Se restano ticket non pianificati per mancanza di SLOT (capacità), si
+    # raddoppia l'orizzonte e si ripianifica, finché il backlog schedulabile è
+    # esaurito o si raggiunge il tetto. Le esclusioni per skill/dati/materiali NON
+    # si risolvono estendendo l'orizzonte: in quei casi si interrompe subito.
+    result = None
     try:
-        result = auto_schedule_tickets(
-            tickets=sched_tickets,
-            technicians=sched_techs,
-            calendar_blocks=locked_blocks,
-            start_date=today,
-            end_date=horizon_end,
-            include_weekends=include_weekends,
-        )
+        for _ in range(8):  # max 8 estensioni (2^8 copre ampiamente il tetto)
+            result = auto_schedule_tickets(
+                tickets=sched_tickets,
+                technicians=sched_techs,
+                calendar_blocks=locked_blocks,
+                start_date=today,
+                end_date=horizon_end,
+                include_weekends=include_weekends,
+            )
+            slot_deferred = sum(
+                1 for e in result["excluded"]
+                if e["reason"] == NON_SCHEDULABILE_SLOT_ASSENTE
+            )
+            if slot_deferred == 0 or effective_days >= MAX_HORIZON_CALENDAR_DAYS:
+                break
+            effective_days = min(MAX_HORIZON_CALENDAR_DAYS, effective_days * 2)
+            horizon_end = today + timedelta(days=effective_days - 1)
     except Exception as exc:
         logger.error("AutoScheduler: eccezione durante l'esecuzione: %s", exc, exc_info=True)
         return {"error": f"Errore motore auto-scheduling: {exc}"}
+
+    logger.info(
+        "AutoScheduler: completato — %d schedulati, %d esclusi (orizzonte %d gg)",
+        len(result["assignments"]), len(result["excluded"]), int(effective_days),
+    )
 
     # ── Converti assignments → planned_workorders ─────────────────────────────
     ticket_tipo_map = {t.id: (t.tipo or "CM") for t in tickets}
