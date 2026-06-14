@@ -251,6 +251,22 @@ def test_load_distributed_between_technicians():
     assert used.get(1, 0) > 0 and used.get(2, 0) > 0
 
 
+def test_fills_earliest_day_fully_across_technicians():
+    techs = [make_tech(id=1, daily=480), make_tech(id=2, daily=480)]
+    # 8 ticket da 2h, siti distinti → 16h = capacità di 2 tecnici in 1 giorno
+    tickets = [make_ticket(id=i, dur=120, site=i) for i in range(1, 9)]
+    res = run(tickets, techs, days=5)
+    assert len(res["assignments"]) == 8
+    # tutti nel primo giorno lavorativo: si riempie la giornata vicina prima
+    days_used = {datetime.fromisoformat(a["start"]).date() for a in res["assignments"]}
+    assert days_used == {MONDAY}
+    # carico distribuito equamente sui due tecnici
+    per_tech = {}
+    for a in res["assignments"]:
+        per_tech[a["technician_id"]] = per_tech.get(a["technician_id"], 0) + 1
+    assert per_tech.get(1) == 4 and per_tech.get(2) == 4
+
+
 def test_same_site_grouped_on_one_technician():
     techs = [make_tech(id=1, daily=480), make_tech(id=2, daily=480)]
     # Stesso sito: il motore accorpa gli interventi sullo stesso tecnico in giornata.
@@ -346,6 +362,38 @@ def test_bridge_generates_plan_json(db_session):
         assert d.weekday() < 5
         assert wo["technician_id"] == tecnico.id
     assert plan.get("efficiency_score") is not None
+
+
+def test_bridge_auto_extends_horizon_to_empty_backlog(db_session):
+    """Il backlog viene pianificato anche oltre i 7 giorni (auto-orizzonte)."""
+    import asyncio
+    from backend.db.modelli import Asset, Tecnico, Ticket
+    from backend.services.auto_scheduler_bridge import generate_auto_schedule_plan
+
+    tenant = _seed_tenant(db_session)
+    db_session.add(Tecnico(
+        nome="Solo", competenze="Meccanico", ore_giornaliere=8, stato="in servizio",
+        orario_inizio="08:00", orario_fine="17:00", tenant_id=tenant.id,
+    ))
+    asset = Asset(nome="A", tenant_id=tenant.id)
+    db_session.add(asset)
+    db_session.commit()
+    db_session.refresh(asset)
+    # 30 ticket da 2h con un solo tecnico (8h/gg) → ~8 giorni lavorativi, oltre i 7
+    for i in range(30):
+        db_session.add(Ticket(
+            titolo=f"T{i}", asset_id=asset.id, tipo="CM", priorita="Media",
+            stato="Aperto", durata_stimata_ore=2.0, competenza_richiesta="MECCANICO",
+            tenant_id=tenant.id,
+        ))
+    db_session.commit()
+
+    plan = asyncio.run(generate_auto_schedule_plan(
+        db=db_session, days=7, tenant_id=tenant.id, start_date=MONDAY,
+    ))
+    assert plan["scheduling_summary"]["tickets_scheduled"] == 30
+    assert plan["scheduling_summary"]["tickets_excluded"] == 0
+    assert plan["plan_metadata"]["effective_days"] > 7
 
 
 def test_bridge_distributes_across_job_skill_technicians(db_session):

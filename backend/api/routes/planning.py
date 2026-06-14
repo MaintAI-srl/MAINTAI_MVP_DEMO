@@ -391,13 +391,16 @@ async def generate_plan(
         if not w.get("is_continuation") and w.get("confidence_score") is not None
     ]
     confidence_avg = round(sum(conf_scores) / len(conf_scores), 3) if conf_scores else None
+    # L'orizzonte può essere auto-esteso dal motore deterministico per coprire tutto
+    # il backlog: usa effective_days (se presente) invece del valore richiesto.
+    effective_days = int(plan_json.get("plan_metadata", {}).get("effective_days") or data.days)
     plan_json.setdefault("plan_metadata", {}).update({
         "engine_version": "3.0",
         "generated_by": effective_mode,
         "generation_time_ms": gen_ms,
         "confidence_avg": confidence_avg,
         "planning_start_date": planning_start_date.isoformat(),
-        "planning_end_date": (planning_start_date + timedelta(days=data.days - 1)).isoformat(),
+        "planning_end_date": (planning_start_date + timedelta(days=effective_days - 1)).isoformat(),
         "include_weekends": data.include_weekends,
         "workday_end_hour": 21 if data.allow_overtime else 17,
     })
@@ -413,7 +416,7 @@ async def generate_plan(
 
     new_plan = GeneratedPlan(
         status="draft",
-        horizon_days=data.days,
+        horizon_days=effective_days,
         plan_json=plan_json,
         tenant_id=tenant_id,
     )

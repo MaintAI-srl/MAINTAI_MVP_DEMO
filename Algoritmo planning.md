@@ -37,10 +37,14 @@ base giornaliera sia su base settimanale.
 
 1. **No weekend** — si pianifica solo Lun–Ven. Sabato e domenica vengono saltati.
 2. **Saturazione ore** — massimizzare il riempimento della capacità (es. 8h/giorno,
-   40h/settimana) senza superarla.
-3. **No overbooking** — un tecnico non ha mai ticket sovrapposti; un ticket va a un
+   40h/settimana) senza superarla. Le giornate vicine si riempiono **completamente
+   su tutti i tecnici** prima di passare alla successiva.
+3. **Tutto il backlog, nessuna finestra fissa** — l'orizzonte è **auto-esteso**
+   (durata totale backlog ÷ capacità giornaliera dei tecnici, tetto 180 giorni):
+   il motore non si ferma a 7/14/30 giorni e in UI non c'è più il selettore.
+4. **No overbooking** — un tecnico non ha mai ticket sovrapposti; un ticket va a un
    solo tecnico.
-4. **No straordinario (MVP)** — non si supera l'orario di fine giornata né la
+5. **No straordinario (MVP)** — non si supera l'orario di fine giornata né la
    capacità giornaliera/settimanale.
 
 ---
@@ -131,25 +135,22 @@ e quindi sui giorni più vicini alla generazione (prima della scadenza).
 
 ## 7. Scoring slot — `SlotScore`
 
+**Scelta del giorno (greedy):** per ogni ticket si sceglie il **primo giorno
+lavorativo con capacità**; le giornate vicine si saturano completamente — su tutti
+i tecnici — prima di passare al giorno successivo (niente buchi, niente carico
+sparso). Dentro quel giorno si sceglie il miglior `(tecnico, slot)` per `SlotScore`:
+
 ```
-SlotScore = skill_match + fill_score + weekly_balance + daily_balance
-            + site_grouping + earliness − fragmentation_penalty
+SlotScore = skill_match + fill_score + tech_balance + site_grouping − fragmentation_penalty
 ```
 
 | Componente | Pesi |
 |---|---|
 | **skill_match** | skill esatta (job-skill) +30 · skill generica (PM/CM/BD) +15 |
 | **fill_score** | residuo slot = 0 → +30 · ≤ 30min → +20 · ≤ 60min → +10 · oltre +0 |
-| **weekly_balance** | `(1 − saturazione_settimana) × 25` — **continuo**: il tecnico meno saturo è sempre preferito |
-| **daily_balance** | `(1 − saturazione_giorno) × 15` — **continuo** |
-| **site_grouping** | stesso sito già presidiato in giornata +20 · sede base del tecnico +10 |
-| **earliness** | `(orizzonte − indice_giorno) / orizzonte × 8` — preferisci i giorni più vicini |
+| **tech_balance** | `(1 − saturazione_settimana) × 30` — **continuo e dominante**: il tecnico meno saturo è sempre preferito → carico su **tutti** i tecnici |
+| **site_grouping** | stesso sito già presidiato in giornata +3 · sede base +1 (nudge minimo, non blocca la distribuzione) |
 | **fragmentation_penalty** | buco residuo > 120min −10 · 60–120min −5 · < 60min 0 |
-
-Il bilanciamento **continuo** (non a soglie) è ciò che distribuisce i ticket su
-**tutti** i tecnici invece di concentrarli sul primo: a parità di tutto, vince il
-tecnico meno carico. Il `site_grouping` resta un richiamo all'accorpamento finché
-il tecnico non è troppo saturo.
 
 **Overtime** = hard constraint: se l'intervento supera l'orario di fine giornata la
 proposta viene **scartata** (non penalizzata).
@@ -212,8 +213,9 @@ badge efficienza, aggiungendo la chiave `scheduling_summary` per i KPI in UI.
 
 ## 11. UI
 
-Pulsante **Generazione piano** nell'header di `/planning` (senza la parola «AI»),
-con selettore orizzonte (7/14/30 gg) e selettore modalità:
+Pulsante **Generazione piano** nell'header di `/planning` (senza la parola «AI»).
+Nessun selettore di orizzonte (l'orizzonte è auto-esteso sul backlog). Selettore
+modalità:
 
 - **Proposta** (default): crea una bozza (`status = draft`, blocchi `PROPOSED`)
   visibile sul Gantt, da rivedere e confermare manualmente.

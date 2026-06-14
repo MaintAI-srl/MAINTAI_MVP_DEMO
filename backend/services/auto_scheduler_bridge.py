@@ -15,8 +15,13 @@ NB: motore 100% deterministico — nessuna chiamata AI.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date as date_type, datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+# Tetto di sicurezza all'auto-estensione dell'orizzonte (giorni di calendario).
+# Evita orizzonti illimitati con backlog enormi pur "non fermandosi" ai 7 giorni.
+MAX_HORIZON_CALENDAR_DAYS = 180
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -258,6 +263,18 @@ async def generate_auto_schedule_plan(
             deferred=[{"wo_id": t.id, "reason": "Nessun tecnico disponibile in servizio"} for t in tickets],
         )
 
+    # ── Auto-orizzonte: estendi finché tutto il backlog ci sta (no limite 7gg) ─
+    # Il pianificatore non si ferma a una finestra fissa: dimensiona l'orizzonte
+    # sul backlog (durata totale / capacità giornaliera dei tecnici) così da
+    # riempire i giorni lavorativi necessari, fino a un tetto di sicurezza.
+    total_minutes_est = sum(int(round(float(t.durata_stimata_ore or 2.0) * 60)) for t in tickets)
+    daily_cap_total = sum(int((t.ore_giornaliere or 8) * 60) for t in tecnici) or 1
+    working_days_needed = math.ceil(total_minutes_est / daily_cap_total) + 1
+    # 5 giorni lavorativi per settimana → converti in giorni di calendario + buffer
+    calendar_needed = math.ceil(working_days_needed * 7 / 5) + 4
+    effective_days = min(MAX_HORIZON_CALENDAR_DAYS, max(days, calendar_needed))
+    horizon_end = today + timedelta(days=effective_days - 1)
+
     # ── Assenze ───────────────────────────────────────────────────────────────
     tecnico_ids = [t.id for t in tecnici]
     assenze_q = db.query(TecnicoAssenza).filter(
@@ -394,12 +411,14 @@ async def generate_auto_schedule_plan(
             "ore_disponibili_teoriche": efficiency.get("ore_disponibili_teoriche"),
             "ore_disponibili_effettive": efficiency.get("ore_disponibili_effettive"),
             "ore_assegnate": efficiency.get("ore_assegnate"),
+            "effective_days": effective_days,
         }
     except Exception as exc:  # pragma: no cover - best effort
         logger.warning("AutoScheduler: errore calcolo efficienza: %s", exc)
         plan_json["efficiency_score"] = 0
         plan_json["efficiency_breakdown"] = {}
         plan_json["efficiency_motivations"] = []
+        plan_json["plan_metadata"] = {"effective_days": effective_days}
 
     if db is not None and tenant_id is not None:
         try:
