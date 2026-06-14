@@ -1046,6 +1046,7 @@ export default function PianificazionePage() {
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
   const [scheduledTickets, setScheduledTickets] = useState<TicketData[]>([]);
   const [unscheduledTickets, setUnscheduledTickets] = useState<TicketData[]>([]);
+  const [optimisticPlannedIds, setOptimisticPlannedIds] = useState<Set<number>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [draggingTicket, setDraggingTicket] = useState<TicketData | null>(null);
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
@@ -1147,10 +1148,11 @@ export default function PianificazionePage() {
     return m;
   }, [piano?.status, planJson?.deferred_workorders]);
 
-  const plannedPlanIds = useMemo(
-    () => new Set((planJson?.planned_workorders ?? []).map((wo) => Number(wo.wo_id))),
-    [planJson?.planned_workorders],
-  );
+  const plannedPlanIds = useMemo(() => {
+    const ids = new Set(optimisticPlannedIds);
+    (planJson?.planned_workorders ?? []).forEach((wo) => ids.add(Number(wo.wo_id)));
+    return ids;
+  }, [optimisticPlannedIds, planJson?.planned_workorders]);
 
   const tipoCounts = useMemo(() => {
     const counts = { BD: 0, PM: 0, CM: 0 };
@@ -1253,6 +1255,11 @@ export default function PianificazionePage() {
 
       const summary = cleanRes.plan_json?.scheduling_summary ?? null;
       const nScheduled = summary?.tickets_scheduled ?? cleanRes.plan_json?.planned_workorders?.length ?? 0;
+      const generatedPlannedIds = new Set(
+        (cleanRes.plan_json?.planned_workorders ?? []).map((wo) => Number(wo.wo_id)),
+      );
+      setOptimisticPlannedIds(generatedPlannedIds);
+      setUnscheduledTickets((prev) => prev.filter((t) => !generatedPlannedIds.has(Number(t.id))));
 
       // Modalità conferma automatica: conferma subito il piano appena generato.
       if (scheduleMode === "auto" && cleanRes.id) {
@@ -1274,7 +1281,7 @@ export default function PianificazionePage() {
       const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
       setCurrentDate(planStart ? parseISO(planStart) : new Date());
       if (summary) setSummaryModal(summary);
-      await loadData(); // aggiorna il Gantt con i ticket pianificati
+      await loadData(false, generatedPlannedIds); // aggiorna il Gantt senza ripopolare la sidebar
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore durante la generazione del piano");
     } finally {
@@ -1283,7 +1290,7 @@ export default function PianificazionePage() {
     }
   }
 
-  const loadData = useCallback(async (background = false) => {
+  const loadData = useCallback(async (background = false, hidePlannedIds?: Set<number>) => {
     if (!background) setLoading(true);
     try {
       const [tecniciRes, activeRes, planRes] = await Promise.all([
@@ -1294,10 +1301,13 @@ export default function PianificazionePage() {
 
       setTecnici((tecniciRes ?? []).map((t) => ({ ...t, competenze: t.skill ?? "" })));
       const activeTickets = activeRes.items ?? [];
+      const planIds = new Set<number>(hidePlannedIds ?? []);
+      (planRes?.plan_json?.planned_workorders ?? []).forEach((wo) => planIds.add(Number(wo.wo_id)));
+      setOptimisticPlannedIds(planIds);
       // Pianificati/in corso/chiusi con orario → sul Gantt (i chiusi restano fissi).
       const scheduled = activeTickets.filter((t) => t.planned_start != null);
       // Sidebar "non pianificati": solo ticket ancora aperti senza orario.
-      const unscheduled = activeTickets.filter((t) => t.planned_start == null && t.stato === "Aperto");
+      const unscheduled = activeTickets.filter((t) => t.planned_start == null && t.stato === "Aperto" && !planIds.has(Number(t.id)));
       setScheduledTickets(scheduled);
       setUnscheduledTickets(unscheduled);
       setPiano(planRes);
