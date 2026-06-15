@@ -66,6 +66,7 @@ class SchedTechnician:
 class SchedTicket:
     id: int
     title: str = ""
+    tipo: str = "CM"                         # BD | CM | PM | ISP
     site_id: Optional[int] = None
     asset_id: Optional[int] = None
     status: str = "Aperto"
@@ -73,6 +74,8 @@ class SchedTicket:
     estimated_duration_minutes: Optional[int] = None
     priority: str = "Media"                  # Alta | Media | Bassa
     asset_criticality: Optional[str] = None  # A | B | C (alta | media | bassa)
+    asset_fermo: bool = False                # asset fermo/guasto → CM più urgente
+    is_legge: bool = False                   # PM con obbligo di legge/normativo
     materials_ready: bool = True
     materials_required: bool = False
     access_window_start: Optional[str] = None  # HH:MM — None = nessun vincolo
@@ -148,6 +151,7 @@ def is_ticket_schedulable(
     ticket: SchedTicket,
     apply_default_duration: bool = False,
     enforce_materials: bool = True,
+    enforce_skill: bool = True,
 ) -> Tuple[bool, Optional[str]]:
     """
     Verifica i dati minimi richiesti per lo scheduling automatico.
@@ -156,7 +160,8 @@ def is_ticket_schedulable(
     NB: la presenza di un tecnico compatibile / di uno slot NON è verificata qui
     (vengono valutate nel ciclo di assegnazione → SKILL_ASSENTE / SLOT_ASSENTE).
 
-    Se enforce_materials=False i materiali non bloccano la pianificazione (demo).
+    enforce_skill=False / enforce_materials=False (demo): non si esclude per
+    luogo/skill mancanti o materiali → si pianifica tutto tranne i ticket chiusi.
     """
     stato = (ticket.status or "").strip().lower()
     if stato in TERMINAL_STATES:
@@ -168,13 +173,15 @@ def is_ticket_schedulable(
     if dur is None or dur <= 0:
         return False, NON_SCHEDULABILE_DATI_MANCANTI
 
-    # Serve un ancoraggio di luogo: sito oppure asset
-    if ticket.site_id is None and ticket.asset_id is None:
-        return False, NON_SCHEDULABILE_DATI_MANCANTI
-
-    # Serve la skill richiesta (il bridge usa il tipo come proxy se mancante)
-    if not (ticket.required_skill and ticket.required_skill.strip()):
-        return False, NON_SCHEDULABILE_DATI_MANCANTI
+    # In modalità "vincoli skill" (produzione) servono anche luogo e skill; in modalità
+    # demo (enforce_skill=False) NON si esclude per questi: si pianifica comunque.
+    if enforce_skill:
+        # Serve un ancoraggio di luogo: sito oppure asset
+        if ticket.site_id is None and ticket.asset_id is None:
+            return False, NON_SCHEDULABILE_DATI_MANCANTI
+        # Serve la skill richiesta (il bridge usa il tipo come proxy se mancante)
+        if not (ticket.required_skill and ticket.required_skill.strip()):
+            return False, NON_SCHEDULABILE_DATI_MANCANTI
 
     # Materiali: se necessari e non pronti → escluso (salvo enforce_materials=False)
     if enforce_materials and ticket.materials_required and not ticket.materials_ready:
@@ -220,15 +227,47 @@ def _deadline_score(deadline_days: Optional[int]) -> int:
     return 0
 
 
+def _priority_tier(ticket: SchedTicket, scadenza_giorni: int = 30) -> int:
+    """
+    Fascia di priorità di inserimento (più alta = piazzato prima):
+
+      6  BD                         — guasto/emergenza
+      5  CM su asset FERMO          — correttiva su asset fermo/guasto
+      4  PM di LEGGE                — preventiva con obbligo normativo
+      3  PM IN SCADENZA             — preventiva con scadenza entro `scadenza_giorni`
+      2  PM (tutte le altre)
+      1  CM su asset IN FUNZIONE    — correttiva su asset operativo
+    """
+    tipo = (ticket.tipo or "").strip().upper()
+    if tipo == "BD":
+        return 6
+    if tipo == "CM":
+        return 5 if ticket.asset_fermo else 1
+    if tipo == "PM":
+        if ticket.is_legge:
+            return 4
+        if ticket.deadline_days is not None and ticket.deadline_days <= scadenza_giorni:
+            return 3
+        return 2
+    # ISP e altri tipi: trattati come PM standard
+    return 2
+
+
+# Base di score per fascia: il salto tra fasce (1000) supera qualsiasi sub-score,
+# così l'ordine di priorità è rigido e i sub-score fanno solo da tie-breaker.
+_TIER_BASE = {6: 6000, 5: 5000, 4: 4000, 3: 3000, 2: 2000, 1: 1000, 0: 500}
+
+
 def calculate_ticket_score(ticket: SchedTicket, rare_skills: Optional[Set[str]] = None) -> float:
     """
     Score di ordinamento ticket (più alto = piazzato prima).
 
-    Componenti (SLA esclusa):
-      priorità tecnica + criticità asset + aging + rarità skill + durata utile.
+    Dominato dalla FASCIA di priorità (BD → CM-fermo → PM-legge → PM-scadenza →
+    PM → CM-funzione); a parità di fascia entrano i sub-score (priorità tecnica,
+    criticità asset, aging, scadenza, rarità skill, durata utile).
     """
     rare_skills = rare_skills or set()
-    score = 0.0
+    score = float(_TIER_BASE.get(_priority_tier(ticket), 500))
     score += _priority_score(ticket.priority)
     score += _criticality_score(ticket.asset_criticality)
     score += _aging_score(ticket.age_days)
@@ -666,7 +705,7 @@ def auto_schedule_tickets(
     for ticket in tickets:
         valid, reason = is_ticket_schedulable(
             ticket, apply_default_duration=apply_default_duration,
-            enforce_materials=enforce_materials,
+            enforce_materials=enforce_materials, enforce_skill=enforce_skill,
         )
         if not valid:
             result["excluded"].append({"ticket_id": ticket.id, "reason": reason})

@@ -116,6 +116,31 @@ def test_aging_increases_score():
     assert vecchio > nuovo
 
 
+def test_priority_tier_ordering():
+    """Ordine fasce: BD > CM(fermo) > PM(legge) > PM(scadenza) > PM > CM(funzione)."""
+    def mk(tipo, **kw):
+        return SchedTicket(id=1, tipo=tipo, required_skill=tipo,
+                           estimated_duration_minutes=120, **kw)
+    bd       = calculate_ticket_score(mk("BD"))
+    cm_fermo = calculate_ticket_score(mk("CM", asset_fermo=True))
+    pm_legge = calculate_ticket_score(mk("PM", is_legge=True))
+    pm_scad  = calculate_ticket_score(mk("PM", deadline_days=5))
+    pm_all   = calculate_ticket_score(mk("PM"))
+    cm_func  = calculate_ticket_score(mk("CM", asset_fermo=False))
+    assert bd > cm_fermo > pm_legge > pm_scad > pm_all > cm_func
+
+
+def test_bd_scheduled_before_cm_running_same_capacity():
+    """A capacità ridotta, il BD entra prima della CM su asset in funzione."""
+    techs = [make_tech(daily=120, skills=["MECCANICO"])]  # un solo ticket da 2h/giorno
+    cm = make_ticket(id=1, dur=120, skill="MECCANICO")     # CM (tipo default) → fascia bassa
+    bd = SchedTicket(id=2, tipo="BD", required_skill="MECCANICO",
+                     estimated_duration_minutes=120, site_id=1, asset_id=1, status="Aperto")
+    res = run([cm, bd], techs, days=1)
+    scheduled = {a["ticket_id"] for a in res["assignments"]}
+    assert 2 in scheduled and 1 not in scheduled  # vince il BD
+
+
 def test_deadline_increases_score():
     overdue = make_ticket(dur=60)
     overdue.deadline_days = -2

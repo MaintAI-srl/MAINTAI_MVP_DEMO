@@ -60,6 +60,25 @@ REASON_IT: Dict[str, str] = {
     NON_SCHEDULABILE_STATO:         "Stato ticket non compatibile con lo scheduling",
 }
 
+# Stati asset considerati "fermo/guasto" → la CM su questi asset è più urgente.
+_FERMO_STATES = {
+    "stopped", "fermo", "fermo prog.", "fermo programmato", "guasto",
+    "ko", "down", "fuori servizio", "out_of_service", "non operativo",
+}
+
+# Parole chiave che identificano una PM con obbligo di legge/normativo (proxy:
+# non esiste un campo dedicato sul modello — euristica sul testo del ticket).
+_NORMATIVE_KEYWORDS = (
+    "legge", "normativ", "obbligator", "obbligo di legge", "cogente",
+    "antincendio", "messa a terra", "verifica periodica", "verifica di legge",
+    "ped", "atex", "dlgs", "d.lgs", "81/08", "scadenza di legge",
+)
+
+
+def _has_normative_keyword(*texts: Optional[str]) -> bool:
+    blob = " ".join(t for t in texts if t).lower()
+    return any(k in blob for k in _NORMATIVE_KEYWORDS)
+
 
 # ── Conversione ORM → strutture motore ────────────────────────────────────────
 
@@ -158,15 +177,24 @@ def _build_sched_tickets(
             created = t.created_at.date() if isinstance(t.created_at, datetime) else t.created_at
             eta_giorni = max(0, (planning_start - created).days)
 
+        tipo = (t.tipo or "CM").strip().upper()
         # required_skill: competenza esplicita, altrimenti tipo come proxy
-        required_skill = (t.competenza_richiesta or t.tipo or "CM").strip().upper()
+        required_skill = (t.competenza_richiesta or tipo).strip().upper()
 
         # Materiali: in_attesa_ricambio → materiali necessari ma non pronti
         in_attesa = bool(getattr(t, "in_attesa_ricambio", False))
 
+        # Asset fermo/guasto → la CM su asset fermo ha priorità maggiore
+        asset_stato = (getattr(asset, "stato", None) or "").strip().lower() if asset else ""
+        asset_fermo = asset_stato in _FERMO_STATES
+
+        # PM con obbligo di legge (proxy: parole chiave normative nel testo)
+        is_legge = tipo == "PM" and _has_normative_keyword(t.titolo, t.descrizione)
+
         result.append(SchedTicket(
             id=t.id,
             title=t.titolo or f"Ticket #{t.id}",
+            tipo=tipo,
             site_id=site_id,
             asset_id=t.asset_id,
             status=t.stato or "Aperto",
@@ -174,6 +202,8 @@ def _build_sched_tickets(
             estimated_duration_minutes=int(round(durata_corretta * 60)),
             priority=t.priorita or "Media",
             asset_criticality=criticality,
+            asset_fermo=asset_fermo,
+            is_legge=is_legge,
             materials_ready=not in_attesa,
             materials_required=in_attesa,
             age_days=eta_giorni,

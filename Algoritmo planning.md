@@ -131,22 +131,33 @@ o in **stato terminale** (chiuso/eliminato).
 
 ## 6. Ordinamento ticket — `TicketScore`
 
-```
-TicketScore = priorità + criticità asset + aging + scadenza + rarità skill + durata utile
-```
+L'ordinamento è **a fasce di priorità** (dominante) + sub-score (tie-breaker).
 
-| Componente | Pesi |
+**Fasce (dalla più alta):**
+
+| # | Fascia | Criterio |
+|---|---|---|
+| 6 | **BD** | guasto / emergenza |
+| 5 | **CM (FERMO ASSET)** | correttiva su asset fermo/guasto (`asset.stato` fermo) |
+| 4 | **PM (LEGGE)** | preventiva con obbligo normativo (proxy: parole chiave nel testo) |
+| 3 | **PM (IN SCADENZA)** | preventiva con `prossima_scadenza` entro 30 gg |
+| 2 | **PM (TUTTE)** | tutte le altre preventive |
+| 1 | **CM (ASSET IN FUNZIONE)** | correttiva su asset operativo |
+
+Il salto tra fasce (1000) supera qualsiasi sub-score, quindi l'ordine di priorità è
+rigido. Dentro la stessa fascia ordinano i sub-score:
+
+| Sub-score | Pesi |
 |---|---|
-| Priorità | Alta +40 · Media +20 · Bassa +5 |
+| Priorità tecnica | Alta +40 · Media +20 · Bassa +5 |
 | Criticità asset | A/Alta +30 · B/Media +15 · C/Bassa +0 |
 | Aging | > 7gg +15 · > 3gg +10 · nuovo +0 |
-| **Scadenza** (scadenziario) | scaduto +60 · ≤ 3gg +35 · ≤ 7gg +20 · ≤ 14gg +10 · oltre +0 |
-| Rarità skill | skill rara (≤ 1 tecnico la possiede) +15 · comune +0 |
-| Durata utile | `min(durata_h, 8) × 2` (max +16) — i ticket lunghi prima, riempiono meglio |
+| Scadenza (scadenziario) | scaduto +60 · ≤ 3gg +35 · ≤ 7gg +20 · ≤ 14gg +10 |
+| Rarità skill | skill rara (≤ 1 tecnico) +15 |
+| Durata utile | `min(durata_h, 8) × 2` (max +16) |
 
-A parità di score: prima i più vecchi, poi i più lunghi, poi per `id` (determinismo).
-I ticket scaduti / in scadenza, avendo lo score più alto, vengono piazzati per primi
-e quindi sui giorni più vicini alla generazione (prima della scadenza).
+A parità totale: prima i più vecchi, poi i più lunghi, poi per `id` (determinismo).
+I ticket a fascia più alta vengono piazzati per primi e quindi sui giorni più vicini.
 
 ---
 
