@@ -545,12 +545,14 @@ def export_tickets_csv(db: Session = Depends(get_db), tenant_id: int = Depends(g
     writer.writerow(["ID", "Titolo", "Asset ID", "Asset Nome", "Priorita", "Stato", "Tipo",
                      "Durata Stimata", "Tecnico ID", "Inizio Pianificato", "Fine Pianificata"])
     for t in items:
-        writer.writerow([
+        # SEC-025: i campi liberi (titolo, nome asset) sono input utente — vanno
+        # neutralizzati contro la formula injection quando il CSV è aperto in Excel.
+        writer.writerow([sanitize_spreadsheet_cell(v) for v in (
             t.get("id"), t.get("titolo"), t.get("asset_id"), t.get("asset_name"),
             t.get("priorita"), t.get("stato"), t.get("tipo"),
             t.get("durata_stimata_ore"), t.get("tecnico_id"),
             t.get("planned_start"), t.get("planned_finish"),
-        ])
+        )])
 
     output.seek(0)
     return StreamingResponse(
@@ -566,7 +568,10 @@ from fastapi import UploadFile, File, HTTPException
 from fastapi.responses import Response
 from backend.db.modelli import TicketAllegato
 from backend.core import storage
-from backend.core.file_validation import validate_upload, sniff_ext, safe_serving, sanitize_filename_header
+from backend.core.file_validation import (
+    validate_upload, sniff_ext, safe_serving, sanitize_filename_header,
+    sanitize_spreadsheet_cell,
+)
 
 # Estensioni senza punto per validate_upload
 _ALLOWED_UPLOAD_EXTS_PLAIN = {

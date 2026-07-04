@@ -9,11 +9,12 @@ from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
+from backend.core.file_validation import sanitize_spreadsheet_cell
 from backend.core.security import get_current_tenant_id
 from backend.db.modelli import Asset, Ticket
 
@@ -56,7 +57,9 @@ def _calcola_costo(ticket: Ticket, asset_map: dict) -> float:
 def get_report_economico(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    mesi: int = 12,
+    # SEC-024: bound esplicito — senza limite un valore arbitrario (es. 10^9)
+    # forza un loop O(mesi) e satura la CPU del worker (DoS autenticato).
+    mesi: int = Query(12, ge=1, le=60),
 ):
     """
     Ritorna il report economico di manutenzione per il tenant:
@@ -82,7 +85,12 @@ def get_report_economico(
 
     # Asset map per il tenant (pre-carica tutti per evitare N+1)
     asset_ids = {t.asset_id for t in tickets if t.asset_id}
-    assets = db.query(Asset).filter(Asset.id.in_(asset_ids)).all() if asset_ids else []
+    assets = (
+        db.query(Asset)
+        .filter(Asset.id.in_(asset_ids), Asset.tenant_id == tenant_id)
+        .all()
+        if asset_ids else []
+    )
     asset_map = {a.id: a for a in assets}
 
     # ── Aggregati totali ──────────────────────────────────────────────────────
@@ -256,7 +264,9 @@ def export_report_excel(
 
     for i, a in enumerate(data["top_asset"]):
         r = start_top + 2 + i
-        ws.cell(row=r, column=1, value=a["nome"]).font = normal
+        # SEC-025: il nome asset è input utente — openpyxl tratta le stringhe che
+        # iniziano con '=' come formule: va neutralizzato (formula injection).
+        ws.cell(row=r, column=1, value=sanitize_spreadsheet_cell(a["nome"])).font = normal
         _v(ws, r, 2, a["costo_subito"],        "#,##0.00")
         _v(ws, r, 3, a["ticket_bd"])
         _v(ws, r, 4, a["costo_orario_fermo"], "#,##0.00")

@@ -1,7 +1,7 @@
 # MaintAI — Security Audit Report
 
-**Data:** 2026-06-12 (aggiornamento della v1.1 del 2026-06-11)
-**Versione report:** 1.2
+**Data:** 2026-07-04 (aggiornamento della v1.2 del 2026-06-12)
+**Versione report:** 1.3
 **Piattaforma:** MaintAI 3.3.1
 **Eseguito da:** Claude Code — Automated Security Review (ISO 27001/27002 + NIS2 + OWASP Top 10 2021)
 
@@ -96,6 +96,63 @@ Interventi applicati in questa sessione (branch `claude/tender-bohr-3ecuxk`):
 
 Suite test backend: **157 passed** (93 in v1.1 → +64 nuovi test di sicurezza).
 
+### Aggiornamento v1.3 — 2026-07-04 (ri-esecuzione completa della routine di audit)
+
+Ambito: `main` al commit `e8a1b76` (42 commit dopo l'audit v1.2, con nuova superficie
+di attacco: Centro di Controllo, dispatch emergenze, auto-scheduler deterministico,
+launchpad) + branch di hardening `claude/code-security-debug-a8uuhz`.
+
+**Nuovi finding rilevati e chiusi in questa sessione:**
+
+- **SEC-021 chiuso (HIGH)** — `python-multipart==0.0.27` con **3 CVE**
+  (CVE-2026-53538/53539/53540) sulla libreria che parsa il multipart di **login form
+  e upload file** (input non autenticato). Aggiornato a `0.0.31`.
+- **SEC-022 chiuso (HIGH)** — `cryptography==46.0.7` con advisory
+  GHSA-537c-gmf6-5ccf (libreria core per Fernet at-rest). Aggiornato a `48.0.1`;
+  suite completa verde dopo l'upgrade (Fernet round-trip incluso).
+- **SEC-023 chiuso (MEDIUM)** — npm: `hono <4.12.25` (advisory **HIGH**, 5 CVE),
+  `js-yaml` (DoS quadratico) e `@babel/core` (file read via sourceMappingURL),
+  tutte **transitive di tool di sviluppo** (eslint / shadcn CLI — non finiscono nel
+  bundle servito). Risolte con `npm audit fix` (lockfile aggiornato). Restano le
+  2 MODERATE note di `postcss` via `next` (accepted risk SEC-005).
+- **SEC-024 chiuso (MEDIUM)** — **DoS da parametri non limitati** (API04
+  Unrestricted Resource Consumption): `GET /report/economico?mesi=N` eseguiva un
+  loop O(N) senza bound (con `mesi=10^9` satura la CPU del worker unico);
+  `GeneratePlanRequest.days` senza clamp faceva iterare i motori di scheduling su
+  orizzonti arbitrari; `GET /planning/feedback/analytics?days=N` senza bound.
+  Fix: `mesi` 1..60, `days` planner 1..90 (validator Pydantic), `days` analytics
+  1..365.
+- **SEC-025 chiuso (MEDIUM)** — **Formula injection CSV/Excel (CWE-1236)**: i campi
+  liberi inseriti dagli utenti (titolo ticket, nome asset) finivano non neutralizzati
+  in `GET /export/tickets` (CSV) e nell'export Excel del report economico (openpyxl
+  interpreta come formula le stringhe che iniziano con `=`). Un utente può far
+  eseguire comandi/esfiltrare dati a chi apre l'export in Excel. Fix:
+  `sanitize_spreadsheet_cell()` centralizzata in `core/file_validation.py`
+  (prefisso apostrofo per `= + - @ TAB CR`), applicata a entrambi gli export.
+- **SEC-026 chiuso (LOW)** — cache geocoding in-memory di `emergency.py` senza cap
+  (gli indirizzi derivano da dati utente → memory exhaustion nel tempo). Fix: cap
+  5000 voci con evizione FIFO.
+- **SEC-027 chiuso (LOW)** — `/auth/change-password` senza rate limit: chi ruba una
+  sessione può forzare la password attuale per consolidare l'accesso. Fix:
+  `@limiter.limit("5/minute")`.
+
+**Bug funzionale trovato dai test di regressione (debug):**
+- `GET /planning/feedback/analytics` era **irraggiungibile** (422 permanente): la
+  route era definita **dopo** `GET /planning/feedback/{ticket_id}`, che catturava il
+  path `analytics` come `ticket_id`. Route riordinate con nota anti-regressione.
+
+**Verifiche ri-eseguite senza nuovi finding:** copertura auth di tutte le 34 route
+(pubblici by design solo `health`, `desktop_update`, `modules`, `/check/public/*`
+token-based con rate limit e scadenza); isolamento tenant su Centro di Controllo,
+emergency dispatch (RBAC responsabile) e auto-scheduler; SSRF (uniche chiamate
+esterne: OpenAI SDK, Open-Meteo, Nominatim — host fissi, parametri encodati; config
+IMAP con blocco IP privati); nessun `eval`/`exec`/`pickle`/`subprocess`; secret scan
+della history dal 2026-06-11 a oggi: **puliti** (solo fixture di test); redaction log
+attiva; header di sicurezza e CSRF fail-closed invariati.
+
+Suite test backend: **208 passed** (193 su `main` + 15 nuovi test di regressione in
+`test_security_audit_v13.py`).
+
 ---
 
 ## Registro Finding
@@ -122,6 +179,14 @@ Suite test backend: **157 passed** (93 in v1.1 → +64 nuovi test di sicurezza).
 | SEC-018 | MEDIUM | Desktop Tauri | `csp: null`, capability `shell:default` inutilizzata, versione desktop 3.1.6 ≠ 3.3.1 | ✅ **Chiuso in v1.2** — CSP definita, plugin shell rimosso (Rust + capability), versione allineata, test di regressione. La chiave privata di firma updater **non risulta mai tracciata nel repo** (verificato su tutta la history); va custodita fuori repo con password non vuota |
 | SEC-019 | LOW | Auth | JWT restituito nel body JSON del login a **tutti** i client (incluso web, che usa il cookie HttpOnly) | ✅ **Chiuso in v1.2** — token nel body solo per client desktop (Origin Tauri / `X-Client: desktop`); rischio localStorage desktop documentato in `DESKTOP.md`. Non scrivere più "JWT solo cookie HttpOnly": vale per il web, non per il desktop |
 | SEC-020 | LOW | Logging/Privacy | `SystemLog.extra_info` senza redaction; possibili snippet raw AI nei log | ✅ **Chiuso in v1.2** — redaction centralizzata + troncamento + 5 test |
+| SEC-021 | HIGH | Dipendenze (A.8.8) | `python-multipart==0.0.27`: CVE-2026-53538/53539/53540 (parsing multipart di login/upload) | ✅ **Chiuso in v1.3** — pin a 0.0.31, pip-audit pulito, suite verde |
+| SEC-022 | HIGH | Dipendenze (A.8.8) | `cryptography==46.0.7`: GHSA-537c-gmf6-5ccf (libreria Fernet at-rest) | ✅ **Chiuso in v1.3** — pin a 48.0.1, pip-audit pulito, suite verde |
+| SEC-023 | MEDIUM | Dipendenze (dev-tooling) | npm: `hono <4.12.25` (advisory HIGH), `js-yaml` (DoS), `@babel/core` — transitive di eslint/shadcn CLI, non nel bundle | ✅ **Chiuso in v1.3** — `npm audit fix`; restano solo le 2 MODERATE `postcss` (accepted risk SEC-005) |
+| SEC-024 | MEDIUM | API (API04 Resource Consumption) | Parametri senza bound: `mesi` report (loop O(N) → DoS CPU), `days` planner, `days` analytics | ✅ **Chiuso in v1.3** — clamp 1..60 / 1..90 / 1..365 + 3 test |
+| SEC-025 | MEDIUM | Export (CWE-1236) | Formula injection in export CSV ticket ed Excel report (titolo/nome asset non neutralizzati) | ✅ **Chiuso in v1.3** — `sanitize_spreadsheet_cell()` centralizzata + 8 test |
+| SEC-026 | LOW | DoS (memoria) | Cache geocoding `emergency.py` senza cap (indirizzi derivati da dati utente → memory exhaustion) | ✅ **Chiuso in v1.3** — cap 5000 voci + evizione FIFO + test |
+| SEC-027 | LOW | Auth | `/auth/change-password` senza rate limit (brute-force password attuale da sessione rubata) | ✅ **Chiuso in v1.3** — `@limiter.limit("5/minute")` + test |
+| SEC-028 | — (bug funzionale) | Routing | `GET /planning/feedback/analytics` irraggiungibile: definita dopo `/feedback/{ticket_id}`, che catturava `analytics` come `ticket_id` (422 permanente) | ✅ **Chiuso in v1.3** — route riordinate + nota anti-regressione |
 
 > ⚠️ A differenza della v1.1, **non tutti gli elementi aperti sono "solo hardening"**:
 > SEC-012 (segreti nella history) è una vulnerabilità reale finché le credenziali non
@@ -179,6 +244,18 @@ effettive su `main`.
 
 Report grezzi aggiornati: `docs/security/pip_audit_report.json`,
 `docs/security/npm_audit_report.json`, `docs/security/bandit_report.json`.
+
+### Sul branch di hardening v1.3 (`claude/code-security-debug-a8uuhz`) — 2026-07-04
+
+| Verifica | Esito |
+|---|---|
+| `pytest backend/tests/` | ✅ **208 passed** (+15 test regressione audit v1.3) |
+| `pip-audit -r requirements.txt` | ✅ **0 vulnerabilità** (dopo pin `python-multipart 0.0.31`, `cryptography 48.0.1`) |
+| `bandit -r backend/ -x backend/tests` | ✅ 0 HIGH, 2 MEDIUM (falsi positivi noti SEC-003/004), 11 LOW |
+| `npm audit` | ✅ 0 HIGH/CRITICAL dopo `npm audit fix`; 2 MODERATE residue (`postcss` via `next`, accepted risk SEC-005) |
+| Secret scan history (2026-06-11 → HEAD) | ✅ nessun segreto (solo fixture di test) |
+
+Report grezzi rigenerati il 2026-07-04 in `docs/security/`.
 
 ---
 
@@ -277,3 +354,27 @@ in ordine di priorità:
 **Documentazione**
 - `docs/security/SECURITY_AUDIT_REPORT.md` (questo file, v1.2)
 - `docs/security/{bandit,pip_audit,npm_audit}_report.json` — rigenerati 2026-06-12
+
+---
+
+## Files modificati in questa sessione (v1.3 — 2026-07-04)
+
+**Backend**
+- `backend/requirements.txt` — `python-multipart` 0.0.27→0.0.31 (SEC-021), `cryptography` 46.0.7→48.0.1 (SEC-022)
+- `backend/core/file_validation.py` — `sanitize_spreadsheet_cell()` anti formula-injection (SEC-025)
+- `backend/api/routes/tickets.py` — export CSV neutralizzato (SEC-025)
+- `backend/api/routes/report.py` — export Excel neutralizzato + `mesi` bounded 1..60 + filtro tenant sugli asset (SEC-024/025)
+- `backend/api/routes/planning.py` — clamp `days` planner 1..90 e analytics 1..365 (SEC-024); riordino route `feedback/analytics` (SEC-028)
+- `backend/api/routes/emergency.py` — cap cache geocoding FIFO (SEC-026)
+- `backend/api/routes/auth.py` — rate limit su `change-password` (SEC-027)
+
+**Frontend**
+- `frontend/package-lock.json` — `npm audit fix` (hono/js-yaml/@babel — SEC-023)
+
+**Test (+15)**
+- `backend/tests/test_security_audit_v13.py` — dipendenze pinnate, clamp DoS, formula injection CSV/Excel, cap cache, rate limit change-password
+
+**Documentazione**
+- `docs/security/SECURITY_AUDIT_REPORT.md` (questo file, v1.3)
+- `docs/security/SALES_READINESS_CHECKLIST.md` (v1.3)
+- `docs/security/{bandit,pip_audit,npm_audit}_report.json` — rigenerati 2026-07-04

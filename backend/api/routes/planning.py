@@ -60,6 +60,13 @@ class GeneratePlanRequest(BaseModel):
     include_weekends: bool = False
     allow_overtime: bool = False
 
+    @field_validator("days")
+    @classmethod
+    def clamp_days(cls, v: int) -> int:
+        # SEC-024: senza clamp un orizzonte arbitrario (es. 10^6 giorni) fa
+        # iterare i motori di scheduling giorno-per-giorno → DoS della CPU.
+        return max(1, min(90, v))
+
 
 class DeauthorizeRequest(BaseModel):
     reason: str
@@ -1515,63 +1522,13 @@ def submit_feedback(
     }
 
 
-# ── Endpoint GET /planning/feedback/{ticket_id} ───────────────────────────────
-
-@router.get("/feedback/{ticket_id}")
-def get_feedback(
-    ticket_id: int,
-    db: Session = Depends(get_db),
-    tenant_id: int = Depends(get_current_tenant_id),
-):
-    """
-    Ritorna la lista dei feedback di esecuzione per un ticket.
-    Isolamento multi-tenant: filtra per tenant_id.
-    """
-    # Verifica che il ticket appartenga al tenant
-    ticket = db.query(Ticket).filter(
-        Ticket.id == ticket_id,
-        Ticket.tenant_id == tenant_id,
-    ).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} non trovato")
-
-    feedbacks = db.query(PlannerFeedback).filter(
-        PlannerFeedback.ticket_id == ticket_id,
-        PlannerFeedback.tenant_id == tenant_id,
-    ).order_by(PlannerFeedback.created_at.desc()).all()
-
-    return [
-        {
-            "id": f.id,
-            "ticket_id": f.ticket_id,
-            "generated_plan_id": f.generated_plan_id,
-            "planned_date": f.planned_date.isoformat() if f.planned_date else None,
-            "planned_technician_id": f.planned_technician_id,
-            "estimated_duration_hours": f.estimated_duration_hours,
-            "confidence_score_at_plan": f.confidence_score_at_plan,
-            "actual_start": f.actual_start.isoformat() if f.actual_start else None,
-            "actual_finish": f.actual_finish.isoformat() if f.actual_finish else None,
-            "actual_duration_hours": f.actual_duration_hours,
-            "actual_technician_id": f.actual_technician_id,
-            "execution_outcome": f.execution_outcome,
-            "duration_delta_hours": f.duration_delta_hours,
-            "date_delta_days": f.date_delta_days,
-            "technician_changed": f.technician_changed,
-            "user_rating": f.user_rating,
-            "user_notes": f.user_notes,
-            "ticket_tipo": f.ticket_tipo,
-            "asset_id": f.asset_id,
-            "created_at": f.created_at.isoformat() if f.created_at else None,
-        }
-        for f in feedbacks
-    ]
-
-
 # ── Endpoint GET /planning/feedback/analytics ─────────────────────────────────
+# NB (audit v1.3): questa route DEVE precedere /feedback/{ticket_id} — definita dopo,
+# il path 'analytics' verrebbe catturato dal parametro {ticket_id} (422 permanente).
 
 @router.get("/feedback/analytics")
 def feedback_analytics(
-    days: int = 30,
+    days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -1630,6 +1587,60 @@ def feedback_analytics(
         "technician_change_rate": technician_change_rate,
         "by_tipo": by_tipo,
     }
+
+
+# ── Endpoint GET /planning/feedback/{ticket_id} ───────────────────────────────
+
+@router.get("/feedback/{ticket_id}")
+def get_feedback(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Ritorna la lista dei feedback di esecuzione per un ticket.
+    Isolamento multi-tenant: filtra per tenant_id.
+    """
+    # Verifica che il ticket appartenga al tenant
+    ticket = db.query(Ticket).filter(
+        Ticket.id == ticket_id,
+        Ticket.tenant_id == tenant_id,
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} non trovato")
+
+    feedbacks = db.query(PlannerFeedback).filter(
+        PlannerFeedback.ticket_id == ticket_id,
+        PlannerFeedback.tenant_id == tenant_id,
+    ).order_by(PlannerFeedback.created_at.desc()).all()
+
+    return [
+        {
+            "id": f.id,
+            "ticket_id": f.ticket_id,
+            "generated_plan_id": f.generated_plan_id,
+            "planned_date": f.planned_date.isoformat() if f.planned_date else None,
+            "planned_technician_id": f.planned_technician_id,
+            "estimated_duration_hours": f.estimated_duration_hours,
+            "confidence_score_at_plan": f.confidence_score_at_plan,
+            "actual_start": f.actual_start.isoformat() if f.actual_start else None,
+            "actual_finish": f.actual_finish.isoformat() if f.actual_finish else None,
+            "actual_duration_hours": f.actual_duration_hours,
+            "actual_technician_id": f.actual_technician_id,
+            "execution_outcome": f.execution_outcome,
+            "duration_delta_hours": f.duration_delta_hours,
+            "date_delta_days": f.date_delta_days,
+            "technician_changed": f.technician_changed,
+            "user_rating": f.user_rating,
+            "user_notes": f.user_notes,
+            "ticket_tipo": f.ticket_tipo,
+            "asset_id": f.asset_id,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        }
+        for f in feedbacks
+    ]
+
+
 @router.post("/clear")
 def clear_gantt(db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
     from backend.db.modelli import Ticket, GeneratedPlan

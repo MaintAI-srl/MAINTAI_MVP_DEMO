@@ -160,11 +160,15 @@ class PasswordChange(BaseModel):
 
 
 @router.post("/change-password")
+@limiter.limit("5/minute")
 def change_password(
+    request: Request,
     data: PasswordChange,
     payload: dict = Depends(get_current_user_payload),
     db: Session = Depends(get_db)
 ):
+    # SEC-027: rate limit — impedisce il brute-force della password attuale
+    # da parte di chi ha rubato una sessione (cookie/token) e vuole consolidarla.
     user = db.query(Utente).filter(Utente.username == payload.get("sub")).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utente non trovato")

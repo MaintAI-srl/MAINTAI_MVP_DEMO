@@ -24,7 +24,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ── Cache geocoding in-memory (indirizzo → (lat, lon) oppure None) ────────────
+# SEC-026: dimensione massima — gli indirizzi sono derivati da dati inseriti dagli
+# utenti, senza cap la cache cresce senza limite (memory exhaustion).
+_GEO_CACHE_MAX = 5000
 _geo_cache: dict[str, tuple[float, float] | None] = {}
+
+
+def _geo_cache_put(key: str, value: tuple[float, float] | None) -> None:
+    if len(_geo_cache) >= _GEO_CACHE_MAX:
+        # Evizione FIFO del più vecchio (i dict Python preservano l'ordine di inserimento)
+        _geo_cache.pop(next(iter(_geo_cache)))
+    _geo_cache[key] = value
 
 
 class EmergencyAssignRequest(PydanticModel):
@@ -52,11 +62,11 @@ async def _geocode(address: str) -> tuple[float, float] | None:
             data = r.json()
             if data:
                 result: tuple[float, float] = (float(data[0]["lat"]), float(data[0]["lon"]))
-                _geo_cache[key] = result
+                _geo_cache_put(key, result)
                 return result
     except Exception as exc:
         logger.warning("Geocoding fallito per '%s': %s", address, exc)
-    _geo_cache[key] = None
+    _geo_cache_put(key, None)
     return None
 
 
