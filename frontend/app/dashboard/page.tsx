@@ -5,7 +5,7 @@ import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import StatusToggle from "../components/StatusToggle";
-import Skeleton, { SkeletonStats } from "../components/Skeleton";
+import { SkeletonStats } from "../components/Skeleton";
 import {
   DndContext,
   DragEndEvent,
@@ -748,8 +748,10 @@ export default function DashboardPage() {
       window.removeEventListener("maintai:data-changed", refresh);
       window.removeEventListener("focus", refresh);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setup listener solo al mount; loadInitial/loadKPIs sono richiamati sull'evento, non devono ricreare i listener a ogni render
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ricarica i KPI quando cambiano filtri/paginazione (che loadKPIs legge dalla closure); aggiungere loadKPIs lo eseguirebbe a ogni render
   useEffect(() => { loadKPIs(); }, [page, search, selectedArea, selectedStato, assetColumnFilters]);
 
   useEffect(() => {
@@ -1088,106 +1090,10 @@ export default function DashboardPage() {
                 {dashboardWidgets.map((widget) => {
                   if (widget.hidden && !isCustomizing) return null;
                   
-                  const renderWidgetContent = () => {
-                    if (widget.type === "kpi") {
-                      const option = kpiOptionsById.get(widget.kpi) ?? kpiOptions[0];
-                      return (
-                        <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
-                          {isCustomizing && (
-                            <WidgetControls attributes={{}} listeners={{}}>
-                              <button 
-                                type="button" 
-                                onClick={() => toggleWidgetVisibility(widget.id)}
-                                style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
-                              >
-                                {widget.hidden ? "Mostra" : "Nascondi"}
-                              </button>
-                              <MiniSelect
-                                label="Tipo KPI"
-                                value={widget.kpi}
-                                options={kpiOptions.map((item) => ({ value: item.id, label: item.label }))}
-                                onChange={(value) => changeWidgetKpi(widget.id, value as KpiOptionId)}
-                              />
-                            </WidgetControls>
-                          )}
-                          <KpiCard label={option.label} value={option.value} accent={option.accent} sub={option.sub} icon={option.icon} />
-                        </div>
-                      );
-                    }
-                    if (widget.type === "asset_table") {
-                      return (
-                        <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
-                          {isCustomizing && (
-                            <WidgetControls attributes={{}} listeners={{}}>
-                              <button 
-                                type="button" 
-                                onClick={() => toggleWidgetVisibility(widget.id)}
-                                style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
-                              >
-                                {widget.hidden ? "Mostra" : "Nascondi"}
-                              </button>
-                              <span style={{ height: 31, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-secondary)", fontSize: 11, fontWeight: 800 }}>
-                                Dettaglio asset
-                              </span>
-                            </WidgetControls>
-                          )}
-                          <AssetDetailWidget
-                            assets={kpiAsset?.assets ?? []}
-                            total={kpiAsset?.total ?? 0}
-                            page={page}
-                            pages={kpiAsset?.pages ?? 0}
-                            open={assetDetailOpen}
-                            filters={assetColumnFilters}
-                            onToggle={() => setAssetDetailOpen((value) => !value)}
-                            onFilterChange={(key, value) => setAssetColumnFilters((current) => ({ ...current, [key]: value }))}
-                            onPageChange={setPage}
-                          />
-                        </div>
-                      );
-                    }
-                    const chart = chartOptionsById.get(widget.chartData) ?? chartOptions[0];
-                    return (
-                      <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
-                        {isCustomizing && (
-                          <WidgetControls attributes={{}} listeners={{}}>
-                            <button 
-                              type="button" 
-                              onClick={() => toggleWidgetVisibility(widget.id)}
-                              style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
-                            >
-                              {widget.hidden ? "Mostra" : "Nascondi"}
-                            </button>
-                            <MiniSelect
-                              label="Dati grafico"
-                              value={widget.chartData}
-                              options={chartOptions.map((item) => ({ value: item.id, label: item.title }))}
-                              onChange={(value) => changeWidgetChartData(widget.id, value as ChartDataId)}
-                              width={170}
-                            />
-                            <MiniSelect
-                              label="Tipologia grafico"
-                              value={widget.chartType}
-                              options={chartTypeOptions}
-                              onChange={(value) => changeWidgetChartType(widget.id, value as ChartDisplayType)}
-                              width={104}
-                            />
-                          </WidgetControls>
-                        )}
-                        <ChartCard title={chart.title} subtitle={chart.subtitle} accent={chart.accent}>
-                          <DashboardChartContent data={chart.data} chartType={widget.chartType} accent={chart.accent} />
-                        </ChartCard>
-                      </div>
-                    );
-                  };
 
                   return (
                     <SortableDashboardTile key={widget.id} widget={widget} editing={isCustomizing} expanded={assetDetailOpen}>
                       {(drag) => {
-                        // Pass active drag attributes to our controls inside the widget
-                        const content = renderWidgetContent();
-                        // Re-inject the drag handles into the WidgetControls within the content
-                        // Actually, SortableDashboardTile already wraps the children. 
-                        // I'll simplify the render logic to avoid issues with dnd-kit.
                         return (
                           <div style={{ position: "relative", height: "100%", opacity: widget.hidden ? 0.4 : 1 }}>
                             {isCustomizing && (
@@ -1519,7 +1425,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {kpiAsset?.assets.map((a, idx) => (
+              {kpiAsset?.assets.map((a) => (
                 <tr key={a.asset_id}
                   style={{ borderBottom: "1px solid var(--border-subtle)", transition: "background 120ms" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "rgba(91,143,255,0.04)")}

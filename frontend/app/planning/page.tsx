@@ -21,11 +21,8 @@ import { notify } from "@/lib/toast";
 import { format, addDays, subDays, parseISO, startOfWeek, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 
-import BadgeEfficienza from "./components/BadgeEfficienza";
 import StoricoPiani from "./components/StoricoPiani";
-import PannelloMotivazioni from "./components/PannelloMotivazioni";
 import WODetailDrawer from "./components/WODetailDrawer";
-import DeferredWOPanel from "./components/DeferredWOPanel";
 import ReplanModal from "./components/ReplanModal";
 import SchedulingSummaryModal from "./components/SchedulingSummaryModal";
 
@@ -99,11 +96,6 @@ function parseStart(ticket: TicketData): { date: string; hour: number; minute: n
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
-}
-
-function formatLocalDateTimeSeconds(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 }
 
 function planDateTime(dateStr: string, timeStr?: string | null): string {
@@ -1069,7 +1061,6 @@ export default function PianificazionePage() {
   const [detailTicket, setDetailTicket] = useState<TicketData | null>(null);
   const [filterTipo, setFilterTipo] = useState("");
   const [selectedWO, setSelectedWO] = useState<{ wo: PlannedWO; ticket: TicketData; tecnico: TecnicoData | null } | null>(null);
-  const [effPanelOpen, setEffPanelOpen] = useState(true);
   // Modale pianificazione: aperta al drop di un ticket sul Gantt (orario + supporto + anti-overlap)
   const [planModal, setPlanModal] = useState<{ ticket: TicketData; tecnicoId: number; date: string; startTime: string } | null>(null);
 
@@ -1112,8 +1103,8 @@ export default function PianificazionePage() {
 
   // Orizzonte auto-esteso lato backend (nessun selettore): il motore pianifica
   // l'intero backlog estendendo i giorni necessari.
-  const [includeWeekends, setIncludeWeekends] = useState(false);
-  const [allowOvertime, setAllowOvertime] = useState(false);
+  const [includeWeekends] = useState(false);
+  const [allowOvertime] = useState(false);
 
   const [manualEval, setManualEval] = useState<{ score: number; breakdown: EfficiencyBreakdown } | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -1146,19 +1137,6 @@ export default function PianificazionePage() {
   }, [tecnici]);
 
   // ── Contatori deferred dai piani storici (#12) ─────────────────────────────
-  const deferredCounts = useMemo((): Record<number, number> => {
-    const counts: Record<number, number> = {};
-    storico.forEach((plan) => {
-      if (plan.status !== "confirmed") return;
-      (plan.plan_json?.deferred_workorders ?? []).forEach((d) => {
-        if (d.wo_id != null) {
-          counts[d.wo_id] = (counts[d.wo_id] ?? 0) + 1;
-        }
-      });
-    });
-    return counts;
-  }, [storico]);
-
   // ── Statistiche backlog ─────────────────────────────────────────────────────
   // Ticket "rimandati" dalla proposta corrente (deferred) → lampeggiano in sidebar
   const deferredMap = useMemo(() => {
@@ -1401,7 +1379,7 @@ export default function PianificazionePage() {
       setMovedTicketReasons({});
       notify.success("Gantt svuotato con successo");
       await loadData();
-    } catch (e: unknown) {
+    } catch {
       notify.error("Errore durante lo svuotamento del Gantt");
     }
   }
@@ -1586,17 +1564,6 @@ export default function PianificazionePage() {
   }, [piano, tecnicoMap, ticketMap]);
 
   const openTicketDetail = useCallback((t: TicketData) => setDetailTicket(t), []);
-  const visibleTotals = useMemo(() => {
-    return days.reduce((acc, day) => {
-      const c = columnCapacity.get(format(day, "yyyy-MM-dd"));
-      if (!c) return acc;
-      acc.capacity += c.capacity;
-      acc.assigned += c.assigned;
-      acc.remaining += c.remaining;
-      return acc;
-    }, { capacity: 0, assigned: 0, remaining: 0 });
-  }, [columnCapacity, days]);
-
   const dateLabel =
     view === "day"
       ? format(days[0]!, "EEEE d MMMM yyyy", { locale: it })

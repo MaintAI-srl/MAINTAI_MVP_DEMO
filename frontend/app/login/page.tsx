@@ -158,8 +158,6 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const isServerDown = backendOk === false;
-
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center",
@@ -171,6 +169,7 @@ export default function LoginPage() {
         borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
       }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo statico nella pagina di login; next/image non porta benefici */}
           <img src="/logo.png" alt="MaintAI Logo" style={{ width: "64px", height: "64px", objectFit: "contain", marginBottom: "16px", filter: "drop-shadow(0 0 16px rgba(59,130,246,0.3))" }} />
           <h1 style={{ fontSize: "24px", margin: "0 0 8px 0", letterSpacing: "0.1em", fontWeight: 700 }}>MAINTAI</h1>
           <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "14px" }}>Accesso Operatori</p>

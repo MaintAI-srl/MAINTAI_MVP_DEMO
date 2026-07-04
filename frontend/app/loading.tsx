@@ -17,9 +17,10 @@ export default function Loading() {
           100% { transform: scale(0.95); opacity: 0.7; }
         }
       `}</style>
-      <img 
-        src="/logo.png" 
-        alt="MaintAI Logo Caricamento" 
+      {/* eslint-disable-next-line @next/next/no-img-element -- logo nella schermata di caricamento; next/image aggiungerebbe overhead nel primo paint */}
+      <img
+        src="/logo.png"
+        alt="MaintAI Logo Caricamento"
         style={{
           width: "100px",
           height: "100px",

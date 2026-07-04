@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "../lib/auth";
-import { apiPost, apiGet } from "../lib/api";
+import { apiPost } from "../lib/api";
 
 export default function ProfiloPage() {
   const { user } = useAuth();

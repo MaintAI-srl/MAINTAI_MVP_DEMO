@@ -78,7 +78,7 @@ export default function AdminUtentiPage() {
       return;
     }
     load();
-  }, [user]);
+  }, [user, router]);
 
   async function load() {
     setLoading(true);

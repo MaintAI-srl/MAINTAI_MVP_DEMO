@@ -863,7 +863,7 @@ export default function TicketPage() {
   const [fascia, setFascia] = useState("diurna");
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedFinish, setPlannedFinish] = useState("");
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [, setUpdatingId] = useState<number | null>(null);
   const [showNuovoTicket, setShowNuovoTicket] = useState(false);
   const [tableOpen, setTableOpen] = useState(true);
 

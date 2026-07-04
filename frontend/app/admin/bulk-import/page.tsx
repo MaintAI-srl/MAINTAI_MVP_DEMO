@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { apiGet } from "../../lib/api";
 import { notify } from "../../../lib/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiGet } from "../../lib/api";
 import { notify } from "@/lib/toast";
 import StatusToggle from "../../components/StatusToggle";
@@ -12,9 +12,9 @@ export default function AdminLogsPage() {
   const [level, setLevel] = useState("");
   const [module, setModule] = useState("");
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [, setTotal] = useState(0);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       if (view === "file") {
@@ -44,11 +44,11 @@ export default function AdminLogsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [view, lines, level, module, page]);
 
   useEffect(() => {
     fetchLogs();
-  }, [view, lines, level, module, page]);
+  }, [fetchLogs]);
 
   const getLogLevelColor = (line: string) => {
     if (line.includes("ERROR")) return "#ef4444";
