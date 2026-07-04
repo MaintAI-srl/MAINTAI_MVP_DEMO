@@ -253,6 +253,9 @@ Report grezzi aggiornati: `docs/security/pip_audit_report.json`,
 | `pip-audit -r requirements.txt` | ✅ **0 vulnerabilità** (dopo pin `python-multipart 0.0.31`, `cryptography 48.0.1`) |
 | `bandit -r backend/ -x backend/tests` | ✅ 0 HIGH, 2 MEDIUM (falsi positivi noti SEC-003/004), 11 LOW |
 | `npm audit` | ✅ 0 HIGH/CRITICAL dopo `npm audit fix`; 2 MODERATE residue (`postcss` via `next`, accepted risk SEC-005) |
+| `npm run lint` | ✅ exit 0 — **0 errori, 0 warning** (i 56 warning residui azzerati in questa sessione: unused vars/import, exhaustive-deps, no-img-element, incompatible-library) |
+| `tsc --noEmit` | ✅ 0 errori |
+| `npm run build` | ✅ build di produzione completo |
 | Secret scan history (2026-06-11 → HEAD) | ✅ nessun segreto (solo fixture di test) |
 
 Report grezzi rigenerati il 2026-07-04 in `docs/security/`.
@@ -316,7 +319,7 @@ in ordine di priorità:
 3. **SEC-006** — MFA TOTP per ruoli privilegiati. *Effort: ~16h.*
 4. DPA template + privacy notice GDPR. *Effort: ~8h.*
 5. Test restore trimestrale + BCP (§2c). *Effort: ~6h.*
-6. SEC-010 refresh rotation, SEC-011 RLS, riduzione warning ESLint (67), ownership per-tecnico sui ticket.
+6. SEC-010 refresh rotation, SEC-011 RLS, ownership per-tecnico sui ticket. *(La riduzione dei warning ESLint è stata completata: gate a 0 warning.)*
 
 ---
 
@@ -370,6 +373,7 @@ in ordine di priorità:
 
 **Frontend**
 - `frontend/package-lock.json` — `npm audit fix` (hono/js-yaml/@babel — SEC-023)
+- **Pulizia ESLint (23 file)** — azzerati i 56 warning residui del gate lint (unused vars/import, exhaustive-deps con `useCallback`/dep, `no-img-element` e `incompatible-library` con disable motivati, rimozione codice morto in `dashboard/page.tsx`). `npm run lint`/`tsc --noEmit`/`npm run build` verdi. Nessun cambiamento di comportamento a runtime.
 
 **Test (+15)**
 - `backend/tests/test_security_audit_v13.py` — dipendenze pinnate, clamp DoS, formula injection CSV/Excel, cap cache, rate limit change-password

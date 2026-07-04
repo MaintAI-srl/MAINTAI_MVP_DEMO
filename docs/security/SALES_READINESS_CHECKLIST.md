@@ -35,6 +35,7 @@ Legenda: ✅ Conforme · 🔄 Parziale/backlog · ❌ Mancante
 - [✅] **npm audit** (ri-eseguito 2026-07-04): 0 HIGH/CRITICAL — chiuso SEC-023 (`hono`/`js-yaml`/`@babel` dev-tooling); 2 MODERATE build-time accettati (postcss via next)
 - [✅] **Anti-DoS input** (SEC-024): parametri `mesi`/`days` con bound espliciti su report, planner e analytics
 - [✅] **No formula/CSV injection** (SEC-025): export CSV ed Excel neutralizzati (`sanitize_spreadsheet_cell`)
+- [✅] **Gate qualità frontend** (2026-07-04): `npm run lint` 0 errori **e 0 warning** (56 warning residui azzerati), `tsc --noEmit` 0 errori, `npm run build` completo
 
 ## Database
 - [📋] RLS PostgreSQL — *l'app accede al DB solo via backend autenticato (no client diretto); RLS difesa-in-profondità consigliata (SEC-011)*
