@@ -250,8 +250,12 @@ class Ticket(Base):
     impianto_name = Column(String, nullable=True)
 
     # M2.2 — Predisposizione ricambi
-    ricambio_note = Column(Text, nullable=True)        # nota libera ricambio usato
+    ricambio_note = Column(Text, nullable=True)        # nota libera ricambio usato / codice ricambio
     in_attesa_ricambio = Column(Boolean, default=False) # flag "bloccato in attesa ricambio"
+    ricambio_quantita = Column(Float, nullable=True)    # quantità ricambio (predisposizione modulo ricambi)
+
+    # Note libere del ticket — compilabili già in fase di creazione
+    note = Column(Text, nullable=True)
 
     asset = relationship("Asset", back_populates="tickets")
     # Due FK verso `tecnici` (tecnico_id + tecnico_supporto_id): va indicato esplicitamente

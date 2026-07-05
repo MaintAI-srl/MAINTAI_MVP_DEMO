@@ -15,12 +15,16 @@ class TicketCreate(BaseModel):
     durata_stimata_ore: float = Field(..., gt=0)
     fascia_oraria: str
     descrizione: str | None = Field(default=None, max_length=5000)
+    note: str | None = Field(default=None, max_length=5000)
     tecnico_id: int | None = None
     tecnico_supporto_id: int | None = None
     planned_start: Optional[datetime] = None
     planned_finish: Optional[datetime] = None
     piano_manutenzione_id: int | None = None
     origine_piano: str | None = None
+    # M2.2 — Predisposizione ricambi (compilabile già in creazione)
+    ricambio_note: str | None = Field(default=None, max_length=2000)
+    ricambio_quantita: float | None = Field(default=None, ge=0)
 
 
 class TicketUpdate(BaseModel):
@@ -41,8 +45,11 @@ class TicketUpdate(BaseModel):
     piano_manutenzione_id: int | None = None
     origine_piano: str | None = None
     note_vocali: str | None = Field(default=None, max_length=10000)  # Note vocali trascritte da mobile
+    descrizione: str | None = Field(default=None, max_length=5000)
+    note: str | None = Field(default=None, max_length=5000)
     # M2.2 — Predisposizione ricambi
     ricambio_note: str | None = Field(default=None, max_length=2000)
+    ricambio_quantita: float | None = Field(default=None, ge=0)
     in_attesa_ricambio: bool | None = None
 
 
@@ -58,6 +65,7 @@ class TicketResponse(BaseModel):
     durata_stimata_ore: float
     fascia_oraria: str
     descrizione: str | None = None
+    note: str | None = None
     tecnico_id: int | None = None
     tecnico_supporto_id: int | None = None
     attivita_manutenzione_id: int | None = None
@@ -72,4 +80,5 @@ class TicketResponse(BaseModel):
     origine_piano: str | None = None
     # M2.2 — Predisposizione ricambi
     ricambio_note: str | None = None
+    ricambio_quantita: float | None = None
     in_attesa_ricambio: bool = False
