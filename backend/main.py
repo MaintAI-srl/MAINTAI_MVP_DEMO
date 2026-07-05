@@ -327,6 +327,9 @@ def _ensure_columns() -> None:
         # M2.2 — Ticket predisposizione ricambi
         ("ticket", "ricambio_note",            "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_note TEXT"),
         ("ticket", "in_attesa_ricambio",       "ALTER TABLE ticket ADD COLUMN {ifne}in_attesa_ricambio BOOLEAN DEFAULT FALSE"),
+        ("ticket", "ricambio_quantita",        "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_quantita FLOAT"),
+        # Ticket — note libere compilabili in creazione
+        ("ticket", "note",                     "ALTER TABLE ticket ADD COLUMN {ifne}note TEXT"),
         # QR Code per asset (base64 PNG)
         ("asset", "qr_code_b64",               "ALTER TABLE asset ADD COLUMN {ifne}qr_code_b64 TEXT"),
         # Tecnico — telefono e sede per mappa emergenze
