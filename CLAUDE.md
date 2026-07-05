@@ -46,14 +46,14 @@ MaintAI è un sistema di gestione manutenzione industriale AI-powered per impian
 
 **Funzionalità produzione attuale:**
 1. Gestione Siti → Impianti → Asset con dati tecnici completi
-2. Ticket con 5 stati (Aperto / Pianificato / In corso / Chiuso / Eliminato), paginazione server-side, export Excel
+2. Ticket con 5 stati (Aperto / Pianificato / In corso / Chiuso / Eliminato), 5 tipi (BD / PM / CM / ISP / MOD-STR), ore uomo (auto = durata × tecnici, o manuale), paginazione server-side, export Excel
 3. **Piano AI Felix** — motore deterministico (`PlannerEngine`) + motore GPT opzionale, viste Gantt/Kanban/Calendario, storico piani con deautorizzazione
 4. Sessione diagnostica AI guidata (RCA interattiva via OpenAI)
 5. Caricamento manuali PDF → estrazione automatica piano manutenzione + pagina `/piani`
 6. Dashboard KPI in tempo reale (polling 30s) con grafici Recharts
 7. Kanban board ticket drag-and-drop (`@dnd-kit`)
-8. Integrazione Email-to-Ticket via IMAP polling (ogni 5 min)
-9. Gestione tecnici con assenze e orari
+8. Integrazione Email-to-Ticket via IMAP polling — **disattivata di default** (modulo `email_to_ticket`, riattivabile con env `MAINTAI_MODULE_EMAIL_TO_TICKET=true`)
+9. Gestione tecnici con assenze e orari + pagina `/risorse/personale` (griglia settimanale assenze, marcatura rapida, conflitti con ticket pianificati)
 10. Log di sistema persistenti in DB (`SystemLog`)
 11. Multi-tenant con isolamento dati JWT
 

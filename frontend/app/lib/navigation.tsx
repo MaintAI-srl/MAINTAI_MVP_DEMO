@@ -56,6 +56,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/asset", label: "Siti & Asset", icon: Cpu, module: "assets" },
       { href: "/tecnici", label: "Tecnici", icon: Users, module: "technicians" },
+      { href: "/risorse/personale", label: "Personale", icon: UserCheck, module: "technicians" },
       { href: "/piani", label: "Piani di Manutenzione", icon: Wrench, module: "maintenance_plans" },
       { href: "/scadenze", label: "Scadenziario", icon: CalendarDays, module: "deadlines" },
       { href: "/condizioni", label: "Dati Misure Asset", icon: Gauge, module: "condition_maintenance" },
@@ -83,6 +84,7 @@ export const PAGE_LABELS: Record<string, string> = {
   "/assets": "Asset",
   "/impianti": "Impianti",
   "/tecnici": "Tecnici",
+  "/risorse/personale": "Personale",
   "/planning": "Pianificazione",
   "/ticket": "Ticket",
   "/diagnostic": "Analisi Ingegneria AI",

@@ -9,7 +9,8 @@ export const MODULE_DEFINITIONS = [
   { id: "manuals", defaultEnabled: true },
   { id: "deadlines", defaultEnabled: true },
   { id: "condition_maintenance", defaultEnabled: true },
-  { id: "email_to_ticket", defaultEnabled: true },
+  // Change request 2026-07-05: email-to-ticket nascosto e disattivato di default
+  { id: "email_to_ticket", defaultEnabled: false },
   { id: "system_logs", defaultEnabled: true },
   { id: "bulk_import", defaultEnabled: true },
   { id: "tenant_admin", defaultEnabled: true },
@@ -78,6 +79,7 @@ const PATH_MODULES_BASE = [
   { prefix: "/storico", moduleId: "assets" },
   { prefix: "/print/asset-qr", moduleId: "assets" },
   { prefix: "/tecnici", moduleId: "technicians" },
+  { prefix: "/risorse/personale", moduleId: "technicians" },
   { prefix: "/ticket", moduleId: "tickets" },
   { prefix: "/planning", moduleId: "planning" },
   { prefix: "/diagnostic", moduleId: "diagnostic_ai" },

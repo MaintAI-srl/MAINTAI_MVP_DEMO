@@ -39,11 +39,13 @@ interface Ticket {
 function tipoColor(tipo: string): string {
   if (tipo === "BD") return "#ef4444";
   if (tipo === "PM") return "#22c55e";
+  if (tipo === "MOD-STR") return "#8b5cf6";
   return "#f59e0b";
 }
 function tipoLabel(tipo: string): string {
   if (tipo === "BD") return "Guasto";
   if (tipo === "PM") return "Preventiva";
+  if (tipo === "MOD-STR") return "Mod. Straordinaria";
   return "Correttiva";
 }
 function prioritaColor(p: string): string {

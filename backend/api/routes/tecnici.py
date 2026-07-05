@@ -55,6 +55,7 @@ def get_tecnici(db: Session = Depends(get_db), tenant_id: int = Depends(get_curr
         corrente = next((a for a in t_assenze if a.data_inizio <= day_end and a.data_fine >= day_start), None)
         
         tecnico["assenze"] = [{
+            "id": a.id,
             "tipo_assenza": a.tipo_assenza,
             "note": a.note,
             "data_inizio": a.data_inizio.isoformat() if a.data_inizio else None,
@@ -181,6 +182,112 @@ def delete_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_id: in
 
 
 # ── Assenze Tecnici ────────────────────────────────────────────────────────
+
+@router.get("/tecnici/assenze/overview")
+def get_assenze_overview(
+    date_from: datetime = Query(..., description="Inizio intervallo (ISO)"),
+    date_to: datetime = Query(..., description="Fine intervallo (ISO)"),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Tutte le assenze del tenant che intersecano l'intervallo richiesto.
+
+    Usato dal calendario Risorse > Personale: una sola chiamata per la griglia
+    tecnici × giorni. Legge la tabella TecnicoAssenza esistente (nessun sistema parallelo).
+    """
+    if date_to < date_from:
+        raise HTTPException(status_code=400, detail="date_to deve essere successiva a date_from")
+    query = db.query(TecnicoAssenza).filter(
+        TecnicoAssenza.data_inizio <= date_to,
+        TecnicoAssenza.data_fine >= date_from,
+    )
+    if tenant_id is not None:
+        query = query.filter(TecnicoAssenza.tenant_id == tenant_id)
+    assenze = query.order_by(TecnicoAssenza.data_inizio).limit(1000).all()
+    return [
+        {
+            "id": a.id,
+            "tecnico_id": a.tecnico_id,
+            "tipo_assenza": a.tipo_assenza,
+            "note": a.note,
+            "data_inizio": a.data_inizio.isoformat() if a.data_inizio else None,
+            "data_fine": a.data_fine.isoformat() if a.data_fine else None,
+        }
+        for a in assenze
+    ]
+
+
+@router.get("/tecnici/{tecnico_id}/conflitti")
+def get_conflitti_tecnico(
+    tecnico_id: int,
+    data_inizio: datetime = Query(...),
+    data_fine: datetime = Query(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Ticket Pianificati/In corso assegnati al tecnico che intersecano il periodo.
+
+    Usato per il warning conflitti quando si marca un'assenza (change request §6.4).
+    """
+    from backend.db.modelli import Ticket
+    t = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tecnico non trovato")
+    tickets = (
+        db.query(Ticket)
+        .filter(
+            Ticket.tenant_id == tenant_id,
+            Ticket.tecnico_id == tecnico_id,
+            Ticket.stato.in_(["Pianificato", "In corso"]),
+            Ticket.deleted_at.is_(None),
+            Ticket.planned_start.isnot(None),
+            Ticket.planned_start <= data_fine,
+            Ticket.planned_finish >= data_inizio,
+        )
+        .order_by(Ticket.planned_start)
+        .limit(100)
+        .all()
+    )
+    return {
+        "count": len(tickets),
+        "tickets": [
+            {
+                "id": tk.id,
+                "titolo": tk.titolo,
+                "stato": tk.stato,
+                "planned_start": tk.planned_start.isoformat() if tk.planned_start else None,
+                "planned_finish": tk.planned_finish.isoformat() if tk.planned_finish else None,
+            }
+            for tk in tickets
+        ],
+    }
+
+
+@router.put("/tecnici/assenze/{assenza_id}", response_model=TecnicoAssenzaResponse)
+def update_assenza_tecnico(
+    assenza_id: int,
+    data: TecnicoAssenzaCreate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: dict = Depends(require_roles("responsabile")),
+):
+    """Modifica un'assenza esistente (change request §6.2)."""
+    assenza = db.query(TecnicoAssenza).filter(TecnicoAssenza.id == assenza_id).first()
+    if not assenza:
+        raise HTTPException(status_code=404, detail="Assenza non trovata")
+    t = db.query(Tecnico).filter(Tecnico.id == assenza.tecnico_id, Tecnico.tenant_id == tenant_id).first()
+    if not t:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    if data.data_fine < data.data_inizio:
+        raise HTTPException(status_code=400, detail="Data fine deve essere dopo data inizio")
+    assenza.data_inizio = data.data_inizio
+    assenza.data_fine = data.data_fine
+    assenza.tipo_assenza = data.tipo_assenza
+    assenza.note = data.note
+    db.commit()
+    db.refresh(assenza)
+    return assenza
+
 
 @router.get("/tecnici/{tecnico_id}/assenze", response_model=list[TecnicoAssenzaResponse])
 def get_assenze_tecnico(tecnico_id: int, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id)):

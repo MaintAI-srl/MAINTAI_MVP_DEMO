@@ -93,6 +93,9 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         description="Configurazione IMAP e polling automatico delle mailbox.",
         category="integrazioni",
         requires=("tickets",),
+        # Change request 2026-07-05: funzione nascosta e disattivata di default.
+        # Riattivabile via env MAINTAI_MODULE_EMAIL_TO_TICKET=true (endpoint + poller + UI).
+        default_enabled=False,
     ),
     "system_logs": ModuleDefinition(
         id="system_logs",

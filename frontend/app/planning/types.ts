@@ -212,6 +212,8 @@ export const TIPO_COLORS: Record<string, { bg: string; text: string; border: str
   PM: { bg: "linear-gradient(135deg,#dcfce7,#bbf7d0)", text: "#15803d", border: "#22c55e" },
   CM: { bg: "linear-gradient(135deg,#fef3c7,#fde68a)", text: "#b45309", border: "#f59e0b" },
   CONT: { bg: "linear-gradient(135deg,#ede9fe,#ddd6fe)", text: "#7c3aed", border: "#a855f7", borderStyle: "dashed" },
+  // Modifica Straordinaria (change request 2026-07-05)
+  "MOD-STR": { bg: "linear-gradient(135deg,#ede9fe,#c4b5fd)", text: "#6d28d9", border: "#8b5cf6" },
 };
 
 export function tipoStyle(tipo: string, isCont = false) {
