@@ -1406,7 +1406,10 @@ export default function TicketPage() {
         <div
           style={{
             overflow: "hidden",
-            maxHeight: showNuovoTicket ? 1000 : 0,
+            // Il form contiene ora anche descrizione, note e ricambio/quantità:
+            // su mobile (grid a colonna singola) supera abbondantemente i 1000px,
+            // quindi il cap va tenuto alto per non tagliare i campi in fondo + il pulsante Salva.
+            maxHeight: showNuovoTicket ? 3000 : 0,
             opacity: showNuovoTicket ? 1 : 0,
             transition: "max-height 0.3s ease, opacity 0.2s ease",
             background: "var(--surface-1)",
