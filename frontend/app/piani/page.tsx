@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { apiGet, apiPost, apiDelete, apiPut, apiUpload } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiUpload } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -1187,7 +1187,7 @@ export default function PianiPage() {
           task={selectedTask} 
           pianoId={selectedPianoId} 
           onClose={() => setSelectedTask(null)}
-          onUpdated={t => { 
+          onUpdated={() => {
             if (selectedPianoId) fetchContent(selectedPianoId, "tasks");
             setSelectedTask(null);
           }}

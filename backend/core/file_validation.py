@@ -262,6 +262,23 @@ def _validate_text_content(content: bytes, ext: str) -> None:
     )
 
 
+# Caratteri iniziali che Excel/LibreOffice interpretano come formula (CSV/formula injection,
+# CWE-1236). Il tab e il CR/LF coprono le varianti con whitespace iniziale.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def sanitize_spreadsheet_cell(value):
+    """
+    Neutralizza la formula injection nei valori esportati verso CSV/Excel.
+    Se una stringa inizia con un carattere formula (=, +, -, @, tab, CR) viene
+    prefissata con un apostrofo: Excel la tratta come testo letterale.
+    I valori non-stringa passano invariati.
+    """
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def safe_serving(filename: str | None, _client_content_type: str | None = None) -> tuple[str, str]:
     """
     Ritorna (content_type sicuro, disposition) per il download.

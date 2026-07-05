@@ -90,6 +90,7 @@ export default function PrintAssetQR() {
         marginBottom: "24px",
         lineHeight: 0,
       }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- QR data URL base64 per la stampa; next/image non ottimizza i data URL e servono i pixel esatti */}
         <img
           src={`data:image/png;base64,${qr.qr_b64}`}
           alt={`QR code asset ${qr.asset_code}`}

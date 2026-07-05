@@ -47,7 +47,6 @@ const filterSelectStyle: React.CSSProperties = {
 /** Calcola {from, to} Date da un preset stringa */
 function getPresetRange(preset: string): { from: Date | null; to: Date | null } {
   const now = new Date();
-  const dow = now.getDay(); // 0=dom, 1=lun
   const monday = (d: Date, offset = 0) => { const m = new Date(d); m.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7); m.setHours(0,0,0,0); return m; };
   const sunday = (d: Date, offset = 0) => { const m = monday(d, offset); m.setDate(m.getDate() + 6); m.setHours(23,59,59,999); return m; };
   switch (preset) {
@@ -109,7 +108,7 @@ function DateFilterCell({ column }: { column: Column<unknown, any> }) {
       return;
     }
     column.setFilterValue({ preset, from: "", to: "" });
-  }, [preset, from, to]);
+  }, [preset, from, to, column]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -205,6 +204,7 @@ export function DataTable<TData>({
         }),
   };
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable di TanStack restituisce funzioni non memoizzabili dal React Compiler; comportamento noto e accettato della libreria
   const table = useReactTable(tableOptions);
 
   const currentPage = manualPagination ? pageIndex : table.getState().pagination.pageIndex;

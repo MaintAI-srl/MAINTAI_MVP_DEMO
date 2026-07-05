@@ -1,7 +1,7 @@
 # MaintAI — Sales Readiness Security Checklist
 
-**Data:** 2026-06-11 · **Versione:** 1.1 · **Piattaforma:** MaintAI 3.3.1
-**Stato verificato dal codice del branch** `claude/blissful-rubin-1q23r7`.
+**Data:** 2026-07-04 · **Versione:** 1.3 · **Piattaforma:** MaintAI 3.3.1
+**Stato verificato dal codice del branch** `claude/code-security-debug-a8uuhz` (su `main` @ `e8a1b76`).
 
 Legenda: ✅ Conforme · 🔄 Parziale/backlog · ❌ Mancante
 
@@ -30,9 +30,12 @@ Legenda: ✅ Conforme · 🔄 Parziale/backlog · ❌ Mancante
 - [✅] Validazione Pydantic sugli input
 - [✅] No hardcoded secrets (grep su `sk-`, `postgres://`, `SECRET_KEY=...`: 0 in codice)
 - [✅] `.env.example` aggiornato e `.gitignore` corretto (`.env`, `*.key`, `*.pem`, signing key)
-- [✅] **pip-audit** (ri-eseguito 2026-06-11): **0 vulnerabilità** su tutte le dipendenze
-- [✅] **bandit** (ri-eseguito 2026-06-11): 0 issue HIGH (2 MEDIUM = falsi positivi documentati)
-- [✅] **npm audit** (ri-eseguito 2026-06-11): 0 HIGH/CRITICAL (2 MODERATE build-time accettati, postcss via next)
+- [✅] **pip-audit** (ri-eseguito 2026-07-04): **0 vulnerabilità** — chiusi SEC-021 (`python-multipart` 3 CVE) e SEC-022 (`cryptography`)
+- [✅] **bandit** (ri-eseguito 2026-07-04): 0 issue HIGH (2 MEDIUM = falsi positivi documentati)
+- [✅] **npm audit** (ri-eseguito 2026-07-04): 0 HIGH/CRITICAL — chiuso SEC-023 (`hono`/`js-yaml`/`@babel` dev-tooling); 2 MODERATE build-time accettati (postcss via next)
+- [✅] **Anti-DoS input** (SEC-024): parametri `mesi`/`days` con bound espliciti su report, planner e analytics
+- [✅] **No formula/CSV injection** (SEC-025): export CSV ed Excel neutralizzati (`sanitize_spreadsheet_cell`)
+- [✅] **Gate qualità frontend** (2026-07-04): `npm run lint` 0 errori **e 0 warning** (56 warning residui azzerati), `tsc --noEmit` 0 errori, `npm run build` completo
 
 ## Database
 - [📋] RLS PostgreSQL — *l'app accede al DB solo via backend autenticato (no client diretto); RLS difesa-in-profondità consigliata (SEC-011)*
@@ -68,4 +71,9 @@ Legenda: ✅ Conforme · 🔄 Parziale/backlog · ❌ Mancante
 in posizione e le vulnerabilità HIGH delle dipendenze sono risolte. Il completamento dei
 punti 🔄 residui (MFA, refresh token rotation, DPA/privacy notice, test restore,
 materiali sales) porta allo stato **READY FOR SALE** per clienti enterprise/NIS2.
-Rispetto alla v1.0: chiusi SEC-007, SEC-008 e SEC-009 (2026-06-11).
+Rispetto alla v1.0: chiusi SEC-007, SEC-008 e SEC-009 (2026-06-11); v1.2 ha chiuso
+SEC-009→SEC-020; **v1.3 (2026-07-04) chiude SEC-021→SEC-028** (2 CVE HIGH di
+dipendenze, DoS da parametri, formula injection CSV/Excel, cap cache, rate limit
+change-password e un bug di routing analytics). Restano prioritari, invariati:
+**SEC-012** (rotazione segreti + riscrittura history, richiede coordinamento team) e
+**SEC-014** (bucket Supabase da rendere privato, azione manuale).

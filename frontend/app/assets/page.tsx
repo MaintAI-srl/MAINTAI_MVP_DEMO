@@ -41,7 +41,7 @@ export default function AssetsPage() {
   // Form state
   const [nome, setNome] = useState("");
   const [codice, setCodice] = useState("");
-  const [codicePreview, setCodicePreview] = useState("");
+  const [, setCodicePreview] = useState("");
   const [descrizione, setDescrizione] = useState("");
   const [anno, setAnno] = useState<string>("");
   const [area, setArea] = useState("");

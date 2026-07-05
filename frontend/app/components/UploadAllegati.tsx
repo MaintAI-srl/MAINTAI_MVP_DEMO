@@ -155,6 +155,7 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
                 title={a.nome_file}
                 aria-label={`Apri immagine ${a.nome_file}`}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element -- anteprima allegato da endpoint autenticato con fallback onError; next/image non gestisce il blob protetto */}
                 <img
                   src={`${API_BASE}${a.url}`}
                   alt={a.nome_file}

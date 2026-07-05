@@ -203,6 +203,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           flexShrink: 0, zIndex: 100,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo statico piccolo; next/image non porta benefici e complica il layout della topbar */}
             <img src="/logo.png" alt="MaintAI" style={{ width: 28, height: 28, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(10,132,255,0.45))" }} />
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#F5F5F7", lineHeight: 1, letterSpacing: "-0.02em" }}>MaintAI</div>
@@ -277,6 +278,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <Link href="/" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={closeSidebarOnMobile}>
           {/* Logo con glow */}
           <div className="sidebar-logo-icon" style={{ background: "var(--cobalt-dim)", border: "1px solid var(--cobalt-border)", boxShadow: "var(--glow-cobalt)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo statico piccolo della sidebar; next/image non porta benefici */}
             <img
               src="/logo.png"
               alt="MaintAI"

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
-import StatusToggle from "../components/StatusToggle";
 import styles from "./tecnici.module.css";
 import AssenzeModal from "../components/AssenzeModal";
 
@@ -51,11 +50,6 @@ const STATO_COLORS: Record<string, { color: string; bg: string; border: string }
   "corso":       { color: "#fbbf24", bg: "rgba(251,191,36,.1)",  border: "rgba(251,191,36,.3)"  },
 };
 
-function statoBadge(s: string) {
-  const c = STATO_COLORS[s] ?? STATO_COLORS["in servizio"];
-  return { color: c.color, background: c.bg, border: `1px solid ${c.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 as const };
-}
-
 function splitSkills(value: string) {
   return value.split(",").map(i => i.trim()).filter(Boolean);
 }
@@ -101,7 +95,6 @@ export default function TecniciPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState<number | null>(null);
 
   const [sortCol, setSortCol] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -210,9 +203,8 @@ export default function TecniciPage() {
         utente_id: utenteId,
       };
       const path = editId !== null ? `/tecnici/${editId}` : `/tecnici`;
-      const saved = editId !== null 
-        ? await apiPut<Tecnico>(path, payload)
-        : await apiPost<Tecnico>(path, payload);
+      if (editId !== null) await apiPut<Tecnico>(path, payload);
+      else await apiPost<Tecnico>(path, payload);
 
       await loadTecnici();
       await loadStats();
@@ -221,20 +213,6 @@ export default function TecniciPage() {
       notify.error(err instanceof Error ? err.message : "Errore nel salvataggio.");
     } finally { setIsSaving(false); }
   }
-
-  async function handleQuickStatusChange(id: number, nuovoStato: string) {
-    setIsUpdatingStatus(id);
-    try {
-      await apiPut(`/tecnici/${id}`, { stato: nuovoStato });
-      setTecnici(prev => prev.map(t => t.id === id ? { ...t, stato: nuovoStato } : t));
-      await loadStats();
-    } catch {
-      // ignore
-    } finally {
-      setIsUpdatingStatus(null);
-    }
-  }
-
 
   const filteredTecnici = useMemo(() => {
     let result = tecnici;

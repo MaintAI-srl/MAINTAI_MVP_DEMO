@@ -957,6 +957,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 {/* Immagine */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "200px", marginBottom: "20px" }}>
                   {viewerImgUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- immagine documento da URL dinamico nel viewer; next/image non applicabile
                     <img
                       src={viewerImgUrl}
                       alt={viewerDoc.nome}
@@ -1143,7 +1144,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
               <div key={proc.id} style={{ background: "var(--bg-elevated)", border: `1px solid ${tipoColor}44`, borderLeft: `3px solid ${tipoColor}`, borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
                 {/* Header procedura */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", cursor: "pointer" }}
-                  onClick={() => !isEditing && setProcExpanded(p => { const n = new Set(p); n.has(proc.id) ? n.delete(proc.id) : n.add(proc.id); return n; })}>
+                  onClick={() => !isEditing && setProcExpanded(p => { const n = new Set(p); if (n.has(proc.id)) n.delete(proc.id); else n.add(proc.id); return n; })}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span style={{ background: tipoColor + "22", color: tipoColor, border: `1px solid ${tipoColor}44`, borderRadius: "999px", padding: "2px 8px", fontSize: "11px", fontWeight: 700, textTransform: "capitalize" }}>{proc.tipo}</span>
                     <span style={{ fontWeight: 600, fontSize: "14px" }}>{proc.titolo}</span>
@@ -1320,8 +1321,8 @@ export default function AssetPage() {
     };
   }, [loadTree]);
 
-  const toggleSito = (id: number) => setExpandedSiti(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleImpianto = (id: number) => setExpandedImpianti(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSito = (id: number) => setExpandedSiti(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleImpianto = (id: number) => setExpandedImpianti(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const clickSito = (sito: SitoNode) => { toggleSito(sito.id); setSelType("sito"); setSelSito(sito); setSelImpianto(null); setSelAssetId(null); };
   const clickImpianto = (imp: ImpiantoNode, e: React.MouseEvent) => { e.stopPropagation(); toggleImpianto(imp.id); setSelType("impianto"); setSelImpianto(imp); setSelAssetId(null); };

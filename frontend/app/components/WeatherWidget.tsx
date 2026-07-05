@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { 
   Sun, 
   Cloud, 
@@ -16,7 +16,6 @@ import {
   X,
   Check,
   Calendar,
-  Thermometer,
   Search,
   RefreshCw,
   AlertCircle
@@ -64,7 +63,7 @@ export default function WeatherWidget() {
     }
   }, []);
 
-  const fetchWeather = async () => {
+  const fetchWeather = useCallback(async () => {
     setLoading(true);
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${locConfig.lat}&longitude=${locConfig.lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&_t=${Date.now()}`;
@@ -91,7 +90,7 @@ export default function WeatherWidget() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [locConfig.lat, locConfig.lon]);
 
   const geocodeCity = async () => {
     if (!editForm.name.trim()) return;
@@ -112,7 +111,7 @@ export default function WeatherWidget() {
       } else {
         setSearchError("Città non trovata. Controlla il nome.");
       }
-    } catch (err) {
+    } catch {
       setSearchError("Errore durante la ricerca.");
     } finally {
       setSearching(false);
@@ -121,9 +120,9 @@ export default function WeatherWidget() {
 
   useEffect(() => {
     fetchWeather();
-    const interval = setInterval(fetchWeather, 1800000); 
+    const interval = setInterval(fetchWeather, 1800000);
     return () => clearInterval(interval);
-  }, [locConfig.lat, locConfig.lon]);
+  }, [fetchWeather]);
 
   const saveLocation = () => {
     setLocConfig(editForm);

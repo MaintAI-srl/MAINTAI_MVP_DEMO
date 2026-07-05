@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE } from "../lib/api";
-import { notify } from "@/lib/toast";
 
 interface AssetQRCodeProps {
   assetId: number;
@@ -24,10 +23,8 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
 
   useEffect(() => {
     if (!assetId) return;
-    // TODO(sec-04): revisione umana - accettato come init di loading state prima di fetch asincrono
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- init loading state prima del fetch; pattern standard data fetching
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- init loading/error state prima del fetch asincrono; pattern standard data fetching
     setLoading(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetta errore prima del fetch; pattern standard data fetching
     setError(null);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("maintai_jwt") : null;
@@ -116,6 +113,7 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
         display: "inline-block",
         lineHeight: 0,
       }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- QR è un data URL base64 che next/image non ottimizza; servono i pixel esatti per la scansione */}
         <img
           src={`data:image/png;base64,${qr.qr_b64}`}
           alt={`QR code asset ${qr.asset_code || assetId}`}

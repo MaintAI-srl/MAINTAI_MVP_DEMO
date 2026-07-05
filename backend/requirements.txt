@@ -1,4 +1,4 @@
-# MaintAI Backend — Dipendenze pinnate (security audit 2026-05-07)
+# MaintAI Backend — Dipendenze pinnate (security audit 2026-07-04)
 # Aggiornare solo con: pip install --upgrade <pkg> && pip freeze | grep <pkg>
 
 fastapi==0.135.1
@@ -18,8 +18,10 @@ passlib[bcrypt]>=1.7.4
 bcrypt==5.0.0
 psycopg2-binary==2.9.11
 supabase>=2.0.0
+# SEC-021: >=0.0.31 corregge CVE-2026-53538/53539/53540 (parsing multipart form/upload)
 python-multipart==0.0.31
 imap-tools==1.11.1
+# SEC-022: >=48.0.1 corregge GHSA-537c-gmf6-5ccf
 cryptography==48.0.1
 slowapi==0.1.9
 openpyxl==3.1.5

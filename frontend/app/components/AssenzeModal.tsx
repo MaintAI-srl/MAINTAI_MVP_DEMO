@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "../lib/api";
 
 type Assenza = {
@@ -30,11 +30,7 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
 
   const nameFull = `${tecnico.nome} ${tecnico.cognome || ""}`.trim();
 
-  useEffect(() => {
-    loadAssenze();
-  }, [tecnico.id]);
-
-  async function loadAssenze() {
+  const loadAssenze = useCallback(async () => {
     setLoading(true);
     try {
       const d = await apiGet<Assenza[]>(`/tecnici/${tecnico.id}/assenze`);
@@ -44,7 +40,11 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tecnico.id]);
+
+  useEffect(() => {
+    loadAssenze();
+  }, [loadAssenze]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
