@@ -108,6 +108,7 @@ function tipoMeta(t: string): { Icon: typeof Wrench; label: string; color: strin
     case "PM":  return { Icon: ClipboardList, label: "Preventiva", color: C.green };
     case "CM":  return { Icon: Settings,      label: "Correttiva", color: C.orange };
     case "ISP": return { Icon: Search,        label: "Ispezione",  color: C.teal };
+    case "MOD-STR": return { Icon: Settings,  label: "Mod. Straordinaria", color: "#8b5cf6" };
     default:    return { Icon: Wrench,        label: t,            color: C.text3 };
   }
 }

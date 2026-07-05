@@ -225,6 +225,10 @@ class Ticket(Base):
     # Multi-tecnico — numero tecnici richiesti (workaround: default 1 finché non campo DB reale)
     tecnici_richiesti = Column(Integer, default=1, nullable=True)
 
+    # Ore uomo (change request 2026-07-05) — required_man_hours = durata × tecnici in modalità auto
+    required_man_hours = Column(Float, nullable=True)
+    man_hours_calculation_mode = Column(String, default="manual", nullable=True)  # auto | manual
+
     # Multi-tecnico — tecnico di supporto opzionale assegnato all'intervento.
     # Il tecnico principale resta `tecnico_id`; questo è il secondo operatore.
     tecnico_supporto_id = Column(Integer, ForeignKey("tecnici.id"), nullable=True)

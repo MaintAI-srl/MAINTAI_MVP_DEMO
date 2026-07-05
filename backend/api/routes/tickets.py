@@ -293,8 +293,8 @@ def create_quick_ticket(
         raise HTTPException(status_code=404, detail="Asset non trovato")
 
     # Tipo validazione
-    if data.tipo not in {"BD", "PM", "CM"}:
-        raise HTTPException(status_code=400, detail="Tipo non valido. Usa BD, PM o CM.")
+    if data.tipo not in {"BD", "PM", "CM", "MOD-STR"}:
+        raise HTTPException(status_code=400, detail="Tipo non valido. Usa BD, PM, CM o MOD-STR.")
 
     ticket = Ticket(
         titolo=data.descrizione[:200] if data.descrizione else f"Ticket rapido - {asset.nome}",

@@ -74,7 +74,7 @@ type KpiAsset = { assets: KpiAssetItem[]; aggregati: { avg_mtbf_giorni: number; 
 type TopAssetCritico = { asset_id: number; nome: string; codice: string; criticita: string | null; n_guasti: number; costo_orario_fermo: number | null };
 type KpiAvanzati = {
   top_asset_critici: TopAssetCritico[];
-  backlog_per_tipo: { BD: number; PM: number; CM: number };
+  backlog_per_tipo: { BD: number; PM: number; CM: number; "MOD-STR"?: number };
   trend_backlog_7gg: { data: string; count: number }[];
   costo_fermo_evitato_mese: number;
 };
@@ -1184,9 +1184,9 @@ export default function DashboardPage() {
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
               <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 16 }}>Backlog Aperti per Tipo</div>
               <div style={{ display: "flex", gap: 12, justifyContent: "space-around" }}>
-                {([["BD", "#ef4444"], ["PM", "#22c55e"], ["CM", "#f59e0b"]] as [string, string][]).map(([tipo, color]) => (
+                {([["BD", "#ef4444"], ["PM", "#22c55e"], ["CM", "#f59e0b"], ["MOD-STR", "#8b5cf6"]] as [string, string][]).map(([tipo, color]) => (
                   <div key={tipo} style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 32, fontWeight: 800, color }}>{kpiAvanzati.backlog_per_tipo[tipo as keyof typeof kpiAvanzati.backlog_per_tipo]}</div>
+                    <div style={{ fontSize: 32, fontWeight: 800, color }}>{kpiAvanzati.backlog_per_tipo[tipo as keyof typeof kpiAvanzati.backlog_per_tipo] ?? 0}</div>
                     <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", background: color + "22", color, border: `1px solid ${color}44`, borderRadius: 6, padding: "2px 10px", marginTop: 4 }}>{tipo}</div>
                   </div>
                 ))}

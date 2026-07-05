@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.db.modelli import Ticket, Asset, Tecnico, Impianto, Sito
 from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.security import check_tenant_ownership
+from backend.services.man_hours import calculate_required_man_hours
 
 
 def _normalize_asset_stato(stato: str | None) -> str:
@@ -67,6 +68,10 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "ricambio_note": getattr(t, "ricambio_note", None),
         "ricambio_quantita": getattr(t, "ricambio_quantita", None),
         "in_attesa_ricambio": bool(getattr(t, "in_attesa_ricambio", False)),
+        # Ore uomo (change request 2026-07-05)
+        "tecnici_richiesti": getattr(t, "tecnici_richiesti", None) or 1,
+        "required_man_hours": getattr(t, "required_man_hours", None),
+        "man_hours_calculation_mode": getattr(t, "man_hours_calculation_mode", None) or "manual",
         # M2.1 — Costo fermo stimato (calcolato se asset ha costo_orario_fermo)
         "costo_fermo_stimato": (
             round((t.durata_stimata_ore or 0) * t.asset.costo_orario_fermo, 2)
@@ -127,6 +132,13 @@ class TicketRepository:
         dump = data.model_dump(exclude={"asset_stato"})
         dump["tenant_id"] = tenant_id
 
+        # Ore uomo: in modalità auto il valore viene sempre ricalcolato server-side
+        # (durata × tecnici) ignorando quello eventualmente inviato dal client.
+        if dump.get("man_hours_calculation_mode") == "auto":
+            dump["required_man_hours"] = calculate_required_man_hours(
+                dump.get("durata_stimata_ore"), dump.get("tecnici_richiesti") or 1
+            )
+
         # Validazione tenant per Asset e Tecnico
         if getattr(data, "asset_id", None):
             check_tenant_ownership(db, Asset, data.asset_id, tenant_id)
@@ -175,6 +187,11 @@ class TicketRepository:
             dump_chunk = dump.copy()
             dump_chunk["durata_stimata_ore"] = durata_chunk
             dump_chunk["titolo"] = f"{data.titolo} (Parte {chunk_idx}/{num_chunks})"
+            # Ore uomo per singolo frammento (durata chunk × tecnici)
+            if dump_chunk.get("man_hours_calculation_mode") == "auto":
+                dump_chunk["required_man_hours"] = calculate_required_man_hours(
+                    durata_chunk, dump_chunk.get("tecnici_richiesti") or 1
+                )
 
             ticket = Ticket(**dump_chunk)
             db.add(ticket)
@@ -268,6 +285,23 @@ class TicketRepository:
             ticket.descrizione = data.descrizione
         if "note" in fields_set:
             ticket.note = data.note
+
+        # Ore uomo (change request 2026-07-05)
+        if "tecnici_richiesti" in fields_set and data.tecnici_richiesti is not None:
+            ticket.tecnici_richiesti = data.tecnici_richiesti
+        if "man_hours_calculation_mode" in fields_set and data.man_hours_calculation_mode is not None:
+            ticket.man_hours_calculation_mode = data.man_hours_calculation_mode
+        if "required_man_hours" in fields_set:
+            ticket.required_man_hours = data.required_man_hours
+            # Override esplicito del valore senza cambio modalità → passa a manuale
+            if "man_hours_calculation_mode" not in fields_set:
+                ticket.man_hours_calculation_mode = "manual"
+        # In modalità auto il valore viene sempre ricalcolato (copre: cambio durata,
+        # cambio tecnici, passaggio manual→auto)
+        if (ticket.man_hours_calculation_mode or "manual") == "auto":
+            ticket.required_man_hours = calculate_required_man_hours(
+                ticket.durata_stimata_ore, ticket.tecnici_richiesti or 1
+            )
 
         # M2.2 — Predisposizione ricambi
         if getattr(data, "ricambio_note", None) is not None:

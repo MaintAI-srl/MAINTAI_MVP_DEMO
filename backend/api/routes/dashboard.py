@@ -374,7 +374,7 @@ def dashboard_kpi_avanzati(db: Session = Depends(get_db), tenant_id: int = Depen
         .group_by(Ticket.tipo)
         .all()
     )
-    backlog_per_tipo = {"BD": 0, "PM": 0, "CM": 0}
+    backlog_per_tipo = {"BD": 0, "PM": 0, "CM": 0, "MOD-STR": 0}
     for row in backlog_rows:
         if row.tipo in backlog_per_tipo:
             backlog_per_tipo[row.tipo] = row.cnt

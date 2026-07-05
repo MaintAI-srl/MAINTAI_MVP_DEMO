@@ -49,6 +49,10 @@ type Ticket = {
   ricambio_note?: string | null;
   ricambio_quantita?: number | null;
   in_attesa_ricambio?: boolean;
+  // Ore uomo (change request 2026-07-05)
+  tecnici_richiesti?: number | null;
+  required_man_hours?: number | null;
+  man_hours_calculation_mode?: string | null;
 };
 
 type Asset = { id: number; name: string };
@@ -88,6 +92,7 @@ function getTipoStyle(t: string): React.CSSProperties {
     case "BD":  return { background: "rgba(239,68,68,0.12)",   color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)" };
     case "PM":  return { background: "rgba(34,197,94,0.10)",   color: "#86efac", border: "1px solid rgba(34,197,94,0.22)" };
     case "CM":  return { background: "rgba(245,158,11,0.12)",  color: "#fcd34d", border: "1px solid rgba(245,158,11,0.25)" };
+    case "MOD-STR": return { background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" };
     default:    return { background: "var(--border-subtle)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" };
   }
 }
@@ -892,6 +897,10 @@ export default function TicketPage() {
   const [note, setNote] = useState("");
   const [ricambioNote, setRicambioNote] = useState("");
   const [ricambioQta, setRicambioQta] = useState<string>("");
+  // Ore uomo (change request 2026-07-05): auto = durata × tecnici, manual = valore utente
+  const [tecniciRichiesti, setTecniciRichiesti] = useState(1);
+  const [oreUomoMode, setOreUomoMode] = useState<"auto" | "manual">("auto");
+  const [oreUomoManual, setOreUomoManual] = useState<string>("");
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedFinish, setPlannedFinish] = useState("");
   const [, setUpdatingId] = useState<number | null>(null);
@@ -963,6 +972,7 @@ export default function TicketPage() {
     if (durataOre <= 0) { notify.error("La durata deve essere maggiore di zero."); return; }
     try {
       const autoAssetStato = assetStato || (tipo === "BD" ? "out of service" : stato === "In corso" ? "stopped" : "");
+      const oreUomoAuto = Math.round(Number(durataOre) * Math.max(1, tecniciRichiesti) * 100) / 100;
       await apiPost("/tickets", {
         titolo, asset_id: Number(assetId), priorita, stato, tipo, asset_stato: autoAssetStato || null,
         durata_stimata_ore: Number(durataOre), fascia_oraria: fascia,
@@ -970,11 +980,17 @@ export default function TicketPage() {
         note: note.trim() || null,
         ricambio_note: ricambioNote.trim() || null,
         ricambio_quantita: ricambioQta.trim() !== "" ? Number(ricambioQta) : null,
+        tecnici_richiesti: Math.max(1, tecniciRichiesti),
+        man_hours_calculation_mode: oreUomoMode,
+        required_man_hours: oreUomoMode === "auto"
+          ? (oreUomoAuto > 0 ? oreUomoAuto : null)
+          : (oreUomoManual.trim() !== "" && Number(oreUomoManual) > 0 ? Number(oreUomoManual) : null),
         planned_start: plannedStart || null,
         planned_finish: plannedFinish || null,
       });
       setTitolo(""); setPriorita("Media"); setTipo("CM"); setAssetStato(""); setStato("Aperto"); setDurataOre(2); setFascia("diurna");
       setDescrizione(""); setNote(""); setRicambioNote(""); setRicambioQta("");
+      setTecniciRichiesti(1); setOreUomoMode("auto"); setOreUomoManual("");
       setPlannedStart(""); setPlannedFinish("");
       loadAttivi(1); setPage(1);
     } catch { notify.error("Errore nel salvataggio ticket."); }
@@ -1185,7 +1201,7 @@ export default function TicketPage() {
     {
       accessorKey: "tipo",
       header: "Tipo",
-      meta: { filterVariant: "select", options: ["BD", "PM", "CM", "ISP"] },
+      meta: { filterVariant: "select", options: ["BD", "PM", "CM", "ISP", "MOD-STR"] },
       cell: ({ row }) => {
         const t = row.original;
         return (
@@ -1271,6 +1287,20 @@ export default function TicketPage() {
           }
         }
         return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>{t.durata_stimata_ore ? `${t.durata_stimata_ore}h*` : "—"}</span>;
+      },
+    },
+    {
+      id: "ore_uomo",
+      header: "Ore uomo",
+      cell: ({ row }) => {
+        const t = row.original;
+        if (!t.required_man_hours) return <span style={{ fontSize: 11, color: "var(--text-soft)" }}>—</span>;
+        return (
+          <span style={{ fontSize: 11, color: "#c4b5fd", whiteSpace: "nowrap" }}>
+            {t.required_man_hours} h/u
+            {(t.tecnici_richiesti ?? 1) > 1 && <span style={{ color: "var(--text-soft)" }}> · {t.tecnici_richiesti} tec</span>}
+          </span>
+        );
       },
     },
     {
@@ -1437,6 +1467,7 @@ export default function TicketPage() {
                 { value: "CM",  label: "CM",  color: "#f59e0b" },
                 { value: "BD",  label: "BD",  color: "#ef4444" },
                 { value: "ISP", label: "ISP", color: "#3b82f6" },
+                { value: "MOD-STR", label: "MOD-STR", color: "#8b5cf6" },
               ]}
               value={tipo}
               onChange={(v) => {
@@ -1484,6 +1515,34 @@ export default function TicketPage() {
           <div>
             <label className="label">Durata ore</label>
             <input required min="0.1" step="0.1" className="input" type="number" value={durataOre} onChange={e => setDurataOre(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="label">Tecnici necessari</label>
+            <input className="input" type="number" min="1" max="99" step="1" value={tecniciRichiesti}
+              onChange={e => setTecniciRichiesti(Math.max(1, Number(e.target.value) || 1))} />
+          </div>
+          <div>
+            <label className="label">Ore uomo necessarie</label>
+            <input className="input" type="number" min="0.1" step="0.1"
+              value={oreUomoMode === "auto"
+                ? (Number(durataOre) > 0 ? String(Math.round(Number(durataOre) * Math.max(1, tecniciRichiesti) * 100) / 100) : "")
+                : oreUomoManual}
+              onChange={e => { setOreUomoManual(e.target.value); setOreUomoMode("manual"); }}
+              placeholder="auto"
+            />
+            {oreUomoMode === "manual" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>Valore modificato manualmente</span>
+                <button type="button" onClick={() => { setOreUomoMode("auto"); setOreUomoManual(""); }}
+                  style={{ fontSize: 10, color: "var(--text-accent)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                  Ricalcola automaticamente
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+                Calcolo automatico: durata × tecnici
+              </div>
+            )}
           </div>
           <div>
             <label className="label">Fascia</label>
@@ -1720,7 +1779,11 @@ export default function TicketPage() {
                   )}
                   <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{detailTicket.asset_name ?? "Asset non specificato"}</span>
                   <span style={{ color: "var(--border-default)" }}>|</span>
-                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{detailTicket.tipo} · {detailTicket.durata_stimata_ore?.toFixed(1)}h</span>
+                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                    {detailTicket.tipo} · {detailTicket.durata_stimata_ore?.toFixed(1)}h
+                    {(detailTicket.tecnici_richiesti ?? 1) > 1 && ` · ${detailTicket.tecnici_richiesti} tecnici`}
+                    {detailTicket.required_man_hours ? ` · ${detailTicket.required_man_hours} h/u` : ""}
+                  </span>
                   {detailTicket.is_manual_plan && detailTicket.stato === "Pianificato" && (
                     <>
                       <span style={{ color: "var(--border-default)" }}>|</span>

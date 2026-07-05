@@ -1,8 +1,20 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 from datetime import datetime
 
 TicketStato = Literal["Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"]
+
+# Tipologie ticket ammesse (change request 2026-07-05: aggiunta MOD-STR "Modifica Straordinaria")
+TIPI_TICKET_VALIDI = {"PM", "CM", "BD", "ISP", "MOD-STR"}
+
+
+def _validate_tipo(value: str | None) -> str | None:
+    if value is None:
+        return value
+    normalized = value.strip().upper()
+    if normalized not in TIPI_TICKET_VALIDI:
+        raise ValueError(f"Tipo ticket non valido: '{value}'. Valori ammessi: {sorted(TIPI_TICKET_VALIDI)}")
+    return normalized
 
 
 class TicketCreate(BaseModel):
@@ -12,7 +24,7 @@ class TicketCreate(BaseModel):
     tipo: str = "CM"
     stato: TicketStato
     asset_stato: str | None = None
-    durata_stimata_ore: float = Field(..., gt=0)
+    durata_stimata_ore: float = Field(..., gt=0, le=999)
     fascia_oraria: str
     descrizione: str | None = Field(default=None, max_length=5000)
     note: str | None = Field(default=None, max_length=5000)
@@ -25,6 +37,12 @@ class TicketCreate(BaseModel):
     # M2.2 — Predisposizione ricambi (compilabile già in creazione)
     ricambio_note: str | None = Field(default=None, max_length=2000)
     ricambio_quantita: float | None = Field(default=None, ge=0)
+    # Ore uomo (change request 2026-07-05)
+    tecnici_richiesti: int | None = Field(default=None, ge=1, le=99)
+    required_man_hours: float | None = Field(default=None, gt=0, le=9999)
+    man_hours_calculation_mode: Literal["auto", "manual"] = "manual"
+
+    _tipo_check = field_validator("tipo")(_validate_tipo)
 
 
 class TicketUpdate(BaseModel):
@@ -33,7 +51,7 @@ class TicketUpdate(BaseModel):
     tipo: str | None = None
     asset_stato: str | None = None
     fascia_oraria: str | None = None
-    durata_stimata_ore: float | None = Field(default=None, gt=0)
+    durata_stimata_ore: float | None = Field(default=None, gt=0, le=999)
     tecnico_id: int | None = None
     tecnico_supporto_id: int | None = None
     planned_start: Optional[datetime] = None
@@ -51,6 +69,12 @@ class TicketUpdate(BaseModel):
     ricambio_note: str | None = Field(default=None, max_length=2000)
     ricambio_quantita: float | None = Field(default=None, ge=0)
     in_attesa_ricambio: bool | None = None
+    # Ore uomo (change request 2026-07-05)
+    tecnici_richiesti: int | None = Field(default=None, ge=1, le=99)
+    required_man_hours: float | None = Field(default=None, gt=0, le=9999)
+    man_hours_calculation_mode: Literal["auto", "manual"] | None = None
+
+    _tipo_check = field_validator("tipo")(_validate_tipo)
 
 
 class TicketResponse(BaseModel):
@@ -82,3 +106,7 @@ class TicketResponse(BaseModel):
     ricambio_note: str | None = None
     ricambio_quantita: float | None = None
     in_attesa_ricambio: bool = False
+    # Ore uomo (change request 2026-07-05)
+    tecnici_richiesti: int | None = None
+    required_man_hours: float | None = None
+    man_hours_calculation_mode: str = "manual"
