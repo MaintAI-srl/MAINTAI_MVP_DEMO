@@ -502,6 +502,7 @@ def update_ticket(
 class RicambioUsatoRequest(PydanticModel):
     """M2.2 — Aggiorna i dati ricambio su un ticket."""
     ricambio_note: Optional[str] = None
+    ricambio_quantita: Optional[float] = None
     in_attesa_ricambio: Optional[bool] = None
 
 
@@ -522,6 +523,8 @@ def registra_ricambio_usato(
 
     if data.ricambio_note is not None:
         ticket.ricambio_note = data.ricambio_note
+    if "ricambio_quantita" in data.model_fields_set:
+        ticket.ricambio_quantita = data.ricambio_quantita
     if data.in_attesa_ricambio is not None:
         ticket.in_attesa_ricambio = data.in_attesa_ricambio
 

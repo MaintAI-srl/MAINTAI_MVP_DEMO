@@ -48,6 +48,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "durata_stimata_ore": t.durata_stimata_ore or 0,
         "fascia_oraria": t.fascia_oraria or "",
         "descrizione": t.descrizione,
+        "note": getattr(t, "note", None),
         "tecnico_id": t.tecnico_id,
         "tecnico_supporto_id": getattr(t, "tecnico_supporto_id", None),
         "attivita_manutenzione_id": t.attivita_manutenzione_id,
@@ -64,6 +65,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "created_at": t.created_at.isoformat() if t.created_at else None,
         # M2.2 — Predisposizione ricambi
         "ricambio_note": getattr(t, "ricambio_note", None),
+        "ricambio_quantita": getattr(t, "ricambio_quantita", None),
         "in_attesa_ricambio": bool(getattr(t, "in_attesa_ricambio", False)),
         # M2.1 — Costo fermo stimato (calcolato se asset ha costo_orario_fermo)
         "costo_fermo_stimato": (
@@ -261,9 +263,17 @@ class TicketRepository:
             prefix = ticket.descrizione.strip() + "\n\n" if ticket.descrizione else ""
             ticket.descrizione = f"{prefix}Nota vocale [{ts}]:\n{data.note_vocali}"
 
+        # Descrizione e note libere (editabili post-creazione)
+        if "descrizione" in fields_set:
+            ticket.descrizione = data.descrizione
+        if "note" in fields_set:
+            ticket.note = data.note
+
         # M2.2 — Predisposizione ricambi
         if getattr(data, "ricambio_note", None) is not None:
             ticket.ricambio_note = data.ricambio_note
+        if "ricambio_quantita" in fields_set:
+            ticket.ricambio_quantita = data.ricambio_quantita
         if getattr(data, "in_attesa_ricambio", None) is not None:
             ticket.in_attesa_ricambio = data.in_attesa_ricambio
 
