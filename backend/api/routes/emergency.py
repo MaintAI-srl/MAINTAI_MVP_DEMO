@@ -16,7 +16,7 @@ from pydantic import BaseModel as PydanticModel
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.logger_db import db_error, db_info
+from backend.core.logger_db import db_info
 from backend.core.security import get_current_tenant_id, require_roles
 from backend.db.modelli import Asset, Impianto, Sito, Tecnico, Ticket, TecnicoAssenza
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.rate_limiter import limiter
-from backend.core.security import get_current_tenant_id, get_current_user_payload, require_roles
+from backend.core.security import get_current_tenant_id, require_roles
 from backend.core.logging_config import get_logger
 from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant, PlannerFeedback
@@ -1537,7 +1537,6 @@ def feedback_analytics(
     Periodo: ultimi N giorni (default 30).
     Ritorna metriche aggregate utili per valutare la qualità delle stime del planner.
     """
-    from datetime import date as date_type
 
     since = datetime.now(timezone.utc) - timedelta(days=days)
 

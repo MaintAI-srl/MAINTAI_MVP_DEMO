@@ -4,16 +4,16 @@ Routes: attestati di formazione / qualifiche tecnici.
 - /attestati/scadenze              → lista scadenze prossime (90gg) per il tenant
 """
 import logging
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
-from backend.core.logger_db import db_info, db_error
+from backend.core.logger_db import db_info
 from backend.db.modelli import Tecnico, Attestato
 
 logger = logging.getLogger(__name__)

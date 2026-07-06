@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import logging
 from datetime import date as date_type, datetime, timedelta
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -35,7 +35,7 @@ from backend.services.planner_engine import (
 )
 from backend.services.ai_planner_service import calculate_plan_efficiency
 from backend.services.ai_planner_service import _check_weather_constraint
-from backend.services.weather_service import WeatherData, get_weather_forecast
+from backend.services.weather_service import get_weather_forecast
 from backend.core.logger_db import db_info
 
 logger = logging.getLogger(__name__)

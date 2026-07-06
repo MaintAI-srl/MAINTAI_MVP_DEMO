@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, encrypt_data, decrypt_data, require_roles
+from backend.core.security import get_current_tenant_id, encrypt_data, require_roles
 from backend.db.modelli import EmailConfig
 
 router = APIRouter(prefix="/email-config", tags=["EmailConfig"])

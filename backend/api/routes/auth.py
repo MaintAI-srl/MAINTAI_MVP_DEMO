@@ -12,7 +12,7 @@ from backend.core.security import (
     STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE, IS_PRODUCTION,
 )
 from backend.core.rate_limiter import limiter, _real_client_ip
-from backend.core.logger_db import db_info, db_warn, db_error
+from backend.core.logger_db import db_info, db_warn
 from backend.services.security_monitor import record_failed_login, record_successful_login
 
 router = APIRouter(prefix="/auth", tags=["auth"])

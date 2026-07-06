@@ -15,9 +15,8 @@ Struttura Excel (3 fogli):
 from __future__ import annotations
 
 import io
-import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -94,7 +93,7 @@ def _make_workbook() -> Any:
     """Crea un workbook openpyxl con il template compilato."""
     from openpyxl import Workbook
     from openpyxl.styles import (
-        PatternFill, Font, Alignment, Border, Side, GradientFill
+        PatternFill, Font, Alignment, Border, Side
     )
     from openpyxl.utils import get_column_letter
 

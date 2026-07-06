@@ -1,6 +1,6 @@
 import math
 from sqlalchemy.orm import Session, joinedload
-from backend.db.modelli import Ticket, Asset, Tecnico, Impianto, Sito
+from backend.db.modelli import Ticket, Asset, Tecnico, Impianto
 from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.security import check_tenant_ownership
 from backend.services.man_hours import calculate_required_man_hours

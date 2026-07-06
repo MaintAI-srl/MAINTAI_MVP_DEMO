@@ -4,7 +4,6 @@ Eseguibili con:  python -m pytest backend/tests/test_planner_engine.py -v
 """
 from __future__ import annotations
 
-import pytest
 from datetime import date, datetime, timedelta
 
 from backend.services.planner_engine import (

@@ -18,7 +18,6 @@ ENCRYPTION_KEY=3r5pKVqwiYFRHvvHWRXpTf4SSHAxv0NeZoAkzXam2UQ= \\
 from __future__ import annotations
 
 import base64
-import io
 import struct
 
 import pytest

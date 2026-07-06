@@ -7,8 +7,7 @@ Eseguibili con: python -m pytest backend/tests/test_planner_feedback.py -v
 """
 from __future__ import annotations
 
-import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 # ── Helper: logica di calcolo feedback (estratta dalla route) ────────────────

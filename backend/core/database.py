@@ -45,8 +45,9 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args, **_pool_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 import contextvars
-from sqlalchemy import event, and_
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import event
+from sqlalchemy.orm import with_loader_criteria
+
 
 class Base(DeclarativeBase):
     pass
@@ -55,21 +56,54 @@ class Base(DeclarativeBase):
 # Nessun valore di default, ignorato se None o non settato.
 current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
 
-from sqlalchemy.orm import with_loader_criteria
+# Cache lazy dei modelli con colonna tenant_id (popolata al primo uso, quando i
+# mapper sono già registrati — modelli.py importa questo modulo, quindi la
+# registry è vuota all'import di database.py).
+_tenant_scoped_models: list | None = None
+
+
+def _get_tenant_scoped_models() -> list:
+    global _tenant_scoped_models
+    if _tenant_scoped_models is None:
+        _tenant_scoped_models = [
+            m.class_ for m in Base.registry.mappers if hasattr(m.class_, "tenant_id")
+        ]
+    return _tenant_scoped_models
+
 
 @event.listens_for(SessionLocal, "do_orm_execute")
 def _tenant_filter_do_orm_execute(execute_state):
+    """Filtro tenant automatico (difesa in profondità).
+
+    Si attiva SOLO quando `current_tenant_id` è valorizzato nel medesimo thread
+    dell'esecuzione (job in background, script, test). Nel flusso request sincrono
+    di FastAPI il contextvar resta None (le dependency girano nel threadpool e il
+    valore non si propaga all'handler), quindi qui non viene aggiunto alcun
+    predicato: l'isolamento resta garantito dal filtro esplicito per-query. Il
+    listener è quindi un no-op sul percorso API e non introduce overhead.
+
+    NB: si applica un criterio per singolo modello tenant-scoped con lambda senza
+    ramificazioni (cacheable e con `tenant_id` tracciato come bound param): usare
+    un unico `with_loader_criteria(Base, ...)` con `hasattr` non è cacheable, e
+    `track_closure_variables=False` farebbe "sanguinare" un tenant nella cache.
+    """
     tenant_id = current_tenant_id.get()
-    # Se il tenant_id è esplicito nel contesto (es. utente non superadmin)
-    if tenant_id is not None:
-        # Se è una select (anche join o subquery), inject del filtro automatico
-        if execute_state.is_select and not execute_state.is_column_stat:
-            execute_state.statement = execute_state.statement.options(
+    if tenant_id is None:
+        return
+    if (
+        execute_state.is_select
+        and not execute_state.is_column_load
+        and not execute_state.is_relationship_load
+    ):
+        execute_state.statement = execute_state.statement.options(
+            *[
                 with_loader_criteria(
-                    Base,
-                    lambda cls: cls.tenant_id == tenant_id if hasattr(cls, "tenant_id") else cls.id == cls.id,
+                    model,
+                    model.tenant_id == tenant_id,
                     include_aliases=True,
-                    propagate_to_loaders=True
+                    propagate_to_loaders=True,
                 )
-            )
+                for model in _get_tenant_scoped_models()
+            ]
+        )
 

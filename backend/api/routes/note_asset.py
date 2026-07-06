@@ -4,15 +4,14 @@ Prefisso: /assets/{asset_id}/nota-senior
 """
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_db
-from backend.core.security import get_current_tenant_id, get_current_user_payload, require_roles
-from backend.core.logger_db import db_info, db_error
+from backend.core.security import get_current_tenant_id, require_roles
+from backend.core.logger_db import db_info
 from backend.db.modelli import Asset, NotaAsset
 
 logger = logging.getLogger(__name__)

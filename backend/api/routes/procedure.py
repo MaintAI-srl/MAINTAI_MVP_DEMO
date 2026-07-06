@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, require_roles
-from backend.core.logger_db import db_info, db_error
+from backend.core.logger_db import db_info
 from backend.db.modelli import Asset, Procedura
 
 logger = logging.getLogger(__name__)
