@@ -104,11 +104,8 @@ def _make_workbook() -> Any:
     GREY_FILL      = PatternFill("solid", fgColor="D9D9D9")   # grigio chiaro — opzionale
     HEADER_FILL    = PatternFill("solid", fgColor="1F4E79")   # blu scuro — intestazione
     EXAMPLE_FILL   = PatternFill("solid", fgColor="EBF3FB")   # azzurro chiaro — riga esempio
-    LEGEND_REQ     = PatternFill("solid", fgColor="FFD700")
-    LEGEND_OPT     = PatternFill("solid", fgColor="D9D9D9")
 
     WHITE_FONT     = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
-    BOLD_FONT      = Font(bold=True, name="Calibri", size=10)
     NORMAL_FONT    = Font(name="Calibri", size=10)
     SMALL_FONT     = Font(name="Calibri", size=9, italic=True, color="595959")
 
@@ -151,8 +148,6 @@ def _make_workbook() -> Any:
             cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = thin_border
 
-            # Colore colonna nel body: giallo o grigio
-            col_fill = YELLOW_FILL if required else GREY_FILL
             # Header indicatore obbligatorietà — asterisco per required
             if required:
                 cell.value = f"* {col_name.upper()}"

@@ -82,10 +82,11 @@ def _tenant_filter_do_orm_execute(execute_state):
     predicato: l'isolamento resta garantito dal filtro esplicito per-query. Il
     listener è quindi un no-op sul percorso API e non introduce overhead.
 
-    NB: si applica un criterio per singolo modello tenant-scoped con lambda senza
-    ramificazioni (cacheable e con `tenant_id` tracciato come bound param): usare
-    un unico `with_loader_criteria(Base, ...)` con `hasattr` non è cacheable, e
-    `track_closure_variables=False` farebbe "sanguinare" un tenant nella cache.
+    NB: si applica un criterio per singolo modello tenant-scoped con espressione
+    diretta `model.tenant_id == tenant_id` (`tenant_id` resta un bound param che
+    varia per esecuzione). Un unico `with_loader_criteria(Base, lambda ...)` con
+    `hasattr` non è cacheable, e forzare `track_closure_variables=False` farebbe
+    "sanguinare" il valore di un tenant nella cache dello statement (verificato).
     """
     tenant_id = current_tenant_id.get()
     if tenant_id is None:
