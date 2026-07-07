@@ -11,6 +11,7 @@ import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
 import QuickTicketModal from "./components/QuickTicketModal";
 import GuideBot from "./components/GuideBot";
+import TenantContextSwitcher from "./components/TenantContextSwitcher";
 import { VERSION } from "./lib/version";
 import { getVisibleNavGroups, PAGE_LABELS } from "./lib/navigation";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
@@ -165,11 +166,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated || isPublicPage || !modulesLoaded) return;
+    // Il superadmin mantiene l'accesso alle pagine /admin anche quando il
+    // tenant nel contesto ha il modulo corrispondente disattivato.
+    if (isSuperadmin && pathname.startsWith("/admin")) return;
     const moduleId = moduleForPath(pathname);
     if (moduleId && !isModuleEnabled(moduleId)) {
       router.replace(firstAvailableHref);
     }
-  }, [firstAvailableHref, isAuthenticated, isModuleEnabled, isPublicPage, modulesLoaded, pathname, router]);
+  }, [firstAvailableHref, isAuthenticated, isModuleEnabled, isPublicPage, isSuperadmin, modulesLoaded, pathname, router]);
 
   if (!isAuthenticated || isPublicPage) {
     return <main style={{ height: "100vh", width: "100vw" }}>{children}</main>;
@@ -323,36 +327,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* ── SIDEBAR FOOTER ────────────────────────────── */}
         <div className="sidebar-footer">
-          {isSuperadmin && (
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 8.5, color: "rgba(91,143,255,0.4)", display: "block", marginBottom: 4, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700 }}>
-                Contesto Tenant
-              </label>
-              <select
-                style={{
-                  background: "rgba(91,143,255,0.07)",
-                  color: "#90b8ff",
-                  border: "1px solid rgba(91,143,255,0.18)",
-                  borderRadius: 7,
-                  fontSize: 11,
-                  padding: "5px 8px",
-                  width: "100%",
-                  outline: "none",
-                  fontFamily: "var(--font-body)",
-                }}
-                defaultValue={typeof window !== "undefined" ? (localStorage.getItem("maintai_tenant_context") || "") : ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val) localStorage.setItem("maintai_tenant_context", val);
-                  else localStorage.removeItem("maintai_tenant_context");
-                  window.location.reload();
-                }}
-              >
-                <option value="">Global (Tutti)</option>
-                <option value="1">Tenant Demo (#1)</option>
-              </select>
-            </div>
-          )}
+          {isSuperadmin && <TenantContextSwitcher defaultTenantName={user?.tenant_nome} />}
 
           {user?.tenant_nome && (
             <div style={{

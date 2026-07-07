@@ -58,7 +58,9 @@ try:
     from backend.core.init_db import init_db
     from backend.core.logging_config import setup_logging
     from backend.core.logger_db import db_warn
-    from backend.core.modules import is_module_enabled
+    from backend.core.modules import is_module_enabled, is_module_enabled_for_tenant
+    from backend.core.security import decode_payload_leniently, resolve_tenant_id_leniently
+    from backend.core.dependencies import get_db
     from backend.services.email_poller import check_all_mailboxes
     from backend.services.retention_service import run_retention_job
     from backend.services.auto_ticket_service import run_auto_ticket_job
@@ -442,6 +444,24 @@ def _ensure_columns() -> None:
         )
     """
 
+    # tenant_module_config — override moduli per tenant
+    tmc_pg = """
+        CREATE TABLE IF NOT EXISTS tenant_module_config (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL UNIQUE REFERENCES tenants(id),
+            enabled TEXT NOT NULL DEFAULT '[]',
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    tmc_sqlite = """
+        CREATE TABLE IF NOT EXISTS tenant_module_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL UNIQUE REFERENCES tenants(id),
+            enabled TEXT NOT NULL DEFAULT '[]',
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+
     # system_logs — tabella intera
     sl_pg = """
         CREATE TABLE IF NOT EXISTS system_logs (
@@ -755,6 +775,7 @@ def _ensure_columns() -> None:
 
         # 1. Crea le tabelle complete se non esistono
         _exec_ddl(sl_pg if pg else sl_sqlite, "system_logs CREATE")
+        _exec_ddl(tmc_pg if pg else tmc_sqlite, "tenant_module_config CREATE")
         _exec_ddl(gp_pg if pg else gp_sqlite, "generated_plans CREATE")
         _exec_ddl(paa_pg if pg else paa_sqlite, "piani_assets_association CREATE")
         _exec_ddl(pf_pg if pg else pf_sqlite, "planner_feedback CREATE")
@@ -926,9 +947,31 @@ for _router in _CORE_ROUTERS:
 
 
 def _require_module_enabled(module_id: str):
-    def _dependency():
+    def _dependency(request: Request, db=Depends(get_db)):
+        # Kill-switch globale (env + modules_state.json)
         if not is_module_enabled(module_id):
             raise HTTPException(status_code=404, detail="Funzionalita disattivata")
+
+        # Override per-tenant: risoluzione leniente (gli endpoint pubblici,
+        # es. QR check primo livello, non hanno JWT → vale solo il globale).
+        payload = decode_payload_leniently(request)
+        if not payload:
+            return
+        # Il superadmin non resta mai chiuso fuori dalla gestione clienti,
+        # anche se il tenant nel contesto ha il modulo disattivato.
+        if payload.get("ruolo") == "superadmin" and module_id == "tenant_admin":
+            return
+        tenant_id = resolve_tenant_id_leniently(request, payload)
+        if tenant_id is None:
+            return
+        try:
+            enabled_for_tenant = is_module_enabled_for_tenant(db, module_id, tenant_id)
+        except Exception:
+            # La config per-tenant non deve mai buttare giù la richiesta:
+            # in caso di problemi vale il kill-switch globale già superato.
+            return
+        if not enabled_for_tenant:
+            raise HTTPException(status_code=404, detail="Funzionalita disattivata per questo cliente")
     return _dependency
 
 

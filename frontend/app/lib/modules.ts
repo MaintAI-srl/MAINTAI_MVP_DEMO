@@ -41,6 +41,10 @@ export type ModulesResponse = {
   enabled?: string[];
   disabled?: string[];
   modules?: ModuleStatus[];
+  /** "tenant" quando il tenant nel contesto ha un override; "global" altrimenti */
+  scope?: "global" | "tenant";
+  tenant_id?: number | null;
+  has_override?: boolean;
 };
 
 const MODULE_IDS = new Set<string>(MODULE_DEFINITIONS.map((module) => module.id));
