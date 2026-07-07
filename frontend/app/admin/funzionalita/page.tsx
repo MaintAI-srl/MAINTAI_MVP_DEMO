@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { apiGet, apiPut } from "../../lib/api";
+import { apiDelete, apiGet, apiPut } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import type { ModuleStatus, ModulesResponse } from "../../lib/modules";
 import { notify } from "@/lib/toast";
+import { getTenantContext } from "../../components/TenantContextSwitcher";
 
 const CATEGORY_LABELS: Record<string, string> = {
   operazioni: "Operazioni",
@@ -27,6 +28,8 @@ export default function FunzionalitaPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasOverride, setHasOverride] = useState(false);
+  const [tenantContext, setTenantContext] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -35,6 +38,7 @@ export default function FunzionalitaPage() {
       const rows = data.modules ?? [];
       setModules(rows);
       setSelected(new Set(rows.filter((module) => module.enabled).map((module) => module.id)));
+      setHasOverride(Boolean(data.has_override));
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Errore caricamento funzionalita");
     } finally {
@@ -43,8 +47,26 @@ export default function FunzionalitaPage() {
   }
 
   useEffect(() => {
+    setTenantContext(getTenantContext());
     load();
   }, []);
+
+  async function resetOverride() {
+    setSaving(true);
+    try {
+      const data = await apiDelete<ModulesResponse>("/admin/modules/override");
+      const rows = data.modules ?? [];
+      setModules(rows);
+      setSelected(new Set(rows.filter((module) => module.enabled).map((module) => module.id)));
+      setHasOverride(Boolean(data.has_override));
+      await reloadModules();
+      notify.success("Override rimosso: il cliente usa la configurazione globale");
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : "Errore ripristino configurazione");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const grouped = useMemo(() => {
     return modules.reduce<Record<string, ModuleStatus[]>>((acc, module) => {
@@ -86,8 +108,9 @@ export default function FunzionalitaPage() {
       const rows = data.modules ?? [];
       setModules(rows);
       setSelected(new Set(rows.filter((module) => module.enabled).map((module) => module.id)));
+      setHasOverride(Boolean(data.has_override));
       await reloadModules();
-      notify.success("Funzionalita aggiornate");
+      notify.success(tenantContext ? "Funzionalita del cliente aggiornate" : "Funzionalita globali aggiornate");
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Errore salvataggio funzionalita");
     } finally {
@@ -106,9 +129,36 @@ export default function FunzionalitaPage() {
           <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: 13, maxWidth: 760 }}>
             Attiva o disattiva i moduli visibili nell&apos;applicazione. Le dipendenze vengono gestite automaticamente.
           </p>
+          <div style={{
+            marginTop: 10,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 12px",
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 700,
+            border: `1px solid ${tenantContext ? "rgba(59,130,246,.45)" : "var(--border-default)"}`,
+            background: tenantContext ? "rgba(59,130,246,.10)" : "var(--surface-2)",
+            color: tenantContext ? "#93c5fd" : "var(--text-muted)",
+          }}>
+            {tenantContext
+              ? `Stai configurando il cliente del contesto attivo (tenant #${tenantContext})${hasOverride ? " — override attivo" : " — nessun override, eredita la config globale"}`
+              : "Stai configurando la configurazione GLOBALE (vale per tutti i clienti senza override)"}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{enabledCount}/{modules.length} attive</span>
+          {tenantContext && hasOverride && (
+            <button
+              onClick={resetOverride}
+              disabled={loading || saving}
+              style={{ ...secondaryButton, color: "#f59e0b", borderColor: "rgba(245,158,11,.4)" }}
+              title="Rimuove l'override: il cliente torna alla configurazione globale"
+            >
+              Ripristina globale
+            </button>
+          )}
           <button
             onClick={load}
             disabled={loading || saving}

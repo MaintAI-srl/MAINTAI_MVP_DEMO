@@ -5,6 +5,7 @@ import { apiGet, apiPost, apiPut } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useRouter } from "next/navigation";
 import { notify } from "@/lib/toast";
+import { getTenantContext, setTenantContext } from "../../components/TenantContextSwitcher";
 
 type Tenant = {
   id: number;
@@ -174,9 +175,21 @@ export default function TenantsPage() {
   };
 
   const toggleActive = async (t: Tenant) => {
-    await apiPut(`/tenants/${t.id}`, { is_active: !t.is_active });
+    try {
+      await apiPut(`/tenants/${t.id}`, { is_active: !t.is_active });
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Errore aggiornamento tenant");
+    }
     await load();
   };
+
+  // Passa al contesto del tenant e apri la dashboard per gestirlo
+  const gestisciTenant = (t: Tenant) => {
+    setTenantContext(String(t.id));
+    window.location.href = "/dashboard";
+  };
+
+  const activeContext = typeof window !== "undefined" ? getTenantContext() : null;
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,6 +314,19 @@ export default function TenantsPage() {
                   )}
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                  {activeContext === String(t.id) ? (
+                    <span style={{ ...btnGreen, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      ● Contesto attivo
+                    </span>
+                  ) : (
+                    <button
+                      style={{ ...btnSm, color: "var(--blue)", borderColor: "rgba(59,130,246,0.35)" }}
+                      onClick={() => gestisciTenant(t)}
+                      title={`Passa al contesto di ${t.nome} e gestisci le sue funzionalità`}
+                    >
+                      ⇄ Gestisci
+                    </button>
+                  )}
                   <button style={btnSm} onClick={() => { setShowAddUser(showAddUser === t.id ? null : t.id); setUserForm({ username: "", password: "", ruolo: "tecnico" }); setUserError(""); }}>
                     + Utente
                   </button>

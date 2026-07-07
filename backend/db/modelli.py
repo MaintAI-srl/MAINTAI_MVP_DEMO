@@ -673,3 +673,18 @@ class Attestato(Base):
     data_scadenza = Column(Date, nullable=True)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
+
+
+class TenantModuleConfig(Base):
+    """Override per-tenant dei moduli attivi (gestito dal superadmin).
+
+    Se un tenant non ha una riga qui vale la configurazione globale
+    (env + backend/modules_state.json). La config globale resta un
+    kill-switch: un modulo disattivato globalmente non è attivabile
+    per singolo tenant."""
+    __tablename__ = "tenant_module_config"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, unique=True, index=True)
+    enabled = Column(Text, nullable=False, default="[]")  # JSON: lista di module id
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
