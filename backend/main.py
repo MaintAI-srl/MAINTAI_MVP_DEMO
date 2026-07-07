@@ -179,6 +179,16 @@ def _is_database_auth_block(exc: Exception) -> bool:
     )
 
 
+def _is_database_capacity_block(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return (
+        "emaxconnsession" in msg
+        or "max clients reached" in msg
+        or "too many connections" in msg
+        or "remaining connection slots are reserved" in msg
+    )
+
+
 def _check_database_connection() -> bool:
     """Verifica la raggiungibilità del DB allo startup con retry a backoff esponenziale.
 
@@ -207,18 +217,25 @@ def _check_database_connection() -> bool:
         except Exception as exc:
             last_exc = exc
             is_auth_failure = _is_database_auth_block(exc)
-            if is_auth_failure:
-                logger.error(
-                    "Autenticazione DB rifiutata dal pooler/server (tentativo %d/%d). "
+            is_capacity_failure = _is_database_capacity_block(exc)
+            if is_auth_failure or is_capacity_failure:
+                reason = "Autenticazione DB rifiutata" if is_auth_failure else "Pool DB saturo"
+                hint = (
                     "Verifica DATABASE_URL su Render: con il pooler Supabase "
                     "(*.pooler.supabase.com) lo username deve essere "
-                    "'postgres.<project-ref>' e la password quella del database. "
-                    "Errore: %s",
-                    attempt + 1, len(backoffs) + 1, exc,
+                    "'postgres.<project-ref>' e la password quella del database."
+                    if is_auth_failure
+                    else
+                    "Riduci DB_POOL_SIZE/DB_MAX_OVERFLOW o libera sessioni attive sul pooler Supabase."
+                )
+                logger.error(
+                    "%s dal pooler/server (tentativo %d/%d). "
+                    "%s Errore: %s",
+                    reason, attempt + 1, len(backoffs) + 1, hint, exc,
                 )
                 logger.error(
                     "Startup in modalita degradata: interrompo i retry DB per evitare "
-                    "crash-loop Render e ulteriori blocchi ECIRCUITBREAKER su Supabase."
+                    "crash-loop Render e ulteriori blocchi del pooler Supabase."
                 )
                 return False
             else:
@@ -581,7 +598,17 @@ def _ensure_columns() -> None:
 
     def _apply_to(url: str, pg: bool) -> None:
         ca = {"check_same_thread": False} if url.startswith("sqlite") else {}
-        eng = create_engine(url, connect_args=ca)
+        pool_kwargs = (
+            {}
+            if url.startswith("sqlite")
+            else {
+                "pool_size": 1,
+                "max_overflow": 0,
+                "pool_timeout": 5,
+                "pool_pre_ping": True,
+            }
+        )
+        eng = create_engine(url, connect_args=ca, **pool_kwargs)
         ifne = "IF NOT EXISTS " if pg else ""
         db_label = url.split("://")[0]
 
@@ -772,6 +799,7 @@ def _ensure_columns() -> None:
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:
             _exec_ddl(tmpl.format(ifne=ifne), col_name)
+        eng.dispose()
 
     try:
         from backend.core.database import DATABASE_URL as MAIN_URL
@@ -798,16 +826,7 @@ async def lifespan(app: FastAPI):
         if db_ready:
             init_db()
         print("✅ main db initialized")
-        # _ensure_columns è idempotente, crea la propria connessione e cattura gli
-        # errori per-statement: eseguilo SEMPRE (best-effort), anche se il check di
-        # boot ha fallito per un blip transitorio del pooler. Altrimenti lo schema
-        # resta disallineato dal modello ORM (colonne nuove mancanti) e ogni query
-        # sulla tabella interessata fallisce con 500 finché non si rilancia il deploy.
-        try:
-            _ensure_columns()
-        except Exception as _ec:
-            print(f"⚠️ ensure_columns best-effort fallito: {_ec}")
-        print("✅ ensure_columns (post-init) done")
+        print("ensure_columns post-init skipped")
     except Exception as e:
         print(f"❌ CRASH DURING STARTUP: {str(e)}")
         traceback.print_exc()
@@ -831,6 +850,8 @@ async def lifespan(app: FastAPI):
     print("🛑 APP LIFESPAN ENDING...")
     for task in background_tasks:
         task.cancel()
+    from backend.core.database import engine
+    engine.dispose()
 
 app = FastAPI(title="MaintAI Backend", lifespan=lifespan)
 

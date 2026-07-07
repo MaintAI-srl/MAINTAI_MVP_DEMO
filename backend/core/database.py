@@ -32,11 +32,23 @@ connect_args = (
 
 # Pool parameters: ottimizzati per PostgreSQL su Render (concorrenza + stabilità)
 # SQLite usa StaticPool implicito → i parametri pool sono ignorati
+def _env_int(name: str, default: int, minimum: int = 0) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(value, minimum)
+
+
 _pool_kwargs: dict = {}
 if not DATABASE_URL.startswith("sqlite"):
     _pool_kwargs = {
-        "pool_size": 5,
-        "max_overflow": 10,
+        "pool_size": _env_int("DB_POOL_SIZE", 2, minimum=1),
+        "max_overflow": _env_int("DB_MAX_OVERFLOW", 0),
+        "pool_timeout": _env_int("DB_POOL_TIMEOUT", 5, minimum=1),
         "pool_pre_ping": True,   # verifica connessioni stale prima dell'uso
         "pool_recycle": 1800,    # ricicla connessioni ogni 30 min (evita timeout PostgreSQL)
     }
