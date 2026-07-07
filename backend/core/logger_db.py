@@ -2,8 +2,9 @@ import json
 import re
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
 
-from backend.core.database import SessionLocal
+from backend.core.database import SessionLocal, current_db_session
 from backend.db.modelli import SystemLog
 
 # ── Redaction centralizzata (privacy/security, ISO 27002 A.8.15) ─────────────
@@ -70,8 +71,27 @@ def _normalize_args(args: tuple, extra=None, tenant_id=None):
         extra = args[2]
     if len(args) >= 4 and tenant_id is None:
         tenant_id = args[3]
+    if tenant_id is None and isinstance(extra, dict) and extra.get("tenant_id") is not None:
+        tenant_id = extra.get("tenant_id")
 
     return str(module).upper(), str(message), extra, tenant_id
+
+
+def _new_log_session():
+    """
+    Crea una sessione isolata sullo stesso bind della request corrente.
+
+    Questo mantiene il logger compatibile con eventuali DB diversi per request
+    senza riutilizzare la sessione business, evitando commit/rollback inattesi.
+    """
+    request_db = current_db_session.get()
+    if isinstance(request_db, Session):
+        try:
+            bind = request_db.get_bind()
+            return sessionmaker(autocommit=False, autoflush=False, bind=bind)()
+        except Exception:
+            pass
+    return SessionLocal()
 
 
 def _serialize_extra(extra):
@@ -97,7 +117,7 @@ def log_to_db(level: str, *args, extra: dict = None, tenant_id: int = None):
     la propria sessione SQLAlchemy come primo argomento.
     """
     module, message, extra, tenant_id = _normalize_args(args, extra, tenant_id)
-    db = SessionLocal()
+    db = _new_log_session()
 
     try:
         new_log = SystemLog(

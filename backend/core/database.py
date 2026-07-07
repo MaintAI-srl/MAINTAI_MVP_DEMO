@@ -55,6 +55,10 @@ class Base(DeclarativeBase):
 # Nessun valore di default, ignorato se None o non settato.
 current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
 
+# Sessione SQLAlchemy della request corrente. I servizi trasversali (es. logger
+# persistente) la usano solo per ricavare lo stesso bind/engine della request.
+current_db_session = contextvars.ContextVar("current_db_session", default=None)
+
 from sqlalchemy.orm import with_loader_criteria
 
 @event.listens_for(SessionLocal, "do_orm_execute")
