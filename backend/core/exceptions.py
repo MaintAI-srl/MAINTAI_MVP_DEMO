@@ -26,7 +26,9 @@ async def generic_error_handler(request: Request, exc: Exception):
         str(request.url.path),
         type(exc).__name__,
     )
-    logger.error(traceback.format_exc())
+    # NB: format_exc() qui restituirebbe "NoneType: None" — nel contesto async
+    # del handler l'eccezione non è più quella "corrente". Va formattata da exc.
+    logger.error("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
     return JSONResponse(
         status_code=500,
         content={"error": True, "message": "Errore interno del server"},

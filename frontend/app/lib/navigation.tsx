@@ -118,7 +118,10 @@ export function getVisibleNavGroups({ role, isModuleEnabled }: VisibleNavOptions
   return NAV_GROUPS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
-      if (item.module && !isModuleEnabled(item.module)) return false;
+      // Il superadmin non perde mai l'accesso alle pagine di amministrazione
+      // clienti/funzionalità, anche se il tenant nel contesto le ha disattivate.
+      const superadminBypass = isSuperadmin && item.superadminOnly;
+      if (item.module && !isModuleEnabled(item.module) && !superadminBypass) return false;
       if (item.superadminOnly && !isSuperadmin) return false;
       if (item.adminOnly && role !== "responsabile" && !isSuperadmin) return false;
       if (!isTecnico) return true;

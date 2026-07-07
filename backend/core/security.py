@@ -258,23 +258,37 @@ def get_current_user_payload(
 def get_current_tenant_id(
     payload: dict = Depends(get_current_user_payload),
     x_tenant_id: str | None = Header(None, alias="X-Tenant-Id"),
+    db: Session = Depends(get_db),
 ) -> int | None:
     """
     Estrae il tenant_id dal token JWT o dall'header X-Tenant-Id (solo superadmin).
+
+    Per il superadmin l'header X-Tenant-Id viene validato: valore non numerico
+    o tenant inesistente producono un errore esplicito invece di query che
+    filtrano su un tenant fantasma e restituiscono dati vuoti in silenzio.
     """
     tid = payload.get("tenant_id")
     ruolo = payload.get("ruolo")
 
     if ruolo == "superadmin":
-        resolved_tid = None
         if x_tenant_id:
             try:
                 resolved_tid = int(x_tenant_id)
             except ValueError:
-                pass
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Header X-Tenant-Id non valido: deve essere l'ID numerico di un tenant.",
+                )
+            from backend.db.modelli import Tenant
+            tenant = db.query(Tenant).filter(Tenant.id == resolved_tid).first()
+            if not tenant:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Tenant {resolved_tid} non trovato. Selezionare un tenant valido dal contesto.",
+                )
         else:
             resolved_tid = int(tid) if tid else None
-        
+
         from backend.core.database import current_tenant_id
         current_tenant_id.set(resolved_tid)
         return resolved_tid
@@ -288,6 +302,47 @@ def get_current_tenant_id(
     from backend.core.database import current_tenant_id
     current_tenant_id.set(int(tid))
     return int(tid)
+
+
+def decode_payload_leniently(request: Request) -> dict | None:
+    """Decodifica il JWT della richiesta senza sollevare eccezioni.
+
+    Usata dal gate dei moduli per-tenant: gli endpoint pubblici (QR, health)
+    non hanno token e devono continuare a funzionare con la config globale.
+    NON sostituisce get_current_user_payload: nessun check su utente attivo,
+    revoca o token version — serve solo a scegliere la config moduli.
+    """
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+    if not token:
+        return None
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.InvalidTokenError:
+        return None
+
+
+def resolve_tenant_id_leniently(request: Request, payload: dict | None = None) -> int | None:
+    """Tenant della richiesta senza sollevare errori (per il gate moduli)."""
+    if payload is None:
+        payload = decode_payload_leniently(request)
+    if not payload:
+        return None
+    if payload.get("ruolo") == "superadmin":
+        x_tid = request.headers.get("x-tenant-id")
+        if x_tid:
+            try:
+                return int(x_tid)
+            except ValueError:
+                return None
+    tid = payload.get("tenant_id")
+    try:
+        return int(tid) if tid is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def require_superadmin(payload: dict = Depends(get_current_user_payload)) -> dict:
