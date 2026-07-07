@@ -25,6 +25,7 @@ interface AuthContextType {
   enabledModules: ModuleId[];
   modulesLoaded: boolean;
   isModuleEnabled: (moduleId: ModuleId | string) => boolean;
+  reloadModules: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -35,6 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   enabledModules: DEFAULT_ENABLED_MODULES,
   modulesLoaded: false,
   isModuleEnabled: () => true,
+  reloadModules: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -78,12 +80,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [modulesLoaded, setModulesLoaded] = useState(false);
   const loggingOutRef = useRef(false);
 
-  useEffect(() => {
-    apiGet<ModulesResponse>("/modules")
+  const reloadModules = useCallback(async () => {
+    await apiGet<ModulesResponse>("/modules")
       .then((data) => setEnabledModules(normalizeEnabledModules(data.enabled)))
       .catch(() => setEnabledModules(DEFAULT_ENABLED_MODULES))
       .finally(() => setModulesLoaded(true));
   }, []);
+
+  useEffect(() => {
+    reloadModules();
+  }, [reloadModules]);
 
   const enabledModuleSet = useMemo(() => new Set<string>(enabledModules), [enabledModules]);
   const isModuleEnabled = useCallback((moduleId: ModuleId | string) => {
@@ -162,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (loading) return null;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, enabledModules, modulesLoaded, isModuleEnabled }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, enabledModules, modulesLoaded, isModuleEnabled, reloadModules }}>
       {children}
     </AuthContext.Provider>
   );

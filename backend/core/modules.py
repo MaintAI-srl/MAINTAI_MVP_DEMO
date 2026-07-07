@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
+import json
 from dataclasses import asdict, dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 
 TRUE_VALUES = {"1", "true", "yes", "y", "on", "enabled", "active"}
 FALSE_VALUES = {"0", "false", "no", "n", "off", "disabled", "inactive"}
+STATE_FILE = Path(os.getenv("MAINTAI_MODULES_STATE_FILE", "backend/modules_state.json"))
 
 
 @dataclass(frozen=True)
@@ -242,7 +245,24 @@ def _configured_enabled_ids() -> set[str]:
         elif override is False:
             enabled.discard(module_id)
 
+    state_enabled = _read_state_enabled_ids()
+    if state_enabled is not None:
+        enabled = state_enabled & known
+
     return enabled
+
+
+def _read_state_enabled_ids() -> set[str] | None:
+    try:
+        if not STATE_FILE.exists():
+            return None
+        payload = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        values = payload.get("enabled")
+        if not isinstance(values, list):
+            return None
+        return {_normalize_module_id(str(value)) for value in values}
+    except Exception:
+        return None
 
 
 def _resolve_dependencies(enabled: set[str]) -> set[str]:
@@ -286,3 +306,20 @@ def modules_payload() -> dict[str, Any]:
         "disabled": sorted(set(MODULE_DEFINITIONS) - set(enabled)),
         "modules": modules,
     }
+
+
+def set_enabled_module_ids(module_ids: list[str]) -> dict[str, Any]:
+    known = set(MODULE_DEFINITIONS)
+    normalized = {
+        _normalize_module_id(module_id)
+        for module_id in module_ids
+        if _normalize_module_id(module_id) in known
+    }
+    resolved = _resolve_dependencies(normalized)
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(
+        json.dumps({"enabled": sorted(resolved)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    enabled_module_ids.cache_clear()
+    return modules_payload()

@@ -11,6 +11,7 @@ import {
   Radar,
   ScrollText,
   ShieldCheck,
+  SlidersHorizontal,
   TrendingUp,
   UploadCloud,
   UserCheck,
@@ -67,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/report/economico", label: "Report Economico", icon: TrendingUp, module: "economic_reports", adminOnly: true },
       { href: "/compliance", label: "Scadenzario Attestati", icon: ShieldCheck, module: "compliance", adminOnly: true },
+      { href: "/admin/funzionalita", label: "Funzionalità", icon: SlidersHorizontal, superadminOnly: true },
       { href: "/admin/tenants", label: "Clienti", icon: Building, module: "tenant_admin", superadminOnly: true },
       { href: "/admin/bulk-import", label: "Import Massivo", icon: UploadCloud, module: "bulk_import", adminOnly: true },
       { href: "/admin/logs", label: "Log di Sistema", icon: ScrollText, module: "system_logs", adminOnly: true },
@@ -93,6 +95,7 @@ export const PAGE_LABELS: Record<string, string> = {
   "/scadenze": "Scadenziario",
   "/condizioni": "Dati Misure Asset",
   "/admin/tenants": "Clienti",
+  "/admin/funzionalita": "Funzionalità",
   "/admin/bulk-import": "Import Massivo",
   "/admin/logs": "Log di Sistema",
   "/admin/email": "Email to Ticket",

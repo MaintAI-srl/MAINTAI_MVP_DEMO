@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import require_superadmin
 from backend.core.file_validation import validate_upload
-from backend.db.modelli import Asset, Impianto, Sito
+from backend.db.modelli import Asset, Attestato, AttivitaManutenzione, Impianto, PianoManutenzione, Sito, Tecnico
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,56 @@ ASSET_COLS: List[tuple] = [
     ("vincoli_manutenzione",   False, "Vincoli specifici manutenzione",                    "Spegnere 2h prima"),
     ("fermo_on_schedule",      False, "Metti in FERMO PROG. al piano: SI/NO (default: NO)", "NO"),
 ]
+
+TECNICI_COLS: List[tuple] = [
+    ("nome", True, "Nome tecnico", "Luca"),
+    ("cognome", False, "Cognome tecnico", "Bianchi"),
+    ("skill", False, "Competenze separate da virgola", "Meccanico, Elettricista"),
+    ("ore_giornaliere", False, "Ore giornaliere disponibili", "8"),
+    ("stato", False, "in servizio / ferie / malattia / corso", "in servizio"),
+    ("orario_inizio", False, "Ora inizio turno HH:MM", "08:00"),
+    ("orario_fine", False, "Ora fine turno HH:MM", "17:00"),
+    ("telefono", False, "Telefono", "+39 333 1234567"),
+    ("sede_indirizzo", False, "Sede o indirizzo di partenza", "Via Officina 10, Genova"),
+    ("limitazioni_orarie", False, "Eventuali limitazioni", "no notturno"),
+]
+
+PIANI_COLS: List[tuple] = [
+    ("piano_nome", True, "Codice/nome piano da creare o aggiornare", "PM-COMP-001"),
+    ("piano_descrizione", False, "Descrizione del piano", "Piano compressore linea A"),
+    ("asset_id", False, "ID asset esistente, se noto", "12"),
+    ("asset_codice", False, "Codice asset esistente", "COMP-001"),
+    ("asset_nome", False, "Nome asset esistente se non usi asset_id", "Compressore C-01"),
+    ("task_nome", True, "Nome sintetico attivita", "Cambio filtri aria"),
+    ("task_descrizione", True, "Descrizione operativa", "Sostituire filtri e verificare pressione"),
+    ("frequenza_giorni", False, "Frequenza in giorni", "90"),
+    ("durata_ore", False, "Durata stimata in ore", "2"),
+    ("priorita", False, "Alta / Media / Bassa", "Media"),
+    ("generation_mode", False, "manual / auto / disabled", "manual"),
+    ("generate_days_before_due", False, "Giorni anticipo generazione ticket", "7"),
+]
+
+CORSI_COLS: List[tuple] = [
+    ("tecnico_id", False, "ID tecnico esistente, se noto", "3"),
+    ("tecnico_nome", False, "Nome tecnico se non usi tecnico_id", "Luca"),
+    ("tecnico_cognome", False, "Cognome tecnico", "Bianchi"),
+    ("tipo_corso", True, "Tipo corso o attestato", "PES/PAV"),
+    ("ente_certificatore", False, "Ente certificatore", "CEI"),
+    ("data_conseguimento", False, "Data conseguimento YYYY-MM-DD", "2026-01-15"),
+    ("data_scadenza", False, "Data scadenza YYYY-MM-DD", "2028-01-15"),
+    ("note", False, "Note", "Aggiornamento biennale"),
+]
+
+SINGLE_IMPORTS: dict[str, dict[str, Any]] = {
+    "siti": {"label": "Siti", "sheet": "SITI", "cols": SITI_COLS, "filename": "maintai_template_siti.xlsx"},
+    "impianti": {"label": "Impianti", "sheet": "IMPIANTI", "cols": IMPIANTI_COLS, "filename": "maintai_template_impianti.xlsx"},
+    "asset": {"label": "Asset", "sheet": "ASSET", "cols": ASSET_COLS, "filename": "maintai_template_asset.xlsx"},
+    "tecnici": {"label": "Tecnici", "sheet": "TECNICI", "cols": TECNICI_COLS, "filename": "maintai_template_tecnici.xlsx"},
+    "piani_manutenzione": {"label": "Piani di manutenzione", "sheet": "PIANI", "cols": PIANI_COLS, "filename": "maintai_template_piani_manutenzione.xlsx"},
+    "corsi_attestati": {"label": "Corsi e attestati", "sheet": "CORSI", "cols": CORSI_COLS, "filename": "maintai_template_corsi_attestati.xlsx"},
+}
+
+HIERARCHY_TYPES = {"gerarchia", "siti_impianti_asset", "siti-impianti-asset", "hierarchy"}
 
 
 # ── Stili Excel ───────────────────────────────────────────────────────────────
@@ -271,6 +321,83 @@ def _make_workbook() -> Any:
     return wb
 
 
+def _make_single_workbook(sheet_name: str, cols: List[tuple], title: str) -> Any:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+    yellow_fill = PatternFill("solid", fgColor="FFD700")
+    grey_fill = PatternFill("solid", fgColor="D9D9D9")
+    header_fill = PatternFill("solid", fgColor="1F4E79")
+    example_fill = PatternFill("solid", fgColor="EBF3FB")
+    thin_border = Border(
+        left=Side(style="thin", color="BFBFBF"),
+        right=Side(style="thin", color="BFBFBF"),
+        top=Side(style="thin", color="BFBFBF"),
+        bottom=Side(style="thin", color="BFBFBF"),
+    )
+
+    ws.merge_cells(f"A1:{get_column_letter(len(cols))}1")
+    ws["A1"] = f"  {title} - Template importazione MaintAI"
+    ws["A1"].font = Font(bold=True, color="FFFFFF", size=13, name="Calibri")
+    ws["A1"].fill = PatternFill("solid", fgColor="0D2137")
+    ws["A1"].alignment = Alignment(vertical="center", horizontal="left")
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells(f"A2:{get_column_letter(len(cols))}2")
+    ws["A2"] = "  GIALLO = obbligatorio    GRIGIO = opzionale    La riga 6 e un esempio: modificarla o eliminarla"
+    ws["A2"].font = Font(size=9, italic=True, color="404040", name="Calibri")
+    ws["A2"].fill = PatternFill("solid", fgColor="F2F2F2")
+
+    for col_idx, (col_name, required, desc, example) in enumerate(cols, start=1):
+        header = ws.cell(row=3, column=col_idx, value=f"* {col_name.upper()}" if required else col_name.upper())
+        header.font = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+        header.fill = header_fill
+        header.alignment = Alignment(horizontal="center", vertical="center")
+        header.border = thin_border
+        ws.column_dimensions[get_column_letter(col_idx)].width = max(18, len(col_name) + 5)
+
+        desc_cell = ws.cell(row=4, column=col_idx, value=desc)
+        desc_cell.font = Font(name="Calibri", size=9, italic=True, color="595959")
+        desc_cell.fill = PatternFill("solid", fgColor="FAFAFA")
+        desc_cell.alignment = Alignment(wrap_text=True, vertical="top")
+        desc_cell.border = thin_border
+
+        marker = ws.cell(row=5, column=col_idx, value="obbligatorio" if required else "opzionale")
+        marker.font = Font(size=8, bold=required, name="Calibri")
+        marker.fill = yellow_fill if required else grey_fill
+        marker.alignment = Alignment(horizontal="center")
+        marker.border = thin_border
+
+        sample = ws.cell(row=6, column=col_idx, value=example)
+        sample.font = Font(name="Calibri", size=10)
+        sample.fill = example_fill
+        sample.border = thin_border
+
+    for row in range(7, 207):
+        for col_idx, (_, required, _, __) in enumerate(cols, start=1):
+            cell = ws.cell(row=row, column=col_idx, value=None)
+            cell.fill = yellow_fill if required else PatternFill("solid", fgColor="FFFFFF")
+            cell.border = Border(
+                left=Side(style="thin", color="E0E0E0"),
+                right=Side(style="thin", color="E0E0E0"),
+                top=Side(style="dotted", color="E0E0E0"),
+                bottom=Side(style="dotted", color="E0E0E0"),
+            )
+
+    ws.freeze_panes = "A7"
+    ws.auto_filter.ref = f"A3:{get_column_letter(len(cols))}206"
+
+    help_ws = wb.create_sheet("ISTRUZIONI")
+    help_ws["A1"] = "Compila il foglio dati e carica il file dalla pagina Admin > Import Massivo."
+    help_ws["A2"] = "Le colonne con asterisco sono obbligatorie. Mantieni invariati i nomi delle colonne."
+    help_ws.column_dimensions["A"].width = 100
+    return wb
+
+
 # ── Endpoint: download template ───────────────────────────────────────────────
 
 @router.get("/template")
@@ -291,6 +418,51 @@ def download_template(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/templates")
+def list_templates(_sa: dict = Depends(require_superadmin)):
+    templates = [
+        {
+            "id": "gerarchia",
+            "label": "Siti + Impianti + Asset",
+            "description": "Template completo con tre fogli collegati gerarchicamente.",
+            "filename": "maintai_bulk_import_template.xlsx",
+        }
+    ]
+    templates.extend(
+        {
+            "id": import_type,
+            "label": meta["label"],
+            "description": f"Template Excel dedicato a {str(meta['label']).lower()}.",
+            "filename": meta["filename"],
+        }
+        for import_type, meta in SINGLE_IMPORTS.items()
+    )
+    return {"templates": templates}
+
+
+@router.get("/template/{import_type}")
+def download_template_by_type(
+    import_type: str,
+    _sa: dict = Depends(require_superadmin),
+):
+    normalized = import_type.strip().lower()
+    if normalized in HIERARCHY_TYPES:
+        return download_template(_sa)
+    meta = SINGLE_IMPORTS.get(normalized)
+    if not meta:
+        raise HTTPException(404, "Tipologia template non supportata")
+
+    wb = _make_single_workbook(meta["sheet"], meta["cols"], meta["label"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{meta["filename"]}"'},
     )
 
 
@@ -351,6 +523,11 @@ def _parse_sheet(ws, expected_cols: List[tuple]) -> tuple[List[Dict], List[str]]
         nome = record.get("nome", "") or ""
         if nome in _EXAMPLE_NAMES:
             continue
+        if row_num == 6:
+            example_values = {col_name: str(example).strip() for col_name, _, _, example in expected_cols}
+            non_empty = {key: str(value).strip() for key, value in record.items() if value is not None}
+            if non_empty and all(non_empty.get(key) == example_values.get(key) for key in non_empty):
+                continue
 
         # Verifica obbligatori
         for req in required:
@@ -371,6 +548,7 @@ def _parse_sheet(ws, expected_cols: List[tuple]) -> tuple[List[Dict], List[str]]
 async def preview_import(
     file: UploadFile = File(...),
     tenant_id: int = Form(...),
+    import_type: str = Form("gerarchia"),
     _sa: dict = Depends(require_superadmin),
     db: Session = Depends(get_db),
 ):
@@ -395,6 +573,10 @@ async def preview_import(
         validate_upload(content, file.filename, {"xlsx"})
     except ValueError as exc:
         raise HTTPException(400, f"File Excel non valido: {exc}")
+
+    normalized_type = import_type.strip().lower()
+    if normalized_type not in HIERARCHY_TYPES:
+        return _preview_single_import(normalized_type, content, tenant_id, db)
 
     try:
         wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
@@ -470,12 +652,277 @@ def _clean_row(r: Dict) -> Dict:
     return {k: v for k, v in r.items() if k != "_row"}
 
 
+def _find_sito(db: Session, tenant_id: int, nome: str | None) -> Sito | None:
+    if not nome:
+        return None
+    return db.query(Sito).filter(Sito.tenant_id == tenant_id, Sito.nome.ilike(nome.strip())).first()
+
+
+def _find_impianto(db: Session, tenant_id: int, nome: str | None) -> Impianto | None:
+    if not nome:
+        return None
+    return db.query(Impianto).filter(Impianto.tenant_id == tenant_id, Impianto.nome.ilike(nome.strip())).first()
+
+
+def _find_asset(db: Session, tenant_id: int, row: Dict[str, Any]) -> Asset | None:
+    asset_id = _to_int(row.get("asset_id"))
+    if asset_id:
+        asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == tenant_id).first()
+        if asset:
+            return asset
+    codice = row.get("asset_codice")
+    if codice:
+        asset = db.query(Asset).filter(Asset.tenant_id == tenant_id, Asset.codice.ilike(codice.strip())).first()
+        if asset:
+            return asset
+    nome = row.get("asset_nome") or row.get("nome")
+    if nome:
+        return db.query(Asset).filter(Asset.tenant_id == tenant_id, Asset.nome.ilike(nome.strip())).first()
+    return None
+
+
+def _find_tecnico(db: Session, tenant_id: int, row: Dict[str, Any]) -> Tecnico | None:
+    tecnico_id = _to_int(row.get("tecnico_id"))
+    if tecnico_id:
+        tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.tenant_id == tenant_id).first()
+        if tecnico:
+            return tecnico
+    nome = (row.get("tecnico_nome") or row.get("nome") or "").strip()
+    cognome = (row.get("tecnico_cognome") or row.get("cognome") or "").strip()
+    if not nome:
+        return None
+    query = db.query(Tecnico).filter(Tecnico.tenant_id == tenant_id, Tecnico.nome.ilike(nome))
+    if cognome:
+        query = query.filter(Tecnico.cognome.ilike(cognome))
+    return query.first()
+
+
+def _read_single_rows(content: bytes, import_type: str) -> tuple[List[Dict], List[str]]:
+    from openpyxl import load_workbook
+
+    meta = SINGLE_IMPORTS.get(import_type)
+    if not meta:
+        raise HTTPException(400, "Tipologia import non supportata")
+    try:
+        wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
+    except Exception as exc:
+        raise HTTPException(400, f"Impossibile leggere il file Excel: {exc}")
+
+    ws = wb[meta["sheet"]] if meta["sheet"] in wb.sheetnames else wb.active
+    return _parse_sheet(ws, meta["cols"])
+
+
+def _validate_single_rows(import_type: str, rows: List[Dict], db: Session, tenant_id: int) -> List[str]:
+    errors: List[str] = []
+    for row in rows:
+        row_num = row.get("_row", "?")
+        if import_type == "impianti" and not _find_sito(db, tenant_id, row.get("sito_nome")):
+            errors.append(f"Riga {row_num}: sito_nome '{row.get('sito_nome')}' non trovato nel tenant")
+        elif import_type == "asset" and not _find_impianto(db, tenant_id, row.get("impianto_nome")):
+            errors.append(f"Riga {row_num}: impianto_nome '{row.get('impianto_nome')}' non trovato nel tenant")
+        elif import_type == "tecnici":
+            stato = (row.get("stato") or "in servizio").strip().lower()
+            if stato not in {"in servizio", "ferie", "malattia", "corso"}:
+                errors.append(f"Riga {row_num}: stato tecnico non valido")
+        elif import_type == "piani_manutenzione" and not _find_asset(db, tenant_id, row):
+            errors.append(f"Riga {row_num}: asset non trovato (usa asset_id, asset_codice o asset_nome esistente)")
+        elif import_type == "corsi_attestati" and not _find_tecnico(db, tenant_id, row):
+            errors.append(f"Riga {row_num}: tecnico non trovato (usa tecnico_id o nome/cognome esistente)")
+    return errors
+
+
+def _preview_single_import(import_type: str, content: bytes, tenant_id: int, db: Session) -> dict:
+    rows, errors = _read_single_rows(content, import_type)
+    errors.extend(_validate_single_rows(import_type, rows, db, tenant_id))
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "counts": {import_type: len(rows)},
+        "preview": {import_type: [_clean_row(r) for r in rows[:5]]},
+    }
+
+
+def _next_piano_progressivo(db: Session, tenant_id: int) -> int:
+    current = (
+        db.query(PianoManutenzione.progressivo)
+        .filter(PianoManutenzione.tenant_id == tenant_id)
+        .order_by(PianoManutenzione.progressivo.desc())
+        .first()
+    )
+    return (current[0] if current and current[0] else 0) + 1
+
+
+def _execute_single_import(import_type: str, rows: List[Dict], tenant_id: int, db: Session) -> dict:
+    stats: dict[str, int] = {}
+
+    if import_type == "siti":
+        stats = {"siti_creati": 0, "siti_esistenti": 0}
+        for row in rows:
+            existing = _find_sito(db, tenant_id, row.get("nome"))
+            if existing:
+                stats["siti_esistenti"] += 1
+                continue
+            db.add(Sito(
+                nome=row["nome"].strip(),
+                descrizione=row.get("descrizione"),
+                ubicazione=row.get("ubicazione"),
+                citta=row.get("citta"),
+                paese=row.get("paese") or "Italia",
+                responsabile=row.get("responsabile"),
+                telefono_responsabile=row.get("telefono_responsabile"),
+                email_responsabile=row.get("email_responsabile"),
+                note=row.get("note"),
+                tenant_id=tenant_id,
+            ))
+            stats["siti_creati"] += 1
+
+    elif import_type == "impianti":
+        stats = {"impianti_creati": 0, "impianti_esistenti": 0}
+        for row in rows:
+            existing = _find_impianto(db, tenant_id, row.get("nome"))
+            if existing:
+                stats["impianti_esistenti"] += 1
+                continue
+            sito = _find_sito(db, tenant_id, row.get("sito_nome"))
+            db.add(Impianto(
+                nome=row["nome"].strip(),
+                descrizione=row.get("descrizione"),
+                tipologia=row.get("tipologia"),
+                note=row.get("note"),
+                latitude=_to_float(row.get("latitude")),
+                longitude=_to_float(row.get("longitude")),
+                sito_id=sito.id if sito else None,
+                tenant_id=tenant_id,
+            ))
+            stats["impianti_creati"] += 1
+
+    elif import_type == "asset":
+        stats = {"asset_creati": 0}
+        for row in rows:
+            impianto = _find_impianto(db, tenant_id, row.get("impianto_nome"))
+            db.add(Asset(
+                nome=row["nome"].strip(),
+                area=row["area"].strip(),
+                impianto_id=impianto.id if impianto else None,
+                codice=row.get("codice"),
+                descrizione=row.get("descrizione"),
+                note=row.get("note") or "",
+                criticita=_normalize_criticita(row.get("criticita")),
+                stato=_normalize_stato(row.get("stato")),
+                marca=row.get("marca"),
+                modello=row.get("modello"),
+                matricola=row.get("matricola"),
+                numero_serie=row.get("numero_serie"),
+                anno_installazione=_to_int(row.get("anno_installazione")),
+                anno_produzione=_to_int(row.get("anno_produzione")),
+                fornitore=row.get("fornitore"),
+                data_acquisto=_to_date(row.get("data_acquisto")),
+                data_scadenza_garanzia=_to_date(row.get("data_scadenza_garanzia")),
+                posizione_fisica=row.get("posizione_fisica"),
+                limitazioni=row.get("limitazioni"),
+                weather_constraint=_normalize_weather(row.get("weather_constraint")),
+                fermo_on_schedule=_to_bool(row.get("fermo_on_schedule")),
+                note_tecniche=row.get("note_tecniche"),
+                vincoli_operativi=row.get("vincoli_operativi"),
+                vincoli_manutenzione=row.get("vincoli_manutenzione"),
+                tenant_id=tenant_id,
+            ))
+            stats["asset_creati"] += 1
+
+    elif import_type == "tecnici":
+        stats = {"tecnici_creati": 0, "tecnici_esistenti": 0}
+        for row in rows:
+            if _find_tecnico(db, tenant_id, row):
+                stats["tecnici_esistenti"] += 1
+                continue
+            db.add(Tecnico(
+                nome=row["nome"].strip(),
+                cognome=row.get("cognome"),
+                competenze=row.get("skill"),
+                ore_giornaliere=_to_int(row.get("ore_giornaliere")) or 8,
+                stato=(row.get("stato") or "in servizio").strip().lower(),
+                orario_inizio=row.get("orario_inizio") or "08:00",
+                orario_fine=row.get("orario_fine") or "17:00",
+                telefono=row.get("telefono"),
+                sede_indirizzo=row.get("sede_indirizzo"),
+                limitazioni_orarie=row.get("limitazioni_orarie"),
+                tenant_id=tenant_id,
+            ))
+            stats["tecnici_creati"] += 1
+
+    elif import_type == "piani_manutenzione":
+        stats = {"piani_creati": 0, "piani_esistenti": 0, "task_creati": 0}
+        piani_cache: dict[str, PianoManutenzione] = {}
+        for row in rows:
+            asset = _find_asset(db, tenant_id, row)
+            piano_nome = row["piano_nome"].strip()
+            piano = piani_cache.get(piano_nome.lower())
+            if not piano:
+                piano = (
+                    db.query(PianoManutenzione)
+                    .filter(PianoManutenzione.tenant_id == tenant_id, PianoManutenzione.nome_codificato.ilike(piano_nome))
+                    .first()
+                )
+            if not piano:
+                progressivo = _next_piano_progressivo(db, tenant_id)
+                piano = PianoManutenzione(
+                    tenant_id=tenant_id,
+                    nome_codificato=piano_nome,
+                    progressivo=progressivo,
+                    descrizione=row.get("piano_descrizione"),
+                    asset_id=asset.id if asset else None,
+                    stato="attivo",
+                )
+                db.add(piano)
+                db.flush()
+                stats["piani_creati"] += 1
+            else:
+                stats["piani_esistenti"] += 1
+            piani_cache[piano_nome.lower()] = piano
+            if asset and asset not in piano.assets:
+                piano.assets.append(asset)
+            db.add(AttivitaManutenzione(
+                asset_id=asset.id if asset else None,
+                piano_id=piano.id,
+                nome=row.get("task_nome"),
+                descrizione=row.get("task_descrizione"),
+                frequenza_giorni=_to_int(row.get("frequenza_giorni")),
+                durata_ore=_to_float(row.get("durata_ore")) or 1,
+                priorita=row.get("priorita") or "Media",
+                origine="bulk_import",
+                generation_mode=row.get("generation_mode") or "manual",
+                generate_days_before_due=_to_int(row.get("generate_days_before_due")) or 7,
+                source_type="manual_task",
+                task_stato="active",
+                tenant_id=tenant_id,
+            ))
+            stats["task_creati"] += 1
+
+    elif import_type == "corsi_attestati":
+        stats = {"attestati_creati": 0}
+        for row in rows:
+            tecnico = _find_tecnico(db, tenant_id, row)
+            db.add(Attestato(
+                tecnico_id=tecnico.id,
+                tenant_id=tenant_id,
+                tipo_corso=row["tipo_corso"].strip(),
+                ente_certificatore=row.get("ente_certificatore"),
+                data_conseguimento=_to_date(row.get("data_conseguimento")),
+                data_scadenza=_to_date(row.get("data_scadenza")),
+                note=row.get("note"),
+            ))
+            stats["attestati_creati"] += 1
+
+    return stats
+
+
 # ── Endpoint: execute ─────────────────────────────────────────────────────────
 
 @router.post("/execute")
 async def execute_import(
     file: UploadFile = File(...),
     tenant_id: int = Form(...),
+    import_type: str = Form("gerarchia"),
     _sa: dict = Depends(require_superadmin),
     db: Session = Depends(get_db),
 ):
@@ -504,6 +951,25 @@ async def execute_import(
         validate_upload(content, file.filename, {"xlsx"})
     except ValueError as exc:
         raise HTTPException(400, f"File Excel non valido: {exc}")
+
+    normalized_type = import_type.strip().lower()
+    if normalized_type not in HIERARCHY_TYPES:
+        rows, row_errors = _read_single_rows(content, normalized_type)
+        all_errors = row_errors + _validate_single_rows(normalized_type, rows, db, tenant_id)
+        if all_errors:
+            raise HTTPException(422, {"errors": all_errors, "message": "Correggere gli errori prima di eseguire l'import"})
+        try:
+            stats = _execute_single_import(normalized_type, rows, tenant_id, db)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            logger.error("BulkImport ROLLBACK: type=%s tenant=%d errore=%s", normalized_type, tenant_id, exc)
+            raise HTTPException(500, f"Import fallito, nessun dato salvato: {exc}")
+        return {
+            "success": True,
+            "message": f"Import {normalized_type} completato.",
+            "stats": stats,
+        }
 
     try:
         wb = load_workbook(io.BytesIO(content), read_only=False, data_only=True)
