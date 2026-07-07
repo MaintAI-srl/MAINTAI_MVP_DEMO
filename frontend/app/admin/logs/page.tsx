@@ -31,7 +31,7 @@ export default function AdminLogsPage() {
           ...(level && { level }),
           ...(module && { module }),
         });
-        const data = await apiGet<{ logs?: Array<{ timestamp: string; level: string; module: string; message: string; extra_info?: string }>; total?: number }>(`/logs/system-logs?${q.toString()}`);
+        const data = await apiGet<{ logs?: Array<{ timestamp: string; level: string; module: string; message: string; extra_info?: string }>; total?: number }>(`/system-logs?${q.toString()}`);
         if (data && Array.isArray(data.logs)) {
           setLogs(data.logs.map((l) =>
             `[${new Date(l.timestamp).toLocaleString()}] ${l.level} [${l.module}] ${l.message} ${l.extra_info ? '| ' + l.extra_info : ''}`

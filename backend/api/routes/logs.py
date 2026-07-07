@@ -66,6 +66,7 @@ def clear_logs(_payload: dict = Depends(require_superadmin)):
 
 
 @router.get("/system-logs", response_model=SystemLogsPage)
+@router.get("/logs/system-logs", response_model=SystemLogsPage, include_in_schema=False)
 def get_system_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),

@@ -56,6 +56,10 @@ class Base(DeclarativeBase):
 # Nessun valore di default, ignorato se None o non settato.
 current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
 
+# Sessione SQLAlchemy della request corrente. I servizi trasversali (es. logger
+# persistente) la usano solo per ricavare lo stesso bind/engine della request.
+current_db_session = contextvars.ContextVar("current_db_session", default=None)
+
 # Cache lazy dei modelli con colonna tenant_id (popolata al primo uso, quando i
 # mapper sono già registrati — modelli.py importa questo modulo, quindi la
 # registry è vuota all'import di database.py).
@@ -69,7 +73,6 @@ def _get_tenant_scoped_models() -> list:
             m.class_ for m in Base.registry.mappers if hasattr(m.class_, "tenant_id")
         ]
     return _tenant_scoped_models
-
 
 @event.listens_for(SessionLocal, "do_orm_execute")
 def _tenant_filter_do_orm_execute(execute_state):

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 
 from backend.core.logger_db import (
-    _redact, _redact_text, _serialize_extra, _MAX_EXTRA_LEN, _REDACTED,
+    _redact, _redact_text, _serialize_extra, _normalize_args, _MAX_EXTRA_LEN, _REDACTED,
 )
 
 
@@ -63,3 +63,13 @@ def test_serialized_extra_has_no_password():
     data = json.loads(serialized)
     assert data["password"] == _REDACTED
     assert "SuperSegreta1!" not in serialized
+
+
+def test_tenant_id_can_be_in_extra_for_legacy_calls():
+    module, message, extra, tenant_id = _normalize_args(
+        ("AUTH", "login ok", {"tenant_id": 7, "ip": "127.0.0.1"})
+    )
+    assert module == "AUTH"
+    assert message == "login ok"
+    assert extra["tenant_id"] == 7
+    assert tenant_id == 7
