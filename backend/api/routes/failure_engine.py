@@ -5,7 +5,7 @@ from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
 from backend.core.exceptions import AppError
 from backend.core.rate_limiter import limiter
-from backend.db.modelli import Ticket, Asset, FailureMode, DiagnosticLearning, FailureAnalysis
+from backend.db.modelli import Ticket, Asset, FailureMode, DiagnosticLearning
 from backend.services.failure_engine import analyze_failure, confirm_failure_mode, classify_rpn
 from backend.services.ai.anonymization_service import anonymizer
 

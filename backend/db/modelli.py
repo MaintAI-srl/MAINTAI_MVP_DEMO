@@ -1,5 +1,4 @@
-import json
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, LargeBinary, event, Table
 from sqlalchemy.orm import relationship
 from backend.core.database import Base

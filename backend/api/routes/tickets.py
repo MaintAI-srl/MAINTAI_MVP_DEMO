@@ -13,7 +13,7 @@ from backend.schemas.ticket import TicketCreate, TicketUpdate
 from backend.core.logging_config import get_logger
 from backend.core.exceptions import AppError
 from backend.core.logger_db import log_to_db
-from backend.db.modelli import Ticket, AttivitaManutenzione, Asset, Impianto, Sito, Tecnico, TecnicoAssenza
+from backend.db.modelli import Ticket, AttivitaManutenzione, Asset, Impianto, Tecnico, TecnicoAssenza
 from sqlalchemy.orm import joinedload as _joinedload
 from backend.repositories.ticket_repository import _resolve_hierarchy
 from backend.services.condition_maintenance_service import latest_running_hours_by_asset
@@ -565,9 +565,8 @@ def export_tickets_csv(db: Session = Depends(get_db), tenant_id: int = Depends(g
     )
 
 
-import os
 import uuid
-from fastapi import UploadFile, File, HTTPException
+from fastapi import UploadFile, File
 from fastapi.responses import Response
 from backend.db.modelli import TicketAllegato
 from backend.core import storage

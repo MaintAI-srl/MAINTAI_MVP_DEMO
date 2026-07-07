@@ -6,13 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, require_roles
 from backend.repositories.asset_repository import asset_repository
 from backend.schemas.schemas import AssetCreate, AssetUpdate, GeneraAssetMultipliRequest
 from backend.db.modelli import Ticket, Asset
-from backend.core.logger_db import db_info, db_error
+from backend.core.logger_db import db_info
 
 router = APIRouter()
 

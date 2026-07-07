@@ -33,7 +33,7 @@ from sqlalchemy import func
 
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, check_tenant_ownership, require_roles
-from backend.core.logger_db import db_info, db_error
+from backend.core.logger_db import db_info
 from backend.core.file_validation import validate_upload
 from backend.db.modelli import PianoManutenzione, Ticket, AttivitaManutenzione, Asset, Manuale, piano_asset_association
 from backend.services.condition_maintenance_service import (
@@ -44,8 +44,7 @@ from backend.services.condition_maintenance_service import (
 )
 from backend.schemas.piano_manutenzione import (
     PianoManutenzioneCreate, PianoManutenzioneUpdate, PianoManutenzioneResponse,
-    PianoManutenzioneListItem, TaskCreate, TaskUpdate, TaskResponse,
-    TicketPianoAssign,
+    TaskCreate, TaskUpdate,
 )
 
 router = APIRouter()

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
 from backend.core.dependencies import get_db
 from backend.core.security import (
@@ -8,7 +7,7 @@ from backend.core.security import (
     STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE,
 )
 from backend.db.modelli import Tenant, Utente, Sito, Asset, Tecnico, Ticket
-from backend.schemas.tenant import TenantCreate, TenantUpdate, TenantResponse
+from backend.schemas.tenant import TenantCreate, TenantUpdate
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 

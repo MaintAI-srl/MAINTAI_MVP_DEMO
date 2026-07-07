@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 

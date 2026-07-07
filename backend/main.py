@@ -580,7 +580,6 @@ def _ensure_columns() -> None:
     """
 
     def _apply_to(url: str, pg: bool) -> None:
-        from sqlalchemy import create_engine, text
         ca = {"check_same_thread": False} if url.startswith("sqlite") else {}
         eng = create_engine(url, connect_args=ca)
         ifne = "IF NOT EXISTS " if pg else ""

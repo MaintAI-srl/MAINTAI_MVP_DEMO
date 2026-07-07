@@ -1,4 +1,3 @@
-import pytest
 from backend.services.ai.anonymization_service import anonymizer
 
 def test_email_redaction():

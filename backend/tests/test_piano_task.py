@@ -14,13 +14,12 @@ Copertura:
 """
 import pytest
 from datetime import datetime, timezone
-from unittest.mock import patch
 
 from backend.db.modelli import (
-    Tenant, Utente, Sito, Impianto, Asset,
+    Tenant, Utente, Asset,
     PianoManutenzione, AttivitaManutenzione, Ticket,
 )
-from backend.core.security import get_password_hash, get_current_tenant_id
+from backend.core.security import get_password_hash
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────

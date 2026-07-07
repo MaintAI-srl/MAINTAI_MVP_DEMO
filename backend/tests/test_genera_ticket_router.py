@@ -5,9 +5,7 @@ Testa il flusso reale end-to-end via TestClient, non il solo modello ORM.
 """
 import pytest
 from backend.db.modelli import (
-    Tenant, Utente, Asset, Impianto, Sito,
-    PianoManutenzione, AttivitaManutenzione, Ticket,
-    piano_asset_association,
+    Tenant, Utente, Asset, PianoManutenzione, AttivitaManutenzione, Ticket,
 )
 from backend.core.security import get_password_hash
 

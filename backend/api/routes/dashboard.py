@@ -1,12 +1,11 @@
 from datetime import date, timedelta, datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, case, distinct, text
+from sqlalchemy import func, case, distinct
 from sqlalchemy.orm import Session, joinedload
 from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id
-from backend.db.modelli import Asset, Impianto, Sito, Tecnico, Ticket, AttivitaManutenzione
+from backend.db.modelli import Asset, Impianto, Sito, Tecnico, Ticket
 
 router = APIRouter()
 
