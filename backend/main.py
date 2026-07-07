@@ -11,7 +11,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     except Exception:
         pass
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -925,9 +925,15 @@ for _router in _CORE_ROUTERS:
     app.include_router(_router)
 
 
+def _require_module_enabled(module_id: str):
+    def _dependency():
+        if not is_module_enabled(module_id):
+            raise HTTPException(status_code=404, detail="Funzionalita disattivata")
+    return _dependency
+
+
 def _include_module_router(router, module_id: str) -> None:
-    if is_module_enabled(module_id):
-        app.include_router(router)
+    app.include_router(router, dependencies=[Depends(_require_module_enabled(module_id))])
 
 
 # ── Routers legacy (senza prefisso) — mantenuti per retrocompatibilità frontend ──
@@ -989,8 +995,14 @@ _V1_ROUTERS = [
     (conditions_router, "condition_maintenance"),
 ]
 for _router, _module_id in _V1_ROUTERS:
-    if _module_id is None or is_module_enabled(_module_id):
+    if _module_id is None:
         app.include_router(_router, prefix="/v1")
+    else:
+        app.include_router(
+            _router,
+            prefix="/v1",
+            dependencies=[Depends(_require_module_enabled(_module_id))],
+        )
 
 # Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
 if not os.getenv("SUPABASE_URL"):
