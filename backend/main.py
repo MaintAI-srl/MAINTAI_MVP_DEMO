@@ -349,6 +349,9 @@ def _ensure_columns() -> None:
         ("ticket", "ricambio_quantita",        "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_quantita FLOAT"),
         # Ticket — note libere compilabili in creazione
         ("ticket", "note",                     "ALTER TABLE ticket ADD COLUMN {ifne}note TEXT"),
+        # Ticket — firma di accettazione cliente (nome firmatario + data apposizione)
+        ("ticket", "firma_nome",               "ALTER TABLE ticket ADD COLUMN {ifne}firma_nome VARCHAR"),
+        ("ticket", "firma_data",               "ALTER TABLE ticket ADD COLUMN {ifne}firma_data TIMESTAMP"),
         # Ticket — ore uomo (change request 2026-07-05)
         ("ticket", "required_man_hours",           "ALTER TABLE ticket ADD COLUMN {ifne}required_man_hours FLOAT"),
         ("ticket", "man_hours_calculation_mode",   "ALTER TABLE ticket ADD COLUMN {ifne}man_hours_calculation_mode VARCHAR DEFAULT 'manual'"),

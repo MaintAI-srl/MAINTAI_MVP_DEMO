@@ -9,7 +9,9 @@ pydantic==2.12.5
 pydantic-settings>=2.0.0
 openai>=1.0.0,<2.0.0
 python-dotenv==1.2.2
-PyPDF2==3.0.1
+# PyPDF2 è archiviato/deprecato (CVE PYSEC-2026-1835 senza fix nel pacchetto):
+# migrato al successore pypdf, stessa API PdfReader.
+pypdf==6.14.2
 pdf2image>=1.17.0
 pytest==9.0.3
 httpx==0.28.1
@@ -26,3 +28,5 @@ cryptography==48.0.1
 slowapi==0.1.9
 openpyxl==3.1.5
 segno==1.6.6
+# Generazione PDF rapportino intervento con firma (versione recente, pip-audit clean)
+reportlab==4.2.5

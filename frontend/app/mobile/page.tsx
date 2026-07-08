@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import Skeleton from "../components/Skeleton";
 import VoiceRecorder from "../components/VoiceRecorder";
 import QrScanner from "../components/QrScanner";
+import FirmaRapportinoModal from "../components/FirmaRapportinoModal";
 import {
   Mic, QrCode, ClipboardList, Home, ChevronLeft, ChevronRight,
   Camera, Check, Play, Pause, RefreshCw, AlertTriangle, Wrench,
@@ -295,8 +296,8 @@ function ActiveWorkView({
   const [savingVoice, setSavingVoice] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // QR close flow: "idle" → "scanning" → "confirm" → (close)
-  const [closeState, setCloseState] = useState<"idle" | "scanning" | "confirm">("idle");
+  // QR close flow: "idle" → "scanning" → "confirm" → "firma" → (close)
+  const [closeState, setCloseState] = useState<"idle" | "scanning" | "confirm" | "firma">("idle");
   const [qrScannedValue, setQrScannedValue] = useState("");
   // allChecked: vero se tutte le voci sono flaggate O se non ci sono voci da verificare
   const allChecked = checklist.length === 0 || checked.size === checklist.length;
@@ -325,11 +326,11 @@ function ActiveWorkView({
       notify.warning("Completa la Safety Checklist prima di terminare.", "SAFETY");
       return;
     }
-    // Propone scansione QR ma non è obbligatoria
+    // Propone scansione QR ma non è obbligatoria; poi passa alla firma cliente
     if (ticket.asset_id) {
       setCloseState("scanning");
     } else {
-      await onStatusChange(ticket.id, "Chiuso");
+      setCloseState("firma");
     }
   }
 
@@ -373,7 +374,7 @@ function ActiveWorkView({
           }}>
             <button
               className="m-press"
-              onClick={async () => { setCloseState("idle"); await onStatusChange(ticket.id, "Chiuso"); }}
+              onClick={() => setCloseState("firma")}
               style={{
                 padding: "13px 28px", borderRadius: 14,
                 background: "rgba(0,0,0,0.75)", border: `1px solid ${C.border}`,
@@ -381,7 +382,7 @@ function ActiveWorkView({
                 backdropFilter: "blur(12px)",
               }}
             >
-              Chiudi senza QR
+              Salta QR
             </button>
           </div>
         </div>
@@ -444,10 +445,7 @@ function ActiveWorkView({
               </button>
               <button
                 className="m-press"
-                onClick={async () => {
-                  setCloseState("idle");
-                  await onStatusChange(ticket.id, "Chiuso");
-                }}
+                onClick={() => setCloseState("firma")}
                 style={{
                   flex: 2, padding: 15, borderRadius: 14,
                   background: `linear-gradient(135deg, ${C.green} 0%, #209A41 100%)`,
@@ -456,11 +454,23 @@ function ActiveWorkView({
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                 }}
               >
-                <Check size={18} strokeWidth={3} /> CHIUDI INTERVENTO
+                <Check size={18} strokeWidth={3} /> FIRMA CLIENTE
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Firma cliente + rapportino PDF ─────────────────────────────────── */}
+      {closeState === "firma" && (
+        <FirmaRapportinoModal
+          ticketId={ticket.id}
+          mode="download"
+          onClose={() => setCloseState("idle")}
+          onDone={async () => { await onStatusChange(ticket.id, "Chiuso"); }}
+          onSkip={async () => { await onStatusChange(ticket.id, "Chiuso"); }}
+          skipLabel="Chiudi senza firma"
+        />
       )}
 
       {/* ── Top bar compatta ── */}

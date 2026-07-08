@@ -207,6 +207,9 @@ class Ticket(Base):
     parent_id = Column(Integer, ForeignKey("ticket.id"), nullable=True)
     diagnosi_eseguita = Column(Boolean, default=False)
     firma_percorso = Column(String, nullable=True)
+    # Firma di accettazione cliente: nome del firmatario e data/ora di apposizione.
+    firma_nome = Column(String, nullable=True)
+    firma_data = Column(DateTime, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Campi splitting/pianificazione AI (FASE 6)
