@@ -738,8 +738,13 @@ async def upload_ticket_firma(
 
     internal_path = storage.save_file(content, filename)
     ticket.firma_percorso = internal_path
+
+    # Nome del firmatario (cliente) e data di apposizione della firma
+    nome = (data.get("nome") or "").strip()
+    ticket.firma_nome = nome[:200] if nome else None
+    ticket.firma_data = datetime.now(timezone.utc)
     db.commit()
-    return {"url": f"/tickets/{ticket_id}/firma"}
+    return {"url": f"/tickets/{ticket_id}/firma", "firma_nome": ticket.firma_nome}
 
 
 @router.get("/tickets/{ticket_id}/firma")
@@ -776,5 +781,87 @@ def get_ticket_firma(
         "Cache-Control": "private, no-store",
     }
     return Response(content=content, media_type="image/png", headers=headers)
+
+
+@router.get("/tickets/{ticket_id}/rapportino.pdf")
+def get_ticket_rapportino_pdf(
+    ticket_id: int,
+    download: bool = Query(False),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Genera il PDF "Rapportino di Intervento" del ticket, con l'eventuale firma
+    di accettazione del cliente. Tenant-scoped e autenticato.
+
+    `download=true` forza il download (Content-Disposition attachment),
+    altrimenti il PDF è servito inline (utile per la stampa da desktop).
+    """
+    from backend.db.modelli import Tenant
+    from backend.services.ticket_pdf_service import build_ticket_report_pdf
+
+    ticket = (
+        db.query(Ticket)
+        .options(
+            _joinedload(Ticket.asset),
+            _joinedload(Ticket.tecnico),
+        )
+        .filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id)
+        .first()
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+
+    tenant = db.query(Tenant).filter(Tenant.id == ticket.tenant_id).first()
+
+    tecnico_nome = None
+    if ticket.tecnico:
+        tecnico_nome = f"{ticket.tecnico.nome or ''} {getattr(ticket.tecnico, 'cognome', '') or ''}".strip()
+
+    ticket_data = {
+        "id": ticket.id,
+        "azienda": tenant.nome if tenant else "MaintAI",
+        "titolo": ticket.titolo,
+        "tipo": ticket.tipo,
+        "priorita": ticket.priorita,
+        "stato": ticket.stato,
+        "sito_name": ticket.sito_name,
+        "impianto_name": ticket.impianto_name,
+        "asset_nome": ticket.asset.nome if ticket.asset else None,
+        "asset_codice": ticket.asset.codice if ticket.asset else None,
+        "tecnico_nome": tecnico_nome,
+        "execution_start": ticket.execution_start,
+        "execution_finish": ticket.execution_finish,
+        "durata_stimata_ore": ticket.durata_stimata_ore,
+        "required_man_hours": ticket.required_man_hours,
+        "descrizione": ticket.descrizione,
+        "note": ticket.note,
+        "ricambio_note": ticket.ricambio_note,
+        "ricambio_quantita": ticket.ricambio_quantita,
+        "firma_nome": ticket.firma_nome,
+        "firma_data": ticket.firma_data,
+    }
+
+    firma_png = None
+    if ticket.firma_percorso:
+        try:
+            firma_png = storage.read_file(ticket.firma_percorso)
+        except (FileNotFoundError, ValueError) as exc:
+            logger.warning("Rapportino ticket %d: firma non leggibile: %s", ticket_id, exc)
+
+    try:
+        pdf_bytes = build_ticket_report_pdf(ticket_data, firma_png)
+    except Exception as exc:
+        logger.error("Errore generazione PDF rapportino ticket %d: %s", ticket_id, exc)
+        raise HTTPException(status_code=500, detail="Errore nella generazione del PDF")
+
+    disposition = "attachment" if download else "inline"
+    filename = f"rapportino_ticket_{ticket_id}.pdf"
+    headers = {
+        "Content-Disposition": f'{disposition}; filename="{filename}"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+    }
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
 

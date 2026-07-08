@@ -150,6 +150,54 @@ export function apiDelete<T>(path: string, options?: RequestOptions): Promise<T>
   return request<T>("DELETE", path, undefined, options);
 }
 
+/**
+ * Scarica un endpoint binario (es. PDF) come Blob, con la stessa autenticazione
+ * degli altri fetch (cookie HttpOnly su web, Bearer su Tauri) e l'header
+ * X-Tenant-Id per il contesto superadmin.
+ */
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutForPath(path));
+
+  const extraHeaders: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const tenantContext = localStorage.getItem("maintai_tenant_context");
+    if (tenantContext) extraHeaders["X-Tenant-Id"] = tenantContext;
+    if (isTauri()) {
+      const token = getTauriToken();
+      if (token) extraHeaders["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "GET",
+      credentials: "include",
+      headers: extraHeaders,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    if (!res.ok) {
+      if (res.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("maintai:unauthorized"));
+      }
+      let message = `HTTP ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err?.detail) message = Array.isArray(err.detail) ? err.detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join("; ") : String(err.detail);
+      } catch { /* body non JSON */ }
+      throw new Error(message);
+    }
+    return res.blob();
+  } catch (error: unknown) {
+    clearTimeout(id);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Il server ha impiegato troppo tempo a rispondere. Riprova.");
+    }
+    throw error;
+  }
+}
+
 /** Helper per upload multipart (no Content-Type automatico, il browser lo imposta) */
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   const controller = new AbortController();

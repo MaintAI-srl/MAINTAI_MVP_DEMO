@@ -9,6 +9,8 @@ import { SkeletonTable } from "../components/Skeleton";
 import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
+import FirmaRapportinoModal from "../components/FirmaRapportinoModal";
+import { consegnaRapportino } from "../lib/rapportino";
 import { DataTable, dateRangeFilterFn, type ColumnDef } from "@/components/ui/data-table";
 import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -338,6 +340,8 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   const [showAssetDialog, setShowAssetDialog] = useState(false);
   const [showEliminaDialog, setShowEliminaDialog] = useState(false);
   const [eliminaNote, setEliminaNote] = useState("");
+  const [showFirmaModal, setShowFirmaModal] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   // Automazione: Cambio Stato
   function handleStatoChange(s: string) {
@@ -718,12 +722,46 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         >
           🗑 Elimina
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => setShowFirmaModal(true)}
+          style={{ borderColor: "rgba(99,102,241,0.4)", color: "#818cf8" }}
+          title="Fai firmare il cliente e stampa il rapportino PDF"
+        >
+          ✍️ Firma cliente
+        </Button>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            setPdfBusy(true);
+            try {
+              await consegnaRapportino(ticket.id, "print");
+            } catch (e) {
+              notify.error(e instanceof Error ? e.message : "Errore generazione PDF");
+            } finally {
+              setPdfBusy(false);
+            }
+          }}
+          disabled={pdfBusy}
+          style={{ borderColor: "var(--border-default)", color: "var(--text-soft)" }}
+          title="Stampa il rapportino PDF (con la firma già acquisita, se presente)"
+        >
+          {pdfBusy ? "PDF…" : "🖨 Stampa PDF"}
+        </Button>
         <Button variant="outline" onClick={onClose} style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>Annulla</Button>
         <Button onClick={handleSave} disabled={saving}
           style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)", minWidth: 120, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}>
           {saving ? "Salvataggio…" : "Salva Modifiche"}
         </Button>
       </div>
+
+      {showFirmaModal && (
+        <FirmaRapportinoModal
+          ticketId={ticket.id}
+          mode="print"
+          onClose={() => setShowFirmaModal(false)}
+        />
+      )}
 
       {/* Sub-modal: motivo eliminazione */}
       {showEliminaDialog && (

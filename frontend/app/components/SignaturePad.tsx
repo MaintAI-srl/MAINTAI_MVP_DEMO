@@ -5,9 +5,16 @@ import { useRef, useState, useEffect, useCallback } from "react";
 type Props = {
   onSave: (base64: string) => void;
   onCancel: () => void;
+  /** Testo dell'intestazione (default: firma tecnico). */
+  title?: string;
+  /** Colore dell'inchiostro. Default bianco per contesti UI scuri.
+   *  Per la firma da inserire nel PDF usare un colore scuro (es. #111827). */
+  inkColor?: string;
+  /** Sfondo chiaro dell'area di firma (simula il foglio da firmare). */
+  light?: boolean;
 };
 
-export default function SignaturePad({ onSave, onCancel }: Props) {
+export default function SignaturePad({ onSave, onCancel, title, inkColor = "#ffffff", light = false }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -34,11 +41,11 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
     // Scala il contesto: ora possiamo disegnare in coordinate CSS e
     // il canvas gestisce internamente la moltiplicazione per DPR
     ctx.scale(dpr, dpr);
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = inkColor;
     ctx.lineWidth   = 2.5;
     ctx.lineCap     = "round";
     ctx.lineJoin    = "round";
-  }, []);
+  }, [inkColor]);
 
   // Aspetta che il layout sia completato prima di inizializzare
   useEffect(() => {
@@ -101,7 +108,7 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
         textAlign: "center", fontWeight: 700, letterSpacing: "0.08em",
         textTransform: "uppercase",
       }}>
-        ✍️ Firma tecnico per accettazione
+        {title ?? "✍️ Firma tecnico per accettazione"}
       </div>
 
       {/* Area firma — altezza fissa in CSS, width 100% */}
@@ -110,10 +117,10 @@ export default function SignaturePad({ onSave, onCancel }: Props) {
         style={{
           width: "100%", height: 160,
           borderRadius: 10, overflow: "hidden",
-          background: "rgba(0,0,0,0.45)",
+          background: light ? "#ffffff" : "rgba(0,0,0,0.45)",
           border: hasDrawn
             ? "1px solid rgba(99,102,241,0.55)"
-            : "1px dashed rgba(255,255,255,0.18)",
+            : light ? "1px dashed rgba(0,0,0,0.25)" : "1px dashed rgba(255,255,255,0.18)",
           transition: "border-color 0.2s",
           position: "relative",
         }}
