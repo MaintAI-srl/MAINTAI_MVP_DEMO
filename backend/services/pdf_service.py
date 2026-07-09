@@ -1,5 +1,4 @@
 import io
-from pypdf import PdfReader
 
 
 def normalize_text(text: str) -> str:
@@ -7,6 +6,12 @@ def normalize_text(text: str) -> str:
 
 
 def read_pdf_text(content: bytes):
+    # Import lazy di pypdf: se la libreria non è installata NON deve far fallire
+    # l'import del modulo (che è caricato all'avvio da manuali.py e quindi
+    # tirerebbe giù l'intero backend). Come per pdf2image sotto, l'assenza
+    # degrada solo la funzione PDF, non tutta l'app.
+    from pypdf import PdfReader
+
     reader = PdfReader(io.BytesIO(content))
     parts = []
     for page in reader.pages:
