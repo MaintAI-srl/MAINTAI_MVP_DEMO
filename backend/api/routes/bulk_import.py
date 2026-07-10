@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -26,7 +26,11 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_db
 from backend.core.security import require_superadmin
 from backend.core.file_validation import validate_upload
-from backend.db.modelli import Asset, Attestato, AttivitaManutenzione, Impianto, PianoManutenzione, Sito, Tecnico
+from backend.db.modelli import (
+    Asset, Attestato, AttivitaManutenzione, Impianto, PianoManutenzione,
+    Sito, Tecnico, Ticket,
+)
+from backend.services.man_hours import calculate_required_man_hours
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +129,25 @@ CORSI_COLS: List[tuple] = [
     ("note", False, "Note", "Aggiornamento biennale"),
 ]
 
+TICKET_COLS: List[tuple] = [
+    ("titolo",               True,  "Titolo/sintesi del ticket (obbligatorio)",                          "Sostituzione cuscinetto pompa"),
+    ("asset_nome",           False, "Nome asset esistente (o usa asset_codice / asset_id)",               "Compressore C-01"),
+    ("asset_codice",         False, "Codice asset esistente",                                            "COMP-001"),
+    ("asset_id",             False, "ID asset esistente, se noto",                                       "12"),
+    ("tipo",                 False, "BD / PM / CM / ISP / MOD-STR (default: CM)",                         "CM"),
+    ("priorita",             False, "Alta / Media / Bassa (default: Media)",                             "Media"),
+    ("stato",                False, "Aperto / Pianificato / In corso / Chiuso (default: Aperto)",         "Aperto"),
+    ("durata_stimata_ore",   False, "Durata stimata in ore (default: 1)",                                "2"),
+    ("fascia_oraria",        False, "mattina / pomeriggio / notte (default: mattina)",                   "mattina"),
+    ("tecnici_richiesti",    False, "Numero tecnici richiesti (default: 1)",                             "1"),
+    ("tecnico_nome",         False, "Nome tecnico da assegnare (opzionale)",                             "Luca"),
+    ("tecnico_cognome",      False, "Cognome tecnico da assegnare (con tecnico_nome)",                   "Bianchi"),
+    ("competenza_richiesta", False, "Competenza richiesta (es. MECCANICO / ELETTRICISTA)",               "MECCANICO"),
+    ("data_pianificata",     False, "Data/ora pianificata YYYY-MM-DD HH:MM (obbligatoria se stato=Pianificato)", "2026-07-15 08:00"),
+    ("descrizione",          False, "Descrizione estesa del problema/intervento",                        "Rumore anomalo lato NDE"),
+    ("note",                 False, "Note libere",                                                       "Ricambio gia' a magazzino"),
+]
+
 SINGLE_IMPORTS: dict[str, dict[str, Any]] = {
     "siti": {"label": "Siti", "sheet": "SITI", "cols": SITI_COLS, "filename": "maintai_template_siti.xlsx"},
     "impianti": {"label": "Impianti", "sheet": "IMPIANTI", "cols": IMPIANTI_COLS, "filename": "maintai_template_impianti.xlsx"},
@@ -132,6 +155,18 @@ SINGLE_IMPORTS: dict[str, dict[str, Any]] = {
     "tecnici": {"label": "Tecnici", "sheet": "TECNICI", "cols": TECNICI_COLS, "filename": "maintai_template_tecnici.xlsx"},
     "piani_manutenzione": {"label": "Piani di manutenzione", "sheet": "PIANI", "cols": PIANI_COLS, "filename": "maintai_template_piani_manutenzione.xlsx"},
     "corsi_attestati": {"label": "Corsi e attestati", "sheet": "CORSI", "cols": CORSI_COLS, "filename": "maintai_template_corsi_attestati.xlsx"},
+    "ticket": {"label": "Ticket", "sheet": "TICKET", "cols": TICKET_COLS, "filename": "maintai_template_ticket.xlsx"},
+}
+
+# ── Valori ammessi per i ticket (validazione bulk) ────────────────────────────
+TICKET_TIPI_VALIDI = {"BD", "PM", "CM", "ISP", "MOD-STR"}
+TICKET_PRIORITA_VALIDE = {"alta", "media", "bassa"}
+# In inserimento massivo si creano solo ticket "vivi": Eliminato è escluso.
+_TICKET_STATI_MAP = {
+    "aperto": "Aperto",
+    "pianificato": "Pianificato",
+    "in corso": "In corso",
+    "chiuso": "Chiuso",
 }
 
 HIERARCHY_TYPES = {"gerarchia", "siti_impianti_asset", "siti-impianti-asset", "hierarchy"}
@@ -722,6 +757,48 @@ def _validate_single_rows(import_type: str, rows: List[Dict], db: Session, tenan
             errors.append(f"Riga {row_num}: asset non trovato (usa asset_id, asset_codice o asset_nome esistente)")
         elif import_type == "corsi_attestati" and not _find_tecnico(db, tenant_id, row):
             errors.append(f"Riga {row_num}: tecnico non trovato (usa tecnico_id o nome/cognome esistente)")
+        elif import_type == "ticket":
+            errors.extend(_validate_ticket_row(row, row_num, db, tenant_id))
+    return errors
+
+
+def _validate_ticket_row(row: Dict[str, Any], row_num: Any, db: Session, tenant_id: int) -> List[str]:
+    """Validazione di una singola riga ticket per l'import massivo."""
+    errors: List[str] = []
+    if not _find_asset(db, tenant_id, row):
+        errors.append(f"Riga {row_num}: asset non trovato (usa asset_nome, asset_codice o asset_id esistente)")
+
+    tipo = row.get("tipo")
+    if tipo and tipo.strip().upper() not in TICKET_TIPI_VALIDI:
+        errors.append(f"Riga {row_num}: tipo '{tipo}' non valido (BD / PM / CM / ISP / MOD-STR)")
+
+    prio = row.get("priorita")
+    if prio and prio.strip().lower() not in TICKET_PRIORITA_VALIDE:
+        errors.append(f"Riga {row_num}: priorita '{prio}' non valida (Alta / Media / Bassa)")
+
+    stato_raw = row.get("stato")
+    stato = _normalize_ticket_stato(stato_raw)
+    if stato is None:
+        errors.append(f"Riga {row_num}: stato '{stato_raw}' non valido (Aperto / Pianificato / In corso / Chiuso)")
+    elif stato == "Pianificato" and not _to_datetime(row.get("data_pianificata")):
+        errors.append(f"Riga {row_num}: stato Pianificato richiede 'data_pianificata' valida (YYYY-MM-DD HH:MM)")
+
+    dur_raw = row.get("durata_stimata_ore")
+    if dur_raw is not None:
+        dur = _to_float(dur_raw)
+        if dur is None or dur <= 0:
+            errors.append(f"Riga {row_num}: durata_stimata_ore '{dur_raw}' non valida (numero > 0)")
+
+    tec_raw = row.get("tecnici_richiesti")
+    if tec_raw is not None:
+        tec = _to_int(tec_raw)
+        if tec is None or tec < 1:
+            errors.append(f"Riga {row_num}: tecnici_richiesti '{tec_raw}' non valido (intero >= 1)")
+
+    if row.get("tecnico_nome") and not _find_tecnico(db, tenant_id, row):
+        nome_tec = f"{row.get('tecnico_nome')} {row.get('tecnico_cognome') or ''}".strip()
+        errors.append(f"Riga {row_num}: tecnico '{nome_tec}' non trovato nel tenant")
+
     return errors
 
 
@@ -906,6 +983,48 @@ def _execute_single_import(import_type: str, rows: List[Dict], tenant_id: int, d
                 note=row.get("note"),
             ))
             stats["attestati_creati"] += 1
+
+    elif import_type == "ticket":
+        stats = {"ticket_creati": 0}
+        for row in rows:
+            asset = _find_asset(db, tenant_id, row)
+            tecnico = _find_tecnico(db, tenant_id, row) if row.get("tecnico_nome") else None
+
+            durata = _to_float(row.get("durata_stimata_ore")) or 1.0
+            tecnici_richiesti = _to_int(row.get("tecnici_richiesti")) or 1
+            stato = _normalize_ticket_stato(row.get("stato")) or "Aperto"
+            planned_start = _to_datetime(row.get("data_pianificata"))
+            planned_finish = planned_start + timedelta(hours=durata) if planned_start else None
+            competenza = (row.get("competenza_richiesta") or "").strip().upper() or None
+
+            ticket = Ticket(
+                titolo=row["titolo"].strip(),
+                asset_id=asset.id if asset else None,
+                tipo=_normalize_tipo_ticket(row.get("tipo")),
+                priorita=_normalize_priorita(row.get("priorita")),
+                stato=stato,
+                durata_stimata_ore=durata,
+                fascia_oraria=(row.get("fascia_oraria") or "mattina").strip().lower(),
+                descrizione=row.get("descrizione"),
+                note=row.get("note"),
+                tecnico_id=tecnico.id if tecnico else None,
+                tecnici_richiesti=tecnici_richiesti,
+                required_man_hours=calculate_required_man_hours(durata, tecnici_richiesti),
+                man_hours_calculation_mode="auto",
+                competenza_richiesta=competenza,
+                planned_start=planned_start,
+                planned_finish=planned_finish,
+                origine_piano="excel",
+                origin_type="manual",
+                tenant_id=tenant_id,
+            )
+            # Denormalizza gerarchia Asset → Impianto → Sito
+            if asset and asset.impianto:
+                ticket.impianto_name = asset.impianto.nome
+                if asset.impianto.sito:
+                    ticket.sito_name = asset.impianto.sito.nome
+            db.add(ticket)
+            stats["ticket_creati"] += 1
 
     return stats
 
@@ -1158,6 +1277,38 @@ def _to_bool(val: Optional[str]) -> bool:
     if not val:
         return False
     return str(val).strip().upper() in ("SI", "SÌ", "YES", "1", "TRUE", "VERO")
+
+
+def _to_datetime(val: Optional[str]) -> Optional[datetime]:
+    if not val:
+        return None
+    s = str(val).strip()
+    for fmt in (
+        "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S",
+        "%d/%m/%Y %H:%M", "%d-%m-%Y %H:%M", "%Y-%m-%d",
+    ):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _normalize_tipo_ticket(val: Optional[str]) -> str:
+    v = (val or "CM").strip().upper()
+    return v if v in TICKET_TIPI_VALIDI else "CM"
+
+
+def _normalize_priorita(val: Optional[str]) -> str:
+    v = (val or "media").strip().lower()
+    return v.capitalize() if v in TICKET_PRIORITA_VALIDE else "Media"
+
+
+def _normalize_ticket_stato(val: Optional[str]) -> Optional[str]:
+    """Mappa lo stato ticket alla forma canonica. Vuoto → 'Aperto', non valido → None."""
+    if val is None or not str(val).strip():
+        return "Aperto"
+    return _TICKET_STATI_MAP.get(str(val).strip().lower())
 
 
 def _normalize_criticita(val: Optional[str]) -> str:
