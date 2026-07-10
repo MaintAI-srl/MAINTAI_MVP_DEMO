@@ -39,6 +39,7 @@ const FALLBACK_TEMPLATES: TemplateInfo[] = [
   { id: "tecnici", label: "Tecnici", description: "Anagrafica tecnici e disponibilita.", filename: "maintai_template_tecnici.xlsx" },
   { id: "piani_manutenzione", label: "Piani di manutenzione", description: "Piani e task ricorrenti collegati ad asset.", filename: "maintai_template_piani_manutenzione.xlsx" },
   { id: "corsi_attestati", label: "Corsi e attestati", description: "Attestati e scadenze formazione tecnici.", filename: "maintai_template_corsi_attestati.xlsx" },
+  { id: "ticket", label: "Ticket", description: "Ticket di manutenzione collegati ad asset esistenti.", filename: "maintai_template_ticket.xlsx" },
 ];
 
 export default function BulkImportPage() {
