@@ -1071,7 +1071,11 @@ for _router, _module_id in _V1_ROUTERS:
             dependencies=[Depends(_require_module_enabled(_module_id))],
         )
 
-# Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
-if not os.getenv("SUPABASE_URL"):
+# Mount cartella statica solo in sviluppo locale (in cloud i file sono su Supabase Storage).
+# NB: il mount serve i file SENZA autenticazione né isolamento tenant — in produzione
+# (anche senza Supabase, es. Render con disco locale) resta vietato: gli allegati e le
+# firme vanno serviti solo dagli endpoint autenticati /tickets/allegati/{id}/download
+# e /tickets/{id}/firma.
+if not os.getenv("SUPABASE_URL") and not IS_PRODUCTION:
     os.makedirs("uploads", exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
