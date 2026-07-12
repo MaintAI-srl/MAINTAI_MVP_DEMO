@@ -21,6 +21,7 @@ from backend.core.logger_db import db_info, db_error
 from backend.db.modelli import GeneratedPlan, Ticket, Asset, Tecnico, Tenant, PlannerFeedback
 from datetime import date as date_type
 from backend.services.ai_planner_service import generate_ai_plan, calculate_plan_efficiency
+from backend.services.ai.planning_agent_service import generate_agent_plan
 from backend.services.planner_engine_bridge import generate_deterministic_plan
 from backend.services.auto_scheduler_bridge import generate_auto_schedule_plan
 from backend.services.rolling_planner_engine import (
@@ -56,7 +57,7 @@ def _today_local() -> date_type:
 class GeneratePlanRequest(BaseModel):
     days: int = 7
     asset_ids: Optional[List[int]] = None
-    mode: str = "auto"   # "deterministic" | "ai" | "auto"
+    mode: str = "auto"   # "deterministic" | "ai" | "agent" | "auto"
     include_weekends: bool = False
     allow_overtime: bool = False
 
@@ -366,16 +367,18 @@ async def generate_plan(
     - mode="deterministic" / "auto": usa il motore di auto-scheduling deterministico
       (saturazione ore, nessuna chiamata AI). È la modalità "Generazione piano".
     - mode="ai": motore GPT (Felix), disattivato salvo AI_PLANNING_ENABLED=true.
+    - mode="agent": Felix Agent (OpenAI Agents SDK, tool-loop con baseline
+      deterministica e auto-valutazione), stesso flag AI_PLANNING_ENABLED.
     """
     import os
     planning_start_date = _planning_today()
 
-    # AI disattivata per ora: solo "ai" usa il motore GPT (dietro flag); qualsiasi
+    # AI disattivata per ora: solo "ai"/"agent" usano OpenAI (dietro flag); qualsiasi
     # altro valore ("auto", "deterministic", o sconosciuto) → motore deterministico.
-    effective_mode = "ai" if data.mode == "ai" else "deterministic"
+    effective_mode = data.mode if data.mode in ("ai", "agent") else "deterministic"
 
     # ── FEATURE FLAG: la generazione AI resta dietro flag (gli altri motori no) ─
-    if effective_mode == "ai" and os.getenv("AI_PLANNING_ENABLED", "false").lower() != "true":
+    if effective_mode in ("ai", "agent") and os.getenv("AI_PLANNING_ENABLED", "false").lower() != "true":
         raise HTTPException(
             status_code=503,
             detail="La generazione AI del piano è temporaneamente disattivata.",
@@ -404,7 +407,8 @@ async def generate_plan(
                 db_error("PLANNING", f"Errore motore auto-scheduling: {msg}", tenant_id=tenant_id)
                 raise HTTPException(status_code=500, detail=f"Errore motore auto-scheduling: {msg}")
         else:
-            plan_json = await generate_ai_plan(
+            ai_generator = generate_agent_plan if effective_mode == "agent" else generate_ai_plan
+            plan_json = await ai_generator(
                 db=db,
                 days=data.days,
                 asset_ids=data.asset_ids,
