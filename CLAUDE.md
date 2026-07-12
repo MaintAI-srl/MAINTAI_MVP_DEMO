@@ -190,14 +190,23 @@ frontend/app/
 
 ## Piano AI Felix — dettaglio
 
-### Due motori intercambiabili
+### Tre motori intercambiabili
 | Parametro `mode` | Motore | Velocità | Requisiti |
 |---|---|---|---|
 | `"deterministic"` | `PlannerEngine` | istantaneo | nessuno |
-| `"ai"` | OpenAI GPT | 30-120s | `OPENAI_API_KEY` |
-| `"auto"` (default) | deterministico se no key, AI se key presente | — | — |
+| `"ai"` | OpenAI GPT | 30-120s | `OPENAI_API_KEY` + `AI_PLANNING_ENABLED=true` |
+| `"agent"` | Felix Agent (OpenAI Agents SDK, `planning_agent_service.py`) | 30-120s | `OPENAI_API_KEY` + `AI_PLANNING_ENABLED=true` + pacchetto `openai-agents` |
+| `"auto"` (default) | deterministico | — | — |
 
-### Formato `plan_json` (identico per entrambi i motori)
+**Felix Agent** (`backend/services/ai/planning_agent_service.py`): agente tool-loop
+che parte dal piano baseline del `PlannerEngine`, lo migliora (meteo, logistica,
+bilanciamento PM/CM, buffer reattivo) e si auto-valuta con il tool `valuta_piano`
+(vincoli hard + efficiency score). I tool operano solo su un contesto in-memoria
+pre-filtrato per tenant (nessun accesso DB dall'LLM); i dati sono anonimizzati e
+il tracing SDK è disabilitato. In caso di errore degrada al piano deterministico
+con warning (`plan_metadata.agent_fallback=true`).
+
+### Formato `plan_json` (identico per tutti i motori)
 ```json
 {
   "planned_workorders": [

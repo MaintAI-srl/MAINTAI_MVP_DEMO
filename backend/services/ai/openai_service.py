@@ -1,6 +1,6 @@
 import logging
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from backend.core.config import OPENAI_API_KEY, OPENAI_MODEL
 
@@ -20,6 +20,18 @@ def get_openai_client() -> OpenAI:
 
     return OpenAI(api_key=OPENAI_API_KEY)
 
+
+
+def get_async_openai_client() -> AsyncOpenAI:
+    """
+    Variante asincrona del client OpenAI — usata da Felix Agent (OpenAI Agents SDK).
+    Stesse garanzie privacy di get_openai_client.
+    """
+    if not OPENAI_API_KEY:
+        logger.warning("OPENAI_API_KEY non configurata — feature AI non disponibili")
+        raise RuntimeError("OPENAI_API_KEY non configurata. Impostare la variabile d'ambiente OPENAI_API_KEY su Render.")
+
+    return AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 
 def get_openai_model() -> str:

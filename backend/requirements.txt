@@ -7,7 +7,10 @@ sqlalchemy==2.0.48
 alembic==1.18.4
 pydantic==2.12.5
 pydantic-settings>=2.0.0
-openai>=1.0.0,<2.0.0
+openai>=1.87.0,<2.0.0
+# Felix Agent (pianificazione ticket) — OpenAI Agents SDK.
+# Pin <0.3: le release 0.3+ richiedono openai>=2.x, in conflitto col pin sopra.
+openai-agents>=0.2,<0.3
 python-dotenv==1.2.2
 # PyPDF2 è archiviato/deprecato (CVE PYSEC-2026-1835 senza fix nel pacchetto):
 # migrato al successore pypdf, stessa API PdfReader.
