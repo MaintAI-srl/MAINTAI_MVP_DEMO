@@ -127,6 +127,12 @@ export interface PlanMetadata {
   planning_end_date?: string;
   include_weekends?: boolean;
   workday_end_hour?: number;
+  // Metadati Felix Agent (mode="agent" — OpenAI Agents SDK)
+  agent_engine?: string;
+  agent_turns?: number;
+  agent_evaluations?: number;
+  agent_fallback?: boolean;
+  agent_fallback_reason?: string | null;
 }
 
 export interface SchedulingSummaryTech {
