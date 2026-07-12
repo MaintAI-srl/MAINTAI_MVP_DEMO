@@ -702,7 +702,8 @@ async def generate_agent_plan(
         )
         logger.info(
             "Felix Agent: avvio run — tenant=%s, %d ticket, %d tecnici, orizzonte %d gg",
-            tenant_id, len(ctx.tickets), len(ctx.tecnici), days,
+            int(tenant_id) if tenant_id is not None else "-",
+            len(ctx.tickets), len(ctx.tecnici), int(days),
         )
         run_result = await Runner.run(agent, input=prompt, max_turns=AGENT_MAX_TURNS)
         output: AgentPlanOutput = run_result.final_output
