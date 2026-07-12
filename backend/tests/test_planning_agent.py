@@ -9,11 +9,13 @@ from datetime import date, timedelta
 from backend.services.ai.planning_agent_service import (
     AgentPlanOutput,
     PlanningAgentContext,
+    _finalize_plan,
     build_planner_inputs_from_context,
     evaluate_candidate_plan,
     run_baseline_from_context,
     sanitize_agent_plan,
 )
+from backend.services.planner_engine import PlannerTicket, _ticket_priority_score
 
 
 def _next_monday() -> date:
@@ -228,6 +230,69 @@ def test_sanitize_removes_unknown_locked_and_duplicates():
     # fermo_assets con trigger non pianificato viene scartato
     assert out["fermo_assets"] == []
     assert any("rimossi" in w for w in out["global_warnings"])
+
+
+def test_mod_str_is_scored_between_isp_and_pm():
+    """MOD-STR deve essere valutato dal planner con peso esplicito (BD>CM>PM>MOD-STR>ISP)."""
+    today = date.today()
+
+    def score(tipo: str) -> float:
+        return _ticket_priority_score(
+            PlannerTicket(id=1, impianto_id=None, priorita="Media", tipo=tipo, durata_stimata_ore=2.0),
+            today,
+        )
+
+    assert score("BD") > score("CM") > score("PM") > score("MOD-STR") > score("ISP")
+
+
+def test_finalize_warns_on_split_ticket_with_mixed_technicians():
+    """I frammenti di un ticket spezzato su tecnici diversi devono produrre un warning."""
+    ctx = _make_ctx()
+    d0, d1 = ctx.horizon_dates[0], ctx.horizon_dates[1]
+    plan = {
+        "planned_workorders": [
+            {"wo_id": 1, "technician_id": 100, "planned_date": d0, "duration_hours": 2.0,
+             "is_continuation": False, "parent_wo_id": None},
+            {"wo_id": 1, "technician_id": 200, "planned_date": d1, "duration_hours": 2.0,
+             "is_continuation": True, "parent_wo_id": 1},
+        ],
+        "deferred_workorders": [{"wo_id": 2, "reason": "test"}],
+        "fermo_assets": [],
+        "global_warnings": [],
+    }
+    out = _finalize_plan(ctx, plan, {})
+    assert any("più tecnici" in w and "#1" in w for w in out["global_warnings"])
+
+
+def test_finalize_no_warning_when_split_keeps_same_technician():
+    ctx = _make_ctx()
+    d0, d1 = ctx.horizon_dates[0], ctx.horizon_dates[1]
+    plan = {
+        "planned_workorders": [
+            {"wo_id": 1, "technician_id": 100, "planned_date": d0, "duration_hours": 2.0,
+             "is_continuation": False, "parent_wo_id": None},
+            {"wo_id": 1, "technician_id": 100, "planned_date": d1, "duration_hours": 2.0,
+             "is_continuation": True, "parent_wo_id": 1},
+        ],
+        "deferred_workorders": [{"wo_id": 2, "reason": "test"}],
+        "fermo_assets": [],
+        "global_warnings": [],
+    }
+    out = _finalize_plan(ctx, plan, {})
+    assert not any("più tecnici" in w for w in out["global_warnings"])
+
+
+def test_violation_messages_use_ticket_terminology():
+    """In MaintAI le unità di lavoro sono ticket: i messaggi non devono dire 'WO'."""
+    ctx = _make_ctx()
+    result = evaluate_candidate_plan(
+        ctx,
+        [{"wo_id": 777, "technician_id": 100, "planned_date": ctx.horizon_dates[0], "duration_hours": 1.0}],
+        [],
+    )
+    assert result["violazioni"]
+    for v in result["violazioni"]:
+        assert v.startswith("Ticket #"), v
 
 
 def test_agent_output_model_matches_plan_json_shape():
