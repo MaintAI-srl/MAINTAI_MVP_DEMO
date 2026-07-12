@@ -56,12 +56,24 @@ def _get_asset_or_404(db: Session, asset_id: int, tenant_id: int) -> Asset:
     return asset
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Normalizza un datetime a UTC-aware.
+
+    SQLite (DB demo) e le colonne TIMESTAMP senza timezone create dal fallback
+    `_ensure_columns` restituiscono datetime naive: confrontarli con
+    `datetime.now(timezone.utc)` solleva TypeError e trasforma in 500 gli
+    endpoint pubblici QR. I valori sono scritti sempre in UTC, quindi un naive
+    va interpretato come UTC.
+    """
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
 def _check_token_valid(check: CheckPrimoLivello) -> None:
     """Verifica che il token sia attivo e non scaduto. Solleva HTTP 404 in caso contrario."""
     token_active = check.token_active if check.token_active is not None else True
     if not token_active:
         raise HTTPException(status_code=404, detail="Checklist non disponibile")
-    if check.token_expires_at and check.token_expires_at < datetime.now(timezone.utc):
+    if check.token_expires_at and _as_utc(check.token_expires_at) < datetime.now(timezone.utc):
         raise HTTPException(status_code=404, detail="Checklist non disponibile")
 
 

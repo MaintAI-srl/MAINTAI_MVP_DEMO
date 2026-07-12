@@ -28,7 +28,7 @@ from backend.core.security import require_superadmin
 from backend.core.file_validation import validate_upload
 from backend.db.modelli import (
     Asset, Attestato, AttivitaManutenzione, Impianto, PianoManutenzione,
-    Sito, Tecnico, Ticket,
+    Sito, Tecnico, Tenant, Ticket,
 )
 from backend.services.man_hours import calculate_required_man_hours
 
@@ -170,6 +170,16 @@ _TICKET_STATI_MAP = {
 }
 
 HIERARCHY_TYPES = {"gerarchia", "siti_impianti_asset", "siti-impianti-asset", "hierarchy"}
+
+
+def _require_tenant(db: Session, tenant_id: int) -> None:
+    """Verifica che il tenant di destinazione esista.
+
+    Senza questo check un tenant_id inesistente produce dati orfani (SQLite,
+    FK non applicate) o un 500 criptico da violazione FK al commit (PostgreSQL).
+    """
+    if not db.query(Tenant.id).filter(Tenant.id == tenant_id).first():
+        raise HTTPException(404, f"Tenant {tenant_id} non trovato.")
 
 
 # ── Stili Excel ───────────────────────────────────────────────────────────────
@@ -602,6 +612,8 @@ async def preview_import(
         validate_upload(content, file.filename, {"xlsx"})
     except ValueError as exc:
         raise HTTPException(400, f"File Excel non valido: {exc}")
+
+    _require_tenant(db, tenant_id)
 
     normalized_type = import_type.strip().lower()
     if normalized_type not in HIERARCHY_TYPES:
@@ -1064,6 +1076,8 @@ async def execute_import(
         validate_upload(content, file.filename, {"xlsx"})
     except ValueError as exc:
         raise HTTPException(400, f"File Excel non valido: {exc}")
+
+    _require_tenant(db, tenant_id)
 
     normalized_type = import_type.strip().lower()
     if normalized_type not in HIERARCHY_TYPES:
