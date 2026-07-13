@@ -11,6 +11,7 @@ import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
 import QuickTicketModal from "./components/QuickTicketModal";
 import GuideBot from "./components/GuideBot";
+import InstallPrompt from "./components/InstallPrompt";
 import TenantContextSwitcher from "./components/TenantContextSwitcher";
 import { VERSION } from "./lib/version";
 import { getVisibleNavGroups, PAGE_LABELS } from "./lib/navigation";
@@ -530,6 +531,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <GlobalOfflineIndicator />
+        <InstallPrompt />
         <BackendStatus />
       </body>
     </html>
