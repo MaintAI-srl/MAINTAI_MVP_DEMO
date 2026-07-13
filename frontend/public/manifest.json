@@ -50,15 +50,5 @@
       "url": "/planning",
       "icons": [{ "src": "/logo.png", "sizes": "96x96" }]
     }
-  ],
-  "screenshots": [
-    {
-      "label": "Dashboard KPI",
-      "form_factor": "wide"
-    },
-    {
-      "label": "App Tecnico Mobile",
-      "form_factor": "narrow"
-    }
   ]
 }

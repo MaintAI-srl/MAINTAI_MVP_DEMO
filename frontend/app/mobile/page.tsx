@@ -500,11 +500,8 @@ function ActiveWorkView({
         </button>
       </div>
 
-      {/* ── Layout split ── */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
-        flex: 1, minHeight: 0,
-      }}>
+      {/* ── Layout split: 1 colonna su phone portrait, 2 da tablet/landscape ── */}
+      <div className="m-split">
 
         {/* ── SINISTRA: Titolo + azioni media + Safety Checklist ── */}
         <div className="m-scroll m-fade-up" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }}>

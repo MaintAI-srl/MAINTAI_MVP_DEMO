@@ -2970,6 +2970,36 @@ input:focus, select:focus, textarea:focus {
   .m-cols { grid-template-columns: repeat(2, 1fr); gap: 12px; }
 }
 
+/* Vista lavoro attivo: colonna singola scrollabile su phone portrait,
+   split 2 colonne affiancate (senza scroll pagina) da tablet/landscape */
+.m-split {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.m-split::-webkit-scrollbar { display: none; }
+.m-split > .m-scroll {
+  flex-shrink: 0;
+  overflow-y: visible;
+}
+@media (min-width: 700px), (orientation: landscape) and (min-height: 380px) {
+  .m-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow-y: hidden;
+  }
+  .m-split > .m-scroll {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
 /* Contenuto centrato con larghezza massima da tablet */
 .m-page {
   width: 100%;
