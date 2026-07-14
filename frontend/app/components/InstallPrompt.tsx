@@ -10,6 +10,9 @@ import { Download, Share, SquarePlus, X } from "lucide-react";
  *   pulsante "Installa" che apre il prompt nativo di installazione.
  * - iOS / iPadOS Safari: non esiste API di installazione — mostra le
  *   istruzioni manuali (Condividi → Aggiungi alla schermata Home).
+ * - Altri browser mobile (Firefox Android, WebView…): `beforeinstallprompt`
+ *   non viene mai emesso — dopo un breve timeout mostra le istruzioni
+ *   manuali (menu ⋮ → Aggiungi a schermata Home).
  * - Se l'app è già in esecuzione standalone (installata) non mostra nulla.
  * - La chiusura viene ricordata in localStorage e il banner riproposto
  *   solo dopo DISMISS_DAYS giorni.
@@ -47,6 +50,11 @@ function isIosSafari(): boolean {
   return isIos && !isAltBrowser;
 }
 
+function isAndroidMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /android/i.test(navigator.userAgent);
+}
+
 function wasDismissedRecently(): boolean {
   try {
     if (localStorage.getItem(INSTALLED_KEY) === "true") return true;
@@ -62,7 +70,7 @@ function wasDismissedRecently(): boolean {
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [mode, setMode] = useState<"hidden" | "native" | "ios">("hidden");
+  const [mode, setMode] = useState<"hidden" | "native" | "ios" | "android-manual">("hidden");
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
@@ -91,10 +99,20 @@ export default function InstallPrompt() {
       }, 2500);
     }
 
+    // Browser Android senza beforeinstallprompt (Firefox, alcune WebView):
+    // se dopo 4s l'evento non è arrivato, mostra le istruzioni manuali.
+    let androidTimer: ReturnType<typeof setTimeout> | undefined;
+    if (isAndroidMobile()) {
+      androidTimer = setTimeout(() => {
+        setMode((m) => (m === "hidden" ? "android-manual" : m));
+      }, 4000);
+    }
+
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
       if (iosTimer) clearTimeout(iosTimer);
+      if (androidTimer) clearTimeout(androidTimer);
     };
   }, []);
 
@@ -200,21 +218,42 @@ export default function InstallPrompt() {
           <Download size={17} strokeWidth={2.3} />
           {installing ? "Installazione…" : "INSTALLA APP"}
         </button>
+      ) : mode === "android-manual" ? (
+        <div style={{
+          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 14, padding: "11px 13px",
+          fontSize: 12.5, lineHeight: 1.6, color: "rgba(235,235,245,0.75)",
+          display: "flex", flexDirection: "column", gap: 4,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span>1.</span> Apri il menu <b style={{ color: "#F5F5F7" }}>⋮</b> del browser
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
+            <span>2.</span>
+            <span>
+              Scegli <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF", verticalAlign: "-2px", display: "inline" }} aria-label="Aggiungi" />{" "}
+              <b style={{ color: "#F5F5F7" }}>Installa app / Aggiungi a schermata Home</b>
+            </span>
+          </div>
+        </div>
       ) : (
         <div style={{
           background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 14, padding: "11px 13px",
           fontSize: 12.5, lineHeight: 1.6, color: "rgba(235,235,245,0.75)",
+          display: "flex", flexDirection: "column", gap: 4,
         }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            1. Tocca <Share size={14} strokeWidth={2.2} style={{ color: "#0A84FF" }} aria-label="Condividi" />
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span>1.</span> Tocca <Share size={14} strokeWidth={2.2} style={{ color: "#0A84FF" }} aria-label="Condividi" />
             <b style={{ color: "#F5F5F7" }}>Condividi</b>
-          </span>
-          <br />
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            2. Scegli <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF" }} aria-label="Aggiungi" />
-            <b style={{ color: "#F5F5F7" }}>Aggiungi alla schermata Home</b>
-          </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
+            <span>2.</span>
+            <span>
+              Scegli <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF", verticalAlign: "-2px", display: "inline" }} aria-label="Aggiungi" />{" "}
+              <b style={{ color: "#F5F5F7" }}>Aggiungi alla schermata Home</b>
+            </span>
+          </div>
         </div>
       )}
     </div>
