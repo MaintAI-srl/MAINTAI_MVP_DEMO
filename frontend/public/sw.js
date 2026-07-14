@@ -1,5 +1,5 @@
 /**
- * MaintAI Service Worker v3.1
+ * MaintAI Service Worker v3.2
  *
  * Strategie cache:
  *   - HTML / bundle Next.js → Network-only (sempre aggiornati dal deploy Vercel)
@@ -20,7 +20,7 @@
  *   - AI/planning (dati sempre freschi)
  */
 
-const CACHE_NAME = "maintai-v3.1";
+const CACHE_NAME = "maintai-v3.2";
 
 const CACHEABLE_API_PATTERNS = [
   /\/tickets(\?|$)/,
@@ -44,14 +44,14 @@ const NEVER_CACHE_PATTERNS = [
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
-  console.log("[MaintAI SW] v3.1 installing...");
+  console.log("[MaintAI SW] v3.2 installing...");
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then(() => {}));
 });
 
 // ── Activate — pulisce cache obsolete ────────────────────────────────────────
 self.addEventListener("activate", (event) => {
-  console.log("[MaintAI SW] v3.1 activating...");
+  console.log("[MaintAI SW] v3.2 activating...");
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
@@ -167,8 +167,8 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body,
     tag: data.tag ?? "maintai-generic",
-    icon: "/logo.png",
-    badge: "/logo.png",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-96.png",
     vibrate: data.tag === "emergenza" ? [500, 150, 500, 150, 800] : [200, 100, 200],
     requireInteraction: data.tag === "emergenza", // emergenza rimane finché non viene toccata
     data: { url: data.url ?? "/mobile", tag: data.tag },

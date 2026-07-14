@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import "./globals.css";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { moduleForPath } from "./lib/modules";
@@ -125,8 +125,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Su mobile la sidebar è un drawer sovrapposto al contenuto: deve partire
+  // chiusa al primo caricamento e richiudersi a ogni navigazione, altrimenti
+  // copre la pagina con l'overlay. useLayoutEffect evita il flash del drawer
+  // aperto prima del paint.
+  useLayoutEffect(() => {
+    if (window.innerWidth <= 1024) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- chiusura sincrona del drawer prima del paint su mobile; niente cascata di re-render
+      setSidebarOpen(false);
+    }
+  }, [pathname]);
+
   useEffect(() => {
-    if (isTecnico && pathname === "/dashboard") {
+    if (isTecnico && (pathname === "/" || pathname === "/dashboard")) {
       router.push("/mobile");
     }
   }, [isTecnico, pathname, router]);
@@ -391,7 +402,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right controls */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div className="topbar-right" style={{ display: "flex", alignItems: "center", gap: 5 }}>
             {isModuleEnabled("tickets") && <GlobalQuickTicket />}
 
             <div style={{ width: 1, height: 22, background: "var(--border-subtle)", margin: "0 4px" }} />
@@ -402,7 +413,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 enableTickets={isModuleEnabled("tickets")}
               />
             )}
-            {isModuleEnabled("weather") && <WeatherWidget />}
+            {isModuleEnabled("weather") && (
+              <span className="topbar-weather">
+                <WeatherWidget />
+              </span>
+            )}
 
             {/* Clock */}
             <div className="topbar-time">{time}</div>
@@ -417,12 +432,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             </button>
 
             {/* User badge + logout */}
-            <div style={{
+            <div className="topbar-user" style={{
               display: "flex", alignItems: "center", gap: 9,
               borderLeft: "1px solid var(--border-subtle)",
               paddingLeft: 12, marginLeft: 2,
             }}>
-              <div style={{
+              <div className="topbar-user-info" style={{
                 display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
               }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.01em" }}>
@@ -467,7 +482,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main style={{ padding: "24px", flex: 1 }}>
+        <main className="app-content">
           {children}
         </main>
       </div>
@@ -503,13 +518,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it" suppressHydrationWarning className={cn("font-sans", inter.variable, spaceGrotesk.variable, jetbrainsMono.variable)}>
       <head>
         <title>MaintAI — Centro di Controllo</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#f5f7fb" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="MaintAI" />
-        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="MaintAI" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

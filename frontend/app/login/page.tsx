@@ -160,11 +160,12 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center",
+      minHeight: "100dvh", display: "flex", alignItems: "center",
       justifyContent: "center", background: "var(--bg-base)", color: "var(--text-primary)",
+      padding: "calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px))",
     }}>
       <div style={{
-        width: "100%", maxWidth: "400px", padding: "40px",
+        width: "100%", maxWidth: "400px", padding: "clamp(24px, 7vw, 40px)",
         background: "var(--bg-surface)", border: "1px solid var(--border-strong)",
         borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
       }}>

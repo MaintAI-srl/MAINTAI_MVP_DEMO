@@ -79,7 +79,7 @@ export default function GlobalQuickTicket() {
         }}
       >
         <span style={{ fontSize: 16 }}>+</span>
-        QUICK TICKET
+        <span className="quick-ticket-label">QUICK TICKET</span>
       </SheetTrigger>
 
       <SheetContent

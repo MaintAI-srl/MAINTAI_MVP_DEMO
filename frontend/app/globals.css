@@ -1129,12 +1129,6 @@ body {
   overflow: hidden;
 }
 
-@media (max-width: 768px) {
-  .full-bleed-page {
-    margin: -20px -16px;
-    height: calc(100vh - var(--topbar-h));
-  }
-}
 
 /* ─── SIDEBAR COMPONENTS ───────────────────────────────────── */
 .sidebar-logo {
@@ -2136,7 +2130,16 @@ input:focus, select:focus, textarea:focus {
 }
 
 @media (max-width: 1024px) {
-  .mobile-menu-btn { display: flex; }
+  /* Niente scroll orizzontale accidentale su telefono */
+  html, body { overflow-x: hidden; }
+  .app-main { min-width: 0; }
+
+  .mobile-menu-btn {
+    display: flex;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
 
   .app-sidebar {
     transform: translateX(-100%);
@@ -2165,8 +2168,21 @@ input:focus, select:focus, textarea:focus {
     left: min(var(--sidebar-width), calc(100vw - 34px));
   }
 
-  .app-topbar { padding: 0 14px; }
+  /* La linguetta MENU laterale è ridondante: su mobile c'è il bottone ☰ */
+  .sidebar-menu-tab { display: none; }
+
+  /* Safe area per PWA standalone su iPhone con notch (viewport-fit=cover) */
+  .app-topbar {
+    padding: 0 14px;
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  }
   .app-content { padding: 18px 14px; }
+  .full-bleed-page {
+    margin: -18px -14px;
+    height: calc(100vh - var(--topbar-h));
+    height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top, 0px));
+  }
 
   .topbar-time, .topbar-section, .topbar-sep { display: none; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
@@ -2177,7 +2193,14 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 640px) {
   .kpi-grid { grid-template-columns: 1fr; }
   .page-title { font-size: 22px; }
-  .topbar-right span:not(.badge) { display: none; }
+  /* Topbar compatta: via nome utente e ruolo, restano le sole icone
+     (!important: il div ha display:flex inline) */
+  .topbar-user-info { display: none !important; }
+  .topbar-user { padding-left: 8px !important; gap: 0 !important; }
+  .topbar-right { gap: 3px !important; }
+  /* Quick ticket solo icona "+", meteo nascosto: lo spazio non basta */
+  .quick-ticket-label { display: none; }
+  .topbar-weather { display: none; }
 }
 
 /* ─── CONTROL ROOM AMBIENT EFFECTS ─────────────────────────── */
