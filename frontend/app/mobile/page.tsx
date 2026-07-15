@@ -1678,26 +1678,26 @@ export default function MobileHomePage() {
           className="m-press m-fade-up m-d1"
           onClick={() => { setHomeView("ticket_vocale"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setManualSearch(""); setManualAssets([]); setSelectedAsset(null); setNuovoDesc(""); setVoiceQrInputMethod("voice"); setShowVoiceQrScan(false); }}
           style={{
-            minHeight: 130, borderRadius: 26, border: `1px solid ${C.indigo}45`, cursor: "pointer",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
-            position: "relative", overflow: "hidden", padding: 18,
+            minHeight: "clamp(190px, 27vh, 250px)", borderRadius: 26, border: `1px solid ${C.indigo}45`, cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
+            position: "relative", overflow: "hidden", padding: "22px 16px",
             background: `radial-gradient(140% 120% at 20% 0%, ${C.indigo}33 0%, transparent 50%), linear-gradient(150deg, #181640 0%, #0E0C2A 70%)`,
             boxShadow: `0 14px 44px ${C.indigo}28`,
           }}
         >
           <div style={{
-            width: "clamp(58px, 8vw, 74px)", height: "clamp(58px, 8vw, 74px)", borderRadius: "28%",
+            width: "clamp(76px, 20vw, 92px)", height: "clamp(76px, 20vw, 92px)", borderRadius: "28%",
             background: `${C.indigo}28`, border: `1px solid ${C.indigo}50`,
             display: "flex", alignItems: "center", justifyContent: "center", color: "#A5A1FF",
             boxShadow: `0 0 30px ${C.indigo}40`,
           }}>
-            <Mic size={32} strokeWidth={1.8} />
+            <Mic size={42} strokeWidth={1.8} />
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontWeight: 800, fontSize: "clamp(18px, 2.4vw, 23px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            <div style={{ fontWeight: 800, fontSize: "clamp(21px, 5.6vw, 26px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
               Apri Ticket <span style={{ color: "#A5A1FF" }}>Vocale</span>
             </div>
-            <div style={{ fontSize: 12, color: C.text3, marginTop: 4, fontWeight: 500 }}>Riconosce l&apos;asset dalla voce o dal QR</div>
+            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>Riconosce l&apos;asset dalla voce o dal QR</div>
           </div>
         </button>
 
@@ -1705,26 +1705,26 @@ export default function MobileHomePage() {
           className="m-press m-fade-up m-d2"
           onClick={() => { setHomeView("piano_odierno"); setDpiConfirmed(false); setDpiChecked({}); setPianoDiOggi([]); }}
           style={{
-            minHeight: 130, borderRadius: 26, border: `1px solid ${C.teal}40`, cursor: "pointer",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
-            position: "relative", overflow: "hidden", padding: 18,
+            minHeight: "clamp(190px, 27vh, 250px)", borderRadius: 26, border: `1px solid ${C.teal}40`, cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
+            position: "relative", overflow: "hidden", padding: "22px 16px",
             background: `radial-gradient(140% 120% at 80% 0%, ${C.teal}26 0%, transparent 50%), linear-gradient(150deg, #0C2B2E 0%, #081C20 70%)`,
             boxShadow: `0 14px 44px ${C.teal}1f`,
           }}
         >
           <div style={{
-            width: "clamp(58px, 8vw, 74px)", height: "clamp(58px, 8vw, 74px)", borderRadius: "28%",
+            width: "clamp(76px, 20vw, 92px)", height: "clamp(76px, 20vw, 92px)", borderRadius: "28%",
             background: `${C.teal}1f`, border: `1px solid ${C.teal}48`,
             display: "flex", alignItems: "center", justifyContent: "center", color: C.teal,
             boxShadow: `0 0 30px ${C.teal}33`,
           }}>
-            <ClipboardList size={32} strokeWidth={1.8} />
+            <ClipboardList size={42} strokeWidth={1.8} />
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontWeight: 800, fontSize: "clamp(18px, 2.4vw, 23px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            <div style={{ fontWeight: 800, fontSize: "clamp(21px, 5.6vw, 26px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
               Piano <span style={{ color: C.teal }}>Odierno</span>
             </div>
-            <div style={{ fontSize: 12, color: C.text3, marginTop: 4, fontWeight: 500 }}>Verifica DPI e accedi al piano</div>
+            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>Verifica DPI e accedi al piano</div>
           </div>
         </button>
       </div>

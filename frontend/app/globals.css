@@ -2983,8 +2983,10 @@ input:focus, select:focus, textarea:focus {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
-  flex: 1;
-  min-height: 0;
+  /* niente flex:1 / stretch: le tile devono avere un'altezza propria e
+     restare compatte in alto, non allungarsi a tutto lo schermo quando
+     la home è vuota (nessun ticket in corso / emergenza) */
+  align-content: start;
 }
 @media (min-width: 700px), (orientation: landscape) and (min-height: 380px) {
   .m-tiles { grid-template-columns: 1fr 1fr; }
