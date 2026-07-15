@@ -198,10 +198,10 @@ export default function LoginPage() {
               value={username} onChange={(e) => setUsername(e.target.value)}
               disabled={loading}
               style={{
-                width: "100%", padding: "12px",
+                width: "100%", padding: "14px", minHeight: "52px",
                 background: "var(--bg-base)", border: "1px solid var(--border-default)",
                 borderRadius: "8px", color: "white", outline: "none",
-                fontSize: "15px", boxSizing: "border-box",
+                fontSize: "16px", boxSizing: "border-box",
                 opacity: loading ? 0.6 : 1,
               }}
             />
@@ -210,13 +210,14 @@ export default function LoginPage() {
             <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Password</label>
             <input
               required type="password"
+              autoComplete="current-password"
               value={password} onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
               style={{
-                width: "100%", padding: "12px",
+                width: "100%", padding: "14px", minHeight: "52px",
                 background: "var(--bg-base)", border: "1px solid var(--border-default)",
                 borderRadius: "8px", color: "white", outline: "none",
-                fontSize: "15px", boxSizing: "border-box",
+                fontSize: "16px", boxSizing: "border-box",
                 opacity: loading ? 0.6 : 1,
               }}
             />
@@ -225,10 +226,10 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             style={{
-              marginTop: "8px", padding: "14px",
+              marginTop: "8px", padding: "14px", minHeight: "54px",
               background: loading ? "#1e3a5f" : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
               color: "white", border: "none", borderRadius: "8px",
-              fontWeight: 600, fontSize: "15px",
+              fontWeight: 600, fontSize: "16px",
               cursor: loading ? "not-allowed" : "pointer",
               transition: "all 0.2s",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

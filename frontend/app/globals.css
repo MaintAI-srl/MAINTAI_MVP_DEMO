@@ -3045,3 +3045,41 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .m-fade-up, .m-scale-in, .m-slide-in { animation: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE SCALING — leggibilità e touch target (allineato ad ALPHA)
+   Ingrandisce nav, icone e controlli su schermi piccoli senza
+   toccare il root font-size (il design MVP è tarato su html=14px):
+   override additivi, mobile-only, non intaccano il desktop né la
+   meccanica del drawer laterale.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  /* Voci di menu grandi e comode al pollice (dentro il drawer) */
+  .nav-item {
+    font-size: 15px;
+    min-height: 50px;
+    padding: 12px 14px 12px 16px;
+    gap: 13px;
+    border-radius: 12px;
+  }
+  .nav-icon,
+  .nav-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .sidebar-section-label { font-size: 11px; letter-spacing: 0.14em; }
+
+  /* Controlli topbar: touch target ≥44px */
+  .mobile-menu-btn { width: 44px; height: 44px; min-width: 44px; }
+  .topbar-icon-btn { width: 44px; height: 44px; min-width: 44px; }
+  .topbar-icon-btn svg { width: 20px; height: 20px; }
+  .topbar-page { font-size: 16px; }
+}
+
+@media (max-width: 640px) {
+  /* Tabelle: scroll orizzontale fluido invece di schiacciarsi */
+  .data-table-wrap, .table-scroll, [data-slot="table-container"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
