@@ -194,6 +194,7 @@ export default function LoginPage() {
             <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Username</label>
             <input
               required autoFocus type="text"
+              autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
               value={username} onChange={(e) => setUsername(e.target.value)}
               disabled={loading}
               style={{
