@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { apiGet, apiPost, apiPut } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiUpload } from "../lib/api";
 import { localDatetimeApiStr, localDateStr } from "../lib/datetime";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
@@ -294,6 +294,7 @@ function ActiveWorkView({
   const [showVoice, setShowVoice] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [savingVoice, setSavingVoice] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // QR close flow: "idle" → "scanning" → "confirm" → "firma" → (close)
@@ -531,22 +532,34 @@ function ActiveWorkView({
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                notify.info("Foto allegata ✓");
-                e.target.value = "";
+                setUploadingPhoto(true);
+                try {
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  await apiUpload(`/tickets/${ticket.id}/allegati`, formData);
+                  notify.success("Foto allegata al ticket ✓");
+                } catch (err) {
+                  notify.error(err instanceof Error ? err.message : "Errore caricamento foto");
+                } finally {
+                  setUploadingPhoto(false);
+                  e.target.value = "";
+                }
               }}
             />
             <button
               className="m-press"
               onClick={handlePhotoClick}
+              disabled={uploadingPhoto}
               style={{
                 borderRadius: 18, minHeight: 76, padding: "14px 8px",
                 background: `${C.blue}12`, border: `1.5px solid ${C.blue}38`,
-                color: C.blue, cursor: "pointer",
+                color: C.blue, cursor: uploadingPhoto ? "wait" : "pointer",
+                opacity: uploadingPhoto ? 0.6 : 1,
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7,
               }}
             >
               <Camera size={26} strokeWidth={1.9} />
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>FOTO</span>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>{uploadingPhoto ? "CARICO…" : "FOTO"}</span>
             </button>
             <button
               className="m-press"

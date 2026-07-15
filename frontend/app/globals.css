@@ -1784,6 +1784,14 @@ input:focus, select:focus, textarea:focus {
   outline: none !important;
 }
 
+/* Mobile: font ≥16px negli input evita l'auto-zoom del browser al focus
+   (necessario ora che il viewport consente di nuovo lo zoom con le dita).
+   Tap immediato senza delay da double-tap zoom sugli elementi interattivi. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+  button, a, [role="button"] { touch-action: manipulation; }
+}
+
 /* ─── BUTTONS — Premium system ──────────────────────────────── */
 .btn, .btn-primary, .btn-secondary, .btn-ghost, .btn-danger {
   display: inline-flex;
