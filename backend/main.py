@@ -349,7 +349,8 @@ def _ensure_columns() -> None:
         ("ticket", "ricambio_quantita",        "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_quantita FLOAT"),
         # Ticket — note libere compilabili in creazione
         ("ticket", "note",                     "ALTER TABLE ticket ADD COLUMN {ifne}note TEXT"),
-        # Ticket — firma di accettazione cliente (nome firmatario + data apposizione)
+        # Ticket — firma di accettazione cliente (percorso immagine + nome firmatario + data apposizione)
+        ("ticket", "firma_percorso",           "ALTER TABLE ticket ADD COLUMN {ifne}firma_percorso VARCHAR"),
         ("ticket", "firma_nome",               "ALTER TABLE ticket ADD COLUMN {ifne}firma_nome VARCHAR"),
         ("ticket", "firma_data",               "ALTER TABLE ticket ADD COLUMN {ifne}firma_data TIMESTAMP"),
         # Ticket — ore uomo (change request 2026-07-05)
@@ -952,7 +953,7 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)")
     if IS_PRODUCTION:
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=63072000; includeSubDomains"

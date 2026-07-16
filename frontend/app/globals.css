@@ -2988,7 +2988,7 @@ input:focus, select:focus, textarea:focus {
      la home è vuota (nessun ticket in corso / emergenza) */
   align-content: start;
 }
-@media (min-width: 700px), (orientation: landscape) and (min-height: 380px) {
+@media (min-width: 900px), (orientation: landscape) and (min-height: 380px) {
   .m-tiles { grid-template-columns: 1fr 1fr; }
 }
 
@@ -2999,7 +2999,7 @@ input:focus, select:focus, textarea:focus {
   gap: 10px;
   align-content: start;
 }
-@media (min-width: 700px) {
+@media (min-width: 900px), (orientation: landscape) and (min-height: 380px) {
   .m-cols { grid-template-columns: repeat(2, 1fr); gap: 12px; }
 }
 
@@ -3021,7 +3021,7 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
   overflow-y: visible;
 }
-@media (min-width: 700px), (orientation: landscape) and (min-height: 380px) {
+@media (min-width: 900px), (orientation: landscape) and (min-height: 380px) {
   .m-split {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -3094,12 +3094,17 @@ input:focus, select:focus, textarea:focus {
   button, a, [role="button"] { touch-action: manipulation; }
 }
 
-@media (max-width: 768px) {
-  /* Telefoni: spinta ulteriore sul testo */
+/* Telefoni (anche quelli che riportano una viewport CSS larga, ~760px, e che
+   quindi NON rientrano nei classici breakpoint ≤640/≤768): trattati come
+   telefono ogni volta che sono in verticale fino a 900px. Spinta forte sul
+   testo e layout a colonna singola. */
+@media (max-width: 768px), (orientation: portrait) and (max-width: 900px) {
   html { font-size: 16px; }
   body { font-size: 16px; }
   .page-title { font-size: 30px; }
   .card, .card-premium { border-radius: 18px; }
+  /* KPI e griglie form a colonna singola: niente celle strette e minuscole */
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
 
   /* Tabelle: scroll orizzontale fluido invece di schiacciarsi */
   .data-table-wrap, .table-scroll, [data-slot="table-container"] {
@@ -3108,8 +3113,8 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
-@media (max-width: 430px) {
-  /* Telefoni piccoli: massima leggibilità, KPI a colonna singola */
+@media (max-width: 480px), (orientation: portrait) and (max-width: 560px) {
+  /* Telefoni stretti: massima leggibilità, KPI a colonna singola */
   html { font-size: 16.5px; }
   .kpi-grid { grid-template-columns: 1fr; }
 }
