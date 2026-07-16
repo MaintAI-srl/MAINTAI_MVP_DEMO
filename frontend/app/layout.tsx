@@ -23,6 +23,7 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mon
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
+import ViewportController from "./components/ViewportController";
 import {
   LogOut,
   Moon,
@@ -519,6 +520,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <title>MaintAI — Centro di Controllo</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        {/* Normalizzatore viewport "app-like": alcuni telefoni riportano una
+            viewport CSS larga (~700-800px) e disegnano tutto in piccolo. Su
+            touch + portrait fissiamo una larghezza di design (430px) così il
+            browser scala l'intera UI verso l'alto, grande come un'app nativa.
+            Gira prima del primo paint per evitare flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var DESIGN=430;var m=document.querySelector('meta[name="viewport"]');if(!m)return;var natural=window.__mvVW||document.documentElement.clientWidth||window.innerWidth||0;window.__mvVW=natural;function apply(){try{var coarse=!window.matchMedia||window.matchMedia('(pointer: coarse)').matches;var landscape=window.matchMedia&&window.matchMedia('(orientation: landscape)').matches;var want=(coarse&&!landscape&&natural>470&&natural<1024)?('width='+DESIGN+', viewport-fit=cover'):'width=device-width, initial-scale=1, viewport-fit=cover';if(m.getAttribute('content')!==want)m.setAttribute('content',want);}catch(e){}}apply();window.addEventListener('orientationchange',function(){setTimeout(apply,350);});}catch(e){}})();`,
+          }}
+        />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#f5f7fb" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -546,6 +557,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <GlobalOfflineIndicator />
+        <ViewportController />
         <InstallPrompt />
         <BackendStatus />
       </body>

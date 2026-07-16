@@ -39,8 +39,17 @@ const SLOW_ENDPOINTS: RegExp[] = [
   /\/documenti\/\d+\/analizza-esploso/,
 ];
 
+// Firma e generazione PDF rapportino: possono coincidere col cold start di
+// Render (30-60s) e la generazione PDF non è istantanea → timeout lungo per
+// evitare falsi "errore server" da abort a 30s.
+const FIRMA_RAPPORTINO_ENDPOINTS: RegExp[] = [
+  /\/tickets\/\d+\/firma/,
+  /\/tickets\/\d+\/rapportino/,
+];
+
 function timeoutForPath(path: string): number {
   if (/\/planning\/generate/.test(path)) return 240_000;  // 4 min: cold start Render + OpenAI
+  if (FIRMA_RAPPORTINO_ENDPOINTS.some(re => re.test(path))) return 120_000;
   return SLOW_ENDPOINTS.some(re => re.test(path)) ? 120_000 : DEFAULT_TIMEOUT_MS;
 }
 

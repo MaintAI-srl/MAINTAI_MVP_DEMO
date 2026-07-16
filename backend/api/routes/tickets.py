@@ -736,14 +736,26 @@ async def upload_ticket_firma(
             detail="Il contenuto della firma non è un'immagine PNG valida.",
         )
 
-    internal_path = storage.save_file(content, filename)
-    ticket.firma_percorso = internal_path
+    # Salvataggio immagine su storage (Supabase in cloud / filesystem in locale).
+    # Isolato: un errore di storage dà un messaggio chiaro, non un 500 opaco.
+    try:
+        internal_path = storage.save_file(content, filename)
+    except Exception as exc:
+        logger.error("Salvataggio firma ticket %d su storage fallito: %s", ticket_id, exc)
+        raise HTTPException(status_code=502, detail="Impossibile salvare l'immagine della firma (storage).")
 
+    ticket.firma_percorso = internal_path
     # Nome del firmatario (cliente) e data di apposizione della firma
     nome = (data.get("nome") or "").strip()
     ticket.firma_nome = nome[:200] if nome else None
     ticket.firma_data = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Commit firma ticket %d fallito: %s", ticket_id, exc)
+        raise HTTPException(status_code=500, detail="Errore nel salvataggio della firma sul database.")
+
     return {"url": f"/tickets/{ticket_id}/firma", "firma_nome": ticket.firma_nome}
 
 
