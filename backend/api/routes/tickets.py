@@ -741,10 +741,10 @@ async def upload_ticket_firma(
     try:
         internal_path = storage.save_file(content, filename)
     except Exception:
-        # logger.exception registra la traccia via exc_info (gestita dal modulo
-        # logging): non interpola stringhe potenzialmente tainted → niente log
-        # injection. Interpoliamo solo ticket_id (int, non controllabile).
-        logger.exception("Salvataggio firma ticket %d su storage fallito", ticket_id)
+        # int(ticket_id): conversione numerica esplicita = sanitizer riconosciuto
+        # da CodeQL (nessun valore stringa tainted nel log). La traccia va via
+        # exc_info, gestita dal modulo logging.
+        logger.error("Salvataggio firma ticket %d su storage fallito", int(ticket_id), exc_info=True)
         raise HTTPException(status_code=502, detail="Impossibile salvare l'immagine della firma (storage).")
 
     ticket.firma_percorso = internal_path
@@ -756,8 +756,8 @@ async def upload_ticket_firma(
         db.commit()
     except Exception:
         db.rollback()
-        # logger.exception: traccia via exc_info, nessuna interpolazione tainted
-        logger.exception("Commit firma ticket %d fallito", ticket_id)
+        # int(ticket_id): sanitizer numerico riconosciuto da CodeQL; traccia via exc_info
+        logger.error("Commit firma ticket %d fallito", int(ticket_id), exc_info=True)
         raise HTTPException(status_code=500, detail="Errore nel salvataggio della firma sul database.")
 
     return {"url": f"/tickets/{ticket_id}/firma", "firma_nome": ticket.firma_nome}
