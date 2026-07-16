@@ -30,6 +30,7 @@ STORAGE_BUCKET = os.getenv("SUPABASE_BUCKET", "maintai-uploads")
 _LOCAL_UPLOADS_DIR = "uploads"
 
 _client = None
+_bucket_ready = False
 
 
 def _get_supabase():
@@ -38,6 +39,33 @@ def _get_supabase():
         from supabase import create_client
         _client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     return _client
+
+
+def _ensure_bucket(client) -> None:
+    """
+    Garantisce (una sola volta per processo) che il bucket privato esista.
+    Difesa contro il caso in cui il bucket non sia mai stato creato nel
+    progetto Supabase: senza di esso ogni upload fallisce con "Bucket not
+    found" (era la causa dell'errore "Impossibile salvare la firma").
+    Idempotente e non bloccante: eventuali errori non fermano l'upload, che
+    riporterà comunque l'errore appropriato.
+    """
+    global _bucket_ready
+    if _bucket_ready:
+        return
+    try:
+        client.storage.get_bucket(STORAGE_BUCKET)
+        _bucket_ready = True
+        return
+    except Exception:
+        pass
+    try:
+        # Bucket PRIVATO: i file si servono solo via endpoint autenticati
+        client.storage.create_bucket(STORAGE_BUCKET, options={"public": False})
+    except Exception:
+        # già esistente (race) o creazione non permessa: non blocchiamo qui
+        pass
+    _bucket_ready = True
 
 
 def save_file(content: bytes, filename: str) -> str:
@@ -53,6 +81,7 @@ def save_file(content: bytes, filename: str) -> str:
     internal_path = f"{_LOCAL_UPLOADS_DIR}/{filename}"
     client = _get_supabase()
     if client:
+        _ensure_bucket(client)
         client.storage.from_(STORAGE_BUCKET).upload(
             internal_path, content, {"content-type": "application/octet-stream"}
         )
