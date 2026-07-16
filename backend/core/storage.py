@@ -30,7 +30,6 @@ STORAGE_BUCKET = os.getenv("SUPABASE_BUCKET", "maintai-uploads")
 _LOCAL_UPLOADS_DIR = "uploads"
 
 _client = None
-_bucket_ready = False
 
 
 def _get_supabase():
@@ -50,12 +49,12 @@ def _ensure_bucket(client) -> None:
     Idempotente e non bloccante: eventuali errori non fermano l'upload, che
     riporterà comunque l'errore appropriato.
     """
-    global _bucket_ready
-    if _bucket_ready:
+    # Cache di processo via attributo di funzione (evita variabili globali)
+    if getattr(_ensure_bucket, "_checked", False):
         return
     try:
         client.storage.get_bucket(STORAGE_BUCKET)
-        _bucket_ready = True
+        _ensure_bucket._checked = True
         return
     except Exception:
         pass
@@ -65,7 +64,7 @@ def _ensure_bucket(client) -> None:
     except Exception:
         # già esistente (race) o creazione non permessa: non blocchiamo qui
         pass
-    _bucket_ready = True
+    _ensure_bucket._checked = True
 
 
 def save_file(content: bytes, filename: str) -> str:
