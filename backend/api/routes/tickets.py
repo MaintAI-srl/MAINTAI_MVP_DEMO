@@ -736,14 +736,30 @@ async def upload_ticket_firma(
             detail="Il contenuto della firma non è un'immagine PNG valida.",
         )
 
-    internal_path = storage.save_file(content, filename)
-    ticket.firma_percorso = internal_path
+    # Salvataggio immagine su storage (Supabase in cloud / filesystem in locale).
+    # Isolato: un errore di storage dà un messaggio chiaro, non un 500 opaco.
+    try:
+        internal_path = storage.save_file(content, filename)
+    except Exception:
+        # int(ticket_id): conversione numerica esplicita = sanitizer riconosciuto
+        # da CodeQL (nessun valore stringa tainted nel log). La traccia va via
+        # exc_info, gestita dal modulo logging.
+        logger.error("Salvataggio firma ticket %d su storage fallito", int(ticket_id), exc_info=True)
+        raise HTTPException(status_code=502, detail="Impossibile salvare l'immagine della firma (storage).")
 
+    ticket.firma_percorso = internal_path
     # Nome del firmatario (cliente) e data di apposizione della firma
     nome = (data.get("nome") or "").strip()
     ticket.firma_nome = nome[:200] if nome else None
     ticket.firma_data = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        # int(ticket_id): sanitizer numerico riconosciuto da CodeQL; traccia via exc_info
+        logger.error("Commit firma ticket %d fallito", int(ticket_id), exc_info=True)
+        raise HTTPException(status_code=500, detail="Errore nel salvataggio della firma sul database.")
+
     return {"url": f"/tickets/{ticket_id}/firma", "firma_nome": ticket.firma_nome}
 
 
