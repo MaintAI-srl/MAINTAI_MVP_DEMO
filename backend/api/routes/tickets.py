@@ -741,7 +741,9 @@ async def upload_ticket_firma(
     try:
         internal_path = storage.save_file(content, filename)
     except Exception as exc:
-        logger.error("Salvataggio firma ticket %d su storage fallito: %s", ticket_id, exc)
+        # Sanitizza il messaggio (può derivare da input utente) contro il log injection CR/LF
+        safe_exc = str(exc).replace("\n", " ").replace("\r", " ")
+        logger.error("Salvataggio firma ticket %d su storage fallito: %s", ticket_id, safe_exc)
         raise HTTPException(status_code=502, detail="Impossibile salvare l'immagine della firma (storage).")
 
     ticket.firma_percorso = internal_path
@@ -753,7 +755,9 @@ async def upload_ticket_firma(
         db.commit()
     except Exception as exc:
         db.rollback()
-        logger.error("Commit firma ticket %d fallito: %s", ticket_id, exc)
+        # Sanitizza il messaggio (può derivare da input utente) contro il log injection CR/LF
+        safe_exc = str(exc).replace("\n", " ").replace("\r", " ")
+        logger.error("Commit firma ticket %d fallito: %s", ticket_id, safe_exc)
         raise HTTPException(status_code=500, detail="Errore nel salvataggio della firma sul database.")
 
     return {"url": f"/tickets/{ticket_id}/firma", "firma_nome": ticket.firma_nome}
