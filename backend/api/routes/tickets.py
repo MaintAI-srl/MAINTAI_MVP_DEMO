@@ -740,10 +740,11 @@ async def upload_ticket_firma(
     # Isolato: un errore di storage dà un messaggio chiaro, non un 500 opaco.
     try:
         internal_path = storage.save_file(content, filename)
-    except Exception as exc:
-        # Sanitizza il messaggio (può derivare da input utente) contro il log injection CR/LF
-        safe_exc = str(exc).replace("\n", " ").replace("\r", " ")
-        logger.error("Salvataggio firma ticket %d su storage fallito: %s", ticket_id, safe_exc)
+    except Exception:
+        # logger.exception registra la traccia via exc_info (gestita dal modulo
+        # logging): non interpola stringhe potenzialmente tainted → niente log
+        # injection. Interpoliamo solo ticket_id (int, non controllabile).
+        logger.exception("Salvataggio firma ticket %d su storage fallito", ticket_id)
         raise HTTPException(status_code=502, detail="Impossibile salvare l'immagine della firma (storage).")
 
     ticket.firma_percorso = internal_path
@@ -753,11 +754,10 @@ async def upload_ticket_firma(
     ticket.firma_data = datetime.now(timezone.utc)
     try:
         db.commit()
-    except Exception as exc:
+    except Exception:
         db.rollback()
-        # Sanitizza il messaggio (può derivare da input utente) contro il log injection CR/LF
-        safe_exc = str(exc).replace("\n", " ").replace("\r", " ")
-        logger.error("Commit firma ticket %d fallito: %s", ticket_id, safe_exc)
+        # logger.exception: traccia via exc_info, nessuna interpolazione tainted
+        logger.exception("Commit firma ticket %d fallito", ticket_id)
         raise HTTPException(status_code=500, detail="Errore nel salvataggio della firma sul database.")
 
     return {"url": f"/tickets/{ticket_id}/firma", "firma_nome": ticket.firma_nome}
