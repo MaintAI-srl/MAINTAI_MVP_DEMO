@@ -33,26 +33,66 @@ export default function ViewportController() {
 
     const natural =
       window.__mvVW ||
-      document.documentElement.clientWidth ||
       window.innerWidth ||
+      document.documentElement.clientWidth ||
       0;
     window.__mvVW = natural;
+    // Diagnostica: leggibile su window.__mvVW / attributo body senza clutter UI
+    try { document.body.setAttribute("data-vw", String(natural)); } catch {}
 
     const apply = () => {
       const coarse = !window.matchMedia || window.matchMedia("(pointer: coarse)").matches;
       const landscape = !!window.matchMedia && window.matchMedia("(orientation: landscape)").matches;
+      // Nessun tetto stretto: molti telefoni riportano una viewport CSS larga
+      // (fino a ~1220px con DPR≈1) e prima venivano esclusi → restavano piccoli.
       const want =
-        coarse && !landscape && natural > 470 && natural < 1024
+        coarse && !landscape && natural > 470 && natural < 1600
           ? `width=${DESIGN_WIDTH}, viewport-fit=cover`
           : "width=device-width, initial-scale=1, viewport-fit=cover";
       if (meta.getAttribute("content") !== want) meta.setAttribute("content", want);
+      // Diagnostica temporanea visibile (rimuovere dopo conferma)
+      try {
+        const dbg = document.getElementById("mv-dbg");
+        if (dbg) dbg.textContent = `vw ${natural}→${want.split(",")[0]}`;
+      } catch {}
     };
 
+    // Ri-applica in modo aggressivo: dopo l'hydration di React (che può
+    // ripristinare il meta), su ripresa PWA e al cambio orientamento.
     apply();
+    const t1 = window.setTimeout(apply, 150);
+    const t2 = window.setTimeout(apply, 600);
     const onOrient = () => setTimeout(apply, 350);
+    const onShow = () => apply();
+    const onVis = () => { if (document.visibilityState === "visible") apply(); };
     window.addEventListener("orientationchange", onOrient);
-    return () => window.removeEventListener("orientationchange", onOrient);
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener("orientationchange", onOrient);
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
-  return null;
+  // Diagnostica temporanea: mostra la larghezza CSS rilevata e il viewport
+  // applicato. Serve a confermare il fix sul dispositivo reale; da rimuovere.
+  return (
+    <span
+      id="mv-dbg"
+      style={{
+        position: "fixed",
+        left: 3,
+        bottom: 3,
+        zIndex: 2147483647,
+        fontSize: 9,
+        lineHeight: 1,
+        color: "rgba(148,163,184,0.55)",
+        pointerEvents: "none",
+        fontFamily: "monospace",
+      }}
+    />
+  );
 }
