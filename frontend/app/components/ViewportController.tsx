@@ -40,20 +40,26 @@ export default function ViewportController() {
     // Diagnostica: leggibile su window.__mvVW / attributo body senza clutter UI
     try { document.body.setAttribute("data-vw", String(natural)); } catch {}
 
+    // Touch detection robusta: matchMedia('pointer: coarse') su alcuni Android
+    // dà falsi negativi → usiamo anche maxTouchPoints / ontouchstart.
+    const touch =
+      (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) ||
+      "ontouchstart" in window ||
+      (!!window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
     const apply = () => {
-      const coarse = !window.matchMedia || window.matchMedia("(pointer: coarse)").matches;
-      const landscape = !!window.matchMedia && window.matchMedia("(orientation: landscape)").matches;
+      const portrait = (window.innerHeight || 0) >= (window.innerWidth || 0);
       // Nessun tetto stretto: molti telefoni riportano una viewport CSS larga
       // (fino a ~1220px con DPR≈1) e prima venivano esclusi → restavano piccoli.
       const want =
-        coarse && !landscape && natural > 470 && natural < 1600
+        touch && portrait && natural > 470 && natural < 1600
           ? `width=${DESIGN_WIDTH}, viewport-fit=cover`
           : "width=device-width, initial-scale=1, viewport-fit=cover";
       if (meta.getAttribute("content") !== want) meta.setAttribute("content", want);
       // Diagnostica temporanea visibile (rimuovere dopo conferma)
       try {
         const dbg = document.getElementById("mv-dbg");
-        if (dbg) dbg.textContent = `vw ${natural}→${want.split(",")[0]}`;
+        if (dbg) dbg.textContent = `vw${natural} t${touch ? 1 : 0} iw${window.innerWidth} → ${want.split(",")[0]}`;
       } catch {}
     };
 
