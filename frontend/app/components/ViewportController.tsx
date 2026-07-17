@@ -3,42 +3,31 @@
 import { useEffect } from "react";
 
 /**
- * Normalizzatore viewport "app-like".
+ * Controller del viewport "app-like".
  *
- * Alcuni telefoni (specie Android di fascia media/economica) riportano una
- * viewport CSS larga (~700-800px) e disegnano tutta l'interfaccia in piccolo
- * sullo schermo fisico. Qui, sui dispositivi touch in verticale con viewport
- * larga, fissiamo una larghezza di design (430px): il browser riflette il
- * layout a 430px e lo scala verso l'alto → UI grande, "come un'app nativa".
+ * L'HTML servito dal server contiene GIÀ `width=430` nel meta viewport
+ * (layout.tsx): è la larghezza di design, onorata da tutti i browser mobili
+ * al parse iniziale — inclusi quelli che ignorano le modifiche via JS
+ * (verificato sul campo: setAttribute applicato ma innerWidth invariato).
+ * I browser desktop ignorano del tutto il meta viewport → desktop invariato.
  *
- * Uno script inline in <head> (layout.tsx) fa lo stesso pre-paint per evitare
- * il flash; questo componente RI-AFFERMA il valore dopo l'hydration di React
- * (che altrimenti potrebbe ripristinare il meta al valore dell'HTML server) e
- * lo aggiorna al cambio di orientamento.
- *
- * La decisione usa una larghezza "naturale" catturata UNA volta (stashata su
- * window.__mvVW dallo script inline): così i re-apply sono idempotenti e non
- * innescano loop quando il cambio di viewport modifica innerWidth.
+ * Questo componente si limita a RILASSARE il viewport dove 430 non va bene,
+ * sui browser che onorano i cambi dinamici:
+ *  - dispositivi non-touch (sicurezza) e landscape → device-width
+ *  - tablet in portrait (lato corto schermo > 620px) → width=768
+ * e ri-afferma il valore dopo l'hydration di React e ai cambi di stato
+ * (orientamento, ripresa PWA).
  */
 const DESIGN_WIDTH = 430;
-
-declare global {
-  interface Window { __mvVW?: number }
-}
+const TABLET_WIDTH = 768;
 
 export default function ViewportController() {
   useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+    // I browser applicano l'ULTIMO meta viewport parsato: agiamo su quello
+    // (l'head può contenerne due: quello dell'export Next + l'override finale).
+    const metas = document.querySelectorAll('meta[name="viewport"]');
+    const meta = metas[metas.length - 1] as HTMLMetaElement | undefined;
     if (!meta) return;
-
-    const natural =
-      window.__mvVW ||
-      window.innerWidth ||
-      document.documentElement.clientWidth ||
-      0;
-    window.__mvVW = natural;
-    // Diagnostica: leggibile su window.__mvVW / attributo body senza clutter UI
-    try { document.body.setAttribute("data-vw", String(natural)); } catch {}
 
     // Touch detection robusta: matchMedia('pointer: coarse') su alcuni Android
     // dà falsi negativi → usiamo anche maxTouchPoints / ontouchstart.
@@ -48,23 +37,29 @@ export default function ViewportController() {
       (!!window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 
     const apply = () => {
-      const portrait = (window.innerHeight || 0) >= (window.innerWidth || 0);
-      // Nessun tetto stretto: molti telefoni riportano una viewport CSS larga
-      // (fino a ~1220px con DPR≈1) e prima venivano esclusi → restavano piccoli.
+      const landscape = !!window.matchMedia && window.matchMedia("(orientation: landscape)").matches;
+      // Telefono vs tablet in PIXEL FISICI (css × dpr): i telefoni economici
+      // riportano screen.width CSS larghi (~800) e in px CSS sembrerebbero
+      // tablet; un vero tablet ha lato corto fisico > ~1500px.
+      const dpr = window.devicePixelRatio || 1;
+      const minDimPhys = window.screen ? Math.min(window.screen.width, window.screen.height) * dpr : 0;
       const want =
-        touch && portrait && natural > 470 && natural < 1600
-          ? `width=${DESIGN_WIDTH}, viewport-fit=cover`
-          : "width=device-width, initial-scale=1, viewport-fit=cover";
+        !touch || landscape
+          ? "width=device-width, initial-scale=1, viewport-fit=cover"
+          : `width=${minDimPhys > 1500 ? TABLET_WIDTH : DESIGN_WIDTH}, viewport-fit=cover`;
       if (meta.getAttribute("content") !== want) meta.setAttribute("content", want);
-      // Diagnostica temporanea visibile (rimuovere dopo conferma)
+      // Diagnostica temporanea visibile (rimuovere dopo conferma sul device)
       try {
         const dbg = document.getElementById("mv-dbg");
-        if (dbg) dbg.textContent = `vw${natural} t${touch ? 1 : 0} iw${window.innerWidth} → ${want.split(",")[0]}`;
+        if (dbg) {
+          const s = window.screen ? `${window.screen.width}x${window.screen.height}` : "?";
+          dbg.textContent = `s${s} t${touch ? 1 : 0} iw${window.innerWidth} → ${want.split(",")[0]}`;
+        }
       } catch {}
     };
 
-    // Ri-applica in modo aggressivo: dopo l'hydration di React (che può
-    // ripristinare il meta), su ripresa PWA e al cambio orientamento.
+    // Ri-applica dopo l'hydration di React (che può ripristinare il meta),
+    // su ripresa PWA e al cambio orientamento.
     apply();
     const t1 = window.setTimeout(apply, 150);
     const t2 = window.setTimeout(apply, 600);
@@ -83,8 +78,8 @@ export default function ViewportController() {
     };
   }, []);
 
-  // Diagnostica temporanea: mostra la larghezza CSS rilevata e il viewport
-  // applicato. Serve a confermare il fix sul dispositivo reale; da rimuovere.
+  // Diagnostica temporanea: schermo, touch, innerWidth e viewport applicato.
+  // Serve a confermare il fix sul dispositivo reale; da rimuovere dopo.
   return (
     <span
       id="mv-dbg"
