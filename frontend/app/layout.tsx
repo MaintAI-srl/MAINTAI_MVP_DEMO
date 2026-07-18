@@ -11,20 +11,38 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mon
 /**
  * Viewport "app-like": larghezza di design fissa 430px sui telefoni.
  *
- * Storia del bug: il root layout era un client component senza export
- * `viewport`, quindi Next appendeva il SUO meta default
- * `width=device-width, initial-scale=1` DOPO qualsiasi meta manuale — e i
- * browser applicano l'ULTIMO meta viewport → ogni tentativo di scaling era
- * annullato e sui telefoni con viewport CSS larga (~800-1200px) la UI era
- * minuscola. Next appende comunque il proprio meta per ultimo (e vi forza
- * initial-scale=1, che farebbe vincere la larghezza schermo su width=430),
- * perciò la normalizzazione avviene con lo script a inizio <body>: parsato
- * dopo tutti i meta, riscrive l'ultimo pre-paint.
+ * Storia del bug (3 giorni di tentativi) e causa radice DEFINITIVA:
+ * Next.js inietta SEMPRE il proprio meta viewport `width=device-width,
+ * initial-scale=1` (non è disattivabile: anche con `export const viewport`
+ * Next fonde il default `initialScale: 1`). Con `initial-scale=1` il browser
+ * calcola la larghezza di layout come max(width, larghezza-ideale-device):
+ * sul telefono dell'utente la larghezza ideale è ~860px → qualunque
+ * `width=430` viene annullato e la UI resta minuscola. Verificato con
+ * emulazione Chromium:
+ *   width=430 (SENZA initial-scale) → innerWidth 430  ✅ (UI grande)
+ *   width=430, initial-scale=1      → innerWidth 813  ❌
+ *   width=430, initial-scale=0      → innerWidth 3252 ❌ (valore invalido)
+ * Inoltre il browser del dispositivo IGNORA le modifiche al meta via JS dopo
+ * il load (setAttribute non riflette), quindi non basta correggerlo a runtime.
+ *
+ * Soluzione a due livelli:
+ *  1. STATICA (decisiva sul device): uno step di post-build
+ *     (`scripts/patch-viewport.mjs`) riscrive nell'HTML prerenderizzato il
+ *     meta di Next in `width=430, viewport-fit=cover` (SENZA initial-scale),
+ *     così il PRIMO meta che il browser parsa al load è già corretto — anche
+ *     sui browser che ignorano i cambi via JS. `/login` e `/mobile` (gli entry
+ *     point del tecnico) sono statici, quindi coperti; la viewport impostata
+ *     al primo load persiste per tutta la sessione SPA.
+ *  2. RUNTIME (browser che onorano i cambi JS + route dinamiche): lo script
+ *     inline qui sotto + `ViewportController` normalizzano TUTTI i meta
+ *     viewport (React in idratazione ne ri-aggiunge uno con initial-scale=1)
+ *     e rilassano a device-width in landscape/non-touch e a 768 sui tablet.
  * I browser desktop ignorano del tutto il meta viewport → desktop invariato.
  */
 export const viewport: Viewport = {
   themeColor: "#f5f7fb",
 };
+
 
 const themeScript = `
   (function() {
@@ -35,10 +53,10 @@ const themeScript = `
   })();
 `;
 
-// Rilassa il viewport dove 430 non va bene (solo browser che onorano i
-// cambi dinamici): non-touch/landscape → device-width, tablet → 768.
-// Agisce sull'ULTIMO meta viewport: è quello che i browser applicano.
-const viewportRelaxScript = `(function(){try{var ms=document.querySelectorAll('meta[name="viewport"]');var m=ms[ms.length-1];if(!m)return;var touch=(navigator.maxTouchPoints>0)||('ontouchstart' in window)||(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches);function apply(){try{var landscape=window.matchMedia&&window.matchMedia('(orientation: landscape)').matches;var dpr=window.devicePixelRatio||1;var minDimPhys=window.screen?Math.min(screen.width,screen.height)*dpr:0;var want=(!touch||landscape)?'width=device-width, initial-scale=1, viewport-fit=cover':('width='+(minDimPhys>1500?768:430)+', viewport-fit=cover');if(m.getAttribute('content')!==want)m.setAttribute('content',want);}catch(e){}}apply();window.addEventListener('orientationchange',function(){setTimeout(apply,350);});}catch(e){}})();`;
+// Normalizza TUTTI i meta viewport (non solo l'ultimo): telefono portrait →
+// width=430 SENZA initial-scale (app-like); landscape/non-touch → device-width;
+// tablet portrait → 768. Sui browser che onorano i cambi JS agisce pre-paint.
+const viewportRelaxScript = `(function(){try{var touch=(navigator.maxTouchPoints>0)||('ontouchstart' in window)||(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches);function want(){var landscape=window.matchMedia&&window.matchMedia('(orientation: landscape)').matches;if(!touch||landscape)return 'width=device-width, initial-scale=1, viewport-fit=cover';var dpr=window.devicePixelRatio||1;var minDimPhys=window.screen?Math.min(screen.width,screen.height)*dpr:0;return 'width='+(minDimPhys>1500?768:430)+', viewport-fit=cover';}function apply(){try{var w=want();var ms=document.querySelectorAll('meta[name="viewport"]');for(var i=0;i<ms.length;i++){if(ms[i].getAttribute('content')!==w)ms[i].setAttribute('content',w);}}catch(e){}}apply();window.addEventListener('orientationchange',function(){setTimeout(apply,300);});}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -55,25 +73,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        {/* ⚡ FIX DIMENSIONAMENTO MOBILE (definitivo) — meta viewport statico a
-            INIZIO BODY. React 19 fa l'hoisting nell'<head> di ogni <meta> reso
-            come JSX, MA il contenuto iniettato con dangerouslySetInnerHTML NON
-            viene hoistato: resta nel body, parsato DOPO tutti i meta dell'head
-            (incluso quello che Next appende con initial-scale=1). I browser
-            mobili applicano l'ULTIMO meta viewport → vince width=430 e la UI
-            viene scalata "app-like" SENZA dipendere da JS (verificato sul
-            campo: il browser del dispositivo ignora setAttribute sul meta, ma
-            onora il meta statico servito dall'HTML). Desktop ignora del tutto
-            il meta viewport → invariato. */}
-        <div
-          style={{ display: "none" }}
-          dangerouslySetInnerHTML={{
-            __html: '<meta name="viewport" content="width=430, viewport-fit=cover">',
-          }}
-        />
-        {/* Rilassa il viewport dove 430 non va bene (landscape/non-touch →
-            device-width, tablet → 768) sui browser che onorano i cambi via JS.
-            Parsato dopo il meta statico, agisce sull'ultimo meta. */}
+        {/* Normalizzatore viewport a inizio <body> (pre-paint) per i browser
+            che onorano i cambi via JS. La correzione DECISIVA per i telefoni
+            che ignorano i cambi JS avviene invece nell'HTML statico via
+            scripts/patch-viewport.mjs (post-build). */}
         <script dangerouslySetInnerHTML={{ __html: viewportRelaxScript }} />
         <RootShell>{children}</RootShell>
       </body>
