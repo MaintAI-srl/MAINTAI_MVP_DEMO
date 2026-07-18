@@ -23,11 +23,10 @@ const TABLET_WIDTH = 768;
 
 export default function ViewportController() {
   useEffect(() => {
-    // I browser applicano l'ULTIMO meta viewport parsato: agiamo su quello
-    // (l'head può contenerne due: quello dell'export Next + l'override finale).
-    const metas = document.querySelectorAll('meta[name="viewport"]');
-    const meta = metas[metas.length - 1] as HTMLMetaElement | undefined;
-    if (!meta) return;
+    // React, in idratazione, ri-aggiunge il meta viewport di Next
+    // (`width=device-width, initial-scale=1`) in coda all'head: normalizziamo
+    // quindi TUTTI i meta viewport, non solo uno, così è indifferente quale il
+    // browser applichi (primo, ultimo o merge delle proprietà).
 
     // Touch detection robusta: matchMedia('pointer: coarse') su alcuni Android
     // dà falsi negativi → usiamo anche maxTouchPoints / ontouchstart.
@@ -47,7 +46,10 @@ export default function ViewportController() {
         !touch || landscape
           ? "width=device-width, initial-scale=1, viewport-fit=cover"
           : `width=${minDimPhys > 1500 ? TABLET_WIDTH : DESIGN_WIDTH}, viewport-fit=cover`;
-      if (meta.getAttribute("content") !== want) meta.setAttribute("content", want);
+      const metas = document.querySelectorAll('meta[name="viewport"]');
+      metas.forEach((m) => {
+        if (m.getAttribute("content") !== want) m.setAttribute("content", want);
+      });
       // Diagnostica temporanea visibile (rimuovere dopo conferma sul device)
       try {
         const dbg = document.getElementById("mv-dbg");
