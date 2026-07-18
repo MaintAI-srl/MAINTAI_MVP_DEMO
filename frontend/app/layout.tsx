@@ -55,11 +55,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        {/* Normalizzatore viewport a INIZIO BODY: viene parsato DOPO tutti i
-            meta dell'head (incluso quello che Next appende per ultimo con
-            initial-scale=1, che altrimenti vince e annulla il width=430) ma
-            PRIMA del paint. Riscrive l'ULTIMO meta viewport — quello che i
-            browser applicano — con la larghezza di design. */}
+        {/* ⚡ FIX DIMENSIONAMENTO MOBILE (definitivo) — meta viewport statico a
+            INIZIO BODY. React 19 fa l'hoisting nell'<head> di ogni <meta> reso
+            come JSX, MA il contenuto iniettato con dangerouslySetInnerHTML NON
+            viene hoistato: resta nel body, parsato DOPO tutti i meta dell'head
+            (incluso quello che Next appende con initial-scale=1). I browser
+            mobili applicano l'ULTIMO meta viewport → vince width=430 e la UI
+            viene scalata "app-like" SENZA dipendere da JS (verificato sul
+            campo: il browser del dispositivo ignora setAttribute sul meta, ma
+            onora il meta statico servito dall'HTML). Desktop ignora del tutto
+            il meta viewport → invariato. */}
+        <div
+          style={{ display: "none" }}
+          dangerouslySetInnerHTML={{
+            __html: '<meta name="viewport" content="width=430, viewport-fit=cover">',
+          }}
+        />
+        {/* Rilassa il viewport dove 430 non va bene (landscape/non-touch →
+            device-width, tablet → 768) sui browser che onorano i cambi via JS.
+            Parsato dopo il meta statico, agisce sull'ultimo meta. */}
         <script dangerouslySetInnerHTML={{ __html: viewportRelaxScript }} />
         <RootShell>{children}</RootShell>
       </body>
