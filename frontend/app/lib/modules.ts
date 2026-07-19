@@ -96,6 +96,7 @@ const PATH_MODULES_BASE = [
   { prefix: "/compliance", moduleId: "compliance" },
   { prefix: "/report/economico", moduleId: "economic_reports" },
   { prefix: "/mobile", moduleId: "mobile_app" },
+  { prefix: "/m", moduleId: "mobile_app" },
 ] satisfies { prefix: string; moduleId: ModuleId }[];
 
 const PATH_MODULES = [...PATH_MODULES_BASE].sort((a, b) => b.prefix.length - a.prefix.length);

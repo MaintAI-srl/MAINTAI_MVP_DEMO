@@ -2,9 +2,6 @@
 
 import { useEffect } from "react";
 
-const DESIGN_WIDTH = 430;
-const TABLET_WIDTH = 768;
-
 export type DeviceClass = "mobile" | "tablet" | "desktop";
 
 /**
@@ -56,30 +53,13 @@ export function isCompactDevice() {
 }
 
 /**
- * Mantiene coerenti viewport e data-device-class dopo hydration, rotazione,
- * resize e ripresa della PWA. Il viewport statico decisivo viene applicato dal
- * post-build; qui riallineiamo i browser che accettano modifiche runtime.
+ * Mantiene coerente data-device-class dopo hydration, rotazione, resize e
+ * ripresa della PWA. Il meta viewport resta quello standard di Next
+ * (width=device-width, initial-scale=1) e non viene mai riscritto.
  */
 export default function ViewportController() {
   useEffect(() => {
-    const touch =
-      navigator.maxTouchPoints > 0
-      || "ontouchstart" in window
-      || (window.matchMedia?.("(pointer: coarse)").matches ?? false);
-
     const apply = () => {
-      const landscape = window.matchMedia?.("(orientation: landscape)").matches ?? false;
-      const dpr = window.devicePixelRatio || 1;
-      const shortestPhysicalSide = window.screen
-        ? Math.min(window.screen.width, window.screen.height) * dpr
-        : 0;
-      const viewport = !touch || landscape
-        ? "width=device-width, initial-scale=1, viewport-fit=cover"
-        : `width=${shortestPhysicalSide > 1500 ? TABLET_WIDTH : DESIGN_WIDTH}, viewport-fit=cover`;
-
-      document.querySelectorAll('meta[name="viewport"]').forEach((meta) => {
-        if (meta.getAttribute("content") !== viewport) meta.setAttribute("content", viewport);
-      });
       document.documentElement.dataset.deviceClass = detectDeviceClass();
     };
 
@@ -94,8 +74,6 @@ export default function ViewportController() {
     };
 
     apply();
-    const hydrationTimer = window.setTimeout(apply, 150);
-    const settleTimer = window.setTimeout(apply, 600);
     window.addEventListener("resize", scheduleApply);
     window.addEventListener("orientationchange", delayedApply);
     window.addEventListener("pageshow", scheduleApply);
@@ -104,8 +82,6 @@ export default function ViewportController() {
 
     return () => {
       window.cancelAnimationFrame(resizeFrame);
-      window.clearTimeout(hydrationTimer);
-      window.clearTimeout(settleTimer);
       window.removeEventListener("resize", scheduleApply);
       window.removeEventListener("orientationchange", delayedApply);
       window.removeEventListener("pageshow", scheduleApply);

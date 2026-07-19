@@ -3290,6 +3290,104 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   APP MOBILE /m — shell semi-indipendente
+   Header compatto + bottom tab bar stile app nativa.
+   Progettata per viewport standard (width=device-width): niente
+   scaling artificiale, dimensioni native per il touch.
+   ═══════════════════════════════════════════════════════════════ */
+.m-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  font-size: 16px;
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(10,132,255,0.10), transparent 60%),
+    #0B0F1A;
+  color: #F5F5F7;
+}
+
+.m-appbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  background: rgba(15,20,35,0.62);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.m-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.m-tabbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  flex-shrink: 0;
+  padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: rgba(15,20,35,0.82);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  z-index: 100;
+}
+
+.m-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  min-height: 54px;
+  padding: 4px 2px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: rgba(235,235,245,0.45);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: color 0.18s ease;
+}
+.m-tab.active { color: #0A84FF; }
+.m-tab:active { opacity: 0.75; }
+
+.m-tab-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Tab centrale prominente (Nuovo ticket) */
+.m-tab-fab {
+  color: rgba(235,235,245,0.75);
+}
+.m-tab-fab-circle {
+  width: 46px;
+  height: 46px;
+  margin-top: -20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0A84FF 0%, #0064D2 100%);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 8px 24px rgba(10,132,255,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.m-tab-fab:active .m-tab-fab-circle { transform: scale(0.94); }
+
+/* ═══════════════════════════════════════════════════════════════
    MOBILE SCALING — ingrandimento reale su smartphone/tablet
    Il design MVP è tarato su html=14px → su telefono risulta minuscolo.
    Qui si alza il root font-size (scala tutto ciò che usa rem/eredita)

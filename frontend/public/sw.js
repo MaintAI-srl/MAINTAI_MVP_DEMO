@@ -12,7 +12,7 @@
  *   - GET /assets/{id}/kpi, /assets/{id}/storico, /storico/*
  *   - GET /tecnici/me (profilo)
  *   - GET /scadenze/imminenti
- *   - GET /mobile (shell app tecnico)
+ *   - GET /m (shell app tecnico)
  *
  * NON cachea mai:
  *   - POST/PUT/PATCH/DELETE
@@ -171,7 +171,7 @@ self.addEventListener("push", (event) => {
     badge: "/icons/icon-96.png",
     vibrate: data.tag === "emergenza" ? [500, 150, 500, 150, 800] : [200, 100, 200],
     requireInteraction: data.tag === "emergenza", // emergenza rimane finché non viene toccata
-    data: { url: data.url ?? "/mobile", tag: data.tag },
+    data: { url: data.url ?? "/m", tag: data.tag },
     actions: data.tag === "emergenza"
       ? [{ action: "open", title: "🚨 Apri emergenza" }]
       : [{ action: "open", title: "Apri" }],
@@ -182,7 +182,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url ?? "/mobile";
+  const targetUrl = event.notification.data?.url ?? "/m";
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
