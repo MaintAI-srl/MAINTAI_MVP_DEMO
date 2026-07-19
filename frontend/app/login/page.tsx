@@ -160,19 +160,20 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center",
+      minHeight: "100dvh", display: "flex", alignItems: "center",
       justifyContent: "center", background: "var(--bg-base)", color: "var(--text-primary)",
+      padding: "calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px))",
     }}>
       <div style={{
-        width: "100%", maxWidth: "400px", padding: "40px",
+        width: "100%", maxWidth: "480px", padding: "clamp(28px, 8vw, 44px)",
         background: "var(--bg-surface)", border: "1px solid var(--border-strong)",
-        borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+        borderRadius: "22px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
       }}>
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        <div style={{ textAlign: "center", marginBottom: "clamp(28px, 7vw, 40px)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- logo statico nella pagina di login; next/image non porta benefici */}
-          <img src="/logo.png" alt="MaintAI Logo" style={{ width: "64px", height: "64px", objectFit: "contain", marginBottom: "16px", filter: "drop-shadow(0 0 16px rgba(59,130,246,0.3))" }} />
-          <h1 style={{ fontSize: "24px", margin: "0 0 8px 0", letterSpacing: "0.1em", fontWeight: 700 }}>MAINTAI</h1>
-          <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "14px" }}>Accesso Operatori</p>
+          <img src="/logo.png" alt="MaintAI Logo" style={{ width: "clamp(84px, 22vw, 104px)", height: "clamp(84px, 22vw, 104px)", objectFit: "contain", marginBottom: "18px", filter: "drop-shadow(0 0 16px rgba(59,130,246,0.3))" }} />
+          <h1 style={{ fontSize: "clamp(32px, 9vw, 42px)", margin: "0 0 10px 0", letterSpacing: "0.1em", fontWeight: 800 }}>MAINTAI</h1>
+          <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "clamp(17px, 4.6vw, 20px)" }}>Accesso Operatori</p>
         </div>
 
         {/* Banner stato server */}
@@ -188,33 +189,35 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "clamp(20px, 5vw, 26px)" }}>
           <div>
-            <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Username</label>
+            <label style={{ display: "block", fontSize: "clamp(14px, 3.6vw, 16px)", color: "var(--text-secondary)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>Username</label>
             <input
               required autoFocus type="text"
+              autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
               value={username} onChange={(e) => setUsername(e.target.value)}
               disabled={loading}
               style={{
-                width: "100%", padding: "12px",
+                width: "100%", padding: "0 18px", minHeight: "clamp(58px, 15vw, 66px)",
                 background: "var(--bg-base)", border: "1px solid var(--border-default)",
-                borderRadius: "8px", color: "white", outline: "none",
-                fontSize: "15px", boxSizing: "border-box",
+                borderRadius: "14px", color: "white", outline: "none",
+                fontSize: "clamp(17px, 4.6vw, 19px)", boxSizing: "border-box",
                 opacity: loading ? 0.6 : 1,
               }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Password</label>
+            <label style={{ display: "block", fontSize: "clamp(14px, 3.6vw, 16px)", color: "var(--text-secondary)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>Password</label>
             <input
               required type="password"
+              autoComplete="current-password"
               value={password} onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
               style={{
-                width: "100%", padding: "12px",
+                width: "100%", padding: "0 18px", minHeight: "clamp(58px, 15vw, 66px)",
                 background: "var(--bg-base)", border: "1px solid var(--border-default)",
-                borderRadius: "8px", color: "white", outline: "none",
-                fontSize: "15px", boxSizing: "border-box",
+                borderRadius: "14px", color: "white", outline: "none",
+                fontSize: "clamp(17px, 4.6vw, 19px)", boxSizing: "border-box",
                 opacity: loading ? 0.6 : 1,
               }}
             />
@@ -223,10 +226,10 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             style={{
-              marginTop: "8px", padding: "14px",
+              marginTop: "6px", padding: "16px", minHeight: "clamp(60px, 15vw, 68px)",
               background: loading ? "#1e3a5f" : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-              color: "white", border: "none", borderRadius: "8px",
-              fontWeight: 600, fontSize: "15px",
+              color: "white", border: "none", borderRadius: "14px",
+              fontWeight: 800, fontSize: "clamp(18px, 4.8vw, 21px)", letterSpacing: "0.03em",
               cursor: loading ? "not-allowed" : "pointer",
               transition: "all 0.2s",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

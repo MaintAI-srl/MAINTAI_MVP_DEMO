@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { apiGet, apiPost, apiPut } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiUpload } from "../lib/api";
 import { localDatetimeApiStr, localDateStr } from "../lib/datetime";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import Skeleton from "../components/Skeleton";
 import VoiceRecorder from "../components/VoiceRecorder";
 import QrScanner from "../components/QrScanner";
+import FirmaRapportinoModal from "../components/FirmaRapportinoModal";
 import {
   Mic, QrCode, ClipboardList, Home, ChevronLeft, ChevronRight,
   Camera, Check, Play, Pause, RefreshCw, AlertTriangle, Wrench,
@@ -293,10 +294,11 @@ function ActiveWorkView({
   const [showVoice, setShowVoice] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [savingVoice, setSavingVoice] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // QR close flow: "idle" → "scanning" → "confirm" → (close)
-  const [closeState, setCloseState] = useState<"idle" | "scanning" | "confirm">("idle");
+  // QR close flow: "idle" → "scanning" → "confirm" → "firma" → (close)
+  const [closeState, setCloseState] = useState<"idle" | "scanning" | "confirm" | "firma">("idle");
   const [qrScannedValue, setQrScannedValue] = useState("");
   // allChecked: vero se tutte le voci sono flaggate O se non ci sono voci da verificare
   const allChecked = checklist.length === 0 || checked.size === checklist.length;
@@ -325,11 +327,11 @@ function ActiveWorkView({
       notify.warning("Completa la Safety Checklist prima di terminare.", "SAFETY");
       return;
     }
-    // Propone scansione QR ma non è obbligatoria
+    // Propone scansione QR ma non è obbligatoria; poi passa alla firma cliente
     if (ticket.asset_id) {
       setCloseState("scanning");
     } else {
-      await onStatusChange(ticket.id, "Chiuso");
+      setCloseState("firma");
     }
   }
 
@@ -373,7 +375,7 @@ function ActiveWorkView({
           }}>
             <button
               className="m-press"
-              onClick={async () => { setCloseState("idle"); await onStatusChange(ticket.id, "Chiuso"); }}
+              onClick={() => setCloseState("firma")}
               style={{
                 padding: "13px 28px", borderRadius: 14,
                 background: "rgba(0,0,0,0.75)", border: `1px solid ${C.border}`,
@@ -381,7 +383,7 @@ function ActiveWorkView({
                 backdropFilter: "blur(12px)",
               }}
             >
-              Chiudi senza QR
+              Salta QR
             </button>
           </div>
         </div>
@@ -444,10 +446,7 @@ function ActiveWorkView({
               </button>
               <button
                 className="m-press"
-                onClick={async () => {
-                  setCloseState("idle");
-                  await onStatusChange(ticket.id, "Chiuso");
-                }}
+                onClick={() => setCloseState("firma")}
                 style={{
                   flex: 2, padding: 15, borderRadius: 14,
                   background: `linear-gradient(135deg, ${C.green} 0%, #209A41 100%)`,
@@ -456,11 +455,23 @@ function ActiveWorkView({
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                 }}
               >
-                <Check size={18} strokeWidth={3} /> CHIUDI INTERVENTO
+                <Check size={18} strokeWidth={3} /> FIRMA CLIENTE
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Firma cliente + rapportino PDF ─────────────────────────────────── */}
+      {closeState === "firma" && (
+        <FirmaRapportinoModal
+          ticketId={ticket.id}
+          mode="download"
+          onClose={() => setCloseState("idle")}
+          onDone={async () => { await onStatusChange(ticket.id, "Chiuso"); }}
+          onSkip={async () => { await onStatusChange(ticket.id, "Chiuso"); }}
+          skipLabel="Chiudi senza firma"
+        />
       )}
 
       {/* ── Top bar compatta ── */}
@@ -490,11 +501,8 @@ function ActiveWorkView({
         </button>
       </div>
 
-      {/* ── Layout split ── */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
-        flex: 1, minHeight: 0,
-      }}>
+      {/* ── Layout split: 1 colonna su phone portrait, 2 da tablet/landscape ── */}
+      <div className="m-split">
 
         {/* ── SINISTRA: Titolo + azioni media + Safety Checklist ── */}
         <div className="m-scroll m-fade-up" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }}>
@@ -524,22 +532,34 @@ function ActiveWorkView({
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                notify.info("Foto allegata ✓");
-                e.target.value = "";
+                setUploadingPhoto(true);
+                try {
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  await apiUpload(`/tickets/${ticket.id}/allegati`, formData);
+                  notify.success("Foto allegata al ticket ✓");
+                } catch (err) {
+                  notify.error(err instanceof Error ? err.message : "Errore caricamento foto");
+                } finally {
+                  setUploadingPhoto(false);
+                  e.target.value = "";
+                }
               }}
             />
             <button
               className="m-press"
               onClick={handlePhotoClick}
+              disabled={uploadingPhoto}
               style={{
                 borderRadius: 18, minHeight: 76, padding: "14px 8px",
                 background: `${C.blue}12`, border: `1.5px solid ${C.blue}38`,
-                color: C.blue, cursor: "pointer",
+                color: C.blue, cursor: uploadingPhoto ? "wait" : "pointer",
+                opacity: uploadingPhoto ? 0.6 : 1,
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7,
               }}
             >
               <Camera size={26} strokeWidth={1.9} />
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>FOTO</span>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>{uploadingPhoto ? "CARICO…" : "FOTO"}</span>
             </button>
             <button
               className="m-press"
@@ -1658,26 +1678,26 @@ export default function MobileHomePage() {
           className="m-press m-fade-up m-d1"
           onClick={() => { setHomeView("ticket_vocale"); setVoiceStep("listen"); setVoiceTranscript(""); setFoundAssets([]); setManualSearch(""); setManualAssets([]); setSelectedAsset(null); setNuovoDesc(""); setVoiceQrInputMethod("voice"); setShowVoiceQrScan(false); }}
           style={{
-            minHeight: 130, borderRadius: 26, border: `1px solid ${C.indigo}45`, cursor: "pointer",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
-            position: "relative", overflow: "hidden", padding: 18,
+            minHeight: "clamp(190px, 27vh, 250px)", borderRadius: 26, border: `1px solid ${C.indigo}45`, cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
+            position: "relative", overflow: "hidden", padding: "22px 16px",
             background: `radial-gradient(140% 120% at 20% 0%, ${C.indigo}33 0%, transparent 50%), linear-gradient(150deg, #181640 0%, #0E0C2A 70%)`,
             boxShadow: `0 14px 44px ${C.indigo}28`,
           }}
         >
           <div style={{
-            width: "clamp(58px, 8vw, 74px)", height: "clamp(58px, 8vw, 74px)", borderRadius: "28%",
+            width: "clamp(76px, 20vw, 92px)", height: "clamp(76px, 20vw, 92px)", borderRadius: "28%",
             background: `${C.indigo}28`, border: `1px solid ${C.indigo}50`,
             display: "flex", alignItems: "center", justifyContent: "center", color: "#A5A1FF",
             boxShadow: `0 0 30px ${C.indigo}40`,
           }}>
-            <Mic size={32} strokeWidth={1.8} />
+            <Mic size={42} strokeWidth={1.8} />
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontWeight: 800, fontSize: "clamp(18px, 2.4vw, 23px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            <div style={{ fontWeight: 800, fontSize: "clamp(21px, 5.6vw, 26px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
               Apri Ticket <span style={{ color: "#A5A1FF" }}>Vocale</span>
             </div>
-            <div style={{ fontSize: 12, color: C.text3, marginTop: 4, fontWeight: 500 }}>Riconosce l&apos;asset dalla voce o dal QR</div>
+            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>Riconosce l&apos;asset dalla voce o dal QR</div>
           </div>
         </button>
 
@@ -1685,26 +1705,26 @@ export default function MobileHomePage() {
           className="m-press m-fade-up m-d2"
           onClick={() => { setHomeView("piano_odierno"); setDpiConfirmed(false); setDpiChecked({}); setPianoDiOggi([]); }}
           style={{
-            minHeight: 130, borderRadius: 26, border: `1px solid ${C.teal}40`, cursor: "pointer",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
-            position: "relative", overflow: "hidden", padding: 18,
+            minHeight: "clamp(190px, 27vh, 250px)", borderRadius: 26, border: `1px solid ${C.teal}40`, cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
+            position: "relative", overflow: "hidden", padding: "22px 16px",
             background: `radial-gradient(140% 120% at 80% 0%, ${C.teal}26 0%, transparent 50%), linear-gradient(150deg, #0C2B2E 0%, #081C20 70%)`,
             boxShadow: `0 14px 44px ${C.teal}1f`,
           }}
         >
           <div style={{
-            width: "clamp(58px, 8vw, 74px)", height: "clamp(58px, 8vw, 74px)", borderRadius: "28%",
+            width: "clamp(76px, 20vw, 92px)", height: "clamp(76px, 20vw, 92px)", borderRadius: "28%",
             background: `${C.teal}1f`, border: `1px solid ${C.teal}48`,
             display: "flex", alignItems: "center", justifyContent: "center", color: C.teal,
             boxShadow: `0 0 30px ${C.teal}33`,
           }}>
-            <ClipboardList size={32} strokeWidth={1.8} />
+            <ClipboardList size={42} strokeWidth={1.8} />
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontWeight: 800, fontSize: "clamp(18px, 2.4vw, 23px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            <div style={{ fontWeight: 800, fontSize: "clamp(21px, 5.6vw, 26px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
               Piano <span style={{ color: C.teal }}>Odierno</span>
             </div>
-            <div style={{ fontSize: 12, color: C.text3, marginTop: 4, fontWeight: 500 }}>Verifica DPI e accedi al piano</div>
+            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>Verifica DPI e accedi al piano</div>
           </div>
         </button>
       </div>

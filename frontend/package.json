@@ -1,10 +1,10 @@
 {
   "name": "frontend",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node ../scripts/deploy_version.mjs && next build",
+    "build": "node ../scripts/deploy_version.mjs && next build && node ../scripts/patch-viewport.mjs",
     "start": "next start",
     "lint": "eslint",
     "build:desktop": "cross-env DESKTOP_BUILD=true NEXT_PUBLIC_API_BASE=https://maintai-v3.onrender.com next build",

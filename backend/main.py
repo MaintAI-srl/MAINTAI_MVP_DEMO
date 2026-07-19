@@ -349,6 +349,10 @@ def _ensure_columns() -> None:
         ("ticket", "ricambio_quantita",        "ALTER TABLE ticket ADD COLUMN {ifne}ricambio_quantita FLOAT"),
         # Ticket — note libere compilabili in creazione
         ("ticket", "note",                     "ALTER TABLE ticket ADD COLUMN {ifne}note TEXT"),
+        # Ticket — firma di accettazione cliente (percorso immagine + nome firmatario + data apposizione)
+        ("ticket", "firma_percorso",           "ALTER TABLE ticket ADD COLUMN {ifne}firma_percorso VARCHAR"),
+        ("ticket", "firma_nome",               "ALTER TABLE ticket ADD COLUMN {ifne}firma_nome VARCHAR"),
+        ("ticket", "firma_data",               "ALTER TABLE ticket ADD COLUMN {ifne}firma_data TIMESTAMP"),
         # Ticket — ore uomo (change request 2026-07-05)
         ("ticket", "required_man_hours",           "ALTER TABLE ticket ADD COLUMN {ifne}required_man_hours FLOAT"),
         ("ticket", "man_hours_calculation_mode",   "ALTER TABLE ticket ADD COLUMN {ifne}man_hours_calculation_mode VARCHAR DEFAULT 'manual'"),
@@ -949,7 +953,7 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)")
     if IS_PRODUCTION:
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
@@ -1068,7 +1072,11 @@ for _router, _module_id in _V1_ROUTERS:
             dependencies=[Depends(_require_module_enabled(_module_id))],
         )
 
-# Mount cartella statica solo in locale (in cloud i file sono su Supabase Storage)
-if not os.getenv("SUPABASE_URL"):
+# Mount cartella statica solo in sviluppo locale (in cloud i file sono su Supabase Storage).
+# NB: il mount serve i file SENZA autenticazione né isolamento tenant — in produzione
+# (anche senza Supabase, es. Render con disco locale) resta vietato: gli allegati e le
+# firme vanno serviti solo dagli endpoint autenticati /tickets/allegati/{id}/download
+# e /tickets/{id}/firma.
+if not os.getenv("SUPABASE_URL") and not IS_PRODUCTION:
     os.makedirs("uploads", exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

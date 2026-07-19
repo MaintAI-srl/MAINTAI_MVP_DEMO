@@ -1159,12 +1159,6 @@ body {
   overflow: hidden;
 }
 
-@media (max-width: 768px) {
-  .full-bleed-page {
-    margin: -20px -16px;
-    height: calc(100vh - var(--topbar-h));
-  }
-}
 
 /* ─── SIDEBAR COMPONENTS ───────────────────────────────────── */
 .sidebar-logo {
@@ -1839,6 +1833,14 @@ input:focus, select:focus, textarea:focus {
   outline: none !important;
 }
 
+/* Mobile: font ≥16px negli input evita l'auto-zoom del browser al focus
+   (necessario ora che il viewport consente di nuovo lo zoom con le dita).
+   Tap immediato senza delay da double-tap zoom sugli elementi interattivi. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+  button, a, [role="button"] { touch-action: manipulation; }
+}
+
 /* ─── BUTTONS — Premium system ──────────────────────────────── */
 .btn, .btn-primary, .btn-secondary, .btn-ghost, .btn-danger {
   display: inline-flex;
@@ -2195,7 +2197,16 @@ input:focus, select:focus, textarea:focus {
 }
 
 @media (max-width: 1024px) {
-  .mobile-menu-btn { display: flex; }
+  /* Niente scroll orizzontale accidentale su telefono */
+  html, body { overflow-x: hidden; }
+  .app-main { min-width: 0; }
+
+  .mobile-menu-btn {
+    display: flex;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
 
   .app-sidebar {
     transform: translateX(-100%);
@@ -2224,10 +2235,21 @@ input:focus, select:focus, textarea:focus {
     left: min(var(--sidebar-width), calc(100vw - 34px));
   }
 
+  /* La linguetta MENU laterale è ridondante: su mobile c'è il bottone ☰ */
   .sidebar-menu-tab { display: none; }
 
-  .app-topbar { padding: 0 14px; }
+  /* Safe area per PWA standalone su iPhone con notch (viewport-fit=cover) */
+  .app-topbar {
+    padding: 0 14px;
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  }
   .app-content { padding: 18px 14px; }
+  .full-bleed-page {
+    margin: -18px -14px;
+    height: calc(100vh - var(--topbar-h));
+    height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top, 0px));
+  }
 
   .topbar-time, .topbar-section, .topbar-sep, .topbar-weather { display: none; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
@@ -2286,6 +2308,13 @@ input:focus, select:focus, textarea:focus {
     justify-content: center;
     padding-inline: 10px !important;
   }
+
+  /* Topbar compatta: restano i controlli essenziali e target touch ampi. */
+  .topbar-user-copy { display: none !important; }
+  .topbar-user { padding-left: 8px !important; gap: 0 !important; }
+  .topbar-right { gap: 3px !important; }
+  .quick-ticket-label { display: none; }
+  .topbar-weather { display: none; }
 }
 
 /* Fallback quando un telefono/tablet espone una viewport desktop. */
@@ -2326,6 +2355,8 @@ input:focus, select:focus, textarea:focus {
 
 :root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-topbar {
   padding: 0 14px;
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
 }
 
 :root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-content {
@@ -2342,7 +2373,7 @@ input:focus, select:focus, textarea:focus {
 
 :root[data-device-class="mobile"] .app-topbar {
   gap: 8px;
-  padding: 0 10px;
+  padding: env(safe-area-inset-top, 0px) 10px 0;
 }
 
 :root[data-device-class="mobile"] .app-content {
@@ -2363,6 +2394,11 @@ input:focus, select:focus, textarea:focus {
 }
 
 :root[data-device-class="mobile"] :is(.topbar-quick-ticket, .topbar-divider, .topbar-user-copy) {
+  display: none;
+}
+
+:root[data-device-class="mobile"] .quick-ticket-label,
+:root[data-device-class="mobile"] .topbar-weather {
   display: none;
 }
 
@@ -2410,6 +2446,10 @@ input:focus, select:focus, textarea:focus {
   min-width: 0;
   justify-content: center;
   padding-inline: 10px !important;
+}
+
+:root[data-device-class="mobile"] .kpi-grid {
+  grid-template-columns: 1fr;
 }
 
 /* ─── CONTROL ROOM AMBIENT EFFECTS ─────────────────────────── */
@@ -3184,10 +3224,12 @@ input:focus, select:focus, textarea:focus {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
-  flex: 1;
-  min-height: 0;
+  /* niente flex:1 / stretch: le tile devono avere un'altezza propria e
+     restare compatte in alto, non allungarsi a tutto lo schermo quando
+     la home è vuota (nessun ticket in corso / emergenza) */
+  align-content: start;
 }
-@media (min-width: 700px), (orientation: landscape) and (min-height: 380px) {
+@media (min-width: 900px), (orientation: landscape) and (min-height: 380px) {
   .m-tiles { grid-template-columns: 1fr 1fr; }
 }
 
@@ -3198,8 +3240,38 @@ input:focus, select:focus, textarea:focus {
   gap: 10px;
   align-content: start;
 }
-@media (min-width: 700px) {
+@media (min-width: 900px), (orientation: landscape) and (min-height: 380px) {
   .m-cols { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+}
+
+/* Vista lavoro attivo: colonna singola scrollabile su phone portrait,
+   split 2 colonne affiancate (senza scroll pagina) da tablet/landscape */
+.m-split {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.m-split::-webkit-scrollbar { display: none; }
+.m-split > .m-scroll {
+  flex-shrink: 0;
+  overflow-y: visible;
+}
+@media (min-width: 900px), (orientation: landscape) and (min-height: 380px) {
+  .m-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow-y: hidden;
+  }
+  .m-split > .m-scroll {
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 /* Contenuto centrato con larghezza massima da tablet */
@@ -3215,4 +3287,75 @@ input:focus, select:focus, textarea:focus {
 
 @media (prefers-reduced-motion: reduce) {
   .m-fade-up, .m-scale-in, .m-slide-in { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE SCALING — ingrandimento reale su smartphone/tablet
+   Il design MVP è tarato su html=14px → su telefono risulta minuscolo.
+   Qui si alza il root font-size (scala tutto ciò che usa rem/eredita)
+   e si ingrandiscono esplicitamente i componenti px principali
+   (nav, topbar, campi, bottoni, titoli). Tutto mobile-only: il
+   desktop e la meccanica del drawer restano invariati.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  /* Root più grande: base di scala per rem e testo ereditato */
+  html { font-size: 15.5px; }
+
+  /* Voci di menu grandi e comode al pollice (dentro il drawer) */
+  .nav-item {
+    font-size: 16px;
+    min-height: 54px;
+    padding: 13px 16px;
+    gap: 14px;
+    border-radius: 12px;
+  }
+  .nav-icon,
+  .nav-icon svg { width: 23px; height: 23px; }
+  .sidebar-section-label { font-size: 11.5px; letter-spacing: 0.14em; }
+
+  /* Controlli topbar: touch target generosi */
+  .mobile-menu-btn { width: 46px; height: 46px; min-width: 46px; }
+  .topbar-icon-btn { width: 46px; height: 46px; min-width: 46px; }
+  .topbar-icon-btn svg { width: 21px; height: 21px; }
+  .topbar-page { font-size: 17px; }
+
+  /* Campi e bottoni testuali comodi (solo min-height/font: niente
+     padding, così non si distorcono i bottoni icona) */
+  input, select, textarea { font-size: 16px !important; min-height: 50px; }
+  textarea { min-height: 100px; }
+  .btn-primary, .btn-secondary, .btn-danger, button[type="submit"] {
+    min-height: 50px; font-size: 15.5px;
+  }
+
+  /* Titoli e testo più leggibili */
+  .page-title { font-size: 28px; }
+  .section-title { font-size: 18px; }
+  .card-title { font-size: 17px; }
+
+  button, a, [role="button"] { touch-action: manipulation; }
+}
+
+/* Telefoni (anche quelli che riportano una viewport CSS larga, ~760px, e che
+   quindi NON rientrano nei classici breakpoint ≤640/≤768): trattati come
+   telefono ogni volta che sono in verticale fino a 900px. Spinta forte sul
+   testo e layout a colonna singola. */
+@media (max-width: 768px), (orientation: portrait) and (max-width: 900px) {
+  html { font-size: 16px; }
+  body { font-size: 16px; }
+  .page-title { font-size: 30px; }
+  .card, .card-premium { border-radius: 18px; }
+  /* KPI e griglie form a colonna singola: niente celle strette e minuscole */
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Tabelle: scroll orizzontale fluido invece di schiacciarsi */
+  .data-table-wrap, .table-scroll, [data-slot="table-container"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px), (orientation: portrait) and (max-width: 560px) {
+  /* Telefoni stretti: massima leggibilità, KPI a colonna singola */
+  html { font-size: 16.5px; }
+  .kpi-grid { grid-template-columns: 1fr; }
 }

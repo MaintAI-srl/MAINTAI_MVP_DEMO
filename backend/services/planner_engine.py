@@ -144,12 +144,12 @@ def _ticket_priority_score(ticket: PlannerTicket, today: date) -> float:
     Score di priorità composito per ordinamento ticket (#2).
 
     Componenti:
-    - tipo_peso: BD=1000, CM=200, PM=100
+    - tipo_peso: BD=1000, CM=200, PM=100, MOD-STR=80, ISP=50
     - prio_peso: Alta=300, Media=100, Bassa=30
     - sla_score: urgenza basata su giorni alla scadenza SLA
     - aging_score: ticket vecchi guadagnano urgenza (max 100)
     """
-    tipo_peso = {"BD": 1000, "CM": 200, "PM": 100, "ISP": 50}.get(ticket.tipo.upper() if ticket.tipo else "", 100)
+    tipo_peso = {"BD": 1000, "CM": 200, "PM": 100, "MOD-STR": 80, "ISP": 50}.get(ticket.tipo.upper() if ticket.tipo else "", 100)
     prio_peso = {"Alta": 300, "Media": 100, "Bassa": 30}.get(ticket.priorita, 100)
 
     sla_score = 0

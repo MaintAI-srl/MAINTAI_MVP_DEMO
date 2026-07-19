@@ -1241,12 +1241,13 @@ export default function PianificazionePage() {
     } catch { /* silenzioso */ }
   }, []);
 
-  // ── Generazione piano (auto-scheduling deterministico, no AI) ─────────────
+  // ── Generazione piano: deterministico (default) o Felix Agent (AI) ────────
   const [generandoStatus, setGenerandoStatus] = useState("Elaborazione...");
 
-  async function generatePlan() {
+  async function generatePlan(mode: "deterministic" | "agent" = "deterministic") {
+    const isAgent = mode === "agent";
     setGenerando(true);
-    setGenerandoStatus("Generazione piano in corso...");
+    setGenerandoStatus(isAgent ? "Felix Agent al lavoro..." : "Generazione piano in corso...");
     try {
       // Warm-up ping: sveglia il backend prima della richiesta (cold start Render)
       try {
@@ -1255,9 +1256,9 @@ export default function PianificazionePage() {
         setGenerandoStatus("Connessione backend...");
       }
 
-      setGenerandoStatus("Calcolo assegnazioni...");
+      setGenerandoStatus(isAgent ? "Felix Agent: ottimizzazione piano..." : "Calcolo assegnazioni...");
       const res = await apiPost<GeneratedPlan & { previous_efficiency_score?: number }>("/planning/generate", {
-        mode: "deterministic",
+        mode,
         include_weekends: includeWeekends,
         allow_overtime: allowOvertime,
       });
@@ -1288,7 +1289,19 @@ export default function PianificazionePage() {
         }
       } else {
         setPiano(cleanRes);
-        notify.success(`Proposta generata — ${nScheduled} ticket schedulati`);
+        notify.success(
+          isAgent
+            ? `Proposta Felix Agent generata — ${nScheduled} ticket schedulati`
+            : `Proposta generata — ${nScheduled} ticket schedulati`,
+        );
+      }
+
+      // Felix Agent: se l'agente è degradato al motore deterministico, avvisa il planner
+      const meta = cleanRes.plan_json?.plan_metadata;
+      if (isAgent && meta?.agent_fallback) {
+        notify.warning(
+          `Felix Agent non disponibile (${meta.agent_fallback_reason ?? "errore agente"}): piano generato dal motore deterministico`,
+        );
       }
 
       const planStart = cleanRes.plan_json?.plan_metadata?.planning_start_date;
@@ -1296,7 +1309,13 @@ export default function PianificazionePage() {
       if (summary) setSummaryModal(summary);
       await loadData(false, generatedPlannedIds); // aggiorna il Gantt senza ripopolare la sidebar
     } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Errore durante la generazione del piano");
+      const msg = e instanceof Error ? e.message : "Errore durante la generazione del piano";
+      // 503 dal backend: generazione AI dietro flag AI_PLANNING_ENABLED
+      if (isAgent && msg.toLowerCase().includes("disattivata")) {
+        notify.error("Felix Agent non è attivo su questo ambiente (flag AI_PLANNING_ENABLED). Usa la generazione standard.");
+      } else {
+        notify.error(msg);
+      }
     } finally {
       setGenerando(false);
       setGenerandoStatus("Elaborazione...");
@@ -1715,7 +1734,7 @@ export default function PianificazionePage() {
 
           {/* Generazione piano — motore deterministico (saturazione ore) */}
           <button
-            onClick={generatePlan}
+            onClick={() => generatePlan("deterministic")}
             disabled={generando}
             title="Genera automaticamente il piano assegnando i ticket ai tecnici (no weekend)"
             style={{
@@ -1730,6 +1749,41 @@ export default function PianificazionePage() {
           >
             {generando ? generandoStatus : "Generazione piano"}
           </button>
+
+          {/* Felix Agent — motore agentico AI (OpenAI Agents SDK, flag AI_PLANNING_ENABLED) */}
+          <button
+            onClick={() => generatePlan("agent")}
+            disabled={generando}
+            title="Genera il piano con Felix Agent: parte dalla baseline deterministica e la ottimizza (meteo, logistica, bilanciamento). Richiede AI attiva sul backend."
+            style={{
+              background: generando
+                ? "rgba(31,41,55,0.8)"
+                : "linear-gradient(135deg, #7c3aed, #a855f7)",
+              border: "1px solid rgba(168,85,247,0.45)", color: "#fff", borderRadius: 8, padding: "8px 16px",
+              fontSize: 12, fontWeight: 800, cursor: generando ? "wait" : "pointer",
+              boxShadow: generando ? "none" : "0 2px 10px rgba(124,58,237,0.4)",
+              display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s", flexShrink: 0,
+            }}
+          >
+            🤖 Felix Agent
+          </button>
+
+          {/* Badge motore — visibile quando il piano corrente è stato generato dall'agente */}
+          {planJson?.plan_metadata?.generated_by === "agent" && (
+            <span
+              title={planJson.plan_metadata.agent_fallback
+                ? `Fallback deterministico: ${planJson.plan_metadata.agent_fallback_reason ?? "errore agente"}`
+                : `Piano ottimizzato da Felix Agent (${planJson.plan_metadata.agent_turns ?? "?"} turni)`}
+              style={{
+                padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 6, flexShrink: 0,
+                background: planJson.plan_metadata.agent_fallback ? "rgba(245,158,11,0.15)" : "rgba(168,85,247,0.15)",
+                border: `1px solid ${planJson.plan_metadata.agent_fallback ? "rgba(245,158,11,0.4)" : "rgba(168,85,247,0.4)"}`,
+                color: planJson.plan_metadata.agent_fallback ? "#f59e0b" : "#c084fc",
+              }}
+            >
+              {planJson.plan_metadata.agent_fallback ? "🤖 Agent → fallback" : "🤖 Felix Agent"}
+            </span>
+          )}
 
           {/* Conferma proposta — visibile solo quando esiste una bozza da approvare */}
           {piano?.status === "draft" && (planJson?.planned_workorders?.length ?? 0) > 0 && (

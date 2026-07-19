@@ -38,7 +38,9 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // camera+microfono abilitati per il sito stesso (scanner QR asset e input vocale
+  // della app mobile /mobile). Restano negati agli iframe di terze parti.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
   { key: "Content-Security-Policy", value: cspDirectives },
 ];
 
