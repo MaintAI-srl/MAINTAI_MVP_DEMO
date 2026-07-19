@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { apiGet } from "../lib/api";
 import {
@@ -56,12 +56,51 @@ function useEmergencyWatcher() {
   }, [tecnicoId]);
 }
 
+/** Larghezza di riferimento del design /m (telefono portrait tipico). */
+const M_DESIGN_WIDTH = 430;
+
+/**
+ * Auto-scala l'intera shell in proporzione alla viewport reale del telefono.
+ * Molti Android dichiarano una viewport CSS larga (es. 610px su schermi 1220px
+ * con DPR 2.0): senza correzione la UI, tarata su ~430px, risulta fisicamente
+ * il 30-40% più piccola. Qui si applica `zoom = latoCorto / 430` SOLO dentro
+ * .m-shell — nessuna manipolazione dei meta viewport, resa deterministica.
+ * Sui telefoni con viewport standard (≤430px) il fattore resta 1.
+ */
+function useMobileScale(shellRef: React.RefObject<HTMLDivElement | null>) {
+  const apply = useCallback(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    // Il lato corto è la larghezza in portrait e resta stabile in landscape
+    const shortSide = Math.min(window.innerWidth, window.innerHeight);
+    const isPhone = document.documentElement.dataset.deviceClass === "mobile";
+    const zoom = isPhone ? Math.min(Math.max(shortSide / M_DESIGN_WIDTH, 1), 1.9) : 1;
+    el.style.setProperty("--m-zoom", zoom.toFixed(3));
+  }, [shellRef]);
+
+  useEffect(() => {
+    // Browser senza supporto `zoom` (Firefox < 126): nessuna scala, la CSS
+    // ha fallback --m-zoom:1 e la shell resta identica a prima.
+    if (typeof CSS === "undefined" || !CSS.supports("zoom", "2")) return;
+    const delayed = () => window.setTimeout(apply, 350);
+    apply();
+    window.addEventListener("resize", apply);
+    window.addEventListener("orientationchange", delayed);
+    return () => {
+      window.removeEventListener("resize", apply);
+      window.removeEventListener("orientationchange", delayed);
+    };
+  }, [apply]);
+}
+
 export default function MobileAppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, user } = useAuth();
+  const shellRef = useRef<HTMLDivElement>(null);
 
   useEmergencyWatcher();
+  useMobileScale(shellRef);
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/login");
@@ -73,7 +112,7 @@ export default function MobileAppLayout({ children }: { children: React.ReactNod
     href === "/m" ? pathname === "/m" : pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <div className="m-shell">
+    <div className="m-shell" ref={shellRef}>
       {/* ── Header ── */}
       <header className="m-appbar">
         <Link href="/m" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
