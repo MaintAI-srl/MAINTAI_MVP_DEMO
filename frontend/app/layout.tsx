@@ -14,17 +14,18 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 /**
- * Il post-build riscrive il viewport statico dei telefoni a width=430 senza
- * initial-scale. Questo export mantiene il solo colore tema, evitando che Next
- * reintroduca una configurazione viewport incompatibile con quella correzione.
+ * Viewport standard: le pagine mobile vivono nella sezione dedicata /m,
+ * progettata nativamente per schermi piccoli. Nessun hack di scaling.
  */
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#f5f7fb",
 };
 
-// Tema e classe dispositivo vengono applicati prima del paint. La classe e il
-// fallback CSS restano efficaci anche quando un browser mobile espone una
-// viewport desktop; ViewportController li riallinea dopo l'hydration.
+// Tema e classe dispositivo vengono applicati prima del paint;
+// ViewportController riallinea la classe dopo l'hydration.
 const bootstrapScript = `
   (function() {
     try {
@@ -49,10 +50,6 @@ const bootstrapScript = `
   })();
 `;
 
-// Normalizza tutti i meta viewport: telefono portrait -> width=430 senza
-// initial-scale; tablet portrait -> 768; landscape/non-touch -> device-width.
-const viewportRelaxScript = `(function(){try{var touch=(navigator.maxTouchPoints>0)||('ontouchstart' in window)||(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches);function want(){var landscape=window.matchMedia&&window.matchMedia('(orientation: landscape)').matches;if(!touch||landscape)return 'width=device-width, initial-scale=1, viewport-fit=cover';var dpr=window.devicePixelRatio||1;var minDimPhys=window.screen?Math.min(screen.width,screen.height)*dpr:0;return 'width='+(minDimPhys>1500?768:430)+', viewport-fit=cover';}function apply(){try{var w=want();var ms=document.querySelectorAll('meta[name="viewport"]');for(var i=0;i<ms.length;i++){if(ms[i].getAttribute('content')!==w)ms[i].setAttribute('content',w);}}catch(e){}}apply();window.addEventListener('orientationchange',function(){setTimeout(apply,300);});}catch(e){}})();`;
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -72,7 +69,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: bootstrapScript }} />
       </head>
       <body>
-        <script dangerouslySetInnerHTML={{ __html: viewportRelaxScript }} />
         <RootShell>{children}</RootShell>
       </body>
     </html>

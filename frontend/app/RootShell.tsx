@@ -171,8 +171,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (isTecnico && (pathname === "/" || pathname === "/dashboard")) {
-      router.push("/mobile");
+    if (!isTecnico) return;
+    // Opt-out esplicito dalla /m (link "Versione desktop" in /m/profilo)
+    const forceDesktop = localStorage.getItem("maintai_force_desktop") === "true";
+    if (!forceDesktop && (pathname === "/" || pathname === "/dashboard")) {
+      router.push("/m");
     }
   }, [isTecnico, pathname, router]);
 
@@ -234,70 +237,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Layout dedicato per la pagina mobile tecnici — full-screen, no sidebar, no scroll pagina
-  if (pathname === "/mobile") {
-    return (
-      <div style={{
-        display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden",
-        background: "radial-gradient(1200px 500px at 50% -10%, rgba(10,132,255,0.10), transparent 60%), #0B0F1A",
-      }}>
-        {/* Topbar in vetro smerigliato */}
-        <header style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 16px",
-          paddingTop: "calc(10px + env(safe-area-inset-top, 0px))",
-          background: "rgba(15,20,35,0.62)",
-          backdropFilter: "blur(24px) saturate(1.6)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.6)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          flexShrink: 0, zIndex: 100,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo statico piccolo; next/image non porta benefici e complica il layout della topbar */}
-            <img src="/logo.png" alt="MaintAI" style={{ width: 28, height: 28, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(10,132,255,0.45))" }} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#F5F5F7", lineHeight: 1, letterSpacing: "-0.02em" }}>MaintAI</div>
-              <div style={{ fontSize: 9, color: "#0A84FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", marginTop: 2 }}>Campo</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{
-              fontSize: 12, color: "rgba(235,235,245,0.6)", fontWeight: 600,
-              maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>{user?.username}</span>
-            <button
-              className="m-press"
-              onClick={toggleTheme}
-              style={{
-                background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)",
-                cursor: "pointer", color: "rgba(235,235,245,0.6)",
-                width: 34, height: 34, borderRadius: "50%",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-              title={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
-            >
-              {theme === "dark" ? <Sun size={15} strokeWidth={1.8} /> : <Moon size={15} strokeWidth={1.8} />}
-            </button>
-            <button
-              className="m-press"
-              onClick={logout}
-              aria-label="Esci"
-              style={{
-                background: "rgba(255,69,58,0.10)", border: "1px solid rgba(255,69,58,0.25)",
-                color: "#FF6961", borderRadius: "50%", width: 34, height: 34,
-                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-              }}
-            >
-              <LogOut size={15} strokeWidth={2} />
-            </button>
-          </div>
-        </header>
-        {/* Contenuto: la pagina gestisce internamente le aree scrollabili */}
-        <main style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {children}
-        </main>
-      </div>
-    );
+  // App mobile /m — shell propria (header + tab bar) gestita da app/m/layout.tsx
+  if (pathname === "/m" || pathname.startsWith("/m/")) {
+    return <>{children}</>;
   }
 
   const pageLabel = pathname === "/"
