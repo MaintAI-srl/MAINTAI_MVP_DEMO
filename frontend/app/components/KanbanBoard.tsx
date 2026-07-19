@@ -125,6 +125,7 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      className="ticket-kanban-column"
       style={{
         background: isOver
           ? `color-mix(in srgb, ${colors.bg} 60%, #0f172a)`
@@ -238,7 +239,7 @@ function KanbanPianificaModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>
-      <div style={{ background: "var(--surface-2,#111827)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 22, padding: "36px 32px", width: 440, boxShadow: "0 40px 100px rgba(0,0,0,0.8), 0 0 40px rgba(167,139,250,0.08)" }}>
+      <div style={{ background: "var(--surface-2,#111827)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 22, padding: "36px 32px", width: "min(440px, calc(100vw - 24px))", boxShadow: "0 40px 100px rgba(0,0,0,0.8), 0 0 40px rgba(167,139,250,0.08)" }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, justifyContent: "center" }}>
@@ -421,7 +422,7 @@ export default function KanbanBoard({ tickets, onRefresh }: KanbanBoardProps) {
   return (
     <>
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveTicket(null)}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div className="ticket-kanban-grid">
           {COLS.map(stato => (
             <KanbanColumn
               key={stato}

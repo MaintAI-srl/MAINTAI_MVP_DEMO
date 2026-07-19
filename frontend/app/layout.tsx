@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { moduleForPath } from "./lib/modules";
@@ -29,6 +29,42 @@ import {
 } from "lucide-react";
 
 // Fonts now loaded above individually
+
+type DeviceClass = "mobile" | "tablet" | "desktop";
+
+function detectDeviceClass(): DeviceClass {
+  if (typeof window === "undefined") return "desktop";
+
+  const viewportWidth = Math.round(window.visualViewport?.width ?? window.innerWidth);
+  const screenWidth = window.screen?.width || viewportWidth;
+  const screenHeight = window.screen?.height || viewportWidth;
+  const shortestScreenSide = Math.min(screenWidth, screenHeight);
+  const userAgent = window.navigator.userAgent;
+  const touchPoints = window.navigator.maxTouchPoints || 0;
+  const hasCoarsePointer = window.matchMedia("(any-pointer: coarse)").matches;
+  const isTouchDevice = touchPoints > 0 || hasCoarsePointer;
+  const isPhoneUserAgent = /Mobi|iPhone|iPod|Windows Phone/i.test(userAgent)
+    || (/Android/i.test(userAgent) && /Mobile/i.test(userAgent));
+  const isTabletUserAgent = /iPad|Tablet|PlayBook|Silk/i.test(userAgent)
+    || (/Android/i.test(userAgent) && !/Mobile/i.test(userAgent))
+    || (/Macintosh/i.test(userAgent) && touchPoints > 1);
+
+  if (viewportWidth <= 640 || isPhoneUserAgent || (isTouchDevice && shortestScreenSide <= 600)) {
+    return "mobile";
+  }
+
+  if (viewportWidth <= 1024 || isTabletUserAgent || (isTouchDevice && shortestScreenSide <= 1024)) {
+    return "tablet";
+  }
+
+  return "desktop";
+}
+
+function isCompactDevice() {
+  if (typeof document === "undefined") return false;
+  const deviceClass = document.documentElement.dataset.deviceClass;
+  return deviceClass === "mobile" || deviceClass === "tablet";
+}
 
 function GlobalOfflineIndicator() {
   const [isOnline, setIsOnline] = useState(true);
@@ -78,6 +114,43 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [time, setTime] = useState("");
   const [theme, setTheme] = useState("light");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const compactDeviceRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    let resizeFrame = 0;
+
+    const applyDeviceClass = () => {
+      const deviceClass = detectDeviceClass();
+      const compact = deviceClass !== "desktop";
+      const compactModeChanged = compactDeviceRef.current !== compact;
+
+      root.dataset.deviceClass = deviceClass;
+      if (!root.dataset.layoutReady || compactModeChanged) {
+        // Lo stato della sidebar segue la modalita layout, non la sola innerWidth.
+        setSidebarOpen(!compact);
+      }
+      compactDeviceRef.current = compact;
+      root.dataset.layoutReady = "true";
+    };
+
+    const scheduleDeviceCheck = () => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(applyDeviceClass);
+    };
+
+    applyDeviceClass();
+    window.addEventListener("resize", scheduleDeviceCheck);
+    window.addEventListener("orientationchange", scheduleDeviceCheck);
+    window.visualViewport?.addEventListener("resize", scheduleDeviceCheck);
+
+    return () => {
+      window.cancelAnimationFrame(resizeFrame);
+      window.removeEventListener("resize", scheduleDeviceCheck);
+      window.removeEventListener("orientationchange", scheduleDeviceCheck);
+      window.visualViewport?.removeEventListener("resize", scheduleDeviceCheck);
+    };
+  }, []);
 
   // Keep-alive: pinga il backend ogni 8 minuti per evitare cold start su Render free tier
   useEffect(() => {
@@ -119,7 +192,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   const closeSidebarOnMobile = () => {
-    if (typeof window !== "undefined" && window.innerWidth <= 1024) {
+    if (isCompactDevice()) {
       setSidebarOpen(false);
     }
   };
@@ -265,6 +338,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`}>
 
+      {/* Sibling del drawer: cosi transform e overflow della sidebar non lo ritagliano. */}
+      <button
+        type="button"
+        className="sidebar-mobile-overlay"
+        onClick={() => setSidebarOpen(false)}
+        aria-label="Chiudi menu laterale"
+        tabIndex={sidebarOpen ? 0 : -1}
+      />
+
       {/* ══════════════════════════════════════════════════════════
           SIDEBAR — NUOVA IDENTITÀ VISIVA
           Ultra-dark glass panel, glow icons, neon accents
@@ -274,9 +356,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div style={{ position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)", width: 200, height: 120, background: "radial-gradient(ellipse, rgba(91,143,255,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
         {/* Scan lines texture */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(91,143,255,0.012) 3px, rgba(91,143,255,0.012) 4px)", pointerEvents: "none", zIndex: 0 }} />
-
-        {/* Mobile overlay */}
-        <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
         {/* ── LOGO ──────────────────────────────────────── */}
         <Link href="/" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={closeSidebarOnMobile}>
@@ -390,18 +469,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right controls */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            {isModuleEnabled("tickets") && <GlobalQuickTicket />}
+          <div className="topbar-right">
+            {isModuleEnabled("tickets") && <div className="topbar-quick-ticket"><GlobalQuickTicket /></div>}
 
-            <div style={{ width: 1, height: 22, background: "var(--border-subtle)", margin: "0 4px" }} />
+            <div className="topbar-divider" />
 
             {notificationsEnabled && (
-              <NotificationPanel
-                enableScadenze={isModuleEnabled("deadlines")}
-                enableTickets={isModuleEnabled("tickets")}
-              />
+              <div className="topbar-notifications">
+                <NotificationPanel
+                  enableScadenze={isModuleEnabled("deadlines")}
+                  enableTickets={isModuleEnabled("tickets")}
+                />
+              </div>
             )}
-            {isModuleEnabled("weather") && <WeatherWidget />}
+            {isModuleEnabled("weather") && <div className="topbar-weather"><WeatherWidget /></div>}
 
             {/* Clock */}
             <div className="topbar-time">{time}</div>
@@ -416,12 +497,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             </button>
 
             {/* User badge + logout */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 9,
-              borderLeft: "1px solid var(--border-subtle)",
-              paddingLeft: 12, marginLeft: 2,
-            }}>
-              <div style={{
+            <div className="topbar-user">
+              <div className="topbar-user-copy" style={{
                 display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
               }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.01em" }}>
@@ -466,7 +543,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main style={{ padding: "24px", flex: 1 }}>
+        <main className="app-content">
           {children}
         </main>
       </div>
@@ -489,11 +566,27 @@ function AppShellExtras() {
 
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const themeScript = `
+  const bootstrapScript = `
     (function() {
       try {
         var t = localStorage.getItem('maintai_theme');
-        document.documentElement.setAttribute('data-theme', (t === 'dark' || t === 'light') ? t : 'light');
+        var root = document.documentElement;
+        root.setAttribute('data-theme', (t === 'dark' || t === 'light') ? t : 'light');
+
+        var vw = Math.round((window.visualViewport && window.visualViewport.width) || window.innerWidth);
+        var sw = (window.screen && window.screen.width) || vw;
+        var sh = (window.screen && window.screen.height) || vw;
+        var shortest = Math.min(sw, sh);
+        var ua = navigator.userAgent || '';
+        var touches = navigator.maxTouchPoints || 0;
+        var coarse = window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches;
+        var touch = touches > 0 || coarse;
+        var phone = /Mobi|iPhone|iPod|Windows Phone/i.test(ua) || (/Android/i.test(ua) && /Mobile/i.test(ua));
+        var tablet = /iPad|Tablet|PlayBook|Silk/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) || (/Macintosh/i.test(ua) && touches > 1);
+        var deviceClass = (vw <= 640 || phone || (touch && shortest <= 600))
+          ? 'mobile'
+          : ((vw <= 1024 || tablet || (touch && shortest <= 1024)) ? 'tablet' : 'desktop');
+        root.setAttribute('data-device-class', deviceClass);
       } catch(e) {}
     })();
   `;
@@ -502,7 +595,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it" suppressHydrationWarning className={cn("font-sans", inter.variable, spaceGrotesk.variable, jetbrainsMono.variable)}>
       <head>
         <title>MaintAI — Centro di Controllo</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#f5f7fb" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -511,7 +604,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/logo.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="MaintAI" />
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: bootstrapScript }} />
       </head>
       <body>
         <AuthProvider>
