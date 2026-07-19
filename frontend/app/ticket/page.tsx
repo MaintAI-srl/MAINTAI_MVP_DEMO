@@ -1416,12 +1416,12 @@ export default function TicketPage() {
 
   return (
     <div style={{ background: "var(--surface-0)", minHeight: "100%" }}>
-      <div className="mb-8" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="mb-8 ticket-page-header">
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Ticket</h1>
           <p className="page-subtitle" style={{ margin: 0 }}>Ticket operativi che alimentano il planner automatico.</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="ticket-page-actions">
           <button
             type="button"
             onClick={async () => {

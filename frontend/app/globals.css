@@ -498,6 +498,8 @@
 
 html { font-size: 14px; scroll-behavior: smooth; }
 
+html, body { width: 100%; max-width: 100%; }
+
 body {
   font-family: var(--font-body);
   background: var(--surface-0);
@@ -1006,6 +1008,10 @@ body {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 /* ─── SIDEBAR — Complete Redesign ───────────────────────────── */
@@ -1046,6 +1052,7 @@ body {
 .app-main {
   margin-left: 0;
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -1121,6 +1128,29 @@ body {
 .app-content {
   padding: 24px 24px;
   flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Kanban responsivo: desktop 4 colonne, tablet 2, telefono a scorrimento. */
+.ticket-kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+.ticket-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.ticket-page-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .full-bleed-page {
@@ -1352,6 +1382,25 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 22px;
+  flex: 0 0 1px;
+  background: var(--border-subtle);
+  margin: 0 4px;
+}
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 12px;
+  margin-left: 2px;
 }
 
 .topbar-time {
@@ -2134,7 +2183,17 @@ input:focus, select:focus, textarea:focus {
   inset: 0;
   background: rgba(0,0,0,0.65);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 0;
+  width: 100%;
+  height: 100%;
+  cursor: default;
   z-index: 45;
+}
+
+.sidebar-open .sidebar-mobile-overlay {
+  left: min(var(--sidebar-width), 100vw);
+  width: auto;
 }
 
 @media (max-width: 1024px) {
@@ -2192,23 +2251,205 @@ input:focus, select:focus, textarea:focus {
     height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top, 0px));
   }
 
-  .topbar-time, .topbar-section, .topbar-sep { display: none; }
+  .topbar-time, .topbar-section, .topbar-sep, .topbar-weather { display: none; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .form-grid-3 { grid-template-columns: 1fr; }
   .span-3, .span-2 { grid-column: span 1; }
+  .ticket-kanban-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
+  .app-topbar {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .app-content { padding: 14px 10px; }
+  .topbar-breadcrumb { min-width: 0; }
+  .topbar-breadcrumb > div { min-width: 0; }
+  .topbar-page {
+    display: block;
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-quick-ticket, .topbar-divider, .topbar-user-copy { display: none; }
+  .topbar-user { border-left: 0; padding-left: 0; margin-left: 0; }
+  .topbar-right { gap: 2px; flex-shrink: 0; }
   .kpi-grid { grid-template-columns: 1fr; }
   .page-title { font-size: 22px; }
-  /* Topbar compatta: via nome utente e ruolo, restano le sole icone
-     (!important: il div ha display:flex inline) */
-  .topbar-user-info { display: none !important; }
+  .ticket-kanban-grid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: min(86vw, 320px);
+    gap: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    padding-bottom: 8px;
+  }
+  .ticket-kanban-column {
+    min-height: 55dvh !important;
+    max-height: 55dvh !important;
+    scroll-snap-align: start;
+  }
+  .ticket-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ticket-page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .ticket-page-actions > button {
+    min-width: 0;
+    justify-content: center;
+    padding-inline: 10px !important;
+  }
+
+  /* Topbar compatta: restano i controlli essenziali e target touch ampi. */
+  .topbar-user-copy { display: none !important; }
   .topbar-user { padding-left: 8px !important; gap: 0 !important; }
   .topbar-right { gap: 3px !important; }
-  /* Quick ticket solo icona "+", meteo nascosto: lo spazio non basta */
   .quick-ticket-label { display: none; }
   .topbar-weather { display: none; }
+}
+
+/* Fallback quando un telefono/tablet espone una viewport desktop. */
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .mobile-menu-btn {
+  display: flex;
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]):not([data-layout-ready]) .app-sidebar {
+  transform: translateX(-100%) !important;
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]):not([data-layout-ready]) .sidebar-mobile-overlay {
+  display: none !important;
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-sidebar {
+  transform: translateX(-100%);
+  box-shadow: 24px 0 60px rgba(0,0,0,0.7);
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-sidebar.open {
+  transform: translateX(0);
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .sidebar-open .sidebar-mobile-overlay {
+  display: block;
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-main,
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .sidebar-open .app-main {
+  margin-left: 0;
+  width: 100%;
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .sidebar-menu-tab {
+  display: none;
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-topbar {
+  padding: 0 14px;
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) .app-content {
+  padding: 18px 14px;
+}
+
+:root[data-device-class="tablet"] .ticket-kanban-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:root:is([data-device-class="mobile"], [data-device-class="tablet"]) :is(.topbar-time, .topbar-section, .topbar-sep, .topbar-weather) {
+  display: none;
+}
+
+:root[data-device-class="mobile"] .app-topbar {
+  gap: 8px;
+  padding: env(safe-area-inset-top, 0px) 10px 0;
+}
+
+:root[data-device-class="mobile"] .app-content {
+  padding: 14px 10px;
+}
+
+:root[data-device-class="mobile"] .topbar-breadcrumb,
+:root[data-device-class="mobile"] .topbar-breadcrumb > div {
+  min-width: 0;
+}
+
+:root[data-device-class="mobile"] .topbar-page {
+  display: block;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-device-class="mobile"] :is(.topbar-quick-ticket, .topbar-divider, .topbar-user-copy) {
+  display: none;
+}
+
+:root[data-device-class="mobile"] .quick-ticket-label,
+:root[data-device-class="mobile"] .topbar-weather {
+  display: none;
+}
+
+:root[data-device-class="mobile"] .topbar-user {
+  border-left: 0;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+:root[data-device-class="mobile"] .topbar-right {
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+:root[data-device-class="mobile"] .ticket-kanban-grid {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: min(86vw, 320px);
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  padding-bottom: 8px;
+}
+
+:root[data-device-class="mobile"] .ticket-kanban-column {
+  min-height: 55dvh !important;
+  max-height: 55dvh !important;
+  scroll-snap-align: start;
+}
+
+:root[data-device-class="mobile"] .ticket-page-header {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+:root[data-device-class="mobile"] .ticket-page-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+
+:root[data-device-class="mobile"] .ticket-page-actions > button {
+  min-width: 0;
+  justify-content: center;
+  padding-inline: 10px !important;
+}
+
+:root[data-device-class="mobile"] .kpi-grid {
+  grid-template-columns: 1fr;
 }
 
 /* ─── CONTROL ROOM AMBIENT EFFECTS ─────────────────────────── */

@@ -2,100 +2,117 @@
 
 import { useEffect } from "react";
 
-/**
- * Controller del viewport "app-like".
- *
- * L'HTML servito dal server contiene GIÀ `width=430` nel meta viewport
- * (layout.tsx): è la larghezza di design, onorata da tutti i browser mobili
- * al parse iniziale — inclusi quelli che ignorano le modifiche via JS
- * (verificato sul campo: setAttribute applicato ma innerWidth invariato).
- * I browser desktop ignorano del tutto il meta viewport → desktop invariato.
- *
- * Questo componente si limita a RILASSARE il viewport dove 430 non va bene,
- * sui browser che onorano i cambi dinamici:
- *  - dispositivi non-touch (sicurezza) e landscape → device-width
- *  - tablet in portrait (lato corto schermo > 620px) → width=768
- * e ri-afferma il valore dopo l'hydration di React e ai cambi di stato
- * (orientamento, ripresa PWA).
- */
 const DESIGN_WIDTH = 430;
 const TABLET_WIDTH = 768;
 
+export type DeviceClass = "mobile" | "tablet" | "desktop";
+
+/**
+ * Classifica il layout usando insieme viewport, user agent e input primario.
+ * Il controllo fisico copre i browser mobili che dichiarano una viewport
+ * desktop, senza scambiare per telefono un portatile touch con mouse/trackpad.
+ */
+export function detectDeviceClass(): DeviceClass {
+  if (typeof window === "undefined") return "desktop";
+
+  const viewportWidth = Math.round(window.visualViewport?.width ?? window.innerWidth);
+  const userAgent = navigator.userAgent || "";
+  const touchPoints = navigator.maxTouchPoints || 0;
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  const phoneUserAgent = /Mobi|iPhone|iPod|Windows Phone/i.test(userAgent)
+    || (/Android/i.test(userAgent) && /Mobile/i.test(userAgent));
+  const tabletUserAgent = /iPad|Tablet|PlayBook|Silk/i.test(userAgent)
+    || (/Android/i.test(userAgent) && !/Mobile/i.test(userAgent))
+    || (/Macintosh/i.test(userAgent) && touchPoints > 1);
+  const dpr = window.devicePixelRatio || 1;
+  const shortestPhysicalSide = window.screen
+    ? Math.min(window.screen.width, window.screen.height) * dpr
+    : 0;
+  const portableTouch = coarsePointer || phoneUserAgent || tabletUserAgent;
+
+  if (
+    viewportWidth <= 640
+    || phoneUserAgent
+    || (portableTouch && !tabletUserAgent && shortestPhysicalSide > 0 && shortestPhysicalSide <= 1500)
+  ) {
+    return "mobile";
+  }
+
+  if (
+    viewportWidth <= 1024
+    || tabletUserAgent
+    || (portableTouch && shortestPhysicalSide > 1500)
+  ) {
+    return "tablet";
+  }
+
+  return "desktop";
+}
+
+export function isCompactDevice() {
+  if (typeof document === "undefined") return false;
+  const deviceClass = document.documentElement.dataset.deviceClass ?? detectDeviceClass();
+  return deviceClass === "mobile" || deviceClass === "tablet";
+}
+
+/**
+ * Mantiene coerenti viewport e data-device-class dopo hydration, rotazione,
+ * resize e ripresa della PWA. Il viewport statico decisivo viene applicato dal
+ * post-build; qui riallineiamo i browser che accettano modifiche runtime.
+ */
 export default function ViewportController() {
   useEffect(() => {
-    // React, in idratazione, ri-aggiunge il meta viewport di Next
-    // (`width=device-width, initial-scale=1`) in coda all'head: normalizziamo
-    // quindi TUTTI i meta viewport, non solo uno, così è indifferente quale il
-    // browser applichi (primo, ultimo o merge delle proprietà).
-
-    // Touch detection robusta: matchMedia('pointer: coarse') su alcuni Android
-    // dà falsi negativi → usiamo anche maxTouchPoints / ontouchstart.
     const touch =
-      (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) ||
-      "ontouchstart" in window ||
-      (!!window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+      navigator.maxTouchPoints > 0
+      || "ontouchstart" in window
+      || (window.matchMedia?.("(pointer: coarse)").matches ?? false);
 
     const apply = () => {
-      const landscape = !!window.matchMedia && window.matchMedia("(orientation: landscape)").matches;
-      // Telefono vs tablet in PIXEL FISICI (css × dpr): i telefoni economici
-      // riportano screen.width CSS larghi (~800) e in px CSS sembrerebbero
-      // tablet; un vero tablet ha lato corto fisico > ~1500px.
+      const landscape = window.matchMedia?.("(orientation: landscape)").matches ?? false;
       const dpr = window.devicePixelRatio || 1;
-      const minDimPhys = window.screen ? Math.min(window.screen.width, window.screen.height) * dpr : 0;
-      const want =
-        !touch || landscape
-          ? "width=device-width, initial-scale=1, viewport-fit=cover"
-          : `width=${minDimPhys > 1500 ? TABLET_WIDTH : DESIGN_WIDTH}, viewport-fit=cover`;
-      const metas = document.querySelectorAll('meta[name="viewport"]');
-      metas.forEach((m) => {
-        if (m.getAttribute("content") !== want) m.setAttribute("content", want);
+      const shortestPhysicalSide = window.screen
+        ? Math.min(window.screen.width, window.screen.height) * dpr
+        : 0;
+      const viewport = !touch || landscape
+        ? "width=device-width, initial-scale=1, viewport-fit=cover"
+        : `width=${shortestPhysicalSide > 1500 ? TABLET_WIDTH : DESIGN_WIDTH}, viewport-fit=cover`;
+
+      document.querySelectorAll('meta[name="viewport"]').forEach((meta) => {
+        if (meta.getAttribute("content") !== viewport) meta.setAttribute("content", viewport);
       });
-      // Diagnostica temporanea visibile (rimuovere dopo conferma sul device)
-      try {
-        const dbg = document.getElementById("mv-dbg");
-        if (dbg) {
-          const s = window.screen ? `${window.screen.width}x${window.screen.height}` : "?";
-          dbg.textContent = `s${s} t${touch ? 1 : 0} iw${window.innerWidth} → ${want.split(",")[0]}`;
-        }
-      } catch {}
+      document.documentElement.dataset.deviceClass = detectDeviceClass();
     };
 
-    // Ri-applica dopo l'hydration di React (che può ripristinare il meta),
-    // su ripresa PWA e al cambio orientamento.
+    let resizeFrame = 0;
+    const scheduleApply = () => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(apply);
+    };
+    const delayedApply = () => window.setTimeout(scheduleApply, 350);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") scheduleApply();
+    };
+
     apply();
-    const t1 = window.setTimeout(apply, 150);
-    const t2 = window.setTimeout(apply, 600);
-    const onOrient = () => setTimeout(apply, 350);
-    const onShow = () => apply();
-    const onVis = () => { if (document.visibilityState === "visible") apply(); };
-    window.addEventListener("orientationchange", onOrient);
-    window.addEventListener("pageshow", onShow);
-    document.addEventListener("visibilitychange", onVis);
+    const hydrationTimer = window.setTimeout(apply, 150);
+    const settleTimer = window.setTimeout(apply, 600);
+    window.addEventListener("resize", scheduleApply);
+    window.addEventListener("orientationchange", delayedApply);
+    window.addEventListener("pageshow", scheduleApply);
+    window.visualViewport?.addEventListener("resize", scheduleApply);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.removeEventListener("orientationchange", onOrient);
-      window.removeEventListener("pageshow", onShow);
-      document.removeEventListener("visibilitychange", onVis);
+      window.cancelAnimationFrame(resizeFrame);
+      window.clearTimeout(hydrationTimer);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener("resize", scheduleApply);
+      window.removeEventListener("orientationchange", delayedApply);
+      window.removeEventListener("pageshow", scheduleApply);
+      window.visualViewport?.removeEventListener("resize", scheduleApply);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
-  // Diagnostica temporanea: schermo, touch, innerWidth e viewport applicato.
-  // Serve a confermare il fix sul dispositivo reale; da rimuovere dopo.
-  return (
-    <span
-      id="mv-dbg"
-      style={{
-        position: "fixed",
-        left: 3,
-        bottom: 3,
-        zIndex: 2147483647,
-        fontSize: 9,
-        lineHeight: 1,
-        color: "rgba(148,163,184,0.55)",
-        pointerEvents: "none",
-        fontFamily: "monospace",
-      }}
-    />
-  );
+  return null;
 }

@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { moduleForPath } from "./lib/modules";
 import WeatherWidget from "./components/WeatherWidget";
@@ -16,7 +16,10 @@ import { VERSION } from "./lib/version";
 import { getVisibleNavGroups, PAGE_LABELS } from "./lib/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
-import ViewportController from "./components/ViewportController";
+import ViewportController, {
+  detectDeviceClass,
+  isCompactDevice,
+} from "./components/ViewportController";
 import {
   LogOut,
   Moon,
@@ -73,6 +76,43 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [time, setTime] = useState("");
   const [theme, setTheme] = useState("light");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const compactDeviceRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    let resizeFrame = 0;
+
+    const applyDeviceClass = () => {
+      const deviceClass = detectDeviceClass();
+      const compact = deviceClass !== "desktop";
+      const compactModeChanged = compactDeviceRef.current !== compact;
+
+      root.dataset.deviceClass = deviceClass;
+      if (!root.dataset.layoutReady || compactModeChanged) {
+        // Lo stato del drawer segue la modalità layout, non la sola innerWidth.
+        setSidebarOpen(!compact);
+      }
+      compactDeviceRef.current = compact;
+      root.dataset.layoutReady = "true";
+    };
+
+    const scheduleDeviceCheck = () => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(applyDeviceClass);
+    };
+
+    applyDeviceClass();
+    window.addEventListener("resize", scheduleDeviceCheck);
+    window.addEventListener("orientationchange", scheduleDeviceCheck);
+    window.visualViewport?.addEventListener("resize", scheduleDeviceCheck);
+
+    return () => {
+      window.cancelAnimationFrame(resizeFrame);
+      window.removeEventListener("resize", scheduleDeviceCheck);
+      window.removeEventListener("orientationchange", scheduleDeviceCheck);
+      window.visualViewport?.removeEventListener("resize", scheduleDeviceCheck);
+    };
+  }, []);
 
   // Keep-alive: pinga il backend ogni 8 minuti per evitare cold start su Render free tier
   useEffect(() => {
@@ -114,7 +154,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   const closeSidebarOnMobile = () => {
-    if (typeof window !== "undefined" && window.innerWidth <= 1024) {
+    if (isCompactDevice()) {
       setSidebarOpen(false);
     }
   };
@@ -124,7 +164,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   // copre la pagina con l'overlay. useLayoutEffect evita il flash del drawer
   // aperto prima del paint.
   useLayoutEffect(() => {
-    if (window.innerWidth <= 1024) {
+    if (isCompactDevice()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- chiusura sincrona del drawer prima del paint su mobile; niente cascata di re-render
       setSidebarOpen(false);
     }
@@ -271,6 +311,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`}>
 
+      {/* Sibling del drawer: transform e overflow della sidebar non lo ritagliano. */}
+      <button
+        type="button"
+        className="sidebar-mobile-overlay"
+        onClick={() => setSidebarOpen(false)}
+        aria-label="Chiudi menu laterale"
+        tabIndex={sidebarOpen ? 0 : -1}
+      />
+
       {/* ══════════════════════════════════════════════════════════
           SIDEBAR — NUOVA IDENTITÀ VISIVA
           Ultra-dark glass panel, glow icons, neon accents
@@ -280,9 +329,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div style={{ position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)", width: 200, height: 120, background: "radial-gradient(ellipse, rgba(91,143,255,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
         {/* Scan lines texture */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(91,143,255,0.012) 3px, rgba(91,143,255,0.012) 4px)", pointerEvents: "none", zIndex: 0 }} />
-
-        {/* Mobile overlay */}
-        <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
 
         {/* ── LOGO ──────────────────────────────────────── */}
         <Link href="/" className="sidebar-logo" style={{ textDecoration: "none", zIndex: 1 }} onClick={closeSidebarOnMobile}>
@@ -396,21 +442,25 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right controls */}
-          <div className="topbar-right" style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            {isModuleEnabled("tickets") && <GlobalQuickTicket />}
+          <div className="topbar-right">
+            {isModuleEnabled("tickets") && (
+              <div className="topbar-quick-ticket"><GlobalQuickTicket /></div>
+            )}
 
-            <div style={{ width: 1, height: 22, background: "var(--border-subtle)", margin: "0 4px" }} />
+            <div className="topbar-divider" />
 
             {notificationsEnabled && (
-              <NotificationPanel
-                enableScadenze={isModuleEnabled("deadlines")}
-                enableTickets={isModuleEnabled("tickets")}
-              />
+              <div className="topbar-notifications">
+                <NotificationPanel
+                  enableScadenze={isModuleEnabled("deadlines")}
+                  enableTickets={isModuleEnabled("tickets")}
+                />
+              </div>
             )}
             {isModuleEnabled("weather") && (
-              <span className="topbar-weather">
+              <div className="topbar-weather">
                 <WeatherWidget />
-              </span>
+              </div>
             )}
 
             {/* Clock */}
@@ -426,12 +476,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             </button>
 
             {/* User badge + logout */}
-            <div className="topbar-user" style={{
-              display: "flex", alignItems: "center", gap: 9,
-              borderLeft: "1px solid var(--border-subtle)",
-              paddingLeft: 12, marginLeft: 2,
-            }}>
-              <div className="topbar-user-info" style={{
+            <div className="topbar-user">
+              <div className="topbar-user-copy" style={{
                 display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
               }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.01em" }}>
