@@ -3298,7 +3298,12 @@ input:focus, select:focus, textarea:focus {
 .m-shell {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  /* Auto-scala su telefoni con viewport CSS larga (es. 610px, DPR 2.0):
+     --m-zoom viene calcolato a runtime come latoCorto/430 dal layout /m.
+     L'altezza è divisa per lo zoom così la shell scalata riempie esattamente
+     lo schermo senza overflow. Fallback 1 = comportamento invariato. */
+  zoom: var(--m-zoom, 1);
+  height: calc(100dvh / var(--m-zoom, 1));
   overflow: hidden;
   font-size: 16px;
   background:
