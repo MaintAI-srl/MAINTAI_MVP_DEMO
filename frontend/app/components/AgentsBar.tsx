@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { apiGet, apiPost } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { Bot, Loader2, X } from "lucide-react";
+import type { Pareto } from "./ParetoChart";
+
+// Recharts entra nel bundle solo quando un report con Pareto viene mostrato
+const ParetoChart = dynamic(() => import("./ParetoChart"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ padding: 20, fontSize: 12, color: "var(--text-muted)" }}>Caricamento grafico Pareto…</div>
+  ),
+});
 
 type AgentInfo = {
   id: string;
@@ -14,9 +24,6 @@ type AgentInfo = {
   colore: string;
   enabled: boolean;
 };
-
-type ParetoItem = { label: string; value: number; pct: number; cum_pct: number; vital: boolean };
-type Pareto = { titolo: string; unita: string; totale: number; items: ParetoItem[] };
 
 type AgentRunResult = {
   run_id: number;
@@ -185,50 +192,6 @@ function MarkdownLite({ text }: { text: string }) {
   return <div style={{ fontSize: 13.5, color: "var(--text-primary)" }}>{blocks}</div>;
 }
 
-function ParetoTable({ pareto }: { pareto: Pareto }) {
-  return (
-    <div style={{ margin: "14px 0", border: "1px solid var(--border-default)", borderRadius: 8, overflow: "hidden" }}>
-      <div style={{ padding: "10px 14px", background: "var(--surface-1)", borderBottom: "1px solid var(--border-default)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)" }}>
-        Pareto — {pareto.titolo} · totale {formatEur(pareto.totale)} {pareto.unita}
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-          <thead>
-            <tr style={{ color: "var(--text-muted)", fontSize: 11 }}>
-              <th style={paretoTh}>#</th>
-              <th style={{ ...paretoTh, textAlign: "left" }}>Voce</th>
-              <th style={paretoTh}>Valore</th>
-              <th style={paretoTh}>%</th>
-              <th style={paretoTh}>% cum.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pareto.items.map((item, i) => (
-              <tr key={i} style={{ background: item.vital ? "rgba(239,68,68,0.07)" : "transparent" }}>
-                <td style={paretoTd}>{i + 1}</td>
-                <td style={{ ...paretoTd, textAlign: "left", fontWeight: item.vital ? 700 : 400 }}>
-                  {item.label}{item.vital && <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, color: "#ef4444", letterSpacing: "0.06em" }}>VITAL 20%</span>}
-                </td>
-                <td style={paretoTd}>{formatEur(item.value)}</td>
-                <td style={paretoTd}>{item.pct}%</td>
-                <td style={paretoTd}>
-                  <span style={{ display: "inline-block", minWidth: 44 }}>{item.cum_pct}%</span>
-                  <span style={{ display: "inline-block", width: 60, height: 5, background: "var(--surface-3)", borderRadius: 3, marginLeft: 6, verticalAlign: "middle" }}>
-                    <span style={{ display: "block", width: `${Math.min(item.cum_pct, 100)}%`, height: "100%", background: item.vital ? "#ef4444" : "#64748b", borderRadius: 3 }} />
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-const paretoTh: CSSProperties = { padding: "7px 10px", textAlign: "right", borderBottom: "1px solid var(--border-strong)", textTransform: "uppercase", letterSpacing: "0.05em" };
-const paretoTd: CSSProperties = { padding: "6px 10px", textAlign: "right", borderBottom: "1px solid var(--border-default)" };
-
 /* ── Barra agenti in topbar ──────────────────────────────────────────────── */
 
 export default function AgentsBar() {
@@ -363,7 +326,7 @@ export default function AgentsBar() {
                 </div>
               ) : result ? (
                 <>
-                  {result.pareto && <ParetoTable pareto={result.pareto} />}
+                  {result.pareto && <ParetoChart pareto={result.pareto} />}
                   <MarkdownLite text={result.output_md} />
                 </>
               ) : lastRun?.output_md ? (

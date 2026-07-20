@@ -65,40 +65,87 @@ def _now_utc_naive() -> datetime:
 # ── Pareto (80/20) deterministico ────────────────────────────────────────────
 
 def build_pareto(values: dict[str, float], titolo: str, unita: str, max_items: int = 15) -> dict[str, Any] | None:
-    """Analisi di Pareto: item ordinati per valore con % cumulata e flag 'vital few'."""
+    """Analisi di Pareto: item ordinati per valore con % cumulata e flag 'vital few'.
+
+    `concentrated` dice se esiste una vera concentrazione 80/20: i "vital few"
+    (le voci che costruiscono il primo ~80% del totale) devono essere al massimo
+    la metà delle voci. Con distribuzioni piatte il flag è False e la UI/l'agente
+    non devono presentare i primi item come cause dominanti."""
     rows = [(label, val) for label, val in values.items() if val > 0]
     if not rows:
         return None
     rows.sort(key=lambda r: r[1], reverse=True)
     total = sum(v for _, v in rows)
+
     items = []
     cumulative = 0.0
-    for label, val in rows[:max_items]:
+    vital_count = 0
+    for label, val in rows:
+        pct = round(val / total * 100, 1)
+        starts_before_80 = cumulative / total * 100 < 80
         cumulative += val
-        cum_pct = round(cumulative / total * 100, 1)
+        if starts_before_80:
+            vital_count += 1
         items.append({
             "label": label,
             "value": round(val, 2),
-            "pct": round(val / total * 100, 1),
-            "cum_pct": cum_pct,
+            "pct": pct,
+            "cum_pct": round(cumulative / total * 100, 1),
             # "vital few": gli item che costruiscono il primo ~80% del totale
-            "vital": cum_pct - round(val / total * 100, 1) < 80,
+            "vital": starts_before_80,
         })
-    return {"titolo": titolo, "unita": unita, "totale": round(total, 2), "items": items}
+
+    concentrated = len(rows) >= 4 and vital_count / len(rows) <= 0.5
+
+    others = None
+    if len(items) > max_items:
+        tail = items[max_items:]
+        others = {
+            "count": len(tail),
+            "value": round(sum(i["value"] for i in tail), 2),
+            "pct": round(sum(i["pct"] for i in tail), 1),
+        }
+        items = items[:max_items]
+
+    return {
+        "titolo": titolo,
+        "unita": unita,
+        "totale": round(total, 2),
+        "items": items,
+        "n_voci": len(rows),
+        "vital_count": vital_count,
+        "concentrated": concentrated,
+        "others": others,
+    }
 
 
 def _pareto_md(pareto: dict[str, Any] | None) -> str:
     if not pareto:
         return "Nessun dato sufficiente per l'analisi di Pareto."
+    if pareto["concentrated"]:
+        concentrazione = (
+            f"Concentrazione 80/20: SI — {pareto['vital_count']} voci su {pareto['n_voci']} "
+            "generano l'80% del totale: concentra l'analisi su queste."
+        )
+    else:
+        concentrazione = (
+            f"Concentrazione 80/20: NO — servono {pareto['vital_count']} voci su {pareto['n_voci']} "
+            "per arrivare all'80%: distribuzione piatta, NON presentare i primi item come cause "
+            "dominanti; ragiona per famiglie/pattern trasversali."
+        )
     lines = [
         f"Analisi di Pareto — {pareto['titolo']} (totale: {pareto['totale']} {pareto['unita']})",
-        "| # | Voce | Valore | % | % cumulata | Vital few |",
-        "|---|------|--------|---|------------|-----------|",
+        concentrazione,
+        "| # | Voce | Valore | % | % cumulata |",
+        "|---|------|--------|---|------------|",
     ]
     for i, item in enumerate(pareto["items"], 1):
         lines.append(
-            f"| {i} | {item['label']} | {item['value']} | {item['pct']}% | {item['cum_pct']}% | {'SI' if item['vital'] else 'no'} |"
+            f"| {i} | {item['label']} | {item['value']} | {item['pct']}% | {item['cum_pct']}% |"
         )
+    if pareto.get("others"):
+        o = pareto["others"]
+        lines.append(f"| — | Altre {o['count']} voci | {o['value']} | {o['pct']}% | 100% |")
     return "\n".join(lines)
 
 

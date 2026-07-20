@@ -41,6 +41,28 @@ def test_build_pareto_ordina_e_calcola_cumulata():
     assert pareto["items"][1]["cum_pct"] == 80.0
     # A e B costruiscono il primo 80% → vital few; C e D no
     assert [i["vital"] for i in pareto["items"]] == [True, True, False, False]
+    assert pareto["n_voci"] == 4
+    assert pareto["vital_count"] == 2
+    # 2 voci su 4 fanno l'80% → concentrazione 80/20 presente
+    assert pareto["concentrated"] is True
+    assert pareto["others"] is None
+
+
+def test_build_pareto_distribuzione_piatta_non_concentrata():
+    # 10 voci identiche: servono 8 voci per l'80% → nessuna concentrazione
+    pareto = build_pareto({f"asset{i}": 10 for i in range(10)}, "piatto", "ore")
+    assert pareto["vital_count"] == 8
+    assert pareto["concentrated"] is False
+
+
+def test_build_pareto_aggrega_la_coda_in_others():
+    values = {f"asset{i:02d}": 100 - i for i in range(20)}
+    pareto = build_pareto(values, "coda", "ore", max_items=15)
+    assert len(pareto["items"]) == 15
+    assert pareto["n_voci"] == 20
+    assert pareto["others"]["count"] == 5
+    # La coda aggregata vale la somma delle 5 voci escluse
+    assert pareto["others"]["value"] == sum(100 - i for i in range(15, 20))
 
 
 def test_build_pareto_vuoto_o_zero_restituisce_none():
