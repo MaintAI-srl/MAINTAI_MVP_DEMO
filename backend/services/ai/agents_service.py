@@ -540,10 +540,10 @@ def run_agent(db: Session, tenant_id: int, agent_id: str, username: str | None) 
         prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
         cost_eur=cost_eur, status="ok", output_md=output_md, error=None, username=username,
     )
-    # Nel log va definition.id (valore fidato dal registry), non il path param
+    # Nel log vanno solo valori fidati: definition.id dal registry, tenant forzato a int
     logger.info(
         "Agente %s eseguito — tenant %s, %s+%s token, %.4f EUR, %.1fs",
-        definition.id, tenant_id, prompt_tokens, completion_tokens, cost_eur,
+        definition.id, int(tenant_id), prompt_tokens, completion_tokens, cost_eur,
         (_now_utc_naive() - started).total_seconds(),
     )
     return {

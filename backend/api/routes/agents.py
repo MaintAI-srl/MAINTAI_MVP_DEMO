@@ -88,5 +88,8 @@ def trigger_agent(
     except AppError:
         raise
     except Exception as exc:
-        logger.error("Errore agente %s — tenant %s: %s", safe_agent_id, tenant_id, exc)
+        # int() sul tenant e newline rimossi dall'eccezione: nessun valore
+        # user-controlled puo' iniettare righe finte nel log (CodeQL py/log-injection)
+        safe_error = str(exc).replace("\r", " ").replace("\n", " ")
+        logger.error("Errore agente %s — tenant %s: %s", safe_agent_id, int(tenant_id), safe_error)
         raise AppError(status_code=500, message=f"Errore esecuzione agente: {exc}")
