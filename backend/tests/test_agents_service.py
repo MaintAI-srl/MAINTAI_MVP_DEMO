@@ -48,6 +48,19 @@ def test_build_pareto_ordina_e_calcola_cumulata():
     assert pareto["others"] is None
 
 
+def test_build_pareto_dominanza_con_poche_voci():
+    # Codex review PR#63: con 2 voci e una dominante la concentrazione va rilevata
+    dominante = build_pareto({"A": 95, "B": 5}, "dominante", "ore")
+    assert dominante["vital_count"] == 1
+    assert dominante["concentrated"] is True
+    # 2 voci equilibrate: nessuna dominanza
+    equilibrato = build_pareto({"A": 55, "B": 45}, "equilibrato", "ore")
+    assert equilibrato["concentrated"] is False
+    # Voce unica: e' per definizione la causa dominante
+    singolo = build_pareto({"A": 42}, "singolo", "ore")
+    assert singolo["concentrated"] is True
+
+
 def test_build_pareto_distribuzione_piatta_non_concentrata():
     # 10 voci identiche: servono 8 voci per l'80% → nessuna concentrazione
     pareto = build_pareto({f"asset{i}": 10 for i in range(10)}, "piatto", "ore")

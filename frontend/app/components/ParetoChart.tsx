@@ -63,7 +63,21 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
     pct: item.pct,
     cum_pct: item.cum_pct,
     vital: item.vital,
+    isOthers: false,
   }));
+  // Coda aggregata anche nel grafico: senza questa barra la cumulata si
+  // fermerebbe sotto il 100% mentre la tabella arriva a 100%.
+  if (pareto.others) {
+    data.push({
+      rank: data.length + 1,
+      label: `Altre ${pareto.others.count} voci`,
+      value: pareto.others.value,
+      pct: pareto.others.pct,
+      cum_pct: 100,
+      vital: false,
+      isOthers: true,
+    });
+  }
 
   return (
     <div style={{ margin: "14px 0", border: "1px solid var(--border-default)", borderRadius: 8, overflow: "hidden" }}>
@@ -160,27 +174,19 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
           <tbody>
             {data.map((row) => {
               const highlight = pareto.concentrated && row.vital;
+              const muted = row.isOthers ? { color: "var(--text-muted)" } : {};
               return (
                 <tr key={row.rank} style={{ background: highlight ? "rgba(239,68,68,0.06)" : "transparent" }}>
                   <td style={{ ...td, color: "var(--text-muted)", borderLeft: highlight ? `2px solid ${RED}` : "2px solid transparent" }}>
-                    {row.rank}
+                    {row.isOthers ? "—" : row.rank}
                   </td>
-                  <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 700 : 400 }}>{row.label}</td>
-                  <td style={td}>{formatNum(row.value)}</td>
-                  <td style={td}>{row.pct}%</td>
-                  <td style={td}>{row.cum_pct}%</td>
+                  <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 700 : 400, ...muted }}>{row.label}</td>
+                  <td style={{ ...td, ...muted }}>{formatNum(row.value)}</td>
+                  <td style={{ ...td, ...muted }}>{row.pct}%</td>
+                  <td style={{ ...td, ...muted }}>{row.cum_pct}%</td>
                 </tr>
               );
             })}
-            {pareto.others && (
-              <tr>
-                <td style={{ ...td, color: "var(--text-muted)" }}>—</td>
-                <td style={{ ...td, textAlign: "left", color: "var(--text-muted)" }}>Altre {pareto.others.count} voci</td>
-                <td style={{ ...td, color: "var(--text-muted)" }}>{formatNum(pareto.others.value)}</td>
-                <td style={{ ...td, color: "var(--text-muted)" }}>{pareto.others.pct}%</td>
-                <td style={{ ...td, color: "var(--text-muted)" }}>100%</td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

@@ -69,8 +69,9 @@ def build_pareto(values: dict[str, float], titolo: str, unita: str, max_items: i
 
     `concentrated` dice se esiste una vera concentrazione 80/20: i "vital few"
     (le voci che costruiscono il primo ~80% del totale) devono essere al massimo
-    la metà delle voci. Con distribuzioni piatte il flag è False e la UI/l'agente
-    non devono presentare i primi item come cause dominanti."""
+    la metà delle voci; con una sola voce la dominanza è banale ma reale. Con
+    distribuzioni piatte il flag è False e la UI/l'agente non devono presentare
+    i primi item come cause dominanti."""
     rows = [(label, val) for label, val in values.items() if val > 0]
     if not rows:
         return None
@@ -95,7 +96,7 @@ def build_pareto(values: dict[str, float], titolo: str, unita: str, max_items: i
             "vital": starts_before_80,
         })
 
-    concentrated = len(rows) >= 4 and vital_count / len(rows) <= 0.5
+    concentrated = len(rows) == 1 or vital_count / len(rows) <= 0.5
 
     others = None
     if len(items) > max_items:
