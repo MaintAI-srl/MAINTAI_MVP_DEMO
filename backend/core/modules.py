@@ -179,6 +179,42 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         category="ai",
         default_enabled=False,
     ),
+    # ── Agenti AI (trigger manuale dalla topbar) ─────────────────────────────
+    "agent_planner": ModuleDefinition(
+        id="agent_planner",
+        name="Agente Planner",
+        description="Esperto di scheduling lean: analizza backlog, carichi e assenze e suggerisce come ottimizzare il piano.",
+        category="agenti",
+        requires=("tickets", "technicians", "assets"),
+    ),
+    "agent_rca": ModuleDefinition(
+        id="agent_rca",
+        name="Agente RCA",
+        description="Esperto di root cause analysis: Pareto dei guasti, cause ricorrenti e contromisure lean.",
+        category="agenti",
+        requires=("tickets", "assets"),
+    ),
+    "agent_cost_controller": ModuleDefinition(
+        id="agent_cost_controller",
+        name="Agente Cost Controller",
+        description="Esperto di controllo costi di manutenzione: Pareto dei costi, muda e azioni di riduzione.",
+        category="agenti",
+        requires=("tickets", "assets"),
+    ),
+    "agent_kpi": ModuleDefinition(
+        id="agent_kpi",
+        name="Agente KPI",
+        description="Esperto di KPI manutentivi: MTTR, backlog, mix PM/CM e lettura lean degli indicatori.",
+        category="agenti",
+        requires=("tickets",),
+    ),
+    "agent_strategy": ModuleDefinition(
+        id="agent_strategy",
+        name="Suggeritore Strategie Manutenzione",
+        description="Esperto di strategie manutentive (RTF/preventiva/predittiva/TPM): propone la strategia giusta per asset.",
+        category="agenti",
+        requires=("tickets", "assets"),
+    ),
 }
 
 

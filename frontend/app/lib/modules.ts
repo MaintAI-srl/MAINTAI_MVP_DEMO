@@ -23,6 +23,12 @@ export const MODULE_DEFINITIONS = [
   { id: "weather", defaultEnabled: true },
   { id: "desktop_updates", defaultEnabled: true },
   { id: "guide_ai", defaultEnabled: false },
+  // Agenti AI (trigger manuale dalla topbar) — categoria "agenti"
+  { id: "agent_planner", defaultEnabled: true },
+  { id: "agent_rca", defaultEnabled: true },
+  { id: "agent_cost_controller", defaultEnabled: true },
+  { id: "agent_kpi", defaultEnabled: true },
+  { id: "agent_strategy", defaultEnabled: true },
 ] as const;
 
 export type ModuleId = (typeof MODULE_DEFINITIONS)[number]["id"];

@@ -1394,6 +1394,54 @@ body {
   margin: 0 4px;
 }
 
+/* ── Agenti AI in topbar (al posto del vecchio pulsante Quick Ticket) ── */
+.topbar-agents {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topbar-agents::-webkit-scrollbar { display: none; }
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 140ms, box-shadow 140ms, background 140ms;
+}
+.agent-chip:hover {
+  border-color: var(--agent-color, var(--cobalt));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--agent-color, var(--cobalt)) 35%, transparent);
+}
+
+.topbar-ai-cost {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+  color: #22c55e;
+  font-size: 10.5px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  cursor: help;
+}
+
 .topbar-user {
   display: flex;
   align-items: center;
@@ -2274,6 +2322,8 @@ input:focus, select:focus, textarea:focus {
     white-space: nowrap;
   }
   .topbar-quick-ticket, .topbar-divider, .topbar-user-copy { display: none; }
+  /* Su schermi stretti restano solo il badge € e i primi agenti (scroll orizzontale) */
+  .topbar-agents { max-width: 40vw; }
   .topbar-user { border-left: 0; padding-left: 0; margin-left: 0; }
   .topbar-right { gap: 2px; flex-shrink: 0; }
   .kpi-grid { grid-template-columns: 1fr; }
@@ -2395,6 +2445,10 @@ input:focus, select:focus, textarea:focus {
 
 :root[data-device-class="mobile"] :is(.topbar-quick-ticket, .topbar-divider, .topbar-user-copy) {
   display: none;
+}
+
+:root[data-device-class="mobile"] .topbar-agents {
+  max-width: 42vw;
 }
 
 :root[data-device-class="mobile"] .quick-ticket-label,

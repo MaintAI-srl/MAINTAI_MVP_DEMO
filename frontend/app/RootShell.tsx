@@ -8,6 +8,7 @@ import { moduleForPath } from "./lib/modules";
 import WeatherWidget from "./components/WeatherWidget";
 import NotificationPanel from "./components/NotificationPanel";
 import GlobalQuickTicket from "./components/GlobalQuickTicket";
+import AgentsBar from "./components/AgentsBar";
 import QuickTicketModal from "./components/QuickTicketModal";
 import GuideBot from "./components/GuideBot";
 import InstallPrompt from "./components/InstallPrompt";
@@ -385,6 +386,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
           {/* Right controls */}
           <div className="topbar-right">
+            {/* Agenti AI: nomi + trigger manuale al posto del vecchio pulsante Quick Ticket */}
+            <AgentsBar />
             {isModuleEnabled("tickets") && (
               <div className="topbar-quick-ticket"><GlobalQuickTicket /></div>
             )}

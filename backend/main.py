@@ -52,6 +52,7 @@ try:
     from backend.api.routes.emergency import router as emergency_router
     from backend.api.routes.control_center import router as control_center_router
     from backend.api.routes.asset_documenti import router as asset_documenti_router
+    from backend.api.routes.agents import router as agents_router
     from backend.core.config import init_backend
     from backend.core.security import IS_PRODUCTION
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
@@ -966,6 +967,9 @@ _CORE_ROUTERS = [
     health_router,
     auth_router,
     modules_router,
+    # Agenti AI: il gating è per singolo agente (5 moduli categoria "agenti"),
+    # verificato dentro gli endpoint con is_module_enabled_for_tenant.
+    agents_router,
 ]
 for _router in _CORE_ROUTERS:
     app.include_router(_router)
