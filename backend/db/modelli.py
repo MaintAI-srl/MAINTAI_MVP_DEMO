@@ -678,6 +678,28 @@ class Attestato(Base):
     created_at = Column(DateTime, default=_utcnow)
 
 
+class AiUsageLog(Base):
+    """Registro dei consumi AI (agenti e feature OpenAI) con costo stimato in EUR.
+
+    Ogni run di un agente (o feature AI strumentata) scrive una riga: il badge
+    "Consumo AI" della topbar somma `cost_eur` per tenant. `output_md` conserva
+    il report generato per lo storico run degli agenti."""
+    __tablename__ = "ai_usage_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    feature = Column(String, nullable=False, index=True)  # es. agent_planner, agent_rca...
+    model = Column(String, nullable=True)
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    cost_eur = Column(Float, default=0.0)
+    status = Column(String, default="ok")  # ok | error
+    output_md = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    created_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+
+
 class TenantModuleConfig(Base):
     """Override per-tenant dei moduli attivi (gestito dal superadmin).
 

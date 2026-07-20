@@ -62,7 +62,10 @@ export default function GlobalQuickTicket() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
+      {/* Compatto (solo +): lo spazio in topbar è occupato dai nomi degli Agenti AI */}
       <SheetTrigger
+        title="Quick Ticket — crea un nuovo ticket rapido"
+        aria-label="Quick Ticket"
         style={{
           background: "linear-gradient(135deg, #3b82f6, #2563eb)",
           color: "white",
@@ -70,16 +73,14 @@ export default function GlobalQuickTicket() {
           boxShadow: "0 0 15px rgba(59,130,246,0.5)",
           border: "1px solid #60a5fa",
           borderRadius: 6,
-          padding: "6px 14px",
+          padding: "4px 10px",
           fontSize: 13,
           cursor: "pointer",
           display: "inline-flex",
           alignItems: "center",
-          gap: 4,
         }}
       >
         <span style={{ fontSize: 16 }}>+</span>
-        <span className="quick-ticket-label">QUICK TICKET</span>
       </SheetTrigger>
 
       <SheetContent

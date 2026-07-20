@@ -37,6 +37,7 @@ const SLOW_ENDPOINTS: RegExp[] = [
   /\/piani-manutenzione.*import/,
   /\/failure\/tickets\/\d+\/analyze/,
   /\/documenti\/\d+\/analizza-esploso/,
+  /\/agents\/[^/]+\/run/,
 ];
 
 // Firma e generazione PDF rapportino: possono coincidere col cold start di

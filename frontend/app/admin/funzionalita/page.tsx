@@ -12,6 +12,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   operazioni: "Operazioni",
   risorse: "Risorse",
   ai: "AI",
+  agenti: "Agenti AI",
   integrazioni: "Integrazioni",
   admin: "Amministrazione",
   campo: "Campo",

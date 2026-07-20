@@ -7,7 +7,7 @@ from backend.db.modelli import (  # noqa: F401
     Manuale, AttivitaManutenzione, AnalisiGuasto, DiagnosticSession,
     Utente, TecnicoAssenza, TicketAllegato, EmailConfig, PianoManutenzione, SystemLog, GeneratedPlan, RevokedToken, AssetDocumento,
     FailureMode, FailureAnalysis, DiagnosticLearning,
-    Procedura, NotaAsset, CheckPrimoLivello, Attestato,
+    Procedura, NotaAsset, CheckPrimoLivello, Attestato, AiUsageLog,
 )
 from backend.core.failure_seed import seed_failure_modes
 
