@@ -80,11 +80,13 @@ def trigger_agent(
     if not is_module_enabled_for_tenant(db, agent_id, tenant_id):
         raise AppError(status_code=404, message="Agente disattivato per questo cliente")
 
+    # Valore fidato dal registry per log/messaggi (mai il path param grezzo)
+    safe_agent_id = AGENT_DEFINITIONS[agent_id].id
     username = payload.get("sub") or payload.get("username")
     try:
-        return run_agent(db, tenant_id, agent_id, username)
+        return run_agent(db, tenant_id, safe_agent_id, username)
     except AppError:
         raise
     except Exception as exc:
-        logger.error("Errore agente %s — tenant %s: %s", agent_id, tenant_id, exc)
+        logger.error("Errore agente %s — tenant %s: %s", safe_agent_id, tenant_id, exc)
         raise AppError(status_code=500, message=f"Errore esecuzione agente: {exc}")
