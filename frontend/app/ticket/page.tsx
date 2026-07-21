@@ -57,7 +57,7 @@ type Ticket = {
   man_hours_calculation_mode?: string | null;
 };
 
-type Asset = { id: number; name: string };
+type Asset = { id: number; name: string; sito_id?: number | null; sito_nome?: string | null };
 type PagedResult = { items: Ticket[]; total: number; page: number; pages: number };
 
 const STATI = ["Aperto", "Pianificato", "In corso", "Chiuso", "Eliminato"];
@@ -924,6 +924,7 @@ export default function TicketPage() {
 
   // New ticket form
   const [titolo, setTitolo] = useState("");
+  const [sitoFiltro, setSitoFiltro] = useState<number>(0); // 0 = tutti i siti
   const [assetId, setAssetId] = useState<number>(0);
   const [priorita, setPriorita] = useState("Media");
   const [tipo, setTipo] = useState("CM");
@@ -1001,6 +1002,20 @@ export default function TicketPage() {
       const d = await apiGet<PagedResult>(`/tickets?page=1&limit=200&stato=${STATI_ATTIVI.join(",")}`);
       setKanbanTickets(d.items);
     } catch { notify.error("Errore caricamento kanban."); }
+  }
+
+  // Siti derivati dagli asset (già filtrati per tenant dal backend): [sito_id, sito_nome]
+  const sitiDisponibili = Array.from(
+    new Map(
+      assets.filter(a => a.sito_id != null).map(a => [a.sito_id as number, a.sito_nome || `Sito ${a.sito_id}`])
+    ).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]));
+  const assetsFiltrati = sitoFiltro ? assets.filter(a => a.sito_id === sitoFiltro) : assets;
+
+  function handleSitoFiltroChange(id: number) {
+    setSitoFiltro(id);
+    // se l'asset selezionato non appartiene al sito scelto, azzera la selezione
+    if (id && !assets.some(a => a.id === assetId && a.sito_id === id)) setAssetId(0);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1492,9 +1507,21 @@ export default function TicketPage() {
             <input required className="input" value={titolo} onChange={e => setTitolo(e.target.value)} />
           </div>
           <div>
+            <label className="label">Sito</label>
+            <select className="select" value={sitoFiltro} onChange={e => handleSitoFiltroChange(Number(e.target.value))}>
+              <option value={0}>Tutti i siti</option>
+              {sitiDisponibili.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Asset</label>
             <select required className="select" value={assetId} onChange={e => setAssetId(Number(e.target.value))}>
-              <option value={0}>Seleziona un asset...</option> 
-              {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              <option value={0}>Seleziona un asset...</option>
+              {assetsFiltrati.map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.name}{a.sito_nome ? ` — ${a.sito_nome}` : ""}
+                </option>
+              ))}
             </select>
           </div>
           <div>
