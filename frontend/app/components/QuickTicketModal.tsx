@@ -11,7 +11,7 @@ import { apiPost, apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import Link from "next/link";
 
-type Asset = { id: number; name: string; nome: string; codice?: string };
+type Asset = { id: number; name: string; nome: string; codice?: string; sito_id?: number | null; sito_nome?: string | null };
 
 interface QuickTicketResponse {
   id: number;
@@ -33,6 +33,7 @@ export default function QuickTicketModal() {
   const [descrizione, setDescrizione] = useState("");
   const [tipo, setTipo] = useState<"BD" | "PM" | "CM">("BD");
   const [assetSearch, setAssetSearch] = useState("");
+  const [sitoFiltro, setSitoFiltro] = useState<string>(""); // "" = tutti i siti
 
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,6 +73,7 @@ export default function QuickTicketModal() {
     setDescrizione("");
     setTipo("BD");
     setAssetSearch("");
+    setSitoFiltro("");
     setLastCreated(null);
   }
 
@@ -106,7 +108,15 @@ export default function QuickTicketModal() {
 
   const tipoColors: Record<string, string> = { BD: "#ef4444", PM: "#22c55e", CM: "#f59e0b" };
 
+  // Siti derivati dagli asset (già filtrati per tenant dal backend)
+  const siti = Array.from(
+    new Map(
+      assets.filter(a => a.sito_id != null).map(a => [String(a.sito_id), a.sito_nome || `Sito ${a.sito_id}`])
+    ).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]));
+
   const filteredAssets = assets.filter(a => {
+    if (sitoFiltro && String(a.sito_id ?? "") !== sitoFiltro) return false;
     if (!assetSearch.trim()) return true;
     const s = assetSearch.toLowerCase();
     return (a.nome || a.name || "").toLowerCase().includes(s) ||
@@ -186,6 +196,26 @@ export default function QuickTicketModal() {
             </div>
           </div>
 
+          {/* Sito */}
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Sito</div>
+            <select
+              value={sitoFiltro}
+              onChange={e => {
+                const v = e.target.value;
+                setSitoFiltro(v);
+                // se l'asset selezionato non appartiene al sito scelto, azzera la selezione
+                if (v && !assets.some(a => String(a.id) === assetId && String(a.sito_id ?? "") === v)) setAssetId("");
+              }}
+              style={{ width: "100%", background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-default)", borderRadius: 6, padding: "8px 12px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+            >
+              <option value="">— Tutti i siti —</option>
+              {siti.map(([id, nome]) => (
+                <option key={id} value={id}>{nome}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Asset */}
           <div>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Asset *</div>
@@ -206,7 +236,7 @@ export default function QuickTicketModal() {
               <option value="">— Seleziona asset —</option>
               {filteredAssets.map(a => (
                 <option key={a.id} value={String(a.id)}>
-                  {a.codice ? `[${a.codice}] ` : ""}{a.nome || a.name}
+                  {a.codice ? `[${a.codice}] ` : ""}{a.nome || a.name}{a.sito_nome ? ` — ${a.sito_nome}` : ""}
                 </option>
               ))}
             </select>
