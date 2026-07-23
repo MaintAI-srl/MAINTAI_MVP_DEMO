@@ -113,6 +113,13 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         category="admin",
         requires=("assets", "technicians"),
     ),
+    "spare_parts": ModuleDefinition(
+        id="spare_parts",
+        name="Magazzino ricambi",
+        description="Anagrafica ricambi, giacenze, movimenti e vincolo ricambi sulla pianificazione.",
+        category="risorse",
+        requires=("tickets",),
+    ),
     "tenant_admin": ModuleDefinition(
         id="tenant_admin",
         name="Gestione clienti",

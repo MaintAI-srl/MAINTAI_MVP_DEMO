@@ -27,8 +27,8 @@ from backend.core.dependencies import get_db
 from backend.core.security import require_superadmin
 from backend.core.file_validation import validate_upload
 from backend.db.modelli import (
-    Asset, Attestato, AttivitaManutenzione, Impianto, PianoManutenzione,
-    Sito, Tecnico, Tenant, Ticket,
+    Asset, Attestato, AttivitaManutenzione, Impianto, MovimentoRicambio,
+    PianoManutenzione, Ricambio, Sito, Tecnico, Tenant, Ticket,
 )
 from backend.services.man_hours import calculate_required_man_hours
 
@@ -148,6 +148,19 @@ TICKET_COLS: List[tuple] = [
     ("note",                 False, "Note libere",                                                       "Ricambio gia' a magazzino"),
 ]
 
+RICAMBI_COLS: List[tuple] = [
+    ("codice",          True,  "Codice ricambio (obbligatorio, univoco)",             "RIC-001"),
+    ("descrizione",     True,  "Descrizione ricambio (obbligatorio)",                 "Cuscinetto SKF 6205"),
+    ("categoria",       False, "Categoria (es. Cuscinetti, Guarnizioni…)",            "Cuscinetti"),
+    ("unita_misura",    False, "Unità di misura (default: pz)",                       "pz"),
+    ("giacenza",        False, "Giacenza iniziale a magazzino (numero, default 0)",   "10"),
+    ("scorta_minima",   False, "Scorta minima di riordino (numero)",                  "2"),
+    ("prezzo_unitario", False, "Prezzo unitario in € (numero)",                       "12.50"),
+    ("fornitore",       False, "Fornitore",                                           "RS Components"),
+    ("ubicazione",      False, "Ubicazione a magazzino (scaffale/cassetto)",          "A-12"),
+    ("note",            False, "Note libere",                                         "Compatibile linea A"),
+]
+
 SINGLE_IMPORTS: dict[str, dict[str, Any]] = {
     "siti": {"label": "Siti", "sheet": "SITI", "cols": SITI_COLS, "filename": "maintai_template_siti.xlsx"},
     "impianti": {"label": "Impianti", "sheet": "IMPIANTI", "cols": IMPIANTI_COLS, "filename": "maintai_template_impianti.xlsx"},
@@ -156,6 +169,7 @@ SINGLE_IMPORTS: dict[str, dict[str, Any]] = {
     "piani_manutenzione": {"label": "Piani di manutenzione", "sheet": "PIANI", "cols": PIANI_COLS, "filename": "maintai_template_piani_manutenzione.xlsx"},
     "corsi_attestati": {"label": "Corsi e attestati", "sheet": "CORSI", "cols": CORSI_COLS, "filename": "maintai_template_corsi_attestati.xlsx"},
     "ticket": {"label": "Ticket", "sheet": "TICKET", "cols": TICKET_COLS, "filename": "maintai_template_ticket.xlsx"},
+    "ricambi": {"label": "Ricambi magazzino", "sheet": "RICAMBI", "cols": RICAMBI_COLS, "filename": "maintai_template_ricambi.xlsx"},
 }
 
 # ── Valori ammessi per i ticket (validazione bulk) ────────────────────────────
@@ -771,6 +785,20 @@ def _validate_single_rows(import_type: str, rows: List[Dict], db: Session, tenan
             errors.append(f"Riga {row_num}: tecnico non trovato (usa tecnico_id o nome/cognome esistente)")
         elif import_type == "ticket":
             errors.extend(_validate_ticket_row(row, row_num, db, tenant_id))
+        elif import_type == "ricambi":
+            errors.extend(_validate_ricambio_row(row, row_num))
+    return errors
+
+
+def _validate_ricambio_row(row: Dict[str, Any], row_num: Any) -> List[str]:
+    """Validazione di una singola riga ricambio per l'import massivo."""
+    errors: List[str] = []
+    for num_field in ("giacenza", "scorta_minima", "prezzo_unitario"):
+        raw = row.get(num_field)
+        if raw is not None and str(raw).strip() != "":
+            val = _to_float(raw)
+            if val is None or val < 0:
+                errors.append(f"Riga {row_num}: {num_field} '{raw}' non valido (numero >= 0)")
     return errors
 
 
@@ -1037,6 +1065,55 @@ def _execute_single_import(import_type: str, rows: List[Dict], tenant_id: int, d
                     ticket.sito_name = asset.impianto.sito.nome
             db.add(ticket)
             stats["ticket_creati"] += 1
+
+    elif import_type == "ricambi":
+        stats = {"ricambi_creati": 0, "ricambi_aggiornati": 0}
+        for row in rows:
+            codice = row["codice"].strip()
+            existing = (
+                db.query(Ricambio)
+                .filter(Ricambio.tenant_id == tenant_id, Ricambio.codice.ilike(codice))
+                .first()
+            )
+            giacenza = _to_float(row.get("giacenza")) or 0.0
+            if existing:
+                # Aggiorna anagrafica; la giacenza NON viene sovrascritta (gestita a movimenti)
+                existing.descrizione = row.get("descrizione") or existing.descrizione
+                existing.categoria = row.get("categoria") or existing.categoria
+                existing.unita_misura = row.get("unita_misura") or existing.unita_misura
+                existing.scorta_minima = _to_float(row.get("scorta_minima")) or existing.scorta_minima
+                existing.prezzo_unitario = _to_float(row.get("prezzo_unitario")) or existing.prezzo_unitario
+                existing.fornitore = row.get("fornitore") or existing.fornitore
+                existing.ubicazione = row.get("ubicazione") or existing.ubicazione
+                existing.note = row.get("note") or existing.note
+                stats["ricambi_aggiornati"] += 1
+                continue
+            ricambio = Ricambio(
+                tenant_id=tenant_id,
+                codice=codice,
+                descrizione=row["descrizione"].strip(),
+                categoria=row.get("categoria"),
+                unita_misura=row.get("unita_misura") or "pz",
+                giacenza=giacenza,
+                scorta_minima=_to_float(row.get("scorta_minima")) or 0.0,
+                prezzo_unitario=_to_float(row.get("prezzo_unitario")),
+                fornitore=row.get("fornitore"),
+                ubicazione=row.get("ubicazione"),
+                note=row.get("note"),
+                attivo=True,
+            )
+            db.add(ricambio)
+            db.flush()
+            if giacenza > 0:
+                db.add(MovimentoRicambio(
+                    tenant_id=tenant_id,
+                    ricambio_id=ricambio.id,
+                    tipo="carico",
+                    quantita=giacenza,
+                    giacenza_dopo=giacenza,
+                    causale="Import massivo — giacenza iniziale",
+                ))
+            stats["ricambi_creati"] += 1
 
     return stats
 

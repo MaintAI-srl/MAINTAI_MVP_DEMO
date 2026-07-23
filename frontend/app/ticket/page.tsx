@@ -9,6 +9,7 @@ import { SkeletonTable } from "../components/Skeleton";
 import { Button } from "@/components/ui/button";
 import UploadAllegati from "../components/UploadAllegati";
 import StatusToggle from "../components/StatusToggle";
+import RicambiTicket from "../components/RicambiTicket";
 import FirmaRapportinoModal from "../components/FirmaRapportinoModal";
 import { consegnaRapportino } from "../lib/rapportino";
 import { DataTable, dateRangeFilterFn, type ColumnDef } from "@/components/ui/data-table";
@@ -302,6 +303,8 @@ type DetailModalProps = {
 };
 
 function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
+  const { isModuleEnabled } = useAuth();
+  const sparePartsOn = isModuleEnabled("spare_parts");
   const [stato, setStato] = useState(ticket.stato);
   const [assetStato, setAssetStato] = useState(ticket.asset_stato ?? "");
   const [plannedStart, setPlannedStart] = useState(toDatetimeLocal(ticket.planned_start));
@@ -649,6 +652,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           </button>
           {ricambiOpen && (
             <div style={{ padding: "16px", background: "var(--border-subtle)", border: "1px solid var(--border-default)", borderTop: "none", borderRadius: "0 0 8px 8px", display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Ricambi strutturati da magazzino (modulo spare_parts) */}
+              {sparePartsOn && (
+                <div>
+                  <label style={{ ...modalLabel, marginBottom: 6 }}>Ricambi necessari (magazzino)</label>
+                  <RicambiTicket ticketId={ticket.id} onChange={onSaved} />
+                  <div style={{ height: 1, background: "var(--border-default)", margin: "14px 0 2px" }} />
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Nota libera legacy (opzionale):</div>
+                </div>
+              )}
               {/* Toggle in attesa ricambio */}
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <button
