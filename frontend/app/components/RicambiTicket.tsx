@@ -105,7 +105,7 @@ export default function RicambiTicket({ ticketId, onChange }: { ticketId: number
       {/* Avviso vincolo pianificazione */}
       {status?.bloccante && (
         <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#fca5a5" }}>
-          ⚠️ Ticket non pianificabile: ricambi da approvvigionare ({status.mancanti.join(", ")}). Il piano proporrà l'acquisto.
+          ⚠️ Ticket non pianificabile: ricambi da approvvigionare ({status.mancanti.join(", ")}). Il piano proporrà l&apos;acquisto.
         </div>
       )}
       {status && !status.bloccante && status.righe.length > 0 && (

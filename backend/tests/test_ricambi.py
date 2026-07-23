@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from backend.core.database import Base
 from backend.db.modelli import (
-    MovimentoRicambio, Ricambio, Tecnico, Tenant, Ticket, TicketRicambio,
+    MovimentoRicambio, Ricambio, Tenant, Ticket, TicketRicambio,
 )
 from backend.services import ricambi_service
 

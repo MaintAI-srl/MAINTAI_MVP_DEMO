@@ -7,7 +7,7 @@ prenotato = quantità impegnata dai ticket Pianificato/In corso.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
