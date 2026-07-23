@@ -700,6 +700,75 @@ class AiUsageLog(Base):
     created_at = Column(DateTime, default=_utcnow, index=True)
 
 
+class Ricambio(Base):
+    """Articolo di magazzino ricambi (anagrafica per tenant).
+
+    Modello 'leggero' single-stock: una giacenza per articolo, senza
+    multi-magazzino (scelta MVP). La disponibilità reale si calcola come
+    giacenza - prenotato, dove prenotato = somma delle quantità richieste
+    dai ticket in stato Pianificato/In corso (vedi ricambi_service)."""
+    __tablename__ = "ricambi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    codice = Column(String, nullable=False, index=True)   # codice interno/fornitore
+    descrizione = Column(String, nullable=False)
+    categoria = Column(String, nullable=True)
+    unita_misura = Column(String, nullable=True, default="pz")
+    giacenza = Column(Float, nullable=False, default=0.0)         # quantità fisica a magazzino
+    scorta_minima = Column(Float, nullable=True, default=0.0)     # soglia riordino
+    prezzo_unitario = Column(Float, nullable=True)               # € per unità
+    fornitore = Column(String, nullable=True)
+    ubicazione = Column(String, nullable=True)                   # es. scaffale/cassetto
+    note = Column(Text, nullable=True)
+    attivo = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    tenant = relationship("Tenant")
+
+
+class TicketRicambio(Base):
+    """Riga ricambio richiesto da un ticket (il '+ ricambi' del ticket).
+
+    Un ticket può richiedere N ricambi. Se `ricambio_id` è valorizzato il
+    ricambio è a catalogo (verifica disponibilità); se è None si tratta di un
+    ricambio 'nuovo' non ancora a magazzino → blocca la pianificazione finché
+    non viene approvvigionato (proposta d'acquisto)."""
+    __tablename__ = "ticket_ricambi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=False, index=True)
+    ricambio_id = Column(Integer, ForeignKey("ricambi.id"), nullable=True, index=True)
+    descrizione = Column(String, nullable=True)     # denormalizzata (ricambio nuovo o snapshot)
+    quantita = Column(Float, nullable=False, default=1.0)
+    is_nuovo = Column(Boolean, default=False, nullable=False)  # True = da acquistare (non a catalogo)
+    stato_acquisto = Column(String, nullable=True)  # None | da_ordinare | ordinato | ricevuto
+    created_at = Column(DateTime, default=_utcnow)
+
+    ricambio = relationship("Ricambio")
+    ticket = relationship("Ticket")
+
+
+class MovimentoRicambio(Base):
+    """Log movimenti di magazzino (carico/scarico/rettifica) — audit trail."""
+    __tablename__ = "movimenti_ricambi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    ricambio_id = Column(Integer, ForeignKey("ricambi.id"), nullable=False, index=True)
+    ticket_id = Column(Integer, ForeignKey("ticket.id"), nullable=True, index=True)
+    tipo = Column(String, nullable=False)          # carico | scarico | rettifica
+    quantita = Column(Float, nullable=False)       # sempre positiva; il segno è dato dal tipo
+    giacenza_dopo = Column(Float, nullable=True)   # giacenza risultante dopo il movimento
+    causale = Column(String, nullable=True)
+    utente = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+
+    ricambio = relationship("Ricambio")
+
+
 class TenantModuleConfig(Base):
     """Override per-tenant dei moduli attivi (gestito dal superadmin).
 

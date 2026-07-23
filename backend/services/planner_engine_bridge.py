@@ -346,6 +346,26 @@ async def generate_deterministic_plan(
         ticket_query = ticket_query.filter(Ticket.asset_id.in_(asset_ids))
     tickets = ticket_query.all()
 
+    # ── Gate ricambi (modulo spare_parts) ─────────────────────────────────────
+    # Un ticket con ricambi mancanti/insufficienti a magazzino non è pianificabile:
+    # viene deferito con proposta d'acquisto. No-op se il modulo è spento o se i
+    # ticket non hanno ricambi associati (nessun impatto sul flusso legacy).
+    spare_parts_blocked: List[Dict[str, Any]] = []
+    try:
+        from backend.core.modules import is_module_enabled_for_tenant
+        if is_module_enabled_for_tenant(db, "spare_parts", tenant_id):
+            from backend.services.ricambi_service import partition_by_spare_parts
+            tickets, spare_parts_blocked = partition_by_spare_parts(db, tenant_id, tickets)
+            if spare_parts_blocked:
+                logger.info(
+                    "PlannerEngine bridge: %d ticket bloccati da ricambi non disponibili",
+                    len(spare_parts_blocked),
+                )
+    except Exception as exc:
+        # Il gate ricambi non deve mai far fallire la pianificazione.
+        logger.warning("PlannerEngine bridge: gate ricambi saltato per errore: %s", exc)
+        spare_parts_blocked = []
+
     # ── Carica tecnici attivi ─────────────────────────────────────────────────
     tecnico_query = db.query(Tecnico).filter(
         Tecnico.stato.in_(["in servizio", "in_servizio"])
@@ -356,11 +376,16 @@ async def generate_deterministic_plan(
 
     # ── Guardrail: backlog vuoto ──────────────────────────────────────────────
     if not tickets:
+        warning = (
+            "Tutti i ticket pianificabili sono in attesa di ricambi non disponibili a magazzino."
+            if spare_parts_blocked
+            else "Nessun ticket aperto o pianificabile trovato nel sistema."
+        )
         return {
             "planned_workorders": [],
-            "deferred_workorders": [],
+            "deferred_workorders": spare_parts_blocked,
             "fermo_assets": [],
-            "global_warnings": ["Nessun ticket aperto o pianificabile trovato nel sistema."],
+            "global_warnings": [warning],
             "efficiency_score": 0,
             "efficiency_breakdown": {},
             "efficiency_motivations": [],
@@ -373,7 +398,7 @@ async def generate_deterministic_plan(
             "deferred_workorders": [
                 {"wo_id": t.id, "reason": "Nessun tecnico disponibile in servizio"}
                 for t in tickets
-            ],
+            ] + spare_parts_blocked,
             "fermo_assets": [],
             "global_warnings": ["Nessun tecnico in servizio trovato nel sistema."],
             "efficiency_score": 0,
@@ -444,7 +469,7 @@ async def generate_deterministic_plan(
             "deferred_workorders": [
                 {"wo_id": t.id, "reason": "Nessun tecnico attivo trovato"}
                 for t in tickets
-            ],
+            ] + spare_parts_blocked,
             "fermo_assets": [],
             "global_warnings": ["Nessun tecnico con stato 'in servizio' trovato."],
             "efficiency_score": 0,
@@ -560,12 +585,19 @@ async def generate_deterministic_plan(
             "earliest_possible_date": u.earliest_possible_date,
         })
 
+    # Aggiunge i ticket bloccati dal gate ricambi (proposta d'acquisto)
+    deferred_workorders.extend(spare_parts_blocked)
+
     plan_json: Dict[str, Any] = {
         "planned_workorders":  planned_workorders,
         "deferred_workorders": deferred_workorders,
         "fermo_assets":        [],
         "global_warnings":     weather_global_warnings,
     }
+    if spare_parts_blocked:
+        plan_json["global_warnings"].append(
+            f"{len(spare_parts_blocked)} ticket non pianificabili: ricambi da approvvigionare."
+        )
 
     # ── Calcola feedback scores per tecnico (confidence retroalimentato #11) ──
     tech_feedback_scores: Dict[int, float] = {}

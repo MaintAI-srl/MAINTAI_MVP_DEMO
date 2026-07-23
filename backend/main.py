@@ -53,6 +53,7 @@ try:
     from backend.api.routes.control_center import router as control_center_router
     from backend.api.routes.asset_documenti import router as asset_documenti_router
     from backend.api.routes.agents import router as agents_router
+    from backend.api.routes.ricambi import router as ricambi_router
     from backend.core.config import init_backend
     from backend.core.security import IS_PRODUCTION
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
@@ -466,6 +467,100 @@ def _ensure_columns() -> None:
         )
     """
 
+    # ── Magazzino ricambi (modulo spare_parts) ────────────────────────────────
+    ricambi_pg = """
+        CREATE TABLE IF NOT EXISTS ricambi (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+            codice VARCHAR NOT NULL,
+            descrizione VARCHAR NOT NULL,
+            categoria VARCHAR,
+            unita_misura VARCHAR DEFAULT 'pz',
+            giacenza FLOAT NOT NULL DEFAULT 0,
+            scorta_minima FLOAT DEFAULT 0,
+            prezzo_unitario FLOAT,
+            fornitore VARCHAR,
+            ubicazione VARCHAR,
+            note TEXT,
+            attivo BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    ricambi_sqlite = """
+        CREATE TABLE IF NOT EXISTS ricambi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+            codice VARCHAR NOT NULL,
+            descrizione VARCHAR NOT NULL,
+            categoria VARCHAR,
+            unita_misura VARCHAR DEFAULT 'pz',
+            giacenza FLOAT NOT NULL DEFAULT 0,
+            scorta_minima FLOAT DEFAULT 0,
+            prezzo_unitario FLOAT,
+            fornitore VARCHAR,
+            ubicazione VARCHAR,
+            note TEXT,
+            attivo BOOLEAN NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    ticket_ricambi_pg = """
+        CREATE TABLE IF NOT EXISTS ticket_ricambi (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+            ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+            ricambio_id INTEGER REFERENCES ricambi(id),
+            descrizione VARCHAR,
+            quantita FLOAT NOT NULL DEFAULT 1,
+            is_nuovo BOOLEAN NOT NULL DEFAULT FALSE,
+            stato_acquisto VARCHAR,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    ticket_ricambi_sqlite = """
+        CREATE TABLE IF NOT EXISTS ticket_ricambi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+            ticket_id INTEGER NOT NULL REFERENCES ticket(id),
+            ricambio_id INTEGER REFERENCES ricambi(id),
+            descrizione VARCHAR,
+            quantita FLOAT NOT NULL DEFAULT 1,
+            is_nuovo BOOLEAN NOT NULL DEFAULT 0,
+            stato_acquisto VARCHAR,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    movimenti_ricambi_pg = """
+        CREATE TABLE IF NOT EXISTS movimenti_ricambi (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+            ricambio_id INTEGER NOT NULL REFERENCES ricambi(id),
+            ticket_id INTEGER REFERENCES ticket(id),
+            tipo VARCHAR NOT NULL,
+            quantita FLOAT NOT NULL,
+            giacenza_dopo FLOAT,
+            causale VARCHAR,
+            utente VARCHAR,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """
+    movimenti_ricambi_sqlite = """
+        CREATE TABLE IF NOT EXISTS movimenti_ricambi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+            ricambio_id INTEGER NOT NULL REFERENCES ricambi(id),
+            ticket_id INTEGER REFERENCES ticket(id),
+            tipo VARCHAR NOT NULL,
+            quantita FLOAT NOT NULL,
+            giacenza_dopo FLOAT,
+            causale VARCHAR,
+            utente VARCHAR,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+
     # tenant_module_config — override moduli per tenant
     tmc_pg = """
         CREATE TABLE IF NOT EXISTS tenant_module_config (
@@ -821,6 +916,10 @@ def _ensure_columns() -> None:
         _exec_ddl(check_pl_pg if pg else check_pl_sqlite, "check_primo_livello CREATE")
         _exec_ddl(attestati_pg if pg else attestati_sqlite, "attestati CREATE")
         _exec_ddl(ad_pg if pg else ad_sqlite, "asset_documenti CREATE")
+        # Magazzino ricambi (modulo spare_parts)
+        _exec_ddl(ricambi_pg if pg else ricambi_sqlite, "ricambi CREATE")
+        _exec_ddl(ticket_ricambi_pg if pg else ticket_ricambi_sqlite, "ticket_ricambi CREATE")
+        _exec_ddl(movimenti_ricambi_pg if pg else movimenti_ricambi_sqlite, "movimenti_ricambi CREATE")
 
         # 2. Aggiungi colonne mancanti (ogni ALTER nella propria transazione)
         for _table, col_name, tmpl in ddl_statements:
@@ -1041,6 +1140,7 @@ _MODULE_ROUTERS = [
     (report_router, "economic_reports"),
     (emergency_router, "emergency"),
     (control_center_router, "control_center"),
+    (ricambi_router, "spare_parts"),
 ]
 for _router, _module_id in _MODULE_ROUTERS:
     _include_module_router(_router, _module_id)
