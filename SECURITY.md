@@ -200,6 +200,13 @@ compromissione credenziali, indisponibilità prolungata, esfiltrazione).
 - **Diritti degli interessati:** accesso, rettifica, cancellazione, portabilità — gestiti tramite il titolare (cliente) con supporto MaintAI (export/delete).
 - **Sub-processori (DPA):** Supabase (DB/storage), Vercel (hosting frontend), Render (hosting backend), OpenAI (elaborazione AI). DPA da mantenere agli atti; registro sub-processori disponibile ai clienti su richiesta.
 - **Minimizzazione:** i payload inviati a OpenAI contengono solo i dati necessari alla diagnosi/parsing.
+- **Pseudonimizzazione verso OpenAI:** nomi di tecnici, asset, siti, impianti e ragione sociale
+  del cliente non escono in chiaro. Sono sostituiti da pseudonimi deterministici
+  (`ASSET_3`, `TECNICO_7`) da `backend/services/ai/pseudonymizer.py`, risolti nei valori reali
+  solo al rientro della risposta. Restano in chiaro i dati tecnici non identificativi (marca,
+  modello, misure, codici ricambio), necessari alla qualità dell'analisi. Le immagini inviate
+  all'analisi visiva sono ripulite dai metadati EXIF/IPTC/XMP. Criteri completi in
+  [`docs/SECURITY_GUIDELINES_MAINTAI.md`](docs/SECURITY_GUIDELINES_MAINTAI.md) §6.
 
 ---
 

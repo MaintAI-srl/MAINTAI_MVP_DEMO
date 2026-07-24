@@ -6,6 +6,8 @@ import json
 from sqlalchemy.orm import Session
 from backend.db.modelli import FailureMode, FailureAnalysis, DiagnosticLearning
 from backend.services.ai.openai_service import get_openai_client
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY, wrap_untrusted
+from backend.services.ai.pseudonymizer import Pseudonymizer
 from backend.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -94,6 +96,13 @@ def analyze_failure(
         )
     kb_text = "\n".join(kb_lines)
 
+    # Pseudonimizzazione reversibile: nome, matricola, fornitore e posizione dell'asset
+    # escono come token. Marca, modello e note tecniche restano in chiaro — sono il
+    # contenuto diagnostico su cui il modello deve ragionare.
+    pseudo = Pseudonymizer()
+    if asset_info:
+        pseudo.register_asset(asset_info)
+
     asset_context = ""
     if asset_info:
         parts = []
@@ -107,16 +116,21 @@ def analyze_failure(
             parts.append(f"Anno installazione: {asset_info['anno_installazione']}")
         if asset_info.get("note_tecniche"):
             parts.append(f"Note tecniche: {asset_info['note_tecniche']}")
-        asset_context = "\n".join(parts)
+        asset_context = pseudo.mask_text("\n".join(parts))
 
-    user_msg = f"""TIPO ASSET: {asset_type}
+    symptoms = pseudo.mask_text(symptoms or "")
+    description = pseudo.mask_text(description or "")
+
+    user_msg = f"""{UNTRUSTED_INPUT_POLICY}
+
+TIPO ASSET: {asset_type}
 {asset_context}
 
 SINTOMI RIPORTATI:
-{symptoms}
+{wrap_untrusted("sintomi", symptoms or "(non forniti)")}
 
 DESCRIZIONE GUASTO:
-{description or '(non fornita)'}
+{wrap_untrusted("descrizione_guasto", description or "(non fornita)")}
 
 KNOWLEDGE BASE FMECA ({len(modes)} failure modes noti):
 {kb_text}
@@ -134,7 +148,7 @@ Identifica i 3 failure modes più probabili in base ai sintomi. Usa solo failure
             response_format={"type": "json_object"},
             temperature=0.2,
         )
-        result = json.loads(response.choices[0].message.content)
+        result = pseudo.restore(json.loads(response.choices[0].message.content))
     except Exception as e:
         logger.error("FIE OpenAI error: %s", e)
         return {

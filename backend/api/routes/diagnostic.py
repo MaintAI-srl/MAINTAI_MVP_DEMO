@@ -55,6 +55,10 @@ def start_session(
     asset_dict = None
     if asset:
         asset_dict = {
+            # id, codice e numero_serie servono al Pseudonymizer per derivare i token
+            "id": asset.id,
+            "codice": asset.codice,
+            "numero_serie": asset.numero_serie,
             "nome": asset.nome,
             "area": asset.area,
             "descrizione": asset.descrizione,
@@ -191,7 +195,36 @@ def reply_to_session(
         raise AppError(status_code=400, message="Sessione già conclusa")
 
     history = json.loads(session.history)
-    outcome = continue_diagnostic_session(history, payload.reply)
+
+    # Ricarica ticket e asset per ricostruire la stessa mappa di pseudonimi del primo
+    # turno: senza di essa la risposta arriverebbe con i token al posto dei nomi reali.
+    ticket_row = db.query(Ticket).filter(
+        Ticket.id == ticket_id,
+        Ticket.tenant_id == tenant_id,
+    ).first()
+    asset_dict = None
+    if ticket_row and ticket_row.asset_id:
+        asset_row = db.query(Asset).filter(
+            Asset.id == ticket_row.asset_id,
+            Asset.tenant_id == tenant_id,
+        ).first()
+        if asset_row:
+            asset_dict = {
+                "id": asset_row.id,
+                "nome": asset_row.nome,
+                "codice": asset_row.codice,
+                "matricola": asset_row.matricola,
+                "numero_serie": asset_row.numero_serie,
+                "fornitore": asset_row.fornitore,
+                "posizione_fisica": asset_row.posizione_fisica,
+            }
+
+    outcome = continue_diagnostic_session(
+        history,
+        payload.reply,
+        ticket={"id": ticket_id},
+        asset=asset_dict,
+    )
 
     session.history = json.dumps(outcome["history"])
 

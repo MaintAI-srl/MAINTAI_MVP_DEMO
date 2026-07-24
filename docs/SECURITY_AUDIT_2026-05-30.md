@@ -151,7 +151,7 @@ Le linee guida sono ottime ma scritte per **Next.js/Prisma/Auth.js**. Per coprir
 | A09 Logging | ✅ Buono (SEC-11/17 risolti) |
 | A10 SSRF | ✅ Fetch su host fissi |
 | File Upload | ✅ Magic-bytes + serving sicuro |
-| AI/LLM | ✅ PII anonimizzata, output JSON; rate-limit completo |
+| AI/LLM | ✅ PII anonimizzata, output JSON; rate-limit completo *(vedi nota 2026-07-24)* |
 | Secrets | ⚠️ CI aggiunta; **SEC-01 rotazione+history pendenti** |
 
 ---
@@ -166,3 +166,27 @@ Le linee guida sono ottime ma scritte per **Next.js/Prisma/Auth.js**. Per coprir
 ---
 
 *Report finale generato su codice reale — 2026-05-30. Suite test backend 83/83 verde. Riferimenti: `docs/SECURITY_GUIDELINES.md`, `docs/SECURITY_CHECKLIST.md`.*
+
+---
+
+## Nota di rettifica — 2026-07-24
+
+La riga `AI/LLM | ✅ PII anonimizzata` della §7 era **troppo ottimistica** alla data di questo
+report e lo è diventata di più con il codice aggiunto dopo. Verifica puntuale su tutti gli 11
+call site OpenAI:
+
+- `backend/services/ai/agents_service.py` (5 agenti, introdotto dopo l'audit) inviava **nome e
+  cognome reali dei tecnici** e le label `[codice] nome` degli asset senza alcun masking.
+- `backend/services/failure_engine.py` inviava la scheda asset (`asset_info`) in chiaro.
+- `backend/api/routes/asset_documenti.py` inviava le immagini degli esplosi con i metadati
+  originali (autore, software, commessa, GPS).
+- 6 call site chiamavano `mask_text()` senza `sensitive_words`: applicavano solo le regex e i
+  nomi propri passavano interi.
+- In direzione opposta, le regex erano **distruttive per i dati tecnici**: `(\d{7,15})`
+  cancellava ogni codice ricambio dei manuali, `-?\d{1,3}\.\d{4,}` ogni misura decimale.
+
+Tutti i punti sono stati chiusi con la pseudonimizzazione reversibile
+(`backend/services/ai/pseudonymizer.py`), i criteri sono in
+[`SECURITY_GUIDELINES_MAINTAI.md`](SECURITY_GUIDELINES_MAINTAI.md) §6 e la copertura è
+verificata da `backend/tests/test_ai_pseudonymization.py`, che include una guardia strutturale
+contro il rientro del problema.

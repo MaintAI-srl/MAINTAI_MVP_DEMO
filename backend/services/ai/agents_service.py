@@ -8,7 +8,9 @@ KPI, Suggeritore Strategie). Ognuno:
 - interroga OpenAI con un prompt da esperto lean (TPM, kaizen, muda, 5 perché);
 - registra il run in AiUsageLog con il costo stimato in EUR (badge topbar).
 
-Nessun dato viene inviato a OpenAI oltre al contesto aggregato qui costruito.
+Nessun dato viene inviato a OpenAI oltre al contesto aggregato qui costruito, e i nomi
+identificativi (asset, tecnici) escono solo come pseudonimi reversibili — vedi
+``build_agents_pseudonymizer``.
 """
 from __future__ import annotations
 
@@ -29,8 +31,26 @@ from backend.db.modelli import (
     Ticket,
 )
 from backend.services.ai.openai_service import get_openai_client, get_openai_model
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY, wrap_untrusted
+from backend.services.ai.pseudonymizer import Pseudonymizer
 
 logger = get_logger(__name__)
+
+
+def build_agents_pseudonymizer(db: Session, tenant_id: int) -> Pseudonymizer:
+    """
+    Registra tutte le entità nominabili del tenant (asset e tecnici).
+
+    La pseudonimizzazione è applicata **in uscita**, sul messaggio già composto, invece
+    che dentro i singoli collector: così anche un collector aggiunto in futuro è coperto
+    per costruzione e non può reintrodurre una fuga di nomi verso OpenAI.
+    """
+    pseudo = Pseudonymizer()
+    for asset in db.query(Asset).filter(Asset.tenant_id == tenant_id).all():
+        pseudo.register_asset(asset)
+    for tecnico in db.query(Tecnico).filter(Tecnico.tenant_id == tenant_id).all():
+        pseudo.register_tecnico(tecnico)
+    return pseudo
 
 # ── Prezzi OpenAI (USD per 1M token: input, output) e cambio EUR ─────────────
 # Prezzi listino API; per modelli non in tabella si usa il fallback "mini".
@@ -548,10 +568,17 @@ def run_agent(db: Session, tenant_id: int, agent_id: str, username: str | None) 
     context = definition.collector(db, tenant_id)
     pareto = context.get("pareto")
 
+    # Pseudonimizzazione reversibile: nomi tecnici e asset diventano token deterministici
+    # (TECNICO_7, ASSET_3) prima di uscire verso OpenAI; il report torna con i nomi reali.
+    pseudo = build_agents_pseudonymizer(db, tenant_id)
+    dati_impianto = pseudo.mask_text("\n\n".join([context["summary"], _pareto_md(pareto)]))
+
     user_message = "\n\n".join([
+        UNTRUSTED_INPUT_POLICY,
         "Questi sono i dati aggregati aggiornati dell'impianto (gia filtrati per il cliente):",
-        context["summary"],
-        _pareto_md(pareto),
+        wrap_untrusted("dati_impianto", dati_impianto),
+        "Nota: le sigle tipo ASSET_12 o TECNICO_3 sono identificativi pseudonimi. "
+        "Usale invariate nel report: verranno risolte nei nomi reali alla consegna.",
         "Produci ora il tuo report da esperto.",
     ])
 
@@ -577,7 +604,8 @@ def run_agent(db: Session, tenant_id: int, agent_id: str, username: str | None) 
         )
         raise
 
-    output_md = (response.choices[0].message.content or "").strip()
+    # De-pseudonimizzazione prima di persistere e di restituire al frontend
+    output_md = pseudo.restore((response.choices[0].message.content or "").strip())
     usage = getattr(response, "usage", None)
     prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
     completion_tokens = getattr(usage, "completion_tokens", 0) or 0

@@ -7,7 +7,6 @@ from backend.core.exceptions import AppError
 from backend.core.rate_limiter import limiter
 from backend.db.modelli import Ticket, Asset, FailureMode, DiagnosticLearning
 from backend.services.failure_engine import analyze_failure, confirm_failure_mode, classify_rpn
-from backend.services.ai.anonymization_service import anonymizer
 
 router = APIRouter(prefix="/failure", tags=["failure-engine"])
 
@@ -67,6 +66,14 @@ def analyze_ticket_failure(
             if not asset_type:
                 asset_type = _infer_asset_type(asset.nome or asset.area or "")
             asset_info = {
+                # id/codice/matricola non finiscono nel prompt: servono ad analyze_failure
+                # per costruire la mappa dei pseudonimi.
+                "id": asset.id,
+                "codice": asset.codice,
+                "matricola": asset.matricola,
+                "numero_serie": asset.numero_serie,
+                "fornitore": asset.fornitore,
+                "posizione_fisica": asset.posizione_fisica,
                 "nome": asset.nome,
                 "marca": asset.marca,
                 "modello": asset.modello,
@@ -76,15 +83,14 @@ def analyze_ticket_failure(
     if not asset_type:
         asset_type = "generico"
 
-    symptoms = anonymizer.mask_text(data.symptoms) if data.symptoms else data.symptoms
-    description = anonymizer.mask_text(data.description or ticket.descrizione or "")
-
+    # La pseudonimizzazione di sintomi, descrizione e scheda asset avviene dentro
+    # analyze_failure, dove i tre input convergono nello stesso prompt.
     result = analyze_failure(
         db=db,
         ticket_id=ticket_id,
         asset_type=asset_type,
-        symptoms=symptoms,
-        description=description,
+        symptoms=data.symptoms,
+        description=data.description or ticket.descrizione or "",
         tenant_id=tenant_id,
         asset_info=asset_info,
     )

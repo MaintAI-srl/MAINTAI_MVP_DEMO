@@ -9,6 +9,7 @@ from backend.core.logger_db import db_info
 from backend.core.security import get_current_user_payload
 from backend.core.rate_limiter import limiter
 from backend.services.ai.anonymization_service import anonymizer
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY
 
 router = APIRouter(prefix="/guide", tags=["guide"])
 
@@ -207,7 +208,9 @@ async def guide_chat(
         return {"content": _fallback_answer(req)}
 
     ctx = req.page_context or PageContext()
-    page_context = (
+    # Il contesto pagina arriva dal frontend: titoli e sommari possono contenere il nome
+    # dell'asset o del ticket aperto, quindi passa dal masking come i messaggi.
+    page_context = anonymizer.mask_text(
         f"Pagina corrente: {ctx.title or 'non specificata'}\n"
         f"Percorso: {ctx.path or 'non specificato'}\n"
         f"Area: {ctx.area or 'non specificata'}\n"
@@ -218,12 +221,14 @@ async def guide_chat(
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": MAINTAI_CONTEXT},
+        {"role": "system", "content": UNTRUSTED_INPUT_POLICY},
         {"role": "system", "content": page_context},
     ]
     for msg in req.messages[-10:]:
         role = msg.role if msg.role in {"user", "assistant"} else "user"
-        content = anonymizer.mask_text(msg.content) if role == "user" else msg.content
-        messages.append({"role": role, "content": content})
+        # Anche i messaggi assistant vengono mascherati: sono rispediti a ogni turno e
+        # possono contenere PII riportata dall'utente nel turno precedente.
+        messages.append({"role": role, "content": anonymizer.mask_text(msg.content)})
 
     try:
         client = openai.AsyncOpenAI(api_key=api_key)

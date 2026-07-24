@@ -31,6 +31,16 @@ Il riferimento di sicurezza del progetto sono questi due documenti, da applicare
 | Rate limiting `@upstash/ratelimit` | `slowapi` via `backend/core/rate_limiter.py` (`@limiter.limit(...)`) |
 | Storage privato + signed URL | `backend/core/storage.py` (Supabase) — preferire bucket privato |
 | Cifratura at-rest | `encrypt_data`/`decrypt_data` (Fernet) in `security.py` |
+| Minimizzazione dati verso LLM (LLM06) | **`Pseudonymizer`** in `backend/services/ai/pseudonymizer.py` — obbligatorio su ogni chiamata OpenAI |
+
+**Dati verso OpenAI — regola non negoziabile:** ogni call site AI deve pseudonimizzare il
+payload con `Pseudonymizer` (token deterministici `ASSET_3`/`TECNICO_7`) e ripassare la
+risposta da `restore()` prima di UI e persistenza. Si tokenizza **l'identificatore**, mai la
+semantica tecnica: marca, modello, misure, tolleranze e codici ricambio restano in chiaro,
+altrimenti si degrada l'AI senza guadagno di privacy. Criteri completi e checklist in
+[`docs/SECURITY_GUIDELINES_MAINTAI.md`](docs/SECURITY_GUIDELINES_MAINTAI.md) §6; il test
+`backend/tests/test_ai_pseudonymization.py` contiene una guardia che fallisce se un nuovo
+modulo chiama OpenAI senza passare da un servizio di masking.
 
 L'audit di sicurezza più recente è in `docs/SECURITY_AUDIT_2026-05-30.md`.
 

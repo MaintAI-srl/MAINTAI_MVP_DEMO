@@ -739,7 +739,10 @@ async def import_pdf_to_piano(
 ):
     """Importa attività da PDF (AI/OCR) come TASK del piano."""
     from backend.services.pdf_service import smart_read_pdf
-    from backend.services.ai.manuals_ai_service import parse_manual_with_ai
+    from backend.services.ai.manuals_ai_service import (
+        build_manual_pseudonymizer,
+        parse_manual_with_ai,
+    )
     import json
 
     piano = db.query(PianoManutenzione).filter(
@@ -770,7 +773,9 @@ async def import_pdf_to_piano(
     if not text.strip():
         raise HTTPException(status_code=422, detail="Nessun testo estratto dal PDF.")
 
-    parsed_json_str = parse_manual_with_ai(text, file.filename)
+    parsed_json_str = parse_manual_with_ai(
+        text, file.filename, pseudo=build_manual_pseudonymizer(db, tenant_id)
+    )
     try:
         parsed = json.loads(parsed_json_str)
     except Exception:

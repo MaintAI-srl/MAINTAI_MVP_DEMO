@@ -16,10 +16,27 @@ from sqlalchemy.orm import Session, joinedload
 from backend.services.ai.openai_service import get_openai_client, get_openai_model
 from backend.services.weather_service import get_weather_forecast, WeatherData
 from backend.db.modelli import Ticket, Tecnico, Asset, GeneratedPlan, TecnicoAssenza
-from backend.services.ai.anonymization_service import anonymizer
-from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY, wrap_untrusted
+from backend.services.ai.pseudonymizer import Pseudonymizer
 
 logger = logging.getLogger(__name__)
+
+
+def build_planning_pseudonymizer(context: Dict[str, Any]) -> Pseudonymizer:
+    """
+    Costruisce il pseudonimizzatore a partire dal contesto di pianificazione già raccolto.
+
+    Si registra dal contesto e non dal DB per due motivi: il contesto è cachato
+    (``_CTX_CACHE``) e contiene esattamente le entità che finiranno nel prompt, quindi la
+    mappa copre tutto ciò che viene inviato e nulla di più.
+    """
+    pseudo = Pseudonymizer()
+    for tc in context.get("tecnici") or []:
+        pseudo.register("TECNICO", tc.get("id"), tc.get("nome"))
+    for t in context.get("tickets") or []:
+        if t.get("asset_id"):
+            pseudo.register("ASSET", t["asset_id"], t.get("asset_nome"))
+    return pseudo
 
 # ── Cache in-memoria per collect_planning_context ────────────────────────────
 # Riduce latenza e consumo token per AI planning su tenant con dati statici.
@@ -465,7 +482,9 @@ async def collect_planning_context(
             "fascia_oraria": t.fascia_oraria,
             "descrizione": desc_trunc,
             "asset_id": t.asset_id,
-            "asset_nome": anonymizer.mask_text(asset.nome) if asset else None,
+            # Nome reale: il masking avviene alla costruzione del prompt, non qui — il
+            # contesto è interno e serve a registrare i valori nel Pseudonymizer.
+            "asset_nome": asset.nome if asset else None,
             "asset_area": asset.area if asset else None,
             "asset_weather_constraint": asset.weather_constraint if asset else None,
             "asset_fermo_on_schedule": asset.fermo_on_schedule if asset else False,
@@ -628,24 +647,16 @@ async def generate_ai_plan(
             "global_warnings": ["Nessun tecnico in servizio trovato nel sistema."],
         }
 
-    # ── Anonymizzazione GDPR prima dell'invio a OpenAI ───────────────────────
-    # I nomi reali dei tecnici vengono sostituiti con token Tecnico-{id}.
-    # titolo e descrizione dei ticket vengono mascherati (email, telefoni, nomi).
-    _tecnico_names = [tc["nome"] for tc in context["tecnici"] if tc.get("nome")]
-    _sensitive_words = [w for name in _tecnico_names for w in name.split() if len(w) > 2]
+    # ── Pseudonimizzazione reversibile prima dell'invio a OpenAI ─────────────
+    # Nomi tecnici e nomi asset diventano token deterministici (TECNICO_7, ASSET_3),
+    # coerenti in tutto il payload: il modello mantiene la coerenza referenziale fra
+    # anagrafica e testo libero, e le motivazioni tornano leggibili via pseudo.restore().
+    pseudo = build_planning_pseudonymizer(context)
 
-    anon_tecnici = [
-        {**tc, "nome": f"Tecnico-{tc['id']}"}
-        for tc in context["tecnici"]
-    ]
-    anon_tickets = [
-        {
-            **t,
-            "titolo": anonymizer.mask_text(t.get("titolo") or "", _sensitive_words),
-            "descrizione": anonymizer.mask_text(t.get("descrizione") or "", _sensitive_words),
-        }
-        for t in context["tickets"]
-    ]
+    anon_tecnici = pseudo.mask_payload(context["tecnici"])
+    anon_tickets = pseudo.mask_payload(context["tickets"])
+    anon_locked = pseudo.mask_payload(context["locked_tickets"])
+    logger.info("AI Planner: pseudonimizzazione attiva — %s", pseudo.stats())
     # ─────────────────────────────────────────────────────────────────────────
 
     # Sezioni storico e feedback da includere nel prompt
@@ -674,10 +685,10 @@ TECNICI DISPONIBILI:
 {json.dumps(anon_tecnici, ensure_ascii=False, indent=2)}
 
 WORK ORDERS DA PIANIFICARE (ticket):
-{json.dumps(anon_tickets, ensure_ascii=False, indent=2)}
+{wrap_untrusted("work_orders", json.dumps(anon_tickets, ensure_ascii=False, indent=2))}
 
 WORK ORDERS GIA' PIANIFICATI (locked_tickets - consumano orario ma NON DEVONO ASSOLUTAMENTE essere restituiti nell'output!):
-{json.dumps(context['locked_tickets'], ensure_ascii=False, indent=2)}
+{json.dumps(anon_locked, ensure_ascii=False, indent=2)}
 
 NOTE METEO:
 - Dati meteo disponibili: {'SI' if context['weather_available'] else 'NO — pianifica comunque, aggiungi warning generali'}
@@ -751,6 +762,10 @@ Ogni ticket deve apparire esattamente una volta: o in planned_workorders o in de
             ai_tokens = {}
 
         plan_result = json.loads(raw)
+
+        # De-pseudonimizzazione: motivazioni e warning tornano a nominare tecnici e asset
+        # reali prima di essere salvati in GeneratedPlan.plan_json e mostrati in UI.
+        plan_result = pseudo.restore(plan_result)
 
         # Integra splitting e calcolo orari (con buffer spostamento impianti #5)
         technician_hours = {tc["id"]: max(tc.get("ore_giornaliere", 8), workday_end_hour - 8) if workday_end_hour > 17 else tc.get("ore_giornaliere", 8) for tc in context["tecnici"]}

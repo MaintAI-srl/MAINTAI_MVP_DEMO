@@ -13,7 +13,11 @@ from backend.core.rate_limiter import limiter
 from backend.core.file_validation import sniff_ext
 from backend.db.modelli import Manuale, AttivitaManutenzione, Asset
 from backend.services.pdf_service import smart_read_pdf
-from backend.services.ai.manuals_ai_service import salva_manuale_db, parse_manual_with_ai
+from backend.services.ai.manuals_ai_service import (
+    build_manual_pseudonymizer,
+    salva_manuale_db,
+    parse_manual_with_ai,
+)
 from backend.core.security import check_tenant_ownership
 
 router = APIRouter()
@@ -74,7 +78,9 @@ async def upload_manuale(
 
     logger.info("Upload manuale '%s' — %d caratteri estratti", file.filename, len(text))
 
-    parsed_json_str = parse_manual_with_ai(text, file.filename)
+    parsed_json_str = parse_manual_with_ai(
+        text, file.filename, pseudo=build_manual_pseudonymizer(db, tenant_id)
+    )
 
     manuale = salva_manuale_db(
         db=db,

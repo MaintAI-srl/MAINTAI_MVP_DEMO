@@ -5,6 +5,7 @@ Supporto speciale per "Esploso": analisi GPT-4o vision con overlay interattivo.
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from datetime import datetime, timezone
@@ -40,6 +41,32 @@ Per ogni parte restituisci un JSON array con oggetti:
 }
 
 Restituisci SOLO il JSON array, nessun testo aggiuntivo."""
+
+
+def _strip_image_metadata(data: bytes, content_type: str | None) -> tuple[bytes, str]:
+    """
+    Ri-encoda l'immagine scartando EXIF/IPTC/XMP prima dell'invio a OpenAI.
+
+    I metadati di un disegno tecnico contengono spesso autore, software CAD, nome della
+    commessa e talvolta coordinate GPS: dati che l'utente non vede nell'immagine e che
+    non si aspetta di condividere. In caso di errore si restituisce il file originale:
+    la feature non deve rompersi per un formato inatteso.
+    """
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as img:
+            fmt = "PNG" if (img.format or "").upper() == "PNG" else "JPEG"
+            clean = Image.new(img.mode, img.size)
+            clean.putdata(list(img.getdata()))
+            buffer = io.BytesIO()
+            if fmt == "JPEG" and clean.mode not in ("RGB", "L"):
+                clean = clean.convert("RGB")
+            clean.save(buffer, format=fmt)
+            return buffer.getvalue(), "image/png" if fmt == "PNG" else "image/jpeg"
+    except Exception as exc:
+        logger.warning("Strip metadati immagine fallito, invio originale: %s", exc)
+        return data, content_type or "image/jpeg"
 
 
 def _get_asset_or_404(db: Session, asset_id: int, tenant_id: int) -> Asset:
@@ -215,10 +242,19 @@ async def analizza_esploso(
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OpenAI API key non configurata.")
 
-    # Converti in base64
-    image_b64 = base64.b64encode(doc.file_data).decode("utf-8")
-    ct = doc.content_type or "image/jpeg"
-    data_url = f"data:{ct};base64,{image_b64}"
+    # Un'immagine non è pseudonimizzabile come il testo: cartigli, loghi e ragioni
+    # sociali stampati nel disegno restano visibili. Ciò che si può togliere sono i
+    # metadati del file (autore, software, GPS, commessa), che l'utente non vede e
+    # non sospetta di star inviando.
+    image_bytes, ct = _strip_image_metadata(doc.file_data, doc.content_type)
+    data_url = f"data:{ct};base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+
+    # Tracciabilità dell'invio a terzi (art. 30 GDPR: registro dei trattamenti)
+    db_info(
+        "asset_documenti",
+        f"Invio esploso doc {doc_id} (asset {asset_id}) a OpenAI per analisi visiva",
+        tenant_id=tenant_id,
+    )
 
     try:
         import openai
