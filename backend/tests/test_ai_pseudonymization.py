@@ -363,8 +363,11 @@ def test_strip_metadati_immagine_esploso():
     assert b"Acciaierie Lombarde" not in pulita
     assert b"Mario Bianchi" not in pulita
     assert content_type == "image/jpeg"
-    # L'immagine resta valida e analizzabile
-    assert Image.open(io.BytesIO(pulita)).size == (16, 12)
+    # L'immagine resta valida e analizzabile. L'apertura sta fuori dall'assert: con
+    # `python -O` gli assert spariscono, e con essi le operazioni che contengono.
+    with Image.open(io.BytesIO(pulita)) as riletta:
+        dimensioni = riletta.size
+    assert dimensioni == (16, 12)
 
 
 def test_strip_metadati_non_rompe_su_input_non_immagine():

@@ -577,8 +577,10 @@ def run_agent(db: Session, tenant_id: int, agent_id: str, username: str | None) 
         UNTRUSTED_INPUT_POLICY,
         "Questi sono i dati aggregati aggiornati dell'impianto (gia filtrati per il cliente):",
         wrap_untrusted("dati_impianto", dati_impianto),
-        "Nota: le sigle tipo ASSET_12 o TECNICO_3 sono identificativi pseudonimi. "
-        "Usale invariate nel report: verranno risolte nei nomi reali alla consegna.",
+        (
+            "Nota: le sigle tipo ASSET_12 o TECNICO_3 sono identificativi pseudonimi. "
+            "Usale invariate nel report: verranno risolte nei nomi reali alla consegna."
+        ),
         "Produci ora il tuo report da esperto.",
     ])
 

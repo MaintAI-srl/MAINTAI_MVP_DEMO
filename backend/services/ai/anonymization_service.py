@@ -16,18 +16,22 @@ _EMAIL = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 # Telefoni: servono un prefisso internazionale, un prefisso nazionale con separatore,
 # oppure una parola chiave esplicita. NON esiste più l'alternativa "qualunque sequenza
 # di 7-15 cifre": divorava ogni codice ricambio dei manuali PDF.
+# I separatori fra etichetta e valore usano **una sola classe di caratteri a ripetizione
+# limitata** (`[.\s:]{0,4}`) invece di sequenze tipo `\.?\s*:?\s*`: due quantificatori
+# ambigui sulla stessa stringa di spazi producono backtracking polinomiale, ed è input
+# non fidato (descrizioni ticket, testo dei manuali). Vedi CodeQL py/polynomial-redos.
 _PHONE = (
     r"(?:\+\d{1,3}[\s./-]?(?:\d[\s./-]?){6,13}\d)"          # +39 333 1234567
     r"|(?:\b0\d{1,3}[\s./-]\d{5,8}\b)"                      # 02 1234567 (fisso italiano)
     r"|(?:\b3\d{2}[\s./-]\d{6,7}\b)"                        # 333 1234567 (mobile italiano)
-    r"|(?:(?:tel|telefono|cell|cellulare|fax|phone|mobile)\.?\s*:?\s*\+?[\d][\d\s./-]{5,})"
+    r"|(?:(?:tel|telefono|cell|cellulare|fax|phone|mobile)[.\s:]{0,4}\+?\d[\d\s./-]{5,20})"
 )
 
 # Coordinate: solo se introdotte da un'etichetta geografica esplicita. In testo libero
 # "0.0254 mm" o "1.2345 bar" sono misure, non posizioni.
 _COORDINATES = (
     r"(?:(?:lat|latitudine|latitude|lon|lng|long|longitudine|longitude|gps|coord\w*)"
-    r"\s*[:=]?\s*)(-?\d{1,3}\.\d{4,})"
+    r"[\s:=]{0,4})(-?\d{1,3}\.\d{4,})"
 )
 
 
