@@ -47,7 +47,18 @@ def analyze_ticket_problem(
         "fascia": ticket.fascia_oraria,
     }
 
-    asset_dict = {"name": asset.nome} if asset else None
+    # id/codice/matricola non finiscono nel prompt: servono al Pseudonymizer per
+    # derivare i token e riconoscere i riferimenti all'asset nel testo libero.
+    asset_dict = {
+        "id": asset.id,
+        "name": asset.nome,
+        "nome": asset.nome,
+        "codice": asset.codice,
+        "matricola": asset.matricola,
+        "numero_serie": asset.numero_serie,
+        "fornitore": asset.fornitore,
+        "posizione_fisica": asset.posizione_fisica,
+    } if asset else None
 
     try:
         logger.info("Problem analysis start — ticket %s, method %s, tenant %s", ticket_id, payload.method, tenant_id)

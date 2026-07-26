@@ -37,10 +37,10 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.services.ai.anonymization_service import anonymizer
 from backend.services.ai.openai_service import get_openai_model
 from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY
 from backend.services.ai_planner_service import (
+    build_planning_pseudonymizer,
     calculate_plan_efficiency,
     calculate_split_assignments,
     collect_planning_context,
@@ -697,23 +697,19 @@ async def generate_agent_plan(
             "global_warnings": ["Nessun tecnico in servizio trovato nel sistema."],
         }
 
-    # ── Anonimizzazione GDPR prima dell'invio a OpenAI (come generate_ai_plan) ─
-    tecnico_names = [tc["nome"] for tc in context["tecnici"] if tc.get("nome")]
-    sensitive_words = [w for name in tecnico_names for w in name.split() if len(w) > 2]
-    anon_tecnici = [{**tc, "nome": f"Tecnico-{tc['id']}"} for tc in context["tecnici"]]
-    anon_tickets = [
-        {
-            **t,
-            "titolo": anonymizer.mask_text(t.get("titolo") or "", sensitive_words),
-            "descrizione": anonymizer.mask_text(t.get("descrizione") or "", sensitive_words),
-        }
-        for t in context["tickets"]
-    ]
+    # ── Pseudonimizzazione reversibile prima dell'invio a OpenAI ─────────────
+    # Il contesto dell'agente è ciò che i tool restituiscono al modello: va
+    # pseudonimizzato *prima* di costruirlo, così ogni tool-return è già coperto.
+    pseudo = build_planning_pseudonymizer(context)
+    anon_tecnici = pseudo.mask_payload(context["tecnici"])
+    anon_tickets = pseudo.mask_payload(context["tickets"])
+    anon_locked = pseudo.mask_payload(context["locked_tickets"])
+    logger.info("Felix Agent: pseudonimizzazione attiva — %s", pseudo.stats())
 
     ctx = PlanningAgentContext(
         horizon_dates=context["horizon_dates"],
         tickets=anon_tickets,
-        locked_tickets=context["locked_tickets"],
+        locked_tickets=anon_locked,
         tecnici=anon_tecnici,
         days=days,
         include_weekends=include_weekends,
@@ -786,4 +782,6 @@ async def generate_agent_plan(
         }
         agent_metadata.update({"agent_fallback": True, "agent_fallback_reason": fallback_reason})
 
-    return _finalize_plan(ctx, plan, agent_metadata)
+    # De-pseudonimizzazione finale: copre sia il piano dell'agente sia quello del
+    # fallback deterministico, che gira sul medesimo contesto già tokenizzato.
+    return pseudo.restore(_finalize_plan(ctx, plan, agent_metadata))

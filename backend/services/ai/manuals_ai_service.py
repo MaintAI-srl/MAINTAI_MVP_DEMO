@@ -1,57 +1,53 @@
 
 import logging
+import os
 
 from sqlalchemy.orm import Session
-from backend.db.modelli import Manuale
+from backend.db.modelli import Asset, Manuale, Tenant
 from backend.services.ai.openai_service import get_openai_client
-from backend.services.ai.anonymization_service import anonymizer
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY, wrap_untrusted
+from backend.services.ai.pseudonymizer import Pseudonymizer
 
 logger = logging.getLogger(__name__)
 
 
-def extract_maintenance_tasks(text: str) -> str:
+def build_manual_pseudonymizer(db: Session, tenant_id: int | None) -> Pseudonymizer:
+    """
+    Registra ragione sociale del tenant e nomi asset: se il manuale è un documento
+    personalizzato per il cliente (frontespizi, commesse, targhe), quei riferimenti
+    escono come token invece che in chiaro.
+    """
+    pseudo = Pseudonymizer()
+    if tenant_id is None:
+        return pseudo
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if tenant:
+        pseudo.register_tenant(tenant)
+    for asset in db.query(Asset).filter(Asset.tenant_id == tenant_id).all():
+        pseudo.register_asset(asset)
+    return pseudo
+
+
+def parse_manual_with_ai(
+    text: str,
+    filename: str,
+    pseudo: Pseudonymizer | None = None,
+) -> str:
+    """
+    Estrae il piano di manutenzione dal testo di un manuale tecnico.
+
+    ``pseudo`` (opzionale) permette al chiamante di registrare le entità del tenant
+    (ragione sociale, asset) così che eventuali riferimenti presenti nel manuale escano
+    come token. Il testo tecnico — codici ricambio, misure, tolleranze, matricole del
+    costruttore — resta invece intatto: è l'informazione che si vuole estrarre.
+    """
     ai_client = get_openai_client()
 
-    # Redact text for privacy before sending to OpenAI
-    text = anonymizer.mask_text(text)
-
-    prompt = f"""
-Sei un assistente esperto di manutenzione industriale.
-
-Dal testo seguente estrai SOLO le attività di manutenzione.
-Ignora contenuti commerciali, legali, descrizioni generiche e parti non utili alla pianificazione.
-
-Restituisci JSON con questo formato:
-
-[
-  {{
-    "impianto": "",
-    "componente": "",
-    "attivita": "",
-    "frequenza": ""
-  }}
-]
-
-Testo:
-{text[:20000]}
-""".strip()
-
-    logger.info("OPENAI extract_maintenance_tasks start, chars=%d", len(text))
-
-    response = ai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    logger.info("OPENAI extract_maintenance_tasks end")
-
-    return response.choices[0].message.content
-
-def parse_manual_with_ai(text: str, filename: str) -> str:
-    ai_client = get_openai_client()
-
-    # Redact text for privacy before sending to OpenAI
-    text = anonymizer.mask_text(text)
+    pseudo = pseudo or Pseudonymizer()
+    text = pseudo.mask_text(text)
+    # Il nome del file è scelto dall'utente e può contenere cliente, sito o commessa:
+    # verso OpenAI esce solo l'estensione, che è l'unica parte informativa per il parsing.
+    safe_filename = f"manuale{os.path.splitext(filename or '')[1].lower()}"
 
     schema = {
         "name": "manual_maintenance_plan",
@@ -211,10 +207,12 @@ NON:
 - inventare frequenze
 - inventare task
 
-Nome file: {filename}
+{UNTRUSTED_INPUT_POLICY}
+
+Nome file: {safe_filename}
 
 TESTO MANUALE:
-{text[:25000]}
+{wrap_untrusted("testo_manuale", text[:25000])}
 
 Ora analizza il documento e genera l'output."""
 
@@ -259,7 +257,7 @@ REGOLE PRIORITÀ:
             ],
             response_format={"type": "json_schema", "json_schema": schema}
         )
-        result = response.choices[0].message.content
+        result = pseudo.restore(response.choices[0].message.content)
         logger.info("OPENAI parse_manual_with_ai end, finish_reason=%s", response.choices[0].finish_reason)
         return result
     except Exception as exc:
@@ -272,7 +270,7 @@ REGOLE PRIORITÀ:
             ],
             response_format={"type": "json_object"}
         )
-        result = response.choices[0].message.content
+        result = pseudo.restore(response.choices[0].message.content)
         logger.info("OPENAI parse_manual_with_ai fallback end")
         return result
 

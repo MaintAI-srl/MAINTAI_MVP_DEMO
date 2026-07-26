@@ -1,9 +1,26 @@
 from backend.services.ai.openai_service import get_openai_client
 from backend.core.logging_config import get_logger
-from backend.services.ai.anonymization_service import anonymizer
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY, wrap_untrusted
+from backend.services.ai.pseudonymizer import Pseudonymizer
 import json
 
 logger = get_logger(__name__)
+
+
+def build_diagnostic_pseudonymizer(ticket: dict, asset: dict | None) -> Pseudonymizer:
+    """
+    Costruisce il pseudonimizzatore della sessione diagnostica.
+
+    I token sono derivati dagli id ORM, quindi ricostruire questo oggetto a ogni turno
+    dalle stesse entità produce la stessa mappa: la history già mascherata salvata in
+    ``DiagnosticSession.history`` resta coerente senza doverla persistere in chiaro.
+    """
+    pseudo = Pseudonymizer()
+    if asset:
+        pseudo.register_asset(asset)
+    if ticket.get("tecnico"):
+        pseudo.register("TECNICO", ticket.get("tecnico_id") or ticket.get("id"), ticket["tecnico"])
+    return pseudo
 
 SYSTEM_PROMPT = """Sei un ingegnere esperto di manutenzione industriale che guida un tecnico sul campo verso la root cause di un guasto.
 
@@ -126,20 +143,21 @@ def start_diagnostic_session(
 ) -> dict:
     client = get_openai_client()
 
-    sensitive_words = []
-    if ticket.get("tecnico"):
-        sensitive_words.append(ticket["tecnico"])
+    # Pseudonimizzazione reversibile: nome/matricola/posizione/fornitore dell'asset e nome
+    # del tecnico escono come token. Marca, modello, criticità e note tecniche restano in
+    # chiaro: sono il contenuto diagnostico per cui la chiamata viene fatta.
+    pseudo = build_diagnostic_pseudonymizer(ticket, asset)
 
-    ticket = anonymizer.anonymize_data(ticket, sensitive_words)
-    asset = anonymizer.anonymize_data(asset, sensitive_words)
-    if historical_tickets:
-        historical_tickets = anonymizer.anonymize_data(historical_tickets, sensitive_words)
-
-    context = _build_context(ticket, asset, historical_tickets, maintenance_activities, manuali_context)
+    context = pseudo.mask_text(
+        _build_context(
+            ticket, asset, historical_tickets, maintenance_activities, manuali_context
+        )
+    )
 
     # Istruzione iniziale: spiega all'AI cosa sa già e cosa deve fare
     user_msg = (
-        f"{context}\n\n"
+        f"{UNTRUSTED_INPUT_POLICY}\n\n"
+        f"{wrap_untrusted('contesto_diagnostico', context)}\n\n"
         "---\n"
         "Hai letto il contesto completo. Non chiedere informazioni già presenti sopra.\n"
         "Identifica l'ipotesi diagnostica più probabile in base al tipo di guasto e allo storico, "
@@ -160,19 +178,31 @@ def start_diagnostic_session(
 
     result = json.loads(response.choices[0].message.content)
 
-    # Salva nella history (esclude system)
+    # Salva nella history il testo pseudonimizzato: è esattamente ciò che è stato inviato
+    # a OpenAI e che verrà rispedito ai turni successivi.
     history = [
         {"role": "user", "content": user_msg},
         {"role": "assistant", "content": response.choices[0].message.content},
     ]
 
-    return {"result": result, "history": history}
+    return {"result": pseudo.restore(result), "history": history}
 
 
-def continue_diagnostic_session(history: list, technician_reply: str) -> dict:
+def continue_diagnostic_session(
+    history: list,
+    technician_reply: str,
+    ticket: dict | None = None,
+    asset: dict | None = None,
+) -> dict:
+    """
+    Turno successivo della sessione. ``ticket`` e ``asset`` servono a ricostruire la
+    stessa mappa di pseudonimi del primo turno (i token sono deterministici), così la
+    risposta torna leggibile con i nomi reali.
+    """
     client = get_openai_client()
 
-    technician_reply = anonymizer.mask_text(technician_reply)
+    pseudo = build_diagnostic_pseudonymizer(ticket or {}, asset)
+    technician_reply = pseudo.mask_text(technician_reply)
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -194,4 +224,4 @@ def continue_diagnostic_session(history: list, technician_reply: str) -> dict:
         {"role": "assistant", "content": response.choices[0].message.content},
     ]
 
-    return {"result": result, "history": updated_history}
+    return {"result": pseudo.restore(result), "history": updated_history}

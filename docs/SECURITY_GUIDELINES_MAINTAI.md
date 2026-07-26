@@ -151,4 +151,57 @@ db.execute(text("SELECT * FROM ticket WHERE titolo = :q"), {"q": q})
 
 ---
 
+## 6. Dati inviati ai servizi AI esterni (OpenAI)
+
+**Perché:** la guida base (§7.2, LLM06) chiede solo di "minimizzare i campi inviati". In un
+SaaS multi-tenant industriale non basta: il prompt contiene anagrafiche di persone (GDPR) e
+identità di impianto del cliente (segreto industriale). OpenAI è un sub-processore dichiarato
+nel DPA, quindi ogni campo che esce va deciso, non subito.
+
+**Regola d'oro: si tokenizza l'identificatore, mai la semantica tecnica.**
+
+| Esce come token | Resta in chiaro |
+|---|---|
+| `Asset.nome`, `codice`, `matricola`, `numero_serie`, `posizione_fisica`, `fornitore` | `Asset.marca`, `modello`, `tipo`, `criticita`, `anno_installazione` |
+| `Tecnico.nome`, `cognome`, telefono, indirizzo | competenze, ore giornaliere, orari, assenze |
+| `Sito.nome`/ubicazione, `Impianto.nome`, `Tenant.nome` | area funzionale |
+| email, telefoni, coordinate GPS | codici ricambio, misure, tolleranze, pressioni, parametri |
+
+Mascherare marca e modello degraderebbe l'analisi guasti senza proteggere nulla: identificano
+il costruttore, non il cliente. Mascherare i numeri tecnici svuota di senso il parsing dei
+manuali. **Un'anonimizzazione troppo avida è un bug, non una misura di sicurezza.**
+
+**Regole:**
+- **Pseudonimi reversibili, non redazione.** Usare `backend/services/ai/pseudonymizer.py`
+  (`Pseudonymizer`): token deterministici derivati dall'id ORM (`ASSET_3`, `TECNICO_7`), non
+  `[SENSITIVE_DATA]`. La redazione distruttiva fa perdere al modello la coerenza referenziale
+  fra anagrafica e testo libero, cioè peggiora il risultato mentre protegge meno.
+- **Restore obbligatorio in uscita.** Ogni risposta AI va passata da `pseudo.restore()`
+  **prima** di essere mostrata all'utente o persistita (`AiUsageLog.output_md`,
+  `GeneratedPlan.plan_json`, `DiagnosticSession.root_cause`, ticket auto-generati).
+- **Determinismo per le conversazioni multi-turno.** I token derivano dagli id: la sessione
+  diagnostica ricostruisce la stessa mappa a ogni turno senza persisterla. Mai token casuali.
+- **Masking al confine, non nei collector.** Dove i dati confluiscono in un unico messaggio
+  (es. `agents_service.run_agent`) mascherare il messaggio composto: un collector aggiunto in
+  futuro è coperto per costruzione.
+- **Testo libero sempre incapsulato**: `wrap_untrusted()` + `UNTRUSTED_INPUT_POLICY` da
+  `backend/services/ai/prompt_security.py` (difesa prompt injection, complementare al masking).
+- **Immagini**: non pseudonimizzabili. Rimuovere i metadati EXIF/IPTC/XMP prima dell'invio
+  (`asset_documenti._strip_image_metadata`) e loggare il trasferimento a terzi.
+- **Nomi file utente**: non inviarli. Contengono cliente, commessa, sito (vedi
+  `parse_manual_with_ai`, che invia solo l'estensione).
+- **Log**: mai il prompt né i valori reali. Usare `pseudo.stats()`, che ritorna solo conteggi.
+
+**Checklist:**
+- [ ] Il nuovo call site AI costruisce un `Pseudonymizer` e maschera **tutto** il payload?
+- [ ] La risposta passa da `restore()` prima di UI e persistenza?
+- [ ] Marca/modello/misure/codici tecnici sono rimasti in chiaro?
+- [ ] Testo libero avvolto in `wrap_untrusted()`?
+- [ ] Il test `test_ai_pseudonymization.py` copre il nuovo call site (zero-leak)?
+
+**Severità tipica:** Alta (LLM06 — disclosure a sub-processore), Critica se il payload
+attraversa i confini di tenant.
+
+---
+
 *Addendum mantenuto insieme alla guida base. Aggiornare quando emergono nuovi pattern specifici di MaintAI.*

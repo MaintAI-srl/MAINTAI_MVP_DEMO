@@ -1,16 +1,22 @@
 from backend.services.ai.openai_service import get_openai_client
-from backend.services.ai.anonymization_service import anonymizer
+from backend.services.ai.prompt_security import UNTRUSTED_INPUT_POLICY, wrap_untrusted
+from backend.services.ai.pseudonymizer import Pseudonymizer
 
 
-def build_generic_context(ticket: dict, asset: dict | None, symptoms: str) -> str:
-    # Redact inputs for privacy using the unified anonymizer
-    ticket = anonymizer.anonymize_data(ticket)
-    asset = anonymizer.anonymize_data(asset)
-    symptoms = anonymizer.mask_text(symptoms)
+def build_problem_pseudonymizer(asset: dict | None) -> Pseudonymizer:
+    pseudo = Pseudonymizer()
+    if asset:
+        pseudo.register_asset(asset)
+    return pseudo
+
+
+def build_generic_context(ticket: dict, asset: dict | None, symptoms: str, pseudo: Pseudonymizer) -> str:
+    ticket = pseudo.mask_payload(ticket)
+    asset = pseudo.mask_payload(asset)
+    symptoms = pseudo.mask_text(symptoms)
 
     titolo = ticket.get("titolo", "")
     asset_name = asset["name"] if asset and asset.get("name") else "Asset sconosciuto"
-    categoria = "Non specificata"
 
     return f"""
 Contesto tecnico disponibile:
@@ -20,7 +26,7 @@ Contesto tecnico disponibile:
 - Stato: {ticket.get("stato", "")}
 - Fascia: {ticket.get("fascia", "")}
 - Durata stimata intervento: {ticket.get("durata_ore", "")} ore
-- Sintomi osservati: {symptoms}
+- Sintomi osservati: {wrap_untrusted("sintomi", symptoms or "(non forniti)")}
 
 Nota importante:
 - Usa soprattutto i sintomi, il titolo del ticket, il nome asset e la logica manutentiva generale.
@@ -30,7 +36,8 @@ Nota importante:
 
 def analyze_problem_with_ai(ticket: dict, asset: dict | None, symptoms: str, method: str) -> str:
     ai_client = get_openai_client()
-    context_block = build_generic_context(ticket, asset, symptoms)
+    pseudo = build_problem_pseudonymizer(asset)
+    context_block = build_generic_context(ticket, asset, symptoms, pseudo)
 
     schema = {
         "name": "maintenance_problem_analysis_v2",
@@ -205,7 +212,8 @@ def analyze_problem_with_ai(ticket: dict, asset: dict | None, symptoms: str, met
         }
     }
 
-    prompt = f"""
+    prompt = f"""{UNTRUSTED_INPUT_POLICY}
+
 Sei un ingegnere senior di manutenzione industriale e affidabilità impianti.
 
 Non sei un assistente generico.
@@ -273,4 +281,5 @@ Obiettivo qualità output:
         }
     )
 
-    return response.choices[0].message.content
+    # De-pseudonimizzazione: il JSON di analisi torna a nominare l'asset reale
+    return pseudo.restore(response.choices[0].message.content)
