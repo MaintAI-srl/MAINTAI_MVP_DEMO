@@ -243,6 +243,16 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  // Prototipo visore XR — full screen senza sidebar: il browser del Quest ha una
+  // finestra stretta e la sessione immersiva parte da qui.
+  if (pathname === "/xr" || pathname.startsWith("/xr/")) {
+    return (
+      <div style={{ minHeight: "100dvh", background: "var(--surface-0)", color: "var(--text-primary)" }}>
+        {children}
+      </div>
+    );
+  }
+
   const pageLabel = pathname === "/"
     ? "Home"
     : Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI";

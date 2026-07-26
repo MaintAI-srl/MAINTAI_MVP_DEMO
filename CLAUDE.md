@@ -189,6 +189,9 @@ frontend/app/
   assets/                  — lista asset con filtri
   tecnici/                 — anagrafica tecnici + assenze
   manuali/                 — upload PDF + lista piani estratti
+  xr/                      — prototipo visore XR (WebXR immersive-ar, Meta Quest 3):
+                             QR asset → manuale PDF su pannello alla sinistra del tecnico.
+                             Modulo `xr_viewer`, disattivo di default. Vedi docs/XR_PROTOTIPO.md
   scheduler/               — redirect a /planning (rimosso, non più usato)
   admin/
     logs/                  — visualizza SystemLog

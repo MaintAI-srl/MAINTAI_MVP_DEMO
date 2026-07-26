@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Cpu,
   Gauge,
+  Glasses,
   LayoutDashboard,
   Mail,
   Package,
@@ -63,6 +64,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/piani", label: "Piani di Manutenzione", icon: Wrench, module: "maintenance_plans" },
       { href: "/scadenze", label: "Scadenziario", icon: CalendarDays, module: "deadlines" },
       { href: "/condizioni", label: "Dati Misure Asset", icon: Gauge, module: "condition_maintenance" },
+      { href: "/xr", label: "Visore XR", icon: Glasses, module: "xr_viewer" },
     ],
   },
   {
@@ -97,6 +99,7 @@ export const PAGE_LABELS: Record<string, string> = {
   "/piani-manutenzione": "Piani di Manutenzione",
   "/scadenze": "Scadenziario",
   "/condizioni": "Dati Misure Asset",
+  "/xr": "Visore XR",
   "/admin/tenants": "Clienti",
   "/admin/funzionalita": "Funzionalità",
   "/admin/bulk-import": "Import Massivo",
@@ -128,7 +131,9 @@ export function getVisibleNavGroups({ role, isModuleEnabled }: VisibleNavOptions
       if (item.superadminOnly && !isSuperadmin) return false;
       if (item.adminOnly && role !== "responsabile" && !isSuperadmin) return false;
       if (!isTecnico) return true;
-      const visibleForTecnico = ["/ticket", "/asset", "/profilo"];
+      // Il visore XR è pensato proprio per il tecnico sul campo: resta visibile
+      // anche col suo profilo ridotto (se il modulo è attivo per il tenant).
+      const visibleForTecnico = ["/ticket", "/asset", "/profilo", "/xr"];
       return visibleForTecnico.includes(item.href);
     }),
   })).filter((section) => section.items.length > 0);

@@ -28,6 +28,10 @@ const cspDirectives = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 https://maintai-v3.onrender.com https://*.onrender.com https://*.supabase.co https://maps.googleapis.com",
+  // worker del rendering PDF (pdf.js) servito da /public/pdfjs — same-origin.
+  // Senza direttiva esplicita si ricadrebbe su default-src, che blocca i worker blob:
+  // creati internamente da pdf.js su alcuni browser.
+  "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -40,7 +44,8 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // camera+microfono abilitati per il sito stesso (scanner QR asset e input vocale
   // della app mobile /mobile). Restano negati agli iframe di terze parti.
-  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
+  // xr-spatial-tracking serve alla sessione WebXR immersive-ar del prototipo visore (/xr).
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self), xr-spatial-tracking=(self)" },
   { key: "Content-Security-Policy", value: cspDirectives },
 ];
 
