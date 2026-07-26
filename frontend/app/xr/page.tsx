@@ -37,6 +37,15 @@ type Step = "start" | "documenti" | "pronto";
 
 const PREVIEW_MAX_HEIGHT = 300;
 
+/**
+ * `beforeinstallprompt` non è nelle lib DOM standard di TypeScript: è
+ * un'estensione Chromium, e il browser del Quest è Chromium.
+ */
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 export default function XrPrototipoPage() {
   const [caps, setCaps] = useState<XrCapabilities | null>(null);
   const [step, setStep] = useState<Step>("start");
@@ -51,6 +60,8 @@ export default function XrPrototipoPage() {
 
   const [xrStatus, setXrStatus] = useState<XrViewerStatus | null>(null);
   const [scansioneContinua, setScansioneContinua] = useState(true);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installata, setInstallata] = useState(false);
 
   const viewerRef = useRef<XrPdfViewer | null>(null);
   const rasterizerRef = useRef<PdfRasterizer | null>(null);
@@ -68,6 +79,44 @@ export default function XrPrototipoPage() {
       alive = false;
     };
   }, []);
+
+  // ── Installazione come app del visore ──────────────────────────────────────
+  // Sul Quest la pagina si installa come web app a sé (manifest /xr-manifest):
+  // parte a tutto schermo direttamente sul visore, senza barra del browser.
+  useEffect(() => {
+    const lanciataComeApp =
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      window.matchMedia("(display-mode: standalone)").matches;
+    setInstallata(lanciataComeApp);
+
+    const onPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstallPrompt(null);
+      setInstallata(true);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const installaApp = useCallback(async () => {
+    const prompt = installPrompt;
+    if (!prompt) return;
+    setInstallPrompt(null);
+    try {
+      await prompt.prompt();
+      const scelta = await prompt.userChoice;
+      if (scelta.outcome === "accepted") setInstallata(true);
+    } catch {
+      /* l'utente ha chiuso il dialogo di sistema: nessuna azione */
+    }
+  }, [installPrompt]);
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -291,6 +340,25 @@ export default function XrPrototipoPage() {
 
       <CapabilityPanel caps={caps} />
 
+      {!installata && (
+        <div style={S.installBox}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Glasses size={16} />
+            <strong style={{ fontSize: 13 }}>Installa come app del visore</strong>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            Installata, MaintAI XR compare nella libreria del Quest con la sua icona e parte a
+            tutto schermo direttamente qui, senza la barra del browser.
+            {!installPrompt && " Dal browser del visore: menu ⋮ → Installa (o Salva nella libreria)."}
+          </p>
+          {installPrompt && (
+            <button onClick={() => void installaApp()} style={{ ...S.secondaryButton, marginTop: 10 }}>
+              Installa MaintAI XR
+            </button>
+          )}
+        </div>
+      )}
+
       {errore && (
         <div style={S.errorBox}>
           <strong>⚠️ {errore}</strong>
@@ -386,10 +454,23 @@ export default function XrPrototipoPage() {
                 Pagina {xrStatus?.page}/{xrStatus?.pageCount} · zoom{" "}
                 {Math.round((xrStatus?.zoom ?? 1) * 100)}% · rendering{" "}
                 <code style={S.code}>{xrStatus?.mode === "layers" ? "WebXR Layers" : "WebGL"}</code>
+                {" · sovraimpressione "}
+                <code style={S.code}>
+                  {xrStatus?.anchor === "fisso" ? "fissa nella stanza" : "segue la testa"}
+                </code>
               </div>
-              <button onClick={esciDaXr} style={S.dangerButton}>
-                <X size={16} /> Termina sessione
-              </button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => viewerRef.current?.toggleAnchor()}
+                  style={S.secondaryButton}
+                  title="Click dello stick nel visore"
+                >
+                  {xrStatus?.anchor === "fisso" ? "Aggancia alla testa" : "Fissa nella stanza"}
+                </button>
+                <button onClick={esciDaXr} style={S.dangerButton}>
+                  <X size={16} /> Termina sessione
+                </button>
+              </div>
             </div>
           )}
 
@@ -472,7 +553,8 @@ function ControlsLegend() {
     ["Stick ↑ / ↓", "ingrandisci / rimpicciolisci il pannello"],
     ["Grilletto", "pagina successiva"],
     ["Grip laterale", "pagina precedente"],
-    ["A / X", "riporta il pannello alla sinistra dello sguardo"],
+    ["Click dello stick", "aggancia alla testa / fissa nella stanza"],
+    ["A / X", "riporta il pannello alla sinistra dello sguardo (solo se fisso)"],
     ["B / Y", "zoom al 100%"],
   ];
   return (
@@ -647,7 +729,15 @@ const S: Record<string, CSSProperties> = {
     background: "rgba(34,197,94,0.08)",
     fontSize: 13,
   },
-  sessionMeta: { color: "var(--text-secondary)", fontSize: 12 },
+  sessionMeta: { color: "var(--text-secondary)", fontSize: 12, marginBottom: 10 },
+  installBox: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    border: "1px solid rgba(56,189,248,0.30)",
+    background: "rgba(56,189,248,0.07)",
+    color: "var(--text-secondary)",
+  },
   legend: {
     marginTop: 6,
     padding: 14,

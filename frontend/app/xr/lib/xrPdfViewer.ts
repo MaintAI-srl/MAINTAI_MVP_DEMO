@@ -29,6 +29,20 @@ import type { PdfPageSource } from "./pdfRaster";
 const PANEL_DISTANCE_M = 1.05;
 /** Rotazione a sinistra rispetto alla direzione dello sguardo, in gradi. */
 const PANEL_YAW_DEG = 38;
+/**
+ * Ancoraggio del pannello (e di tutta la sovraimpressione, HUD compreso: sono la
+ * stessa texture).
+ *
+ *  - `"testa"` (default): il pannello è agganciato al **viewer space**, quindi si
+ *    muove con la testa e resta sempre nello stesso punto del campo visivo, come
+ *    un HUD. Non serve aggiornare nulla per frame: è il compositore a bloccarlo
+ *    sulla posa della testa, quindi zero latenza e zero jitter anche a 72/90 Hz.
+ *  - `"fisso"`: il pannello resta dove è stato piazzato nella stanza (world-locked)
+ *    e il tecnico ci gira intorno. È il comportamento della prima versione.
+ */
+export type XrAnchorMode = "testa" | "fisso";
+
+const DEFAULT_ANCHOR: XrAnchorMode = "testa";
 /** Altezza del pannello a zoom 1, in metri (≈ un monitor 27" a un metro). */
 const PANEL_HEIGHT_M = 1.15;
 /** Il pannello sta leggermente sopra l'orizzonte oculare: si legge senza piegare il collo. */
@@ -103,6 +117,19 @@ function quaternionFromYaw(yaw: number): Quat {
   return { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) };
 }
 
+/**
+ * Offset del pannello **nello spazio della testa**: usato tale e quale come
+ * transform del quad layer quando l'ancoraggio è `"testa"` (lo spazio di
+ * riferimento è già solidale alla testa, quindi l'offset è costante).
+ */
+const HEAD_YAW_RAD = (PANEL_YAW_DEG * Math.PI) / 180;
+const HEAD_OFFSET_POS: Vec3 = {
+  x: -Math.sin(HEAD_YAW_RAD) * PANEL_DISTANCE_M,
+  y: PANEL_VERTICAL_OFFSET_M,
+  z: -Math.cos(HEAD_YAW_RAD) * PANEL_DISTANCE_M,
+};
+const HEAD_OFFSET_QUAT: Quat = quaternionFromYaw(HEAD_YAW_RAD);
+
 function mat4Multiply(out: Float32Array, a: Float32Array | number[], b: Float32Array | number[]) {
   for (let c = 0; c < 4; c++) {
     for (let r = 0; r < 4; r++) {
@@ -156,6 +183,8 @@ export type XrViewerStatus = {
   pageCount: number;
   label: string;
   zoom: number;
+  /** Ancoraggio corrente della sovraimpressione. */
+  anchor: XrAnchorMode;
   /** Messaggio transitorio mostrato anche nell'HUD (es. "QR riconosciuto"). */
   notice?: string;
 };
@@ -190,6 +219,8 @@ export class XrPdfViewer {
   private glCanvas: HTMLCanvasElement | null = null;
   private gl: WebGLRenderingContext | WebGL2RenderingContext | null = null;
   private refSpace: XRReferenceSpace | null = null;
+  /** Spazio solidale alla testa: ancoraggio della sovraimpressione in modalità "testa". */
+  private viewerSpace: XRReferenceSpace | null = null;
 
   // Percorso "layers"
   private binding: XRWebGLBinding | null = null;
@@ -201,6 +232,7 @@ export class XrPdfViewer {
   private texture: WebGLTexture | null = null;
   private uMvp: WebGLUniformLocation | null = null;
   private readonly modelMatrix = new Float32Array(16);
+  private readonly localMatrix = new Float32Array(16);
   private readonly mvpMatrix = new Float32Array(16);
   private readonly viewProjMatrix = new Float32Array(16);
 
@@ -218,6 +250,7 @@ export class XrPdfViewer {
   private noticeUntil = 0;
 
   // Posizionamento
+  private anchor: XrAnchorMode = DEFAULT_ANCHOR;
   private placed = false;
   private panelPos: Vec3 = { x: 0, y: 1.5, z: -1 };
   private panelQuat: Quat = { x: 0, y: 0, z: 0, w: 1 };
@@ -274,6 +307,14 @@ export class XrPdfViewer {
       this.refSpace =
         (await session.requestReferenceSpace("local-floor").catch(() => null)) ??
         (await session.requestReferenceSpace("local"));
+      // "viewer" è garantito dalla spec in ogni sessione: è lo spazio della testa.
+      this.viewerSpace = await session.requestReferenceSpace("viewer").catch(() => null);
+      if (!this.viewerSpace && this.anchor === "testa") {
+        // Senza viewer space il quad non può essere agganciato alla testa dal
+        // compositore; il fallback WebGL sa comunque seguirla per frame.
+        this.setNotice("Ancoraggio alla testa non disponibile: pannello fisso");
+        this.anchor = "fisso";
+      }
 
       this.pageCanvas = doc.source.peek(this.page);
       this.prepareComposeCanvas();
@@ -338,6 +379,41 @@ export class XrPdfViewer {
     this.placed = false;
   }
 
+  get anchorMode(): XrAnchorMode {
+    return this.anchor;
+  }
+
+  /**
+   * Cambia ancoraggio della sovraimpressione: `"testa"` la fa muovere con la
+   * testa (HUD), `"fisso"` la lascia ferma nella stanza.
+   */
+  setAnchor(mode: XrAnchorMode) {
+    if (mode === this.anchor) return;
+    if (mode === "testa" && !this.viewerSpace && this.quad) {
+      // Percorso layers senza viewer space: non è agganciabile alla testa.
+      this.setNotice("Ancoraggio alla testa non disponibile su questo visore");
+      return;
+    }
+    this.anchor = mode;
+
+    const session = this.session;
+    const canvas = this.composeCanvas;
+    if (this.binding && session && canvas) {
+      this.buildQuadLayer(session, canvas);
+    } else {
+      // Fallback WebGL: nessun layer da ricostruire, cambia solo il calcolo della
+      // matrice per frame. Tornando a "fisso" il pannello si ripiazza davanti.
+      this.placed = false;
+    }
+
+    this.setNotice(mode === "testa" ? "Pannello agganciato alla testa" : "Pannello fissato nella stanza");
+    this.emitStatus();
+  }
+
+  toggleAnchor() {
+    this.setAnchor(this.anchor === "testa" ? "fisso" : "testa");
+  }
+
   private setNotice(text: string) {
     this.notice = text;
     this.noticeUntil = performance.now() + 4000;
@@ -357,25 +433,8 @@ export class XrPdfViewer {
     if (layersEnabled) {
       try {
         const binding = new XRWebGLBinding(session, gl);
-        const quad = binding.createQuadLayer({
-          space: this.refSpace!,
-          viewPixelWidth: canvas.width,
-          viewPixelHeight: canvas.height,
-          layout: "mono",
-          textureType: "texture",
-          isStatic: false,
-        });
-        // Estensione Meta: chiede al compositore il filtraggio ottimizzato per testo
-        // (super-sampling). Non è supportata ovunque, quindi resta best-effort.
-        try {
-          quad.quality = "text-optimized";
-        } catch {
-          /* proprietà non supportata: si resta sulla qualità di default */
-        }
         this.binding = binding;
-        this.quad = quad;
-        this.applyPanelSize();
-        session.updateRenderState({ layers: [quad] });
+        this.buildQuadLayer(session, canvas);
         return;
       } catch {
         // Nessun supporto reale ai layer: si prosegue col fallback WebGL.
@@ -386,6 +445,49 @@ export class XrPdfViewer {
 
     session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
     this.setupFallbackProgram(gl);
+  }
+
+  /**
+   * Crea (o ricrea) il quad layer nello spazio corrispondente all'ancoraggio.
+   *
+   * Lo `space` di un layer si fissa alla creazione: cambiare ancoraggio significa
+   * ricostruire il layer. Succede solo alla pressione di un tasto, quindi il costo
+   * è irrilevante e in cambio si evita di inseguire la testa per frame da JS.
+   */
+  private buildQuadLayer(session: XRSession, canvas: HTMLCanvasElement) {
+    const binding = this.binding;
+    if (!binding) return;
+
+    const space = this.anchor === "testa" ? this.viewerSpace : this.refSpace;
+    if (!space) return;
+
+    const quad = binding.createQuadLayer({
+      space,
+      viewPixelWidth: canvas.width,
+      viewPixelHeight: canvas.height,
+      layout: "mono",
+      textureType: "texture",
+      isStatic: false,
+    });
+    // Estensione Meta: chiede al compositore il filtraggio ottimizzato per testo
+    // (super-sampling). Non è supportata ovunque, quindi resta best-effort.
+    try {
+      quad.quality = "text-optimized";
+    } catch {
+      /* proprietà non supportata: si resta sulla qualità di default */
+    }
+
+    this.quad = quad;
+    if (this.anchor === "testa") {
+      // Offset costante nello spazio della testa: da qui in poi ci pensa il
+      // compositore a tenerlo incollato allo sguardo.
+      quad.transform = new XRRigidTransform(HEAD_OFFSET_POS, HEAD_OFFSET_QUAT);
+    } else {
+      this.placed = false; // verrà piazzato al primo frame con una posa valida
+    }
+    this.applyPanelSize();
+    this.textureDirty = true;
+    session.updateRenderState({ layers: [quad] });
   }
 
   private setupFallbackProgram(gl: WebGLRenderingContext | WebGL2RenderingContext) {
@@ -517,7 +619,7 @@ export class XrPdfViewer {
     const hint =
       this.notice && performance.now() < this.noticeUntil
         ? this.notice
-        : "Stick ←/→ pagina · ↑/↓ zoom · A/X ricentra · B/Y reset zoom · grilletto pagina avanti";
+        : `Stick ←/→ pagina · ↑/↓ zoom · click stick ${this.anchor === "testa" ? "fissa nella stanza" : "aggancia alla testa"} · B/Y reset zoom · grilletto pagina avanti`;
     ctx.fillText(hint, canvas.width - pad, y + barH / 2);
     ctx.textAlign = "left";
   }
@@ -548,7 +650,9 @@ export class XrPdfViewer {
     session.requestAnimationFrame(this.onFrame);
 
     const pose = frame.getViewerPose(refSpace);
-    if (pose && !this.placed) {
+    // In modalità "testa" col percorso layers non c'è niente da piazzare: il quad
+    // vive nel viewer space e segue la testa lato compositore.
+    if (pose && this.anchor === "fisso" && !this.placed) {
       this.placePanel(pose);
       this.placed = true;
     }
@@ -621,13 +725,17 @@ export class XrPdfViewer {
     }
 
     const height = PANEL_HEIGHT_M * this.zoom;
-    composeModelMatrix(
-      this.modelMatrix,
-      this.panelPos,
-      this.panelQuat,
-      (height * this.textureAspect) / 2,
-      height / 2,
-    );
+    const halfW = (height * this.textureAspect) / 2;
+    const halfH = height / 2;
+
+    if (this.anchor === "testa") {
+      // Senza layers la testa va inseguita a mano: l'offset è espresso nello
+      // spazio della testa, quindi la matrice mondo è posa_testa × offset.
+      composeModelMatrix(this.localMatrix, HEAD_OFFSET_POS, HEAD_OFFSET_QUAT, halfW, halfH);
+      mat4Multiply(this.modelMatrix, pose.transform.matrix, this.localMatrix);
+    } else {
+      composeModelMatrix(this.modelMatrix, this.panelPos, this.panelQuat, halfW, halfH);
+    }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, baseLayer.framebuffer);
     gl.clearColor(0, 0, 0, 0);
@@ -702,9 +810,17 @@ export class XrPdfViewer {
       case 1: // squeeze / grip
         this.setPage(this.page - 1);
         break;
+      case 3: // click dello stick
+        this.toggleAnchor();
+        break;
       case 4: // A / X
-        this.recenter();
-        this.setNotice("Pannello ricentrato");
+        if (this.anchor === "testa") {
+          // Già solidale alla testa: non c'è niente da ricentrare.
+          this.setNotice("Il pannello segue già la testa (stick premuto per fissarlo)");
+        } else {
+          this.recenter();
+          this.setNotice("Pannello ricentrato");
+        }
         break;
       case 5: // B / Y
         this.setZoom(1);
@@ -741,6 +857,7 @@ export class XrPdfViewer {
     this.vbo = null;
     this.texture = null;
     this.refSpace = null;
+    this.viewerSpace = null;
     this.stickLatch.clear();
     this.buttonLatch.clear();
     this.emitStatus();
@@ -755,6 +872,7 @@ export class XrPdfViewer {
       pageCount: this.doc?.source.pageCount ?? 0,
       label: this.doc?.label ?? "",
       zoom: this.zoom,
+      anchor: this.anchor,
       notice: this.notice ?? undefined,
     });
   }

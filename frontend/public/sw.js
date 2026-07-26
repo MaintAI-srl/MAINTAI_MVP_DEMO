@@ -97,9 +97,28 @@ self.addEventListener("fetch", (event) => {
     return; // pass-through
   }
 
+  // Runtime pdf.js (/pdfjs/*): asset immutabili copiati dal build, serve averli
+  // in cache perché la web app XR installata sul visore apra un manuale anche
+  // con rete instabile in reparto. Cache-first: non cambiano mai a parità di deploy.
+  if (url.origin === self.location.origin && url.pathname.startsWith("/pdfjs/")) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
   // Risorse statiche (immagini, font, ecc.)
   event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const res = await fetch(request);
+  if (res.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, res.clone());
+  }
+  return res;
+}
 
 async function networkFirstWithCache(request) {
   try {
