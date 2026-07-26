@@ -46,6 +46,8 @@ export type ModuleStatus = {
   default_enabled: boolean;
   requires: string[];
   enabled: boolean;
+  /** Spento nella configurazione globale → non attivabile per singolo cliente */
+  blocked_by_global?: boolean;
 };
 
 export type ModulesResponse = {
@@ -56,6 +58,10 @@ export type ModulesResponse = {
   scope?: "global" | "tenant";
   tenant_id?: number | null;
   has_override?: boolean;
+  /** Moduli attivi nella configurazione globale (kill-switch) */
+  global_enabled?: string[];
+  /** Moduli spenti globalmente: non attivabili sul singolo cliente */
+  blocked_by_global?: string[];
 };
 
 const MODULE_IDS = new Set<string>(MODULE_DEFINITIONS.map((module) => module.id));

@@ -6,11 +6,19 @@ sinistra**, con la macchina sempre visibile in passthrough.
 
 Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni → Funzionalità*.
 
-> **Nota sulla configurazione moduli.** I moduli effettivi di un tenant sono
-> `override del tenant ∩ configurazione globale` (`effective_enabled_ids` in
-> `backend/core/modules.py`): la config globale funziona da kill-switch. Un modulo spento
-> globalmente resta spento anche accendendolo sul singolo cliente — con l'interruttore che
-> "torna indietro" dopo il salvataggio. Per questo il prototipo è attivo di default.
+> **Nota sulla configurazione moduli.** La config globale è un kill-switch: i moduli
+> effettivi di un tenant sono intersecati con quelli globali (`effective_enabled_ids` in
+> `backend/core/modules.py`), quindi un modulo spento globalmente non è attivabile sul
+> singolo cliente. Ora la pagina Funzionalità lo dichiara con il badge *spenta
+> globalmente* e un avviso al salvataggio, invece di far "tornare indietro" l'interruttore
+> con un messaggio di successo.
+>
+> Una configurazione salvata registra le **decisioni esplicite** più l'elenco dei moduli
+> noti al momento del salvataggio (`{"enabled": [...], "known": [...]}`), non una
+> whitelist: un modulo introdotto dopo non ha una decisione e ricade sul proprio default
+> (globale) o sulla configurazione globale (tenant). Con la whitelist ogni modulo nuovo
+> restava spento per sempre e nessun default poteva riaccenderlo — è il motivo per cui
+> `/xr` non compariva neanche dopo aver messo `default_enabled=True`.
 
 ---
 

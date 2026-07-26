@@ -322,6 +322,32 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...   # opzionale — mappa Google del Centro di
 - shadcn/ui Dialog: usare sempre `showCloseButton={false}` e aggiungere un singolo pulsante × custom
 - Dialog z-index: `z-[9999]` per popup, `z-[9998]` per overlay (il planning usa z-index:1000)
 
+## Configurazione moduli (pagina Funzionalità)
+
+`backend/core/modules.py` decide quali moduli sono attivi. Tre livelli, in ordine:
+
+1. **env + `default_enabled`** nelle `MODULE_DEFINITIONS` → baseline
+2. **configurazione globale** salvata dal superadmin → tabella `global_module_config`
+   (una riga). Prima stava in `backend/modules_state.json`: su Render il filesystem è
+   effimero, quindi ogni deploy azzerava la configurazione. Il file resta letto come
+   sorgente legacy/bootstrap finché non esiste la riga in DB.
+3. **override per tenant** → tabella `tenant_module_config` (una riga per tenant)
+
+**Il globale è un kill-switch**: i moduli di un tenant sono intersecati con quelli globali,
+quindi un modulo spento globalmente non è attivabile per singolo cliente. La UI lo dichiara
+(badge *spenta globalmente* + avviso al salvataggio).
+
+**Le configurazioni salvate non sono whitelist**, ma decisioni esplicite:
+`{"enabled": [...], "known": [...]}` dove `known` è l'elenco dei moduli esistenti al
+momento del salvataggio. Un modulo introdotto **dopo** non ha una decisione e ricade sul
+livello superiore. Regola da non violare: aggiungendo un modulo nuovo alle
+`MODULE_DEFINITIONS` non serve toccare le config salvate — se torni alla whitelist, ogni
+modulo nuovo resta spento per sempre e invisibile (bug 2026-07-26, pagina `/xr`).
+
+Le righe nel vecchio formato (lista nuda) sono ancora lette: i moduli assenti ricadono sul
+default, perché non è possibile distinguere "spento per scelta" da "non esisteva ancora".
+Uno spegnimento voluto va rifatto una volta e dal salvataggio successivo persiste.
+
 ## Migrazioni DB
 
 Alembic è configurato con `batch_alter_table` per compatibilità SQLite.
