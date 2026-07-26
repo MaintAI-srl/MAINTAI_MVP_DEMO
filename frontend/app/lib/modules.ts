@@ -21,8 +21,10 @@ export const MODULE_DEFINITIONS = [
   { id: "emergency", defaultEnabled: true },
   { id: "control_center", defaultEnabled: true },
   { id: "mobile_app", defaultEnabled: true },
-  // Prototipo XR (visore) — disattivato di default finché non esce dalla fase sperimentale
-  { id: "xr_viewer", defaultEnabled: false },
+  // Prototipo XR (visore). Attivo di default: i moduli effettivi di un tenant sono
+  // `override & globale`, quindi con il globale spento restava irraggiungibile anche
+  // accendendolo sul singolo cliente.
+  { id: "xr_viewer", defaultEnabled: true },
   { id: "weather", defaultEnabled: true },
   { id: "desktop_updates", defaultEnabled: true },
   { id: "guide_ai", defaultEnabled: false },
