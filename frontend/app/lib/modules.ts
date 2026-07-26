@@ -21,6 +21,8 @@ export const MODULE_DEFINITIONS = [
   { id: "emergency", defaultEnabled: true },
   { id: "control_center", defaultEnabled: true },
   { id: "mobile_app", defaultEnabled: true },
+  // Prototipo XR (visore) — disattivato di default finché non esce dalla fase sperimentale
+  { id: "xr_viewer", defaultEnabled: false },
   { id: "weather", defaultEnabled: true },
   { id: "desktop_updates", defaultEnabled: true },
   { id: "guide_ai", defaultEnabled: false },
@@ -105,6 +107,7 @@ const PATH_MODULES_BASE = [
   { prefix: "/report/economico", moduleId: "economic_reports" },
   { prefix: "/mobile", moduleId: "mobile_app" },
   { prefix: "/m", moduleId: "mobile_app" },
+  { prefix: "/xr", moduleId: "xr_viewer" },
 ] satisfies { prefix: string; moduleId: ModuleId }[];
 
 const PATH_MODULES = [...PATH_MODULES_BASE].sort((a, b) => b.prefix.length - a.prefix.length);

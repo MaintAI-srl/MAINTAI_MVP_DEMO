@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# asset runtime di pdf.js, copiati al build da scripts/copy_pdfjs_assets.mjs
+/public/pdfjs

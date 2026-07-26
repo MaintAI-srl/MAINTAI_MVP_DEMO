@@ -167,6 +167,15 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         category="campo",
         requires=("tickets", "assets"),
     ),
+    "xr_viewer": ModuleDefinition(
+        id="xr_viewer",
+        name="Visore XR (prototipo)",
+        description="Manuale PDF in realta mista su visore: QR asset, sessione WebXR immersive-ar, pannello di lettura.",
+        category="campo",
+        requires=("assets",),
+        # Prototipo: si abilita per tenant dalla pagina Funzionalita.
+        default_enabled=False,
+    ),
     "weather": ModuleDefinition(
         id="weather",
         name="Meteo",
