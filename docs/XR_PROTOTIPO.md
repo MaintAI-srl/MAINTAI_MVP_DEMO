@@ -4,8 +4,13 @@ Prototipo della pagina `/xr`: il tecnico inquadra il QR code sulla macchina, ent
 realtà mista dal browser del visore e si vede il manuale PDF su un pannello **alla propria
 sinistra**, con la macchina sempre visibile in passthrough.
 
-Modulo: `xr_viewer` — **disattivato di default**, si abilita per tenant da
-*Impostazioni → Funzionalità*.
+Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni → Funzionalità*.
+
+> **Nota sulla configurazione moduli.** I moduli effettivi di un tenant sono
+> `override del tenant ∩ configurazione globale` (`effective_enabled_ids` in
+> `backend/core/modules.py`): la config globale funziona da kill-switch. Un modulo spento
+> globalmente resta spento anche accendendolo sul singolo cliente — con l'interruttore che
+> "torna indietro" dopo il salvataggio. Per questo il prototipo è attivo di default.
 
 ---
 

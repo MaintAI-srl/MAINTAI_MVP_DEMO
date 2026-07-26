@@ -173,8 +173,11 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         description="Manuale PDF in realta mista su visore: QR asset, sessione WebXR immersive-ar, pannello di lettura.",
         category="campo",
         requires=("assets",),
-        # Prototipo: si abilita per tenant dalla pagina Funzionalita.
-        default_enabled=False,
+        # Attivo di default. Tenerlo spento a livello globale rendeva il prototipo
+        # irraggiungibile anche dopo averlo acceso sul singolo tenant: i moduli
+        # effettivi di un tenant sono `override & globale` (vedi effective_enabled_ids),
+        # quindi la config globale funziona da kill-switch. Si disattiva dalla
+        # pagina Funzionalita, globalmente o per singolo cliente.
     ),
     "weather": ModuleDefinition(
         id="weather",
