@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 import json
+import time
 from dataclasses import asdict, dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -277,7 +277,8 @@ def _module_env_names(module_id: str) -> tuple[str, ...]:
     )
 
 
-def _configured_enabled_ids() -> set[str]:
+def _env_baseline_enabled_ids() -> set[str]:
+    """Moduli attivi secondo env + default di codice, prima delle decisioni salvate."""
     known = set(MODULE_DEFINITIONS)
     explicit_enabled = _split_env("MAINTAI_MODULES_ENABLED", "FEATURE_MODULES_ENABLED")
 
@@ -300,24 +301,146 @@ def _configured_enabled_ids() -> set[str]:
         elif override is False:
             enabled.discard(module_id)
 
-    state_enabled = _read_state_enabled_ids()
-    if state_enabled is not None:
-        enabled = state_enabled & known
-
     return enabled
 
 
-def _read_state_enabled_ids() -> set[str] | None:
+def _configured_enabled_ids() -> set[str]:
+    return _apply_decisions(_env_baseline_enabled_ids(), _global_decisions())
+
+
+# ── Decisioni esplicite per modulo ───────────────────────────────────────────
+# Una configurazione salvata NON è una whitelist: è l'insieme delle decisioni
+# esplicite (accendi/spegni) prese sui moduli *noti al momento del salvataggio*.
+#
+# Con la whitelist ogni modulo introdotto dopo un salvataggio restava spento per
+# sempre e nessun default di codice poteva riaccenderlo: è il bug per cui la
+# pagina /xr non compariva e l'interruttore del cliente "tornava indietro" dopo
+# il salvataggio (2026-07-26). Registrando anche l'elenco dei moduli noti al
+# salvataggio (`known`), un modulo nuovo non ha decisione e ricade sul proprio
+# default (globale) o sulla configurazione globale (tenant).
+
+
+@dataclass(frozen=True)
+class ModuleDecisions:
+    on: frozenset[str] = frozenset()
+    off: frozenset[str] = frozenset()
+
+
+EMPTY_DECISIONS = ModuleDecisions()
+
+
+def _decisions_from_raw(raw: Any) -> ModuleDecisions:
+    """Interpreta una configurazione salvata come decisioni esplicite.
+
+    Formato corrente: `{"enabled": [...], "known": [...]}` → `off = known - enabled`.
+
+    Formato legacy (lista nuda, o dict senza `known`): whitelist. Non è
+    possibile distinguere "spento per scelta" da "non esisteva ancora", quindi i
+    moduli assenti ricadono sul default invece di restare spenti in modo
+    invisibile e non diagnosticabile. Un modulo spento per scelta va rispento
+    una volta: dal salvataggio successivo la decisione è registrata e persiste.
+    """
+    known_ids = set(MODULE_DEFINITIONS)
+
+    if isinstance(raw, list):
+        values: Any = raw
+        known_raw: Any = None
+    elif isinstance(raw, dict):
+        values = raw.get("enabled")
+        known_raw = raw.get("known")
+    else:
+        return EMPTY_DECISIONS
+
+    if not isinstance(values, list):
+        return EMPTY_DECISIONS
+
+    on = {_normalize_module_id(str(value)) for value in values} & known_ids
+    if not isinstance(known_raw, list):
+        return ModuleDecisions(on=frozenset(on), off=frozenset())
+
+    known_at_save = {_normalize_module_id(str(value)) for value in known_raw} & known_ids
+    return ModuleDecisions(on=frozenset(on), off=frozenset(known_at_save - on))
+
+
+def _raw_from_enabled(enabled: set[str]) -> dict[str, Any]:
+    """Serializza le decisioni: cosa è attivo + cosa esisteva al salvataggio."""
+    return {
+        "enabled": sorted(enabled),
+        "known": sorted(MODULE_DEFINITIONS),
+        "version": 2,
+    }
+
+
+def _apply_decisions(base: set[str], decisions: ModuleDecisions) -> set[str]:
+    return (base | set(decisions.on)) - set(decisions.off)
+
+
+# ── Configurazione globale (DB, con il file come sorgente legacy) ────────────
+
+_GLOBAL_CACHE_TTL_SECONDS = 30.0
+_global_decisions_cache: tuple[float, ModuleDecisions] | None = None
+
+
+def _read_state_file_decisions() -> ModuleDecisions | None:
     try:
         if not STATE_FILE.exists():
             return None
-        payload = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        values = payload.get("enabled")
-        if not isinstance(values, list):
-            return None
-        return {_normalize_module_id(str(value)) for value in values}
+        return _decisions_from_raw(json.loads(STATE_FILE.read_text(encoding="utf-8")))
     except Exception:
         return None
+
+
+def _load_global_decisions_from_db() -> ModuleDecisions | None:
+    from backend.core.database import SessionLocal
+    from backend.db.modelli import GlobalModuleConfig
+
+    db = SessionLocal()
+    try:
+        row = db.query(GlobalModuleConfig).order_by(GlobalModuleConfig.id).first()
+        if row is None:
+            return None
+        return _decisions_from_raw(json.loads(row.config or "{}"))
+    finally:
+        db.close()
+
+
+def _global_decisions() -> ModuleDecisions:
+    global _global_decisions_cache
+
+    now = time.monotonic()
+    cached = _global_decisions_cache
+    if cached and cached[0] > now:
+        return cached[1]
+
+    decisions: ModuleDecisions | None = None
+    try:
+        decisions = _load_global_decisions_from_db()
+    except Exception:
+        # Tabella non ancora creata o DB momentaneamente non disponibile: si
+        # ripiega sul file legacy senza mettere in cache l'errore.
+        return _read_state_file_decisions() or EMPTY_DECISIONS
+
+    if decisions is None:
+        decisions = _read_state_file_decisions() or EMPTY_DECISIONS
+
+    _global_decisions_cache = (now + _GLOBAL_CACHE_TTL_SECONDS, decisions)
+    return decisions
+
+
+def _set_global_decisions_cache(decisions: ModuleDecisions) -> None:
+    global _global_decisions_cache
+
+    _global_decisions_cache = (time.monotonic() + _GLOBAL_CACHE_TTL_SECONDS, decisions)
+    _enabled_cache_clear()
+
+
+def invalidate_module_caches() -> None:
+    """Azzera le cache di processo della configurazione moduli."""
+    global _global_decisions_cache
+
+    _global_decisions_cache = None
+    _tenant_override_cache.clear()
+    _enabled_cache_clear()
 
 
 def _resolve_dependencies(enabled: set[str]) -> set[str]:
@@ -337,13 +460,38 @@ def _resolve_dependencies(enabled: set[str]) -> set[str]:
     return resolved
 
 
-@lru_cache(maxsize=1)
+_enabled_cache: tuple[float, frozenset[str]] | None = None
+
+
+def _enabled_cache_clear() -> None:
+    global _enabled_cache
+
+    _enabled_cache = None
+
+
 def enabled_module_ids() -> frozenset[str]:
-    return frozenset(_resolve_dependencies(_configured_enabled_ids()))
+    global _enabled_cache
+
+    now = time.monotonic()
+    cached = _enabled_cache
+    if cached and cached[0] > now:
+        return cached[1]
+    value = frozenset(_resolve_dependencies(_configured_enabled_ids()))
+    _enabled_cache = (now + _GLOBAL_CACHE_TTL_SECONDS, value)
+    return value
 
 
 def is_module_enabled(module_id: str) -> bool:
     return _normalize_module_id(module_id) in enabled_module_ids()
+
+
+def _normalize_requested(module_ids: list[str]) -> set[str]:
+    known = set(MODULE_DEFINITIONS)
+    return {
+        _normalize_module_id(module_id)
+        for module_id in module_ids
+        if _normalize_module_id(module_id) in known
+    }
 
 
 def _payload_from_enabled(
@@ -352,11 +500,16 @@ def _payload_from_enabled(
     tenant_id: int | None,
     has_override: bool,
 ) -> dict[str, Any]:
+    global_enabled = enabled_module_ids()
     modules = []
     for module_id, definition in MODULE_DEFINITIONS.items():
         item = asdict(definition)
         item["requires"] = list(definition.requires)
         item["enabled"] = module_id in enabled
+        # Un modulo spento globalmente non è attivabile per singolo cliente: la
+        # UI deve poterlo dire, invece di far "tornare indietro" l'interruttore
+        # dopo un salvataggio andato a buon fine.
+        item["blocked_by_global"] = module_id not in global_enabled
         modules.append(item)
 
     return {
@@ -366,6 +519,8 @@ def _payload_from_enabled(
         "scope": scope,
         "tenant_id": tenant_id,
         "has_override": has_override,
+        "global_enabled": sorted(global_enabled),
+        "blocked_by_global": sorted(set(MODULE_DEFINITIONS) - set(global_enabled)),
     }
 
 
@@ -373,38 +528,62 @@ def modules_payload() -> dict[str, Any]:
     return _payload_from_enabled(enabled_module_ids(), "global", None, False)
 
 
+def _write_global_config(raw: dict[str, Any]) -> None:
+    """Persiste la config globale nel DB primario.
+
+    Sempre `SessionLocal`, mai la sessione della richiesta: la configurazione
+    globale vale per tutto il deploy e non deve finire nel DB demo (`get_db`
+    instrada su demo.db per i JWT con `is_demo=True`), altrimenti la lettura —
+    che avviene sul DB primario — non la vedrebbe mai.
+    """
+    from backend.core.database import SessionLocal
+    from backend.db.modelli import GlobalModuleConfig
+
+    db = SessionLocal()
+    try:
+        row = db.query(GlobalModuleConfig).order_by(GlobalModuleConfig.id).first()
+        if row is None:
+            row = GlobalModuleConfig(id=1)
+            db.add(row)
+        row.config = json.dumps(raw, ensure_ascii=False)
+        db.commit()
+    finally:
+        db.close()
+
+
 def set_enabled_module_ids(module_ids: list[str]) -> dict[str, Any]:
-    known = set(MODULE_DEFINITIONS)
-    normalized = {
-        _normalize_module_id(module_id)
-        for module_id in module_ids
-        if _normalize_module_id(module_id) in known
-    }
-    resolved = _resolve_dependencies(normalized)
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(
-        json.dumps({"enabled": sorted(resolved)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    enabled_module_ids.cache_clear()
+    resolved = _resolve_dependencies(_normalize_requested(module_ids))
+    raw = _raw_from_enabled(resolved)
+    try:
+        _write_global_config(raw)
+    except Exception:
+        # Se il DB non è disponibile la configurazione non va persa: si scrive il
+        # file, che resta comunque letto come sorgente legacy all'avvio.
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(
+            json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    _set_global_decisions_cache(_decisions_from_raw(raw))
+    # Un cambio globale può sbloccare/bloccare moduli per i tenant con override.
+    _tenant_override_cache.clear()
     return modules_payload()
 
 
 # ── Configurazione moduli per-tenant ─────────────────────────────────────────
 # Override salvato in DB (tabella tenant_module_config, una riga per tenant).
 # Semantica: se il tenant ha un override, i suoi moduli attivi sono
-# override ∩ globale (la config globale resta un kill-switch); senza override
-# vale la configurazione globale. Cache in-memory con TTL breve per non
-# interrogare il DB a ogni richiesta (stesso accepted-risk del rate limiter:
-# contatori per processo, deploy a singolo worker).
-
-import time
+# (globale + accesi dal tenant) - (spenti dal tenant), il tutto intersecato con
+# il globale (che resta un kill-switch); senza override vale la configurazione
+# globale. Un modulo su cui il tenant non ha una decisione esplicita — tipico
+# dei moduli introdotti dopo l'ultimo salvataggio — segue il globale.
+# Cache in-memory con TTL breve per non interrogare il DB a ogni richiesta
+# (stesso accepted-risk del rate limiter: cache per processo, worker singolo).
 
 _TENANT_CACHE_TTL_SECONDS = 30.0
-_tenant_override_cache: dict[int, tuple[float, frozenset[str] | None]] = {}
+_tenant_override_cache: dict[int, tuple[float, ModuleDecisions | None]] = {}
 
 
-def _load_tenant_override(db, tenant_id: int) -> frozenset[str] | None:
+def _load_tenant_decisions(db, tenant_id: int) -> ModuleDecisions | None:
     from backend.db.modelli import TenantModuleConfig
 
     row = (
@@ -415,39 +594,38 @@ def _load_tenant_override(db, tenant_id: int) -> frozenset[str] | None:
     if row is None:
         return None
     try:
-        values = json.loads(row.enabled or "[]")
+        raw = json.loads(row.enabled or "{}")
     except (TypeError, ValueError):
         return None
-    if not isinstance(values, list):
-        return None
-    normalized = {_normalize_module_id(str(v)) for v in values} & set(MODULE_DEFINITIONS)
-    return frozenset(_resolve_dependencies(normalized))
+    return _decisions_from_raw(raw)
 
 
-def get_tenant_override(db, tenant_id: int) -> frozenset[str] | None:
-    """Override moduli del tenant, o None se il tenant usa la config globale."""
+def get_tenant_decisions(db, tenant_id: int) -> ModuleDecisions | None:
+    """Decisioni moduli del tenant, o None se il tenant usa la config globale."""
     now = time.monotonic()
     cached = _tenant_override_cache.get(tenant_id)
     if cached and cached[0] > now:
         return cached[1]
     try:
-        override = _load_tenant_override(db, tenant_id)
+        decisions = _load_tenant_decisions(db, tenant_id)
     except Exception:
         # Tabella non ancora migrata o DB momentaneamente non disponibile:
         # fallback alla configurazione globale, senza cache dell'errore.
         return None
-    _tenant_override_cache[tenant_id] = (now + _TENANT_CACHE_TTL_SECONDS, override)
-    return override
+    _tenant_override_cache[tenant_id] = (now + _TENANT_CACHE_TTL_SECONDS, decisions)
+    return decisions
 
 
 def effective_enabled_ids(db, tenant_id: int | None) -> frozenset[str]:
     global_enabled = enabled_module_ids()
     if tenant_id is None:
         return global_enabled
-    override = get_tenant_override(db, tenant_id)
-    if override is None:
+    decisions = get_tenant_decisions(db, tenant_id)
+    if decisions is None:
         return global_enabled
-    return frozenset(_resolve_dependencies(set(override & global_enabled)))
+    wanted = _apply_decisions(set(global_enabled), decisions)
+    # Kill-switch globale: il tenant non può accendere ciò che è spento in globale.
+    return frozenset(_resolve_dependencies(wanted & set(global_enabled)))
 
 
 def is_module_enabled_for_tenant(db, module_id: str, tenant_id: int | None) -> bool:
@@ -457,7 +635,7 @@ def is_module_enabled_for_tenant(db, module_id: str, tenant_id: int | None) -> b
 def modules_payload_for(db, tenant_id: int | None) -> dict[str, Any]:
     if tenant_id is None:
         return modules_payload()
-    has_override = get_tenant_override(db, tenant_id) is not None
+    has_override = get_tenant_decisions(db, tenant_id) is not None
     return _payload_from_enabled(
         effective_enabled_ids(db, tenant_id),
         "tenant" if has_override else "global",
@@ -469,13 +647,7 @@ def modules_payload_for(db, tenant_id: int | None) -> dict[str, Any]:
 def set_tenant_enabled_module_ids(db, tenant_id: int, module_ids: list[str]) -> dict[str, Any]:
     from backend.db.modelli import TenantModuleConfig
 
-    known = set(MODULE_DEFINITIONS)
-    normalized = {
-        _normalize_module_id(module_id)
-        for module_id in module_ids
-        if _normalize_module_id(module_id) in known
-    }
-    resolved = sorted(_resolve_dependencies(normalized))
+    resolved = _resolve_dependencies(_normalize_requested(module_ids))
 
     row = (
         db.query(TenantModuleConfig)
@@ -485,7 +657,7 @@ def set_tenant_enabled_module_ids(db, tenant_id: int, module_ids: list[str]) -> 
     if row is None:
         row = TenantModuleConfig(tenant_id=tenant_id)
         db.add(row)
-    row.enabled = json.dumps(resolved, ensure_ascii=False)
+    row.enabled = json.dumps(_raw_from_enabled(resolved), ensure_ascii=False)
     db.commit()
     _tenant_override_cache.pop(tenant_id, None)
     return modules_payload_for(db, tenant_id)

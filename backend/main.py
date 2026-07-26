@@ -1076,7 +1076,7 @@ for _router in _CORE_ROUTERS:
 
 def _require_module_enabled(module_id: str):
     def _dependency(request: Request, db=Depends(get_db)):
-        # Kill-switch globale (env + modules_state.json)
+        # Kill-switch globale (env + configurazione globale in DB)
         if not is_module_enabled(module_id):
             raise HTTPException(status_code=404, detail="Funzionalita disattivata")
 

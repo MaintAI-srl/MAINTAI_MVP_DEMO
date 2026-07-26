@@ -772,13 +772,34 @@ class MovimentoRicambio(Base):
 class TenantModuleConfig(Base):
     """Override per-tenant dei moduli attivi (gestito dal superadmin).
 
-    Se un tenant non ha una riga qui vale la configurazione globale
-    (env + backend/modules_state.json). La config globale resta un
-    kill-switch: un modulo disattivato globalmente non è attivabile
-    per singolo tenant."""
+    Se un tenant non ha una riga qui vale la configurazione globale. La config
+    globale resta un kill-switch: un modulo disattivato globalmente non è
+    attivabile per singolo tenant.
+
+    `enabled` contiene le *decisioni esplicite* prese sul tenant, non una
+    whitelist: `{"enabled": [...], "known": [...]}` dove `known` è l'elenco dei
+    moduli esistenti al momento del salvataggio. Un modulo introdotto dopo non
+    ha una decisione e ricade sulla configurazione globale. Vedi
+    `backend/core/modules.py` per il formato e la lettura del legacy."""
     __tablename__ = "tenant_module_config"
 
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, unique=True, index=True)
-    enabled = Column(Text, nullable=False, default="[]")  # JSON: lista di module id
+    enabled = Column(Text, nullable=False, default="{}")  # JSON: decisioni moduli
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class GlobalModuleConfig(Base):
+    """Configurazione moduli globale — riga singola, persistita in DB.
+
+    Prima stava in `backend/modules_state.json`: su Render il filesystem è
+    effimero (nessun disco montato in render.yaml), quindi ogni deploy azzerava
+    la configurazione globale salvata dalla pagina Funzionalità. Il file resta
+    letto come sorgente di bootstrap/legacy finché non c'è una riga qui.
+
+    `config` ha lo stesso formato a decisioni esplicite di TenantModuleConfig."""
+    __tablename__ = "global_module_config"
+
+    id = Column(Integer, primary_key=True)
+    config = Column(Text, nullable=False, default="{}")  # JSON: decisioni moduli
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

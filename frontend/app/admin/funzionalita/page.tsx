@@ -105,13 +105,29 @@ export default function FunzionalitaPage() {
   async function save() {
     setSaving(true);
     try {
-      const data = await apiPut<ModulesResponse>("/admin/modules", { enabled: Array.from(selected) });
+      const requested = Array.from(selected);
+      const data = await apiPut<ModulesResponse>("/admin/modules", { enabled: requested });
       const rows = data.modules ?? [];
       setModules(rows);
-      setSelected(new Set(rows.filter((module) => module.enabled).map((module) => module.id)));
+      const effective = new Set(rows.filter((module) => module.enabled).map((module) => module.id));
+      setSelected(new Set(effective));
       setHasOverride(Boolean(data.has_override));
       await reloadModules();
-      notify.success(tenantContext ? "Funzionalita del cliente aggiornate" : "Funzionalita globali aggiornate");
+
+      // Il globale è un kill-switch: se il salvataggio non ha potuto accendere
+      // qualcosa va detto, altrimenti l'interruttore "torna indietro" con un
+      // messaggio di successo e non si capisce perche.
+      const notApplied = requested
+        .filter((id) => !effective.has(id))
+        .map((id) => rows.find((module) => module.id === id)?.name ?? id);
+      if (notApplied.length > 0) {
+        notify.warning(
+          `Non attivabili per questo cliente perche spente nella configurazione globale: ${notApplied.join(", ")}. ` +
+            "Attivale prima a livello globale (esci dal contesto cliente).",
+        );
+      } else {
+        notify.success(tenantContext ? "Funzionalita del cliente aggiornate" : "Funzionalita globali aggiornate");
+      }
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Errore salvataggio funzionalita");
     } finally {
@@ -193,6 +209,10 @@ export default function FunzionalitaPage() {
               <div style={{ display: "grid", gap: 10 }}>
                 {rows.map((module) => {
                   const checked = selected.has(module.id);
+                  // Nel contesto cliente un modulo spento globalmente non è
+                  // attivabile: si mostra bloccato invece di farlo "tornare
+                  // indietro" dopo il salvataggio.
+                  const blocked = Boolean(tenantContext && module.blocked_by_global);
                   return (
                     <label
                       key={module.id}
@@ -204,12 +224,15 @@ export default function FunzionalitaPage() {
                         borderRadius: 8,
                         border: `1px solid ${checked ? "rgba(34,197,94,.45)" : "var(--border-default)"}`,
                         background: checked ? "rgba(5,46,22,.28)" : "var(--surface-2)",
-                        cursor: "pointer",
+                        cursor: blocked ? "not-allowed" : "pointer",
+                        opacity: blocked ? 0.6 : 1,
                       }}
+                      title={blocked ? "Spenta nella configurazione globale: attivala prima a livello globale" : undefined}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={blocked}
                         onChange={() => toggle(module)}
                         style={{ marginTop: 3, width: 16, height: 16, accentColor: "#22c55e" }}
                       />
@@ -217,6 +240,7 @@ export default function FunzionalitaPage() {
                         <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <strong style={{ fontSize: 14 }}>{module.name}</strong>
                           <code style={codePill}>{module.id}</code>
+                          {blocked && <span style={blockedPill}>spenta globalmente</span>}
                         </span>
                         <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45, marginTop: 5 }}>
                           {module.description}
@@ -264,6 +288,18 @@ const secondaryButton: CSSProperties = {
   padding: "10px 14px",
   fontSize: 13,
   cursor: "pointer",
+};
+
+const blockedPill: CSSProperties = {
+  padding: "2px 8px",
+  borderRadius: 999,
+  background: "rgba(245,158,11,.12)",
+  color: "#fbbf24",
+  fontSize: 10,
+  fontWeight: 700,
+  border: "1px solid rgba(245,158,11,.3)",
+  textTransform: "uppercase",
+  letterSpacing: ".04em",
 };
 
 const codePill: CSSProperties = {
