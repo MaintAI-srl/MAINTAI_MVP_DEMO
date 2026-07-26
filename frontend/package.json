@@ -11,6 +11,17 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
   },
+  "//overrides": [
+    "next 16.2.x pinna internamente postcss a 8.4.31 e sharp a ^0.34.5, entrambe versioni",
+    "con advisory high aperte (GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849,",
+    "GHSA-f88m-g3jw-g9cj). `npm audit fix` non le risolve perché non può toccare le dipendenze",
+    "dirette di next: servono override espliciti. Sono entrambi bump minori nella stessa major.",
+    "Rimuovere quando next dichiarerà da solo versioni non vulnerabili."
+  ],
+  "overrides": {
+    "postcss": "^8.5.23",
+    "sharp": "^0.35.3"
+  },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@dnd-kit/core": "^6.3.1",
@@ -22,7 +33,7 @@
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
-    "next": "^16.2.7",
+    "next": "^16.2.12",
     "next-themes": "^0.4.6",
     "react": "19.2.3",
     "react-day-picker": "^9.14.0",
@@ -45,7 +56,7 @@
     "cross-env": "^7.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "postcss": "^8.5.8",
+    "postcss": "^8.5.23",
     "tailwindcss": "^4.2.1",
     "typescript": "^5"
   }
