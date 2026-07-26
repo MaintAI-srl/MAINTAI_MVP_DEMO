@@ -33,8 +33,30 @@ Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni →
    Con un solo PDF il passaggio è automatico.
 4. La prima pagina viene rasterizzata **prima** di entrare in XR: serve per l'anteprima e
    perché `requestSession()` va chiamata dentro il gesto utente, senza `await` intermedi.
-5. **Entra in XR** → sessione `immersive-ar`, pannello posizionato a 1,05 m, ruotato di 38°
-   verso sinistra rispetto alla direzione dello sguardo al momento dell'ingresso.
+5. **Entra in XR** → sessione `immersive-ar`, pannello a 1,05 m, ruotato di 38° verso
+   sinistra rispetto allo sguardo, **agganciato alla testa**: si muove con lo sguardo e
+   resta sempre nello stesso punto del campo visivo.
+
+## 1-bis. Ancoraggio della sovraimpressione
+
+Due modalità, commutabili con il **click dello stick** (o dal pulsante in pagina):
+
+| Modalità | Comportamento | Come è implementata |
+|---|---|---|
+| `testa` (default) | il pannello segue la testa, come un HUD | il quad layer vive nel **viewer space**: è il compositore a tenerlo agganciato alla posa della testa, quindi zero latenza e zero jitter, senza inseguirla da JavaScript per frame |
+| `fisso` | il pannello resta dove è stato piazzato nella stanza e il tecnico ci gira intorno | quad layer nel `local-floor`, posizionato una volta sola (comportamento della prima versione) |
+
+Tutta la sovraimpressione — pagina PDF, barra HUD, avvisi — è **una sola texture su un
+solo pannello**, quindi l'ancoraggio vale per tutto insieme.
+
+Note implementative:
+
+- lo `space` di un `XRQuadLayer` si fissa alla creazione: cambiare ancoraggio ricrea il
+  layer (succede solo alla pressione di un tasto, costo irrilevante);
+- nel fallback WebGL, senza layer, la testa va inseguita a mano: la matrice mondo del
+  pannello è `posa_testa × offset`, con l'offset espresso nello spazio della testa;
+- se il visore non espone il reference space `viewer` si degrada automaticamente a `fisso`
+  con un avviso nell'HUD.
 
 ## 2. Comandi nel visore
 
@@ -44,7 +66,8 @@ Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni →
 | Stick ↑ / ↓ | ingrandisci / rimpicciolisci il pannello (0,55× – 2,6×) |
 | Grilletto | pagina successiva |
 | Grip laterale | pagina precedente |
-| A / X | riporta il pannello alla sinistra dello sguardo corrente |
+| Click dello stick | aggancia alla testa / fissa nella stanza |
+| A / X | riporta il pannello alla sinistra dello sguardo (solo in modalità `fisso`) |
 | B / Y | zoom al 100% |
 
 La barra in basso sul pannello mostra asset, documento, pagina corrente e i comandi.
@@ -116,6 +139,44 @@ profili ICC vengono copiati in `frontend/public/pdfjs/` da
 La cartella è in `.gitignore`: si rigenera a ogni build. Il percorso statico same-origin
 tiene il worker compatibile con la CSP (`worker-src 'self' blob:` in `next.config.ts`).
 
+## 5-bis. Installazione come app del Meta Quest
+
+`/xr` si installa sul visore come **web app a sé**, distinta dall'app principale:
+
+| | App principale | Visore XR |
+|---|---|---|
+| manifest | `/manifest.json` | `/xr-manifest.webmanifest` |
+| `id` | `maintai-enterprise-v3` | `maintai-xr-viewer` |
+| `start_url` | `/` | `/xr` |
+| `display` | `standalone` | `fullscreen` |
+| icone | `icons/icon-*.png` | `icons/xr-icon-*.png` |
+
+`id` e manifest diversi producono **due voci separate** nella libreria del Quest: quella
+XR parte a tutto schermo direttamente sul visore, senza barra del browser né dashboard.
+Il manifest è agganciato solo alle rotte `/xr` da `frontend/app/xr/layout.tsx`
+(`metadata.manifest`), quindi le altre pagine continuano a installare l'app principale.
+
+Dal browser del visore: **menu ⋮ → Installa**. Quando il browser espone
+`beforeinstallprompt` (Chromium, quindi anche il browser del Quest) la pagina mostra un
+pulsante *Installa MaintAI XR* che apre direttamente il dialogo di sistema.
+
+Dettagli che contano:
+
+- `scope` resta `/` di proposito. Login e rotte asset stanno fuori da `/xr`: con uno scope
+  più stretto la navigazione uscirebbe dalla finestra dell'app riaprendo la barra del browser.
+- Il service worker è già quello dell'app (`/sw.js`, scope `/`, registrato da `RootShell`):
+  non ne serve un secondo perché l'app risulti installabile.
+- Gli asset di pdf.js (`/pdfjs/*`) sono ora in cache-first nel service worker: sono
+  immutabili a parità di deploy, e così un manuale si apre anche con rete instabile in reparto.
+- Le icone si rigenerano con `node scripts/generate_xr_icons.mjs` (usa `sharp`, che arriva
+  con le dipendenze del frontend). Le PNG prodotte **vanno committate**: il build di Vercel
+  non le rigenera.
+
+Resta una **web app**, non un pacchetto nativo: gira nel runtime del browser del visore.
+È distribuibile sullo Horizon Store come *Web App*; un'app nativa (Unity/OpenXR, APK
+firmato) sarebbe un binario separato con un'altra pipeline, non un'evoluzione di questo
+codice.
+
 ## 6. Requisiti
 
 - **HTTPS** (o `localhost`): WebXR e `getUserMedia` richiedono un contesto sicuro.
@@ -129,7 +190,11 @@ tiene il worker compatibile con la CSP (`worker-src 'self' blob:` in `next.confi
   ricerca testo): la navigazione è per pagina.
 - Un solo pannello alla volta; il cambio documento riusa lo stesso layer, quindi un PDF con
   proporzioni diverse viene incorniciato (letterbox) invece di ridimensionare il pannello.
-- Nessun ancoraggio spaziale (`anchors`): il pannello resta fermo rispetto allo spazio di
-  riferimento della sessione, non rispetto alla macchina.
+- Nessun ancoraggio spaziale (`anchors`): in modalità `fisso` il pannello resta fermo
+  rispetto allo spazio di riferimento della sessione, non rispetto alla macchina.
+- L'ancoraggio `testa` è rigido (segue anche inclinazione e rollio della testa, come ogni
+  HUD). Un inseguimento "morbido" — zona morta più smorzamento, che lascia scorrere la
+  pagina con gli occhi prima di trascinare il pannello — è un'aggiunta naturale se alla
+  prova sul campo il vincolo rigido risulta pesante nelle letture lunghe.
 - La scansione continua in XR dipende dall'accesso alla fotocamera del browser del visore:
   va verificata sul dispositivo, non è garantita dalla spec.

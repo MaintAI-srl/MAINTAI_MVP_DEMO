@@ -190,7 +190,10 @@ frontend/app/
   tecnici/                 — anagrafica tecnici + assenze
   manuali/                 — upload PDF + lista piani estratti
   xr/                      — prototipo visore XR (WebXR immersive-ar, Meta Quest 3):
-                             QR asset → manuale PDF su pannello alla sinistra del tecnico.
+                             QR asset → manuale PDF su pannello agganciato alla testa
+                             (viewer space; commutabile a pannello fisso nella stanza).
+                             Installabile sul Quest come web app a sé
+                             (/xr-manifest.webmanifest, id maintai-xr-viewer).
                              Modulo `xr_viewer`. Vedi docs/XR_PROTOTIPO.md
   scheduler/               — redirect a /planning (rimosso, non più usato)
   admin/
