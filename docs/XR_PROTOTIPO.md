@@ -24,6 +24,15 @@ Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni →
 
 ## 1. Flusso utente
 
+**Ingresso immediato.** Il pulsante *Entra subito in XR* apre la sessione senza documento:
+si arriva in realtà mista con un pannello di attesa e il manuale si sceglie dopo. È il
+percorso della web app installata sul visore, che deve portare in XR al primo tocco.
+La sessione **non può** partire da sola all'apertura: `requestSession` esige una user
+activation, quindi un tocco resta obbligatorio (limite del browser, non del prototipo).
+
+Il percorso guidato QR → documento → XR resta disponibile sotto.
+
+
 1. `/xr` sul browser del Quest 3 (o su qualsiasi Chromium con emulatore WebXR).
 2. **Scansiona QR** — la pagina accetta:
    - QR asset generati da `backend/services/qr_service.py` (`<app>/asset?id=<n>`);
@@ -64,6 +73,11 @@ risoluzione e rumorosa sui bordi.
 > nel projection layer con il nostro shader, che è più morbido. La scelta è esposta come
 > spunta in pagina: attiva di default (occlusione), togliendola si torna al testo più
 > nitido. Cambia il percorso di rendering, quindi ha effetto dall'avvio sessione successivo.
+
+> **La feature `layers` si chiede solo senza occlusione.** Con `layers` attiva il render
+> state va popolato con i layer del binding; impostare invece un `baseLayer` — necessario
+> per disegnare col nostro shader — fa **fallire la sessione** sul browser del Quest
+> ("session failed / base layer"). Le due strade sono alternative, non combinabili.
 
 Il formato della depth map cambia per dispositivo e la variante di shader viene scelta a
 compile-time (`buildFragmentSource`): `luminance-alpha` (intero a 16 bit spezzato su due
@@ -237,4 +251,10 @@ codice.
   pagina con gli occhi prima di trascinare il pannello — è un'aggiunta naturale se alla
   prova sul campo il vincolo rigido risulta pesante nelle letture lunghe.
 - La scansione continua in XR dipende dall'accesso alla fotocamera del browser del visore:
-  va verificata sul dispositivo, non è garantita dalla spec.
+  va verificata sul dispositivo, non è garantita dalla spec. Se il visore non espone
+  fotocamere alle pagine web, **nessun decoder può funzionare** — è un limite di
+  piattaforma, non del codice. Lo scanner mostra ora una riga diagnostica (decoder in uso,
+  risoluzione, frame analizzati) e, in caso di errore, il **nome** dell'eccezione
+  `getUserMedia` più il numero di `videoinput` rilevati: `NotFoundError` con `videoinput: 0`
+  significa che il dispositivo non espone alcuna fotocamera, e insistere sulla scansione è
+  inutile. In quel caso il manuale va scelto dalla pagina prima di entrare in XR.

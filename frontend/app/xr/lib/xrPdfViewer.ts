@@ -405,8 +405,11 @@ export class XrPdfViewer {
    * ATTENZIONE: va chiamata **direttamente** dal gesto utente (click), senza `await`
    * intermedi, altrimenti si perde la user activation richiesta da `requestSession`.
    * Per questo il documento va passato già pronto (prima pagina rasterizzata).
+   *
+   * `doc` può essere `null`: si entra in XR subito, con un pannello di attesa, e
+   * il manuale arriva dopo (QR inquadrato in sessione o scelto dalla UI 2D).
    */
-  async start(doc: XrDocument, initialPage = 1): Promise<void> {
+  async start(doc: XrDocument | null, initialPage = 1): Promise<void> {
     if (this.session) return;
     const xr = navigator.xr;
     if (!xr) throw new Error("WebXR non disponibile su questo browser.");
@@ -425,11 +428,20 @@ export class XrPdfViewer {
     // rifiutasse la sessione per via di questa feature, togliendo la spunta
     // "occlusione" si rientra in XR senza. Un retry qui non sarebbe affidabile —
     // dopo un await la user activation richiesta da requestSession è persa.
-    const init: XRSessionInit = {
-      optionalFeatures: ["local-floor", "layers", "hand-tracking", "dom-overlay"],
-    };
+    const optionalFeatures = ["local-floor", "hand-tracking", "dom-overlay"];
     if (this.occlusionWanted) {
-      init.optionalFeatures = [...(init.optionalFeatures ?? []), "depth-sensing"];
+      optionalFeatures.push("depth-sensing");
+    } else {
+      // `layers` si chiede **solo** senza occlusione. Con la feature attiva il
+      // render state va popolato con i layer del binding, e impostare invece un
+      // `baseLayer` (necessario per disegnare col nostro shader) fa fallire la
+      // sessione sul browser del Quest. Le due strade sono alternative: o quad
+      // layer composto dal runtime, o projection layer con occlusione.
+      optionalFeatures.push("layers");
+    }
+
+    const init: XRSessionInit = { optionalFeatures };
+    if (this.occlusionWanted) {
       init.depthSensing = {
         usagePreference: ["gpu-optimized"],
         dataFormatPreference: ["luminance-alpha", "float32"],
@@ -442,7 +454,7 @@ export class XrPdfViewer {
     this.glCanvas = glCanvas;
     this.gl = gl;
     this.doc = doc;
-    this.page = Math.min(Math.max(1, initialPage), doc.source.pageCount);
+    this.page = doc ? Math.min(Math.max(1, initialPage), doc.source.pageCount) : 1;
     this.placed = false;
     this.contentDirty = true;
     this.textureDirty = true;
@@ -473,14 +485,14 @@ export class XrPdfViewer {
         this.anchor = "fisso";
       }
 
-      this.pageCanvas = doc.source.peek(this.page);
+      this.pageCanvas = doc ? doc.source.peek(this.page) : null;
       this.prepareComposeCanvas();
       this.compose();
       this.setupRendering(session, gl);
 
       session.requestAnimationFrame(this.onFrame);
       this.emitStatus();
-      void this.ensurePage(this.page);
+      if (doc) void this.ensurePage(this.page);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Errore di avvio della sessione XR.";
       await this.stop();
@@ -805,7 +817,19 @@ export class XrPdfViewer {
       ctx.font = `600 ${Math.round(canvas.height * 0.032)}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Caricamento pagina…", canvas.width / 2, canvas.height / 2);
+      // Senza documento la sessione è stata avviata "a vuoto": si entra subito in
+      // XR e il manuale arriva dopo.
+      const attesa = this.doc ? "Caricamento pagina…" : "Nessun manuale aperto";
+      ctx.fillText(attesa, canvas.width / 2, canvas.height / 2 - canvas.height * 0.03);
+      if (!this.doc) {
+        ctx.font = `500 ${Math.round(canvas.height * 0.022)}px system-ui, sans-serif`;
+        ctx.fillStyle = "rgba(226, 232, 240, 0.72)";
+        ctx.fillText(
+          "Inquadra il QR della macchina, oppure scegli il documento dalla pagina",
+          canvas.width / 2,
+          canvas.height / 2 + canvas.height * 0.03,
+        );
+      }
       ctx.textAlign = "left";
     }
 

@@ -26,6 +26,8 @@ export default function QrScanner({
   // altrimenti jsQR (è il caso del browser del Meta Quest).
   const [hasDetector] = useState(() => qrDecodingAvailable());
   const [manualCode, setManualCode] = useState("");
+  /** Riga tecnica sempre visibile: senza, un guasto sul visore è indistinguibile da un altro. */
+  const [diagnostica, setDiagnostica] = useState<string | null>(null);
 
   function stopCamera() {
     cancelAnimationFrame(rafRef.current);
@@ -38,7 +40,21 @@ export default function QrScanner({
 
     const decoder = createQrDecoder();
 
-    navigator.mediaDevices
+    // Gli aggiornamenti di stato stanno dentro una funzione asincrona e non nel
+    // corpo dell'effetto: aggiornare lo stato in modo sincrono qui è ciò che la
+    // regola react-hooks/set-state-in-effect vieta.
+    const avvia = async () => {
+      setDiagnostica(`decoder: ${decoder.source}`);
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError(
+          "Questo browser non espone alcuna fotocamera alle pagine web (getUserMedia assente). " +
+            "Inserisci il codice asset manualmente.",
+        );
+        return;
+      }
+
+      await navigator.mediaDevices
       .getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -53,9 +69,19 @@ export default function QrScanner({
         video.srcObject = stream;
         video.play().catch(() => {});
 
+        let frames = 0;
         const tick = async () => {
           if (scannedRef.current) return;
           if (video.readyState >= 2) {
+            frames += 1;
+            // Un contatore visibile distingue i due guasti che sembrano uguali:
+            // fotocamera ferma (contatore fermo) e fotocamera viva ma QR non
+            // decodificato (contatore che sale senza esito).
+            if (frames % 15 === 0) {
+              setDiagnostica(
+                `decoder: ${decoder.source} · ${video.videoWidth}×${video.videoHeight} · ${frames} frame analizzati`,
+              );
+            }
             try {
               const value = await decoder.detect(video);
               if (value && !scannedRef.current) {
@@ -72,9 +98,37 @@ export default function QrScanner({
         };
         rafRef.current = requestAnimationFrame(tick);
       })
-      .catch((err: Error) => {
-        setCameraError("Fotocamera non disponibile: " + (err.message ?? "Permesso negato"));
+      .catch((err: unknown) => {
+        // Il *nome* dell'errore dice quale guasto è, il messaggio spesso no.
+        const nome = err instanceof DOMException ? err.name : "Error";
+        const dettaglio = err instanceof Error ? err.message : String(err);
+        const spiegazione =
+          nome === "NotFoundError" || nome === "OverconstrainedError"
+            ? "Nessuna fotocamera disponibile per le pagine web su questo dispositivo."
+            : nome === "NotAllowedError"
+              ? "Permesso fotocamera negato: concedilo dalle impostazioni del browser."
+              : nome === "NotReadableError"
+                ? "Fotocamera occupata da un'altra applicazione."
+                : "Fotocamera non disponibile.";
+        setCameraError(`${spiegazione} (${nome}: ${dettaglio})`);
+
+        // Elenco dispositivi: senza videoinput il problema è il dispositivo, non
+        // il permesso, e non ha senso continuare a insistere sulla scansione.
+        void navigator.mediaDevices
+          .enumerateDevices()
+          .then((devices) => {
+            const video = devices.filter((d) => d.kind === "videoinput");
+            setDiagnostica(
+              video.length === 0
+                ? "Nessun dispositivo video esposto al browser (videoinput: 0)"
+                : `videoinput rilevati: ${video.length}`,
+            );
+          })
+          .catch(() => {});
       });
+    };
+
+    void avvia();
 
     return () => stopCamera();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -268,6 +322,26 @@ export default function QrScanner({
               ⚠️ {cameraError}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Riga diagnostica: dice quale decoder è in uso e se stanno arrivando
+          frame, così un guasto sul visore si identifica senza indovinare. */}
+      {diagnostica && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 8,
+            left: 0,
+            right: 0,
+            textAlign: "center",
+            fontSize: 11,
+            color: "rgba(226,232,240,0.65)",
+            fontFamily: "ui-monospace, monospace",
+            pointerEvents: "none",
+          }}
+        >
+          {diagnostica}
         </div>
       )}
 

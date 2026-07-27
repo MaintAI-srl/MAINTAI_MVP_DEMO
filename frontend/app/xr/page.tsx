@@ -61,6 +61,7 @@ export default function XrPrototipoPage() {
   const [xrStatus, setXrStatus] = useState<XrViewerStatus | null>(null);
   const [scansioneContinua, setScansioneContinua] = useState(true);
   const [occlusione, setOcclusione] = useState(true);
+  const [scansioneXrErrore, setScansioneXrErrore] = useState<string | null>(null);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installata, setInstallata] = useState(false);
 
@@ -255,15 +256,32 @@ export default function XrPrototipoPage() {
           })();
         },
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         // Fotocamera non accessibile durante la sessione: resta valida la scansione 2D.
+        // L'esito va detto, altrimenti sembra che la lettura QR "non funzioni"
+        // senza che sia chiaro che il visore non concede la fotocamera.
         scannerRef.current = null;
+        const nome = err instanceof DOMException ? err.name : "";
+        setScansioneXrErrore(
+          nome === "NotFoundError" || nome === "OverconstrainedError"
+            ? "Il visore non espone la fotocamera alle pagine web: durante la sessione XR non è possibile leggere QR. Scegli il manuale da questa pagina prima di entrare."
+            : `Scansione QR in sessione non attiva${nome ? ` (${nome})` : ""}: scegli il manuale da questa pagina.`,
+        );
       });
   }, [caricaDocumento, scansioneContinua]);
 
+  /**
+   * Entra in XR. Il documento è facoltativo: senza, si entra subito con un
+   * pannello di attesa e il manuale arriva dopo (QR in sessione o scelta dalla
+   * pagina). È il caso d'uso della web app installata sul visore, che deve
+   * portare in realtà mista al primo tocco.
+   *
+   * La sessione non può partire da sola all'apertura: `requestSession` esige una
+   * user activation, quindi resta un tocco sul pulsante.
+   */
   const entraInXr = useCallback(() => {
     const rasterizer = rasterizerRef.current;
-    if (!rasterizer || !asset || !documentoAttivo) return;
+    const conDocumento = Boolean(rasterizer && asset && documentoAttivo);
 
     setErrore(null);
     const viewer = new XrPdfViewer({
@@ -281,7 +299,12 @@ export default function XrPrototipoPage() {
 
     // Nessun await prima di requestSession: la user activation del click va preservata.
     viewer
-      .start({ label: `${asset.nome} · ${documentoAttivo.nome}`, source: rasterizer }, 1)
+      .start(
+        conDocumento
+          ? { label: `${asset!.nome} · ${documentoAttivo!.nome}`, source: rasterizer! }
+          : null,
+        1,
+      )
       .then(() => avviaScansioneContinua())
       .catch((err: unknown) => {
         viewerRef.current = null;
@@ -372,6 +395,26 @@ export default function XrPrototipoPage() {
         <div style={S.busyBox}>
           <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> {busy}
         </div>
+      )}
+
+      {scansioneXrErrore && (
+        <div style={S.warnBox}>
+          <Camera size={14} style={{ verticalAlign: "-2px" }} /> {scansioneXrErrore}
+        </div>
+      )}
+
+      {/* ── Ingresso immediato in XR, senza passare dal QR ── */}
+      {!inSessione && xrPronto && (
+        <section style={S.enterCard}>
+          <button onClick={entraInXr} style={S.primaryButton}>
+            <Glasses size={18} /> Entra subito in XR
+          </button>
+          <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            Entri in realtà mista con un pannello vuoto e apri il manuale dopo, inquadrando il QR
+            della macchina. Se preferisci sceglierlo prima, usa i passaggi qui sotto.
+            {installata && " L'app non può entrare in XR da sola all'avvio: il browser richiede un tocco."}
+          </p>
+        </section>
       )}
 
       {/* ── Step 1: scansione ── */}
@@ -772,6 +815,23 @@ const S: Record<string, CSSProperties> = {
     fontSize: 13,
   },
   sessionMeta: { color: "var(--text-secondary)", fontSize: 12, marginBottom: 10 },
+  warnBox: {
+    marginTop: 12,
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(245,158,11,0.35)",
+    background: "rgba(245,158,11,0.08)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+  enterCard: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    border: "1px solid rgba(34,197,94,0.35)",
+    background: "rgba(34,197,94,0.08)",
+  },
   installBox: {
     marginTop: 12,
     padding: 14,
