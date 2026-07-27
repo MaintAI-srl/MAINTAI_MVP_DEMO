@@ -13,7 +13,12 @@
  * `getUserMedia` (l'accesso raw dentro WebXR — modulo `camera-access` — arriva con
  * v77). Se lo stream non è disponibile la classe fallisce in modo pulito e la UI
  * ripiega sulla scansione fatta prima di entrare in XR.
+ *
+ * La decodifica passa da `createQrDecoder()`: il browser del Quest non espone
+ * `BarcodeDetector`, quindi senza il fallback jsQR qui non veniva letto nulla.
  */
+
+import { createQrDecoder, type QrDecoder } from "../../lib/qrDecode";
 
 const SCAN_INTERVAL_MS = 600;
 
@@ -30,12 +35,11 @@ export class LiveQrScanner {
   private lastValue = "";
   private lastAt = 0;
 
+  private decoder: QrDecoder | null = null;
+
+  /** Serve solo la fotocamera: la decodifica c'è sempre (nativa o jsQR). */
   static isSupported(): boolean {
-    return (
-      typeof window !== "undefined" &&
-      "BarcodeDetector" in window &&
-      !!navigator.mediaDevices?.getUserMedia
-    );
+    return typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
   }
 
   get isRunning(): boolean {
@@ -45,10 +49,11 @@ export class LiveQrScanner {
   async start(events: LiveQrScannerEvents): Promise<void> {
     if (this.timer !== null) return;
     if (!LiveQrScanner.isSupported()) {
-      throw new Error("Scansione QR continua non supportata da questo browser.");
+      throw new Error("Fotocamera non disponibile: scansione QR continua non attivabile.");
     }
 
-    const detector = new window.BarcodeDetector!({ formats: ["qr_code"] });
+    const decoder = createQrDecoder();
+    this.decoder = decoder;
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
     });
@@ -66,8 +71,7 @@ export class LiveQrScanner {
       if (this.busy || video.readyState < 2) return;
       this.busy = true;
       try {
-        const codes = await detector.detect(video);
-        const value = codes[0]?.rawValue?.trim();
+        const value = await decoder.detect(video);
         if (value) {
           const now = Date.now();
           // Antirimbalzo: lo stesso QR resta inquadrato per secondi.
@@ -96,6 +100,7 @@ export class LiveQrScanner {
       this.video.srcObject = null;
       this.video = null;
     }
+    this.decoder = null;
     this.busy = false;
   }
 }

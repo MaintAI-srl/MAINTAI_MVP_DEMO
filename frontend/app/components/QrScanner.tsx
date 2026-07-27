@@ -2,22 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { createQrDecoder, qrDecodingAvailable } from "../lib/qrDecode";
+
 interface QrScannerProps {
   onScan: (value: string) => void;
   onCancel: () => void;
   title?: string;
   subtitle?: string;
-}
-
-// Web API — BarcodeDetector (Chrome/Edge 83+, Safari 17.1+, Android WebView 83+)
-interface BarcodeDetectorResult { rawValue: string; format: string; }
-interface BarcodeDetectorInstance {
-  detect(image: HTMLVideoElement): Promise<BarcodeDetectorResult[]>;
-}
-declare global {
-  interface Window {
-    BarcodeDetector?: new (opts?: { formats?: string[] }) => BarcodeDetectorInstance;
-  }
 }
 
 export default function QrScanner({
@@ -31,7 +22,9 @@ export default function QrScanner({
   const rafRef = useRef<number>(0);
   const scannedRef = useRef(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [hasDetector] = useState(() => typeof window !== "undefined" && !!window.BarcodeDetector);
+  // La decodifica c'è sempre: nativa se il browser espone BarcodeDetector,
+  // altrimenti jsQR (è il caso del browser del Meta Quest).
+  const [hasDetector] = useState(() => qrDecodingAvailable());
   const [manualCode, setManualCode] = useState("");
 
   function stopCamera() {
@@ -43,12 +36,7 @@ export default function QrScanner({
   useEffect(() => {
     if (!hasDetector) return;
 
-    let detector: BarcodeDetectorInstance;
-    try {
-      detector = new window.BarcodeDetector!({ formats: ["qr_code"] });
-    } catch {
-      return;
-    }
+    const decoder = createQrDecoder();
 
     navigator.mediaDevices
       .getUserMedia({
@@ -69,11 +57,11 @@ export default function QrScanner({
           if (scannedRef.current) return;
           if (video.readyState >= 2) {
             try {
-              const codes = await detector.detect(video);
-              if (codes.length > 0 && !scannedRef.current) {
+              const value = await decoder.detect(video);
+              if (value && !scannedRef.current) {
                 scannedRef.current = true;
                 stopCamera();
-                onScan(codes[0].rawValue);
+                onScan(value);
                 return;
               }
             } catch {
@@ -280,16 +268,10 @@ export default function QrScanner({
               ⚠️ {cameraError}
             </div>
           )}
-          {!hasDetector && (
-            <div style={{ color: "var(--text-muted)", fontSize: 14, textAlign: "center" }}>
-              Scanner QR non supportato su questo browser.<br />
-              Inserisci il codice asset manualmente:
-            </div>
-          )}
         </div>
       )}
 
-      {/* Manual fallback input (shown when camera unavailable or no BarcodeDetector) */}
+      {/* Manual fallback input (mostrato quando la fotocamera non è disponibile) */}
       {(cameraError || !hasDetector) && (
         <div
           style={{

@@ -27,8 +27,23 @@ import type { PdfPageSource } from "./pdfRaster";
 
 /** Distanza del pannello dagli occhi, in metri. */
 const PANEL_DISTANCE_M = 1.05;
-/** Rotazione a sinistra rispetto alla direzione dello sguardo, in gradi. */
-const PANEL_YAW_DEG = 38;
+/**
+ * Rotazione rispetto alla direzione dello sguardo, in gradi.
+ *
+ * Era 38° a sinistra: sul visore il pannello finiva ai margini del campo visivo
+ * (o fuori) e non c'era modo di riportarlo davanti. Ora parte **centrato** e si
+ * sposta dove serve con il grip del controller.
+ */
+const PANEL_YAW_DEG = 0;
+/** Distanza minima/massima a cui si può trascinare il pannello, in metri. */
+const GRAB_DISTANCE_MIN_M = 0.45;
+const GRAB_DISTANCE_MAX_M = 3.0;
+/**
+ * Margine in metri sulla profondità reale prima di nascondere un frammento.
+ * La depth map del visore è a bassa risoluzione e rumorosa sui bordi: senza
+ * margine il pannello "sfarfalla" sul contorno della mano.
+ */
+const OCCLUSION_BIAS_M = 0.05;
 /**
  * Ancoraggio del pannello (e di tutta la sovraimpressione, HUD compreso: sono la
  * stessa texture).
@@ -142,6 +157,48 @@ function mat4Multiply(out: Float32Array, a: Float32Array | number[], b: Float32A
   }
 }
 
+/** Ruota un vettore per un quaternione (q · v · q⁻¹, forma espansa). */
+function rotateByQuat(v: Vec3, q: Quat): Vec3 {
+  const ix = q.w * v.x + q.y * v.z - q.z * v.y;
+  const iy = q.w * v.y + q.z * v.x - q.x * v.z;
+  const iz = q.w * v.z + q.x * v.y - q.y * v.x;
+  const iw = -q.x * v.x - q.y * v.y - q.z * v.z;
+  return {
+    x: ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y,
+    y: iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z,
+    z: iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x,
+  };
+}
+
+/** Applica una mat4 (column-major) a un punto. */
+function transformPoint(m: Float32Array | number[], p: Vec3): Vec3 {
+  return {
+    x: m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12],
+    y: m[1] * p.x + m[5] * p.y + m[9] * p.z + m[13],
+    z: m[2] * p.x + m[6] * p.y + m[10] * p.z + m[14],
+  };
+}
+
+/** Applica la sola parte rotazionale di una mat4 a una direzione. */
+function transformDirection(m: Float32Array | number[], d: Vec3): Vec3 {
+  return {
+    x: m[0] * d.x + m[4] * d.y + m[8] * d.z,
+    y: m[1] * d.x + m[5] * d.y + m[9] * d.z,
+    z: m[2] * d.x + m[6] * d.y + m[10] * d.z,
+  };
+}
+
+/**
+ * Yaw che orienta un pannello posto in `panel` verso `target`.
+ *
+ * Un pannello con `quaternionFromYaw(ψ)` guarda l'osservatore quando si trova
+ * nella direzione ψ rispetto a lui, cioè in `(-sin ψ, -cos ψ)`: invertendo,
+ * ψ = atan2(target.x − panel.x, target.z − panel.z).
+ */
+function yawFacing(panel: Vec3, target: Vec3): number {
+  return Math.atan2(target.x - panel.x, target.z - panel.z);
+}
+
 function composeModelMatrix(out: Float32Array, pos: Vec3, q: Quat, scaleX: number, scaleY: number) {
   const x2 = q.x + q.x, y2 = q.y + q.y, z2 = q.z + q.z;
   const xx = q.x * x2, xy = q.x * y2, xz = q.x * z2;
@@ -185,6 +242,10 @@ export type XrViewerStatus = {
   zoom: number;
   /** Ancoraggio corrente della sovraimpressione. */
   anchor: XrAnchorMode;
+  /** Occlusione attiva: il pannello passa dietro mani e oggetti reali. */
+  occlusion: boolean;
+  /** Il visore espone la depth map (senza, l'occlusione non è ottenibile). */
+  occlusionAvailable: boolean;
   /** Messaggio transitorio mostrato anche nell'HUD (es. "QR riconosciuto"). */
   notice?: string;
 };
@@ -198,19 +259,67 @@ export type XrViewerCallbacks = {
 const VERTEX_SRC = `
 attribute vec2 aPos;
 uniform mat4 uMvp;
+uniform mat4 uModelView;
 varying vec2 vUv;
+varying vec4 vClip;
+varying vec3 vViewPos;
 void main() {
   vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5);
-  gl_Position = uMvp * vec4(aPos, 0.0, 1.0);
+  vViewPos = (uModelView * vec4(aPos, 0.0, 1.0)).xyz;
+  vClip = uMvp * vec4(aPos, 0.0, 1.0);
+  gl_Position = vClip;
 }`;
 
-const FRAGMENT_SRC = `
+/**
+ * Fragment shader con occlusione opzionale dalla depth map del visore.
+ *
+ * `uOcclusion` = 0 disegna il pannello sopra tutto (comportamento di prima).
+ * Con 1, la profondità del frammento viene confrontata con la distanza reale
+ * misurata dal visore in quel punto: se dietro, il frammento sparisce, così il
+ * pannello passa **dietro** mani e oggetti invece di coprirli.
+ *
+ * Il formato della depth map cambia per dispositivo, quindi la variante viene
+ * scelta a compile-time con un #define (vedi buildFragmentSource):
+ *  - `luminance-alpha`: intero a 16 bit spezzato su due canali da 8 bit;
+ *  - `float32`: metri già pronti nel canale rosso.
+ */
+function buildFragmentSource(format: XRDepthDataFormat | null): string {
+  const decode =
+    format === "float32"
+      ? "return texture2D(uDepthTex, uv).r * uRawValueToMeters;"
+      : `vec2 packed = texture2D(uDepthTex, uv).ra;
+  return (packed.x * 255.0 + packed.y * 255.0 * 256.0) * uRawValueToMeters;`;
+
+  return `
 precision mediump float;
 uniform sampler2D uTex;
+uniform sampler2D uDepthTex;
+uniform mat4 uDepthUvFromView;
+uniform float uRawValueToMeters;
+uniform float uOcclusion;
+uniform float uDepthBias;
 varying vec2 vUv;
+varying vec4 vClip;
+varying vec3 vViewPos;
+
+float realDepthMeters(vec2 uv) {
+  ${decode}
+}
+
 void main() {
+  if (uOcclusion > 0.5) {
+    // Coordinate normalizzate della vista → spazio della depth map.
+    vec2 viewUv = (vClip.xy / vClip.w) * 0.5 + 0.5;
+    vec2 depthUv = (uDepthUvFromView * vec4(viewUv, 0.0, 1.0)).xy;
+    if (depthUv.x >= 0.0 && depthUv.x <= 1.0 && depthUv.y >= 0.0 && depthUv.y <= 1.0) {
+      float real = realDepthMeters(depthUv);
+      // real == 0 dove il visore non ha una misura: lì non si occlude nulla.
+      if (real > 0.0 && -vViewPos.z > real + uDepthBias) discard;
+    }
+  }
   gl_FragColor = texture2D(uTex, vUv);
 }`;
+}
 
 export class XrPdfViewer {
   private readonly callbacks: XrViewerCallbacks;
@@ -226,15 +335,29 @@ export class XrPdfViewer {
   private binding: XRWebGLBinding | null = null;
   private quad: XRQuadLayer | null = null;
 
-  // Percorso fallback WebGL
+  // Percorso WebGL (obbligatorio quando serve l'occlusione: un quad layer è
+  // composto dal runtime e non può essere occluso dalla depth map)
   private program: WebGLProgram | null = null;
   private vbo: WebGLBuffer | null = null;
   private texture: WebGLTexture | null = null;
   private uMvp: WebGLUniformLocation | null = null;
+  private uModelView: WebGLUniformLocation | null = null;
+  private uDepthTex: WebGLUniformLocation | null = null;
+  private uDepthUvFromView: WebGLUniformLocation | null = null;
+  private uRawValueToMeters: WebGLUniformLocation | null = null;
+  private uOcclusionFlag: WebGLUniformLocation | null = null;
+  private uDepthBias: WebGLUniformLocation | null = null;
   private readonly modelMatrix = new Float32Array(16);
   private readonly localMatrix = new Float32Array(16);
+  private readonly modelViewMatrix = new Float32Array(16);
   private readonly mvpMatrix = new Float32Array(16);
   private readonly viewProjMatrix = new Float32Array(16);
+
+  // Occlusione (WebXR Depth Sensing)
+  private occlusionWanted = true;
+  private depthSupported = false;
+  private depthFormat: XRDepthDataFormat | null = null;
+  private depthBinding: XRWebGLBinding | null = null;
 
   // Contenuto
   private doc: XrDocument | null = null;
@@ -249,11 +372,20 @@ export class XrPdfViewer {
   private notice: string | null = null;
   private noticeUntil = 0;
 
-  // Posizionamento
+  // Posizionamento.
+  // panelPos/panelQuat sono espressi **nello spazio di ancoraggio**: lo spazio
+  // della testa in modalità "testa", il mondo in modalità "fisso". worldPos/
+  // worldQuat sono la trasformazione risolta nel mondo, ricalcolata a ogni frame:
+  // serve al rendering e al puntamento del controller.
   private anchor: XrAnchorMode = DEFAULT_ANCHOR;
   private placed = false;
-  private panelPos: Vec3 = { x: 0, y: 1.5, z: -1 };
-  private panelQuat: Quat = { x: 0, y: 0, z: 0, w: 1 };
+  private panelPos: Vec3 = { ...HEAD_OFFSET_POS };
+  private panelQuat: Quat = { ...HEAD_OFFSET_QUAT };
+  private worldPos: Vec3 = { x: 0, y: 1.5, z: -1 };
+  private worldQuat: Quat = { x: 0, y: 0, z: 0, w: 1 };
+
+  // Trascinamento con il controller
+  private grab: { source: XRInputSource; distance: number } | null = null;
 
   // Input
   private readonly stickLatch = new Map<string, { x: boolean; y: boolean }>();
@@ -285,9 +417,26 @@ export class XrPdfViewer {
       (glCanvas.getContext("webgl", { xrCompatible: true, alpha: true, antialias: false }) as WebGLRenderingContext | null);
     if (!gl) throw new Error("WebGL non disponibile: impossibile avviare la modalità XR.");
 
-    const session = await xr.requestSession("immersive-ar", {
+    // `depth-sensing` serve a far passare il pannello dietro mani e oggetti
+    // reali. È opzionale, ma la sua dictionary va comunque passata: la spec
+    // impone TypeError se manca.
+    //
+    // Si chiede solo quando l'occlusione è stata richiesta: se un runtime
+    // rifiutasse la sessione per via di questa feature, togliendo la spunta
+    // "occlusione" si rientra in XR senza. Un retry qui non sarebbe affidabile —
+    // dopo un await la user activation richiesta da requestSession è persa.
+    const init: XRSessionInit = {
       optionalFeatures: ["local-floor", "layers", "hand-tracking", "dom-overlay"],
-    });
+    };
+    if (this.occlusionWanted) {
+      init.optionalFeatures = [...(init.optionalFeatures ?? []), "depth-sensing"];
+      init.depthSensing = {
+        usagePreference: ["gpu-optimized"],
+        dataFormatPreference: ["luminance-alpha", "float32"],
+      };
+    }
+
+    const session = await xr.requestSession("immersive-ar", init);
 
     this.session = session;
     this.glCanvas = glCanvas;
@@ -300,6 +449,14 @@ export class XrPdfViewer {
 
     session.addEventListener("end", this.handleSessionEnd);
     session.addEventListener("select", this.handleSelect);
+    session.addEventListener("squeezestart", this.handleSqueezeStart);
+    session.addEventListener("squeezeend", this.handleSqueezeEnd);
+
+    // Depth sensing: disponibile solo se il runtime ha davvero concesso la feature.
+    this.depthSupported =
+      session.enabledFeatures?.includes("depth-sensing") === true &&
+      session.depthUsage === "gpu-optimized";
+    this.depthFormat = this.depthSupported ? session.depthDataFormat ?? null : null;
 
     try {
       await gl.makeXRCompatible();
@@ -374,9 +531,43 @@ export class XrPdfViewer {
     this.emitStatus();
   }
 
-  /** Riposiziona il pannello alla sinistra dello sguardo corrente. */
+  /** Riporta il pannello davanti allo sguardo, alla distanza di default. */
   recenter() {
-    this.placed = false;
+    this.panelPos = { ...HEAD_OFFSET_POS };
+    this.panelQuat = { ...HEAD_OFFSET_QUAT };
+    this.placed = false; // in modalità "fisso" viene ripiazzato al frame seguente
+    if (this.quad && this.anchor === "testa") {
+      this.quad.transform = new XRRigidTransform(this.panelPos, this.panelQuat);
+    }
+  }
+
+  get occlusionEnabled(): boolean {
+    return this.occlusionWanted && this.depthSupported;
+  }
+
+  get occlusionAvailable(): boolean {
+    return this.depthSupported;
+  }
+
+  /**
+   * Attiva/disattiva l'occlusione con il mondo reale.
+   *
+   * Cambia il percorso di rendering (quad layer ↔ projection layer), quindi ha
+   * effetto dalla sessione successiva: rifare il setup a sessione viva
+   * significherebbe ricreare binding, program e render state a caldo, con il
+   * rischio di perdere il frame loop.
+   */
+  setOcclusion(enabled: boolean) {
+    if (enabled === this.occlusionWanted) return;
+    this.occlusionWanted = enabled;
+    if (this.session) {
+      this.setNotice(
+        enabled
+          ? "Occlusione attiva al prossimo avvio della sessione"
+          : "Occlusione disattivata al prossimo avvio della sessione",
+      );
+    }
+    this.emitStatus();
   }
 
   get anchorMode(): XrAnchorMode {
@@ -395,6 +586,13 @@ export class XrPdfViewer {
       return;
     }
     this.anchor = mode;
+    // Le coordinate del pannello sono relative allo spazio di ancoraggio: dopo
+    // il cambio non sono più valide. Si riparte dalla posizione di default —
+    // davanti allo sguardo — che è l'esito prevedibile per chi preme il tasto.
+    this.panelPos = { ...HEAD_OFFSET_POS };
+    this.panelQuat = { ...HEAD_OFFSET_QUAT };
+    this.placed = false;
+    this.grab = null;
 
     const session = this.session;
     const canvas = this.composeCanvas;
@@ -430,14 +628,20 @@ export class XrPdfViewer {
       typeof XRWebGLBinding !== "undefined" &&
       (session.enabledFeatures ? session.enabledFeatures.includes("layers") : true);
 
-    if (layersEnabled) {
+    // Compromesso non aggirabile: un XRQuadLayer lo compone il runtime alla
+    // risoluzione nativa del display (testo nitido) ma non conosce la depth map,
+    // quindi resta sempre sopra al mondo reale. L'occlusione richiede di
+    // disegnare il pannello nel projection layer con il nostro shader.
+    const useOcclusion = this.occlusionWanted && this.depthSupported;
+
+    if (layersEnabled && !useOcclusion) {
       try {
         const binding = new XRWebGLBinding(session, gl);
         this.binding = binding;
         this.buildQuadLayer(session, canvas);
         return;
       } catch {
-        // Nessun supporto reale ai layer: si prosegue col fallback WebGL.
+        // Nessun supporto reale ai layer: si prosegue col percorso WebGL.
         this.binding = null;
         this.quad = null;
       }
@@ -445,6 +649,13 @@ export class XrPdfViewer {
 
     session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
     this.setupFallbackProgram(gl);
+    if (useOcclusion) {
+      try {
+        this.depthBinding = new XRWebGLBinding(session, gl);
+      } catch {
+        this.depthBinding = null;
+      }
+    }
   }
 
   /**
@@ -479,9 +690,10 @@ export class XrPdfViewer {
 
     this.quad = quad;
     if (this.anchor === "testa") {
-      // Offset costante nello spazio della testa: da qui in poi ci pensa il
-      // compositore a tenerlo incollato allo sguardo.
-      quad.transform = new XRRigidTransform(HEAD_OFFSET_POS, HEAD_OFFSET_QUAT);
+      // Offset nello spazio della testa (quello corrente, non il default: il
+      // pannello può essere già stato spostato). Da qui ci pensa il compositore
+      // a tenerlo incollato allo sguardo.
+      quad.transform = new XRRigidTransform(this.panelPos, this.panelQuat);
     } else {
       this.placed = false; // verrà piazzato al primo frame con una posa valida
     }
@@ -507,7 +719,7 @@ export class XrPdfViewer {
     const program = gl.createProgram();
     if (!program) throw new Error("Creazione program WebGL fallita.");
     const vs = compile(gl.VERTEX_SHADER, VERTEX_SRC);
-    const fs = compile(gl.FRAGMENT_SHADER, FRAGMENT_SRC);
+    const fs = compile(gl.FRAGMENT_SHADER, buildFragmentSource(this.depthFormat));
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
     gl.bindAttribLocation(program, 0, "aPos");
@@ -534,6 +746,12 @@ export class XrPdfViewer {
     this.vbo = vbo;
     this.texture = texture;
     this.uMvp = gl.getUniformLocation(program, "uMvp");
+    this.uModelView = gl.getUniformLocation(program, "uModelView");
+    this.uDepthTex = gl.getUniformLocation(program, "uDepthTex");
+    this.uDepthUvFromView = gl.getUniformLocation(program, "uDepthUvFromView");
+    this.uRawValueToMeters = gl.getUniformLocation(program, "uRawValueToMeters");
+    this.uOcclusionFlag = gl.getUniformLocation(program, "uOcclusion");
+    this.uDepthBias = gl.getUniformLocation(program, "uDepthBias");
   }
 
   /** Dimensiona il canvas di composizione sull'aspect della pagina PDF. */
@@ -619,7 +837,7 @@ export class XrPdfViewer {
     const hint =
       this.notice && performance.now() < this.noticeUntil
         ? this.notice
-        : `Stick ←/→ pagina · ↑/↓ zoom · click stick ${this.anchor === "testa" ? "fissa nella stanza" : "aggancia alla testa"} · B/Y reset zoom · grilletto pagina avanti`;
+        : `Stick ←/→ pagina · ↑/↓ zoom · grip sposta · A/X davanti a te · click stick ${this.anchor === "testa" ? "fissa nella stanza" : "aggancia alla testa"}`;
     ctx.fillText(hint, canvas.width - pad, y + barH / 2);
     ctx.textAlign = "left";
   }
@@ -657,6 +875,11 @@ export class XrPdfViewer {
       this.placed = true;
     }
 
+    if (pose) {
+      this.updateGrab(frame, pose);
+      this.resolveWorldTransform(pose);
+    }
+
     this.pollInput(session);
 
     if (this.notice && performance.now() >= this.noticeUntil) {
@@ -670,6 +893,138 @@ export class XrPdfViewer {
     } else if (pose) {
       this.renderFallback(session, gl, pose);
     }
+  };
+
+  /**
+   * Trasformazione del pannello nel mondo, ricalcolata a ogni frame.
+   *
+   * In modalità "testa" il pannello è definito nello spazio della testa, quindi
+   * la posizione nel mondo cambia a ogni movimento: serve comunque risolverla,
+   * sia per il rendering senza layer sia per capire dove punta il controller.
+   */
+  private resolveWorldTransform(pose: XRViewerPose) {
+    if (this.anchor !== "testa") {
+      this.worldPos = this.panelPos;
+      this.worldQuat = this.panelQuat;
+      return;
+    }
+    const head = pose.transform;
+    this.worldPos = transformPoint(head.matrix, this.panelPos);
+    // Il pannello resta verticale: basta comporre gli yaw invece di moltiplicare
+    // i quaternioni, e si evita che inclinando la testa il testo vada storto.
+    const panelYaw = yawFromQuaternion(this.panelQuat as unknown as DOMPointReadOnly);
+    this.worldQuat = quaternionFromYaw(yawFromQuaternion(head.orientation) + panelYaw);
+  }
+
+  // ── Trascinamento con il controller ────────────────────────────────────────
+
+  /** Interseca il raggio del controller con il pannello; null se non lo colpisce. */
+  private rayHitDistance(origin: Vec3, direction: Vec3): number | null {
+    const normal = rotateByQuat({ x: 0, y: 0, z: 1 }, this.worldQuat);
+    const denom = normal.x * direction.x + normal.y * direction.y + normal.z * direction.z;
+    if (Math.abs(denom) < 1e-5) return null; // raggio parallelo al pannello
+
+    const toPanel = {
+      x: this.worldPos.x - origin.x,
+      y: this.worldPos.y - origin.y,
+      z: this.worldPos.z - origin.z,
+    };
+    const t = (normal.x * toPanel.x + normal.y * toPanel.y + normal.z * toPanel.z) / denom;
+    if (t <= 0) return null; // pannello dietro al controller
+
+    const hit = {
+      x: origin.x + direction.x * t,
+      y: origin.y + direction.y * t,
+      z: origin.z + direction.z * t,
+    };
+    const local = rotateByQuat(
+      { x: hit.x - this.worldPos.x, y: hit.y - this.worldPos.y, z: hit.z - this.worldPos.z },
+      { x: -this.worldQuat.x, y: -this.worldQuat.y, z: -this.worldQuat.z, w: this.worldQuat.w },
+    );
+
+    const height = PANEL_HEIGHT_M * this.zoom;
+    const halfH = height / 2;
+    const halfW = (height * this.textureAspect) / 2;
+    if (Math.abs(local.x) > halfW || Math.abs(local.y) > halfH) return null;
+    return t;
+  }
+
+  /** Aggiorna la posizione del pannello mentre è trascinato dal controller. */
+  private updateGrab(frame: XRFrame, pose: XRViewerPose) {
+    const grab = this.grab;
+    const refSpace = this.refSpace;
+    if (!grab || !refSpace) return;
+
+    const rayPose = frame.getPose(grab.source.targetRaySpace, refSpace);
+    if (!rayPose) return;
+
+    const origin = rayPose.transform.position;
+    // Il raggio del target ray space punta lungo -Z.
+    const direction = transformDirection(rayPose.transform.matrix, { x: 0, y: 0, z: -1 });
+
+    const world = {
+      x: origin.x + direction.x * grab.distance,
+      y: origin.y + direction.y * grab.distance,
+      z: origin.z + direction.z * grab.distance,
+    };
+    // Il pannello guarda sempre chi lo sta spostando: trascinandolo di lato
+    // resterebbe altrimenti di taglio e illeggibile.
+    const headPos = pose.transform.position;
+    const worldQuat = quaternionFromYaw(
+      yawFacing(world, { x: headPos.x, y: headPos.y, z: headPos.z }),
+    );
+
+    this.setWorldTransform(world, worldQuat, pose);
+  }
+
+  /** Scrive una trasformazione mondo riportandola nello spazio di ancoraggio. */
+  private setWorldTransform(world: Vec3, worldQuat: Quat, pose: XRViewerPose) {
+    this.worldPos = world;
+    this.worldQuat = worldQuat;
+
+    if (this.anchor === "testa") {
+      this.panelPos = transformPoint(pose.transform.inverse.matrix, world);
+      this.panelQuat = quaternionFromYaw(
+        yawFromQuaternion(worldQuat as unknown as DOMPointReadOnly) -
+          yawFromQuaternion(pose.transform.orientation),
+      );
+      if (this.quad) this.quad.transform = new XRRigidTransform(this.panelPos, this.panelQuat);
+    } else {
+      this.panelPos = world;
+      this.panelQuat = worldQuat;
+      this.placed = true;
+      if (this.quad) this.quad.transform = new XRRigidTransform(this.panelPos, this.panelQuat);
+    }
+  }
+
+  private handleSqueezeStart = (event: XRInputSourceEvent) => {
+    if (this.grab) return;
+    const refSpace = this.refSpace;
+    const frame = event.frame;
+    if (!refSpace || !frame) return;
+
+    const rayPose = frame.getPose(event.inputSource.targetRaySpace, refSpace);
+    if (!rayPose) return;
+
+    const origin = rayPose.transform.position;
+    const direction = transformDirection(rayPose.transform.matrix, { x: 0, y: 0, z: -1 });
+    const distance = this.rayHitDistance({ x: origin.x, y: origin.y, z: origin.z }, direction);
+    if (distance === null) {
+      this.setNotice("Punta il pannello e tieni premuto il grip per spostarlo");
+      return;
+    }
+
+    this.grab = {
+      source: event.inputSource,
+      distance: Math.min(GRAB_DISTANCE_MAX_M, Math.max(GRAB_DISTANCE_MIN_M, distance)),
+    };
+    this.setNotice("Pannello agganciato: muovi il controller");
+  };
+
+  private handleSqueezeEnd = (event: XRInputSourceEvent) => {
+    if (this.grab?.source !== event.inputSource) return;
+    this.grab = null;
+    this.setNotice("Pannello posizionato");
   };
 
   private placePanel(pose: XRViewerPose) {
@@ -708,6 +1063,9 @@ export class XrPdfViewer {
     this.textureDirty = false;
   }
 
+  // Nota: la depth map GPU si chiede al binding con la sola vista
+  // (`XRWebGLBinding.getDepthInformation(view)`); l'XRFrame serve solo al
+  // percorso CPU, qui non usato.
   private renderFallback(
     session: XRSession,
     gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -727,15 +1085,9 @@ export class XrPdfViewer {
     const height = PANEL_HEIGHT_M * this.zoom;
     const halfW = (height * this.textureAspect) / 2;
     const halfH = height / 2;
-
-    if (this.anchor === "testa") {
-      // Senza layers la testa va inseguita a mano: l'offset è espresso nello
-      // spazio della testa, quindi la matrice mondo è posa_testa × offset.
-      composeModelMatrix(this.localMatrix, HEAD_OFFSET_POS, HEAD_OFFSET_QUAT, halfW, halfH);
-      mat4Multiply(this.modelMatrix, pose.transform.matrix, this.localMatrix);
-    } else {
-      composeModelMatrix(this.modelMatrix, this.panelPos, this.panelQuat, halfW, halfH);
-    }
+    // worldPos/worldQuat sono già risolti per questo frame (anche in modalità
+    // "testa", dove derivano dalla posa della testa).
+    composeModelMatrix(this.modelMatrix, this.worldPos, this.worldQuat, halfW, halfH);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, baseLayer.framebuffer);
     gl.clearColor(0, 0, 0, 0);
@@ -748,14 +1100,49 @@ export class XrPdfViewer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.uniform1i(this.uDepthTex, 1);
+    gl.uniform1f(this.uDepthBias, OCCLUSION_BIAS_M);
+
+    const wantsOcclusion = this.occlusionWanted && this.depthBinding !== null;
 
     for (const view of pose.views) {
       const viewport = baseLayer.getViewport(view);
       if (!viewport) continue;
       gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
       mat4Multiply(this.viewProjMatrix, view.projectionMatrix, view.transform.inverse.matrix);
       mat4Multiply(this.mvpMatrix, this.viewProjMatrix, this.modelMatrix);
+      mat4Multiply(this.modelViewMatrix, view.transform.inverse.matrix, this.modelMatrix);
       gl.uniformMatrix4fv(this.uMvp, false, this.mvpMatrix);
+      gl.uniformMatrix4fv(this.uModelView, false, this.modelViewMatrix);
+
+      // La depth map è per vista (una per occhio) e va richiesta a ogni frame.
+      let depth: XRWebGLDepthInformation | null = null;
+      if (wantsOcclusion) {
+        try {
+          depth = this.depthBinding!.getDepthInformation(view) ?? null;
+        } catch {
+          depth = null;
+        }
+      }
+
+      if (depth) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, depth.texture);
+        gl.uniformMatrix4fv(this.uDepthUvFromView, false, depth.normDepthBufferFromNormView.matrix);
+        gl.uniform1f(this.uRawValueToMeters, depth.rawValueToMeters);
+        gl.uniform1f(this.uOcclusionFlag, 1);
+        gl.activeTexture(gl.TEXTURE0);
+      } else {
+        gl.uniform1f(this.uOcclusionFlag, 0);
+        // Il sampler resta dichiarato anche senza occlusione: va comunque
+        // legato a una texture completa, altrimenti alcuni driver segnalano
+        // l'unità incompleta a ogni draw.
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.activeTexture(gl.TEXTURE0);
+      }
+
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
@@ -807,20 +1194,15 @@ export class XrPdfViewer {
 
   private onButtonDown(index: number) {
     switch (index) {
-      case 1: // squeeze / grip
-        this.setPage(this.page - 1);
-        break;
+      // L'indice 1 (grip) non pagina più: tenuto premuto trascina il pannello,
+      // gestito dagli eventi squeezestart/squeezeend. La pagina precedente resta
+      // sullo stick ←.
       case 3: // click dello stick
         this.toggleAnchor();
         break;
       case 4: // A / X
-        if (this.anchor === "testa") {
-          // Già solidale alla testa: non c'è niente da ricentrare.
-          this.setNotice("Il pannello segue già la testa (stick premuto per fissarlo)");
-        } else {
-          this.recenter();
-          this.setNotice("Pannello ricentrato");
-        }
+        this.recenter();
+        this.setNotice("Pannello riportato davanti a te");
         break;
       case 5: // B / Y
         this.setZoom(1);
@@ -841,6 +1223,8 @@ export class XrPdfViewer {
     if (session) {
       session.removeEventListener("end", this.handleSessionEnd);
       session.removeEventListener("select", this.handleSelect);
+      session.removeEventListener("squeezestart", this.handleSqueezeStart);
+      session.removeEventListener("squeezeend", this.handleSqueezeEnd);
     }
     const gl = this.gl;
     if (gl) {
@@ -858,6 +1242,10 @@ export class XrPdfViewer {
     this.texture = null;
     this.refSpace = null;
     this.viewerSpace = null;
+    this.depthBinding = null;
+    this.depthSupported = false;
+    this.depthFormat = null;
+    this.grab = null;
     this.stickLatch.clear();
     this.buttonLatch.clear();
     this.emitStatus();
@@ -873,6 +1261,8 @@ export class XrPdfViewer {
       label: this.doc?.label ?? "",
       zoom: this.zoom,
       anchor: this.anchor,
+      occlusion: this.occlusionEnabled,
+      occlusionAvailable: this.depthSupported,
       notice: this.notice ?? undefined,
     });
   }
