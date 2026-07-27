@@ -60,6 +60,7 @@ export default function XrPrototipoPage() {
 
   const [xrStatus, setXrStatus] = useState<XrViewerStatus | null>(null);
   const [scansioneContinua, setScansioneContinua] = useState(true);
+  const [occlusione, setOcclusione] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installata, setInstallata] = useState(false);
 
@@ -275,6 +276,8 @@ export default function XrPrototipoPage() {
       },
     });
     viewerRef.current = viewer;
+    // Va deciso prima di start(): l'occlusione cambia il percorso di rendering.
+    viewer.setOcclusion(occlusione);
 
     // Nessun await prima di requestSession: la user activation del click va preservata.
     viewer
@@ -286,7 +289,7 @@ export default function XrPrototipoPage() {
         setErrore(message);
         notify.error(message);
       });
-  }, [asset, avviaScansioneContinua, documentoAttivo]);
+  }, [asset, avviaScansioneContinua, documentoAttivo, occlusione]);
 
   const esciDaXr = useCallback(() => {
     void viewerRef.current?.stop();
@@ -443,6 +446,24 @@ export default function XrPrototipoPage() {
             </span>
           </label>
 
+          <label style={S.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={occlusione}
+              onChange={(e) => setOcclusione(e.target.checked)}
+              disabled={inSessione}
+            />
+            <span>
+              <Glasses size={14} style={{ verticalAlign: "-2px" }} /> Il pannello passa dietro mani e
+              oggetti reali (occlusione dalla depth map del visore).
+              <span style={{ display: "block", color: "var(--text-muted)", fontSize: 12, marginTop: 3 }}>
+                Disattivandola il testo è più nitido: senza occlusione il pannello può usare il
+                compositore del visore (WebXR Layers), che campiona la texture alla risoluzione
+                nativa del display. Con l&apos;occlusione il disegno passa dal nostro shader.
+              </span>
+            </span>
+          </label>
+
           {!inSessione ? (
             <button onClick={entraInXr} style={S.primaryButton} disabled={!xrPronto}>
               <Glasses size={18} /> Entra in XR
@@ -458,6 +479,14 @@ export default function XrPrototipoPage() {
                 <code style={S.code}>
                   {xrStatus?.anchor === "fisso" ? "fissa nella stanza" : "segue la testa"}
                 </code>
+                {" · occlusione "}
+                <code style={S.code}>
+                  {xrStatus?.occlusion
+                    ? "attiva"
+                    : xrStatus?.occlusionAvailable
+                      ? "disattivata"
+                      : "non disponibile"}
+                </code>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
@@ -466,6 +495,13 @@ export default function XrPrototipoPage() {
                   title="Click dello stick nel visore"
                 >
                   {xrStatus?.anchor === "fisso" ? "Aggancia alla testa" : "Fissa nella stanza"}
+                </button>
+                <button
+                  onClick={() => viewerRef.current?.recenter()}
+                  style={S.secondaryButton}
+                  title="Tasto A/X nel visore"
+                >
+                  Riporta davanti
                 </button>
                 <button onClick={esciDaXr} style={S.dangerButton}>
                   <X size={16} /> Termina sessione
@@ -507,7 +543,13 @@ function CapabilityPanel({ caps }: { caps: XrCapabilities | null }) {
     { label: "WebXR", ok: caps.webxr },
     { label: "Sessione immersive-ar", ok: caps.immersiveAr },
     { label: "WebXR Layers", ok: caps.layers, nota: "testo nitido; senza layer si usa il fallback WebGL" },
-    { label: "BarcodeDetector (QR)", ok: caps.barcodeDetector, nota: "senza, resta l'inserimento manuale" },
+    {
+      label: `Decodifica QR (${caps.barcodeDetector ? "nativa" : "jsQR"})`,
+      ok: true,
+      nota: caps.barcodeDetector
+        ? "BarcodeDetector nativo del browser"
+        : "il browser non espone BarcodeDetector: si usa il decoder JavaScript jsQR",
+    },
   ];
   return (
     <div style={S.capsRow}>
@@ -552,9 +594,9 @@ function ControlsLegend() {
     ["Stick ← / →", "pagina precedente / successiva"],
     ["Stick ↑ / ↓", "ingrandisci / rimpicciolisci il pannello"],
     ["Grilletto", "pagina successiva"],
-    ["Grip laterale", "pagina precedente"],
+    ["Grip tenuto premuto", "punta il pannello e trascinalo dove vuoi"],
     ["Click dello stick", "aggancia alla testa / fissa nella stanza"],
-    ["A / X", "riporta il pannello alla sinistra dello sguardo (solo se fisso)"],
+    ["A / X", "riporta il pannello davanti a te"],
     ["B / Y", "zoom al 100%"],
   ];
   return (

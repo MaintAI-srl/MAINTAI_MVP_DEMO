@@ -29,6 +29,10 @@ Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni →
    - QR asset generati da `backend/services/qr_service.py` (`<app>/asset?id=<n>`);
    - QR pubblici del check di primo livello (`<app>/check/<token>`);
    - codice asset o ID digitato a mano (fallback se manca `BarcodeDetector`).
+   La decodifica passa da `frontend/app/lib/qrDecode.ts`: usa `BarcodeDetector` se il
+   browser lo espone, altrimenti **jsQR**. Il fallback non è teorico — il browser del Meta
+   Quest non implementa `BarcodeDetector`, quindi sul visore non veniva letto **nessun QR**
+   e restava solo l'inserimento manuale del codice.
 3. Scelta del PDF fra i documenti dell'asset (`GET /assets/{id}/documenti`, filtrati per PDF).
    Con un solo PDF il passaggio è automatico.
 4. La prima pagina viene rasterizzata **prima** di entrare in XR: serve per l'anteprima e
@@ -37,7 +41,40 @@ Modulo: `xr_viewer` — **attivo di default**, si disattiva da *Impostazioni →
    sinistra rispetto allo sguardo, **agganciato alla testa**: si muove con lo sguardo e
    resta sempre nello stesso punto del campo visivo.
 
-## 1-bis. Ancoraggio della sovraimpressione
+## 1-bis. Posizione, movimento e occlusione
+
+Il pannello parte **centrato davanti allo sguardo** (`PANEL_YAW_DEG = 0`). Prima partiva
+a 38° a sinistra: sul visore finiva ai margini del campo visivo o fuori, e non c'era modo
+di riportarlo davanti.
+
+**Spostarlo:** punta il pannello col controller e tieni premuto il **grip**. Il pannello
+segue il raggio alla distanza a cui l'hai agganciato e ruota per restare rivolto verso di
+te (trascinandolo di lato resterebbe altrimenti di taglio e illeggibile). **A / X** lo
+riporta davanti.
+
+**Occlusione con il mondo reale:** con il modulo WebXR *depth sensing* il pannello passa
+**dietro** mani e oggetti invece di coprirli. Il fragment shader confronta la profondità
+del frammento con la distanza reale misurata dal visore in quel punto e scarta ciò che sta
+dietro, con un margine di 5 cm (`OCCLUSION_BIAS_M`) perché la depth map è a bassa
+risoluzione e rumorosa sui bordi.
+
+> **Compromesso non aggirabile.** Un `XRQuadLayer` lo compone il runtime alla risoluzione
+> nativa del display — è ciò che rende il testo leggibile — ma non conosce la depth map,
+> quindi resta sempre sopra al mondo reale. L'occlusione richiede di disegnare il pannello
+> nel projection layer con il nostro shader, che è più morbido. La scelta è esposta come
+> spunta in pagina: attiva di default (occlusione), togliendola si torna al testo più
+> nitido. Cambia il percorso di rendering, quindi ha effetto dall'avvio sessione successivo.
+
+Il formato della depth map cambia per dispositivo e la variante di shader viene scelta a
+compile-time (`buildFragmentSource`): `luminance-alpha` (intero a 16 bit spezzato su due
+canali da 8) oppure `float32` (metri già pronti nel canale rosso).
+
+`depth-sensing` viene richiesto **solo** se l'occlusione è spuntata: se un runtime
+rifiutasse la sessione per via di quella feature, basta togliere la spunta per rientrare in
+XR. Un retry automatico non sarebbe affidabile — dopo un `await` la user activation
+richiesta da `requestSession` è persa.
+
+### Ancoraggio
 
 Due modalità, commutabili con il **click dello stick** (o dal pulsante in pagina):
 
@@ -65,9 +102,9 @@ Note implementative:
 | Stick ← / → | pagina precedente / successiva |
 | Stick ↑ / ↓ | ingrandisci / rimpicciolisci il pannello (0,55× – 2,6×) |
 | Grilletto | pagina successiva |
-| Grip laterale | pagina precedente |
+| Grip tenuto premuto | punta il pannello e trascinalo dove vuoi |
 | Click dello stick | aggancia alla testa / fissa nella stanza |
-| A / X | riporta il pannello alla sinistra dello sguardo (solo in modalità `fisso`) |
+| A / X | riporta il pannello davanti a te |
 | B / Y | zoom al 100% |
 
 La barra in basso sul pannello mostra asset, documento, pagina corrente e i comandi.
@@ -192,6 +229,9 @@ codice.
   proporzioni diverse viene incorniciato (letterbox) invece di ridimensionare il pannello.
 - Nessun ancoraggio spaziale (`anchors`): in modalità `fisso` il pannello resta fermo
   rispetto allo spazio di riferimento della sessione, non rispetto alla macchina.
+- L'occlusione dipende dalla depth map del visore: bassa risoluzione, quindi il bordo fra
+  pannello e mano è approssimato di qualche centimetro. Se il visore non espone
+  `depth-sensing` la UI lo dichiara e il pannello resta sopra al mondo reale.
 - L'ancoraggio `testa` è rigido (segue anche inclinazione e rollio della testa, come ogni
   HUD). Un inseguimento "morbido" — zona morta più smorzamento, che lascia scorrere la
   pagina con gli occhi prima di trascinare il pannello — è un'aggiunta naturale se alla
