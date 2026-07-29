@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { createQrDecoder, qrDecodingAvailable } from "../lib/qrDecode";
+import { useT } from "@/app/lib/i18n";
 
 interface QrScannerProps {
   onScan: (value: string) => void;
@@ -17,6 +18,7 @@ export default function QrScanner({
   title = "Scansiona QR",
   subtitle = "Inquadra il QR code dell'asset",
 }: QrScannerProps) {
+  const tr = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
@@ -279,7 +281,7 @@ export default function QrScanner({
             fontWeight: 700,
           }}
         >
-          ← Annulla
+          {tr("← Annulla")}
         </button>
         <span
           style={{
@@ -365,7 +367,7 @@ export default function QrScanner({
               marginBottom: 10,
             }}
           >
-            Codice asset (dal QR o dall&apos;etichetta):
+            {tr("Codice asset (dal QR o dall'etichetta):")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <input
@@ -374,7 +376,7 @@ export default function QrScanner({
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleManualSubmit();
               }}
-              placeholder="Es. POMPA-001 oppure 42"
+              placeholder={tr("Es. POMPA-001 oppure 42")}
               autoFocus
               style={{
                 flex: 1,
@@ -402,7 +404,7 @@ export default function QrScanner({
                 transition: "all 0.15s",
               }}
             >
-              OK
+              {tr("OK")}
             </button>
           </div>
         </div>

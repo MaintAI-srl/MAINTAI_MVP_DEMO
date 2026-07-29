@@ -53,6 +53,8 @@ interface TecnicoAPI {
 }
 
 import { createContext, useContext } from "react";
+import { useT, tn } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 
 // ─── Costanti Gantt ───────────────────────────────────────────────────────────
 
@@ -266,6 +268,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
   onTicketClick: (t: TicketData) => void;
   onHover?: (t: TicketData | null, e?: React.MouseEvent) => void;
 }) {
+  const tr = useT();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `t-${ticket.id}`,
     data: { ticket },
@@ -293,7 +296,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
 
   // LED giallo lampeggiante (in corso) — angolo in alto a destra del blocco.
   const led = inProgress ? (
-    <span aria-label="In corso" style={{
+    <span aria-label={tr("In corso")} style={{
       position: "absolute", top: 4, right: 5, width: 9, height: 9, borderRadius: "50%",
       background: "#facc15", boxShadow: "0 0 7px 1px rgba(250,204,21,0.85)",
       animation: "blinkLed 1s ease-in-out infinite", zIndex: 3, pointerEvents: "none",
@@ -301,15 +304,15 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
   ) : null;
 
   const stateTag = isSupport
-    ? <span style={{ fontSize: 8, fontWeight: 900, color: "#475569", background: "rgba(148,163,184,0.22)", border: "1px solid rgba(148,163,184,0.5)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>SUPPORTO</span>
+    ? <span style={{ fontSize: 8, fontWeight: 900, color: "#475569", background: "rgba(148,163,184,0.22)", border: "1px solid rgba(148,163,184,0.5)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>{tr("SUPPORTO")}</span>
     : inProgress
-      ? <span style={{ fontSize: 8, fontWeight: 900, color: "#a16207", background: "rgba(250,204,21,0.18)", border: "1px solid rgba(234,179,8,0.55)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>IN CORSO</span>
+      ? <span style={{ fontSize: 8, fontWeight: 900, color: "#a16207", background: "rgba(250,204,21,0.18)", border: "1px solid rgba(234,179,8,0.55)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>{tr("IN CORSO")}</span>
       : locked
-        ? <span style={{ fontSize: 8, fontWeight: 900, color: "#475569", background: "rgba(148,163,184,0.2)", border: "1px solid rgba(148,163,184,0.5)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>🔒 CHIUSO</span>
+        ? <span style={{ fontSize: 8, fontWeight: 900, color: "#475569", background: "rgba(148,163,184,0.2)", border: "1px solid rgba(148,163,184,0.5)", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.06em", flexShrink: 0 }}>{tr("🔒 CHIUSO")}</span>
         : null;
 
   const supportBadge = hasSupport && !isSupport ? (
-    <span title="Intervento con tecnico di supporto" style={{
+    <span title={tr("Intervento con tecnico di supporto")} style={{
       fontSize: 8, fontWeight: 900, color: "#1d4ed8", background: "rgba(59,130,246,0.14)",
       border: "1px solid rgba(59,130,246,0.5)", padding: "1px 5px", borderRadius: 999,
       letterSpacing: "0.04em", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 2,
@@ -321,7 +324,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
       fontSize: 8, fontWeight: 900, color: "#fbbf24", background: "rgba(245,158,11,0.16)",
       border: "1px solid rgba(245,158,11,0.65)", padding: "1px 5px", borderRadius: 4,
       letterSpacing: "0.06em", flexShrink: 0,
-    }}>SPOSTATO</span>
+    }}>{tr("SPOSTATO")}</span>
   ) : null;
 
   if (view === "day") {
@@ -446,6 +449,7 @@ const TicketBlock = memo(function TicketBlock({ ticket, view, onTicketClick, onH
 // ─── UnscheduledItem (sidebar sinistra, draggabile) ───────────────────────────
 
 const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick, postposto, postposeReason }: { ticket: TicketData; onTicketClick: (t: TicketData) => void; postposto?: boolean; postposeReason?: string }) {
+  const tr = useT();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `t-${ticket.id}`,
     data: { ticket },
@@ -481,8 +485,8 @@ const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick, p
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
         <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}22`, border: `1px solid ${s.border}44`, padding: "1px 5px", borderRadius: 4 }}>{ticket.tipo}</span>
         {postposto
-          ? <span style={{ fontSize: 9, fontWeight: 900, color: "#fca5a5", background: "rgba(239,68,68,0.16)", border: "1px solid rgba(239,68,68,0.6)", padding: "1px 6px", borderRadius: 4, letterSpacing: "0.06em" }}>RIMANDATO</span>
-          : <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>}
+          ? <span style={{ fontSize: 9, fontWeight: 900, color: "#fca5a5", background: "rgba(239,68,68,0.16)", border: "1px solid rgba(239,68,68,0.6)", padding: "1px 6px", borderRadius: 4, letterSpacing: "0.06em" }}>{tr("RIMANDATO")}</span>
+          : <span style={{ fontSize: 9, color: prioColor }}>● {labelPriorita(ticket.priorita)}</span>}
       </div>
       <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{ticket.titolo}</div>
       <div style={{ fontSize: 10, color: "rgba(100,116,139,0.8)" }}>{ticket.durata_stimata_ore || 1}h · {ticket.asset_name || "—"}</div>
@@ -493,6 +497,7 @@ const UnscheduledItem = memo(function UnscheduledItem({ ticket, onTicketClick, p
 // ─── TecnicoLabel ─────────────────────────────────────────────────────────────
 
 const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity, rowIdx = 0 }: { tecnico: TecnicoData; capacity?: { capacity: number; assigned: number; remaining: number }; rowIdx?: number }) {
+  const tr = useT();
   const operativo = isTecnicoOperativo(tecnico);
   const cap = capacity?.capacity ?? (operativo ? Number(tecnico.ore_giornaliere || 8) : 0);
   const remaining = capacity?.remaining ?? cap;
@@ -522,7 +527,7 @@ const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity, rowIdx = 0 
             background: remaining > 0 ? "rgba(31,232,255,0.08)" : "rgba(224,82,82,0.13)",
             borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap",
           }}>
-            {remaining.toFixed(1)}h libere
+            {tr("{ore}h libere", { ore: remaining.toFixed(1) })}
           </div>
         </div>
         <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -556,7 +561,7 @@ const TecnicoLabel = memo(function TecnicoLabel({ tecnico, capacity, rowIdx = 0 
               ? tecnico.assenza_corrente.tipo_assenza
               : (tecnico.stato && tecnico.stato !== "in servizio" && tecnico.stato !== "in_servizio")
                 ? tecnico.stato
-                : "Non disponibile"}
+                : tr("Non disponibile")}
           </div>
         )}
       </div>
@@ -570,6 +575,7 @@ const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, drag
   tecnico: TecnicoData; tickets: TicketData[]; assignedHours: AssignedHoursMap; day: Date; draggingTicket: TicketData | null;
   onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void; rowIdx?: number;
 }) {
+  const tr = useT();
   const dateStr = format(day, "yyyy-MM-dd");
   const { setNodeRef, isOver } = useDroppable({
     id: `row-${tecnico.id}-${dateStr}`,
@@ -619,7 +625,7 @@ const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, drag
             animation: "pulse 1s ease-in-out infinite",
             pointerEvents: "none",
           }}>
-            {dropCap.canAccept ? `↓ Rilascia qui · ${dropCap.remaining.toFixed(1)}h libere` : !dropCap.operativo ? "✕ Non disponibile" : `✕ Capienza insufficiente (${dropCap.remaining.toFixed(1)}h)`}
+            {dropCap.canAccept ? tr("↓ Rilascia qui · {ore}h libere", { ore: dropCap.remaining.toFixed(1) }) : !dropCap.operativo ? tr("✕ Non disponibile") : tr("✕ Capienza insufficiente ({ore}h)", { ore: dropCap.remaining.toFixed(1) })}
           </div>
         )}
         {dayTickets.map((t) => {
@@ -649,7 +655,7 @@ const DayRow = memo(function DayRow({ tecnico, tickets, assignedHours, day, drag
                   if (!a.data_inizio || !a.data_fine) return false;
                   return dateStr >= a.data_inizio.split("T")[0] && dateStr <= a.data_fine.split("T")[0];
                 });
-                return assenza?.tipo_assenza ?? tecnico.stato ?? "Non disponibile";
+                return assenza?.tipo_assenza ?? tecnico.stato ?? tr("Non disponibile");
               })()}
             </span>
           </div>
@@ -665,6 +671,7 @@ const DayCell = memo(function DayCell({ tecnico, date, tickets, assignedHours, d
   tecnico: TecnicoData; date: string; tickets: TicketData[]; assignedHours: AssignedHoursMap; draggingTicket: TicketData | null;
   onTicketClick: (t: TicketData) => void; onHover: (t: TicketData | null, e?: React.MouseEvent) => void; cellW: number;
 }) {
+  const tr = useT();
   const { setNodeRef, isOver } = useDroppable({
     id: `cell-${tecnico.id}-${date}`,
     data: { tecnico_id: tecnico.id, date },
@@ -735,10 +742,10 @@ const DayCell = memo(function DayCell({ tecnico, date, tickets, assignedHours, d
           pointerEvents: "none", lineHeight: 1.35, flexShrink: 0,
         }}>
           {dropCap.canAccept
-            ? <>↓ Rilascia qui<br />{dropCap.remaining.toFixed(1)}h libere</>
+            ? <>{tr("↓ Rilascia qui")}<br />{tr("{ore}h libere", { ore: dropCap.remaining.toFixed(1) })}</>
             : !dropCap.operativo
-              ? "✕ Non disponibile"
-              : <>✕ Capienza piena<br />{dropCap.remaining.toFixed(1)}h libere</>}
+              ? tr("✕ Non disponibile")
+              : <>{tr("✕ Capienza piena")}<br />{tr("{ore}h libere", { ore: dropCap.remaining.toFixed(1) })}</>}
         </div>
       )}
       {tickets.map((t) => <TicketBlock key={t.gantt_key ?? t.id} ticket={t} view="week" onTicketClick={onTicketClick} onHover={onHover} />)}
@@ -813,7 +820,7 @@ function DragGhostCard({ ticket }: { ticket: TicketData }) {
           {ticket.tipo} · #{ticket.id}
         </span>
         <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 700, textTransform: "uppercase", color: prioColor, background: `${prioColor}15`, border: `1px solid ${prioColor}30` }}>
-          {ticket.priorita}
+          {labelPriorita(ticket.priorita)}
         </span>
         <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", fontWeight: 700 }}>
           {ticketHours(ticket)}h
@@ -879,6 +886,7 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
   onSave: (ticketId: number, tecnicoId: number, data: string, start: string, finish: string, tecnicoSupportoId: number | null) => void;
   onClose: () => void;
 }) {
+  const tr = useT();
   const todayStr = localDateStr();
   const [tecnicoId, setTecnicoId] = useState<number>(
     defaultTecnicoId ?? ticket.tecnico_id ?? (tecnici.find(t => isTecnicoOperativo(t)) ?? tecnici[0])?.id ?? 0
@@ -943,51 +951,51 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
           zIndex: 9999,
         }}
       >
-        <button onClick={onClose} aria-label="Chiudi" style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 8, color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, zIndex: 2 }}>×</button>
+        <button onClick={onClose} aria-label={tr("Chiudi")} style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: 8, color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, zIndex: 2 }}>×</button>
         <div style={{ padding: "24px 28px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--cobalt)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Pianifica intervento</div>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--cobalt)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{tr("Pianifica intervento")}</div>
           <div style={{ color: "var(--text-primary)", fontSize: 18, fontWeight: 800, paddingRight: 28 }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: s.text, background: `${s.border}1f`, border: `1px solid ${s.border}66`, padding: "2px 7px", borderRadius: 5, marginRight: 8 }}>{ticket.tipo}</span>
             #{ticket.id} — {ticket.titolo}
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Durata stimata: {durata}h · {ticket.asset_name ?? "—"}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>{tr("Durata stimata:")} {durata}h · {ticket.asset_name ?? "—"}</div>
         </div>
 
         <div style={{ flex: 1, padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
           <div>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO ASSEGNATO</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>{tr("TECNICO ASSEGNATO")}</label>
             <select value={tecnicoId} onChange={(e) => setTecnicoId(Number(e.target.value))} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
               {tecnici.map((t) => (
                 <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t, data)}>
-                  {t.nome} {t.cognome ?? ""} · {isTecnicoOperativo(t, data) ? `${t.ore_giornaliere || 8}h/gg` : `non disponibile`}
+                  {t.nome} {t.cognome ?? ""} · {isTecnicoOperativo(t, data) ? `${t.ore_giornaliere || 8}h/gg` : tr("non disponibile")}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>TECNICO DI SUPPORTO (opzionale)</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>{tr("TECNICO DI SUPPORTO (opzionale)")}</label>
             <select value={tecnicoSupportoId} onChange={(e) => setTecnicoSupportoId(Number(e.target.value))} style={{ width: "100%", background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14 }}>
-              <option value={0}>Nessuno</option>
+              <option value={0}>{tr("Nessuno")}</option>
               {tecnici.filter(t => t.id !== tecnicoId).map((t) => (
                 <option key={t.id} value={t.id} disabled={!isTecnicoOperativo(t, data)}>
-                  {t.nome} {t.cognome ?? ""} {isTecnicoOperativo(t, data) ? "" : "· non disponibile"}
+                  {t.nome} {t.cognome ?? ""} {isTecnicoOperativo(t, data) ? "" : tr("· non disponibile")}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>DATA</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6, fontWeight: 700, letterSpacing: "0.05em" }}>{tr("DATA")}</label>
             <input type="date" value={data} min={todayStr} onChange={(e) => setData(e.target.value < todayStr ? todayStr : e.target.value)} style={{ width: "100%", background: "var(--surface-1)", border: `1px solid ${isPast ? "var(--text-danger)" : "var(--border-default)"}`, color: "var(--text-primary)", borderRadius: 8, padding: "10px 12px", fontSize: 14, boxSizing: "border-box" }} />
-            {isPast && <div style={{ fontSize: 11, color: "var(--text-danger)", marginTop: 6, fontWeight: 600 }}>Non è possibile pianificare in una data passata.</div>}
+            {isPast && <div style={{ fontSize: 11, color: "var(--text-danger)", marginTop: 6, fontWeight: 600 }}>{tr("Non è possibile pianificare in una data passata.")}</div>}
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>ORA INIZIO</label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 700, letterSpacing: "0.05em" }}>{tr("ORA INIZIO")}</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               <input type="time" value={oraInizio} step={1800} onChange={(e) => setOraInizio(e.target.value || "08:00")} style={{ background: "var(--surface-1)", border: "1px solid var(--border-default)", color: "var(--text-primary)", borderRadius: 8, padding: "8px 10px", fontSize: 14 }} />
-              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>→ fine {oraFineLabel}</span>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>{tr("→ fine")} {oraFineLabel}</span>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {SLOT_PRESETS.map((p) => (
@@ -998,7 +1006,7 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
             </div>
             {fineOltreGiornata && !conflict && (
               <div style={{ fontSize: 11, color: "var(--text-warning)", marginTop: 8, fontWeight: 600 }}>
-                L&apos;intervento supera l&apos;orario di fine giornata ({decToHHMM(DAY_END_H)}).
+                {tr("L'intervento supera l'orario di fine giornata (")}{decToHHMM(DAY_END_H)}).
               </div>
             )}
           </div>
@@ -1006,24 +1014,24 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
           {conflict && (
             <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 12, color: "var(--text-danger)", fontWeight: 700, marginBottom: 4 }}>
-                ⚠ Sovrapposizione con un&apos;altra attività ({conflict.who === "supporto" ? "tecnico di supporto" : "tecnico assegnato"}).
+                {tr("⚠ Sovrapposizione con un'altra attività (")}{conflict.who === "supporto" ? tr("tecnico di supporto") : tr("tecnico assegnato")}).
               </div>
               {conflict.suggestion ? (
                 <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                  Primo orario utile per questo giorno:{" "}
+                  {tr("Primo orario utile per questo giorno:")}{" "}
                   <button onClick={() => setOraInizio(conflict.suggestion!)} style={{ background: "var(--cobalt-dim)", border: "1px solid var(--cobalt-border)", color: "var(--cobalt)", borderRadius: 6, padding: "2px 9px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
                     {conflict.suggestion}
                   </button>
                 </div>
               ) : (
-                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Nessuno slot libero in giornata: scegli un&apos;altra data.</div>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{tr("Nessuno slot libero in giornata: scegli un'altra data.")}</div>
               )}
             </div>
           )}
         </div>
 
         <div style={{ padding: "18px 28px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Annulla</button>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>{tr("Annulla")}</button>
           <button
             disabled={blocked}
             onClick={() => {
@@ -1036,7 +1044,7 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
             }}
             style={{ padding: "9px 24px", background: blocked ? "var(--surface-4)" : "linear-gradient(135deg, #3b82f6, #2563eb)", border: "none", color: blocked ? "var(--text-disabled)" : "#ffffff", borderRadius: 8, cursor: blocked ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, boxShadow: blocked ? "none" : "0 4px 12px rgba(59,130,246,0.3)" }}
           >
-            ✓ Pianifica ({oraInizio} – {oraFineLabel})
+            {tr("✓ Pianifica (")}{oraInizio} – {oraFineLabel})
           </button>
         </div>
       </div>
@@ -1048,6 +1056,7 @@ function ModalePianificaManuale({ ticket, tecnici, ganttTickets, defaultTecnicoI
 
 export default function PianificazionePage() {
   // Gantt state
+  const tr = useT();
   const [view, setView] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
@@ -1281,7 +1290,7 @@ export default function PianificazionePage() {
           const confirmed = await apiPost<GeneratedPlan>(`/planning/confirm/${cleanRes.id}`);
           applyMovedTicketMarkers(confirmed ?? cleanRes);
           setPiano(confirmed ?? { ...cleanRes, status: "confirmed" });
-          notify.success(`Piano confermato — ${nScheduled} ticket schedulati`);
+          notify.success(tn("Piano confermato — {nScheduled} ticket schedulati", { nScheduled: nScheduled }));
           loadStorico();
         } catch (ce: unknown) {
           setPiano(cleanRes);
@@ -1300,7 +1309,7 @@ export default function PianificazionePage() {
       const meta = cleanRes.plan_json?.plan_metadata;
       if (isAgent && meta?.agent_fallback) {
         notify.warning(
-          `Felix Agent non disponibile (${meta.agent_fallback_reason ?? "errore agente"}): piano generato dal motore deterministico`,
+          tr("Felix Agent non disponibile ({valore}): piano generato dal motore deterministico", { valore: meta.agent_fallback_reason ?? "errore agente" }),
         );
       }
 
@@ -1312,7 +1321,7 @@ export default function PianificazionePage() {
       const msg = e instanceof Error ? e.message : "Errore durante la generazione del piano";
       // 503 dal backend: generazione AI dietro flag AI_PLANNING_ENABLED
       if (isAgent && msg.toLowerCase().includes("disattivata")) {
-        notify.error("Felix Agent non è attivo su questo ambiente (flag AI_PLANNING_ENABLED). Usa la generazione standard.");
+        notify.error(tn("Felix Agent non è attivo su questo ambiente (flag AI_PLANNING_ENABLED). Usa la generazione standard."));
       } else {
         notify.error(msg);
       }
@@ -1364,7 +1373,7 @@ export default function PianificazionePage() {
     try {
       const evalRes = await apiPost<{ efficiency_score: number; efficiency_breakdown: EfficiencyBreakdown }>("/planning/evaluate");
       setManualEval({ score: evalRes.efficiency_score, breakdown: evalRes.efficiency_breakdown });
-      notify.success(`Score aggiornato: ${Math.round(evalRes.efficiency_score)}`);
+      notify.success(tn("Score aggiornato: {valore}", { valore: Math.round(evalRes.efficiency_score) }));
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore aggiornamento score");
     } finally {
@@ -1380,7 +1389,7 @@ export default function PianificazionePage() {
       const confirmed = await apiPost<GeneratedPlan>(`/planning/confirm/${piano.id}`);
       applyMovedTicketMarkers(confirmed ?? piano);
       setPiano(confirmed ?? { ...piano, status: "confirmed" });
-      notify.success("Piano confermato");
+      notify.success(tn("Piano confermato"));
       await loadData();
       loadStorico();
     } catch (e: unknown) {
@@ -1391,15 +1400,15 @@ export default function PianificazionePage() {
   }
 
   async function clearGantt() {
-    if (!confirm("Sei sicuro di voler svuotare il Gantt? Tutti i ticket torneranno nello stato 'Aperto'.")) return;
+    if (!confirm(tn("Sei sicuro di voler svuotare il Gantt? Tutti i ticket torneranno nello stato 'Aperto'."))) return;
     try {
       await apiPost("/planning/clear");
       setMovedTicketIds(new Set());
       setMovedTicketReasons({});
-      notify.success("Gantt svuotato con successo");
+      notify.success(tn("Gantt svuotato con successo"));
       await loadData();
     } catch {
-      notify.error("Errore durante lo svuotamento del Gantt");
+      notify.error(tn("Errore durante lo svuotamento del Gantt"));
     }
   }
 
@@ -1419,11 +1428,11 @@ export default function PianificazionePage() {
 
       // Guardia finale: niente date passate.
       if (data < localDateStr()) {
-        notify.warning("Non è possibile pianificare un intervento in una data passata.");
+        notify.warning(tn("Non è possibile pianificare un intervento in una data passata."));
         return;
       }
       if (!isTecnicoOperativo(tecnico, data)) {
-        notify.warning(`${tecnico.nome} ${tecnico.cognome ?? ""} non disponibile: ticket non pianificato`);
+        notify.warning(tn("{nome} {valore} non disponibile: ticket non pianificato", { nome: tecnico.nome, valore: tecnico.cognome ?? "" }));
         return;
       }
 
@@ -1491,19 +1500,19 @@ export default function PianificazionePage() {
 
     // Le attività iniziate/concluse non sono spostabili.
     if (droppedTicket.stato === "In corso" || droppedTicket.stato === "Chiuso") {
-      notify.warning(`Il ticket #${droppedTicket.id} è "${droppedTicket.stato}" e non può essere ripianificato.`);
+      notify.warning(tn("Il ticket #{id} è \"{stato}\" e non può essere ripianificato.", { id: droppedTicket.id, stato: droppedTicket.stato }));
       return;
     }
 
     // Non si può pianificare prima della data odierna corrente.
     const todayStr = localDateStr();
     if (dropTarget.date < todayStr) {
-      notify.warning("Non è possibile pianificare un intervento in una data passata.");
+      notify.warning(tn("Non è possibile pianificare un intervento in una data passata."));
       return;
     }
 
     if (!isTecnicoOperativo(targetTecnico, dropTarget.date)) {
-      notify.warning(`${targetTecnico.nome} ${targetTecnico.cognome ?? ""} non disponibile in questa data.`);
+      notify.warning(tn("{nome} {valore} non disponibile in questa data.", { nome: targetTecnico.nome, valore: targetTecnico.cognome ?? "" }));
       return;
     }
 
@@ -1628,7 +1637,7 @@ export default function PianificazionePage() {
           {/* Date nav */}
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
             <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>‹</button>
-            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>OGGI</button>
+            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", borderRadius: 5 }}>{tr("OGGI")}</button>
             <button onClick={() => navigate(1)} style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 28, height: 28, cursor: "pointer", fontSize: 16, lineHeight: 1, borderRadius: 5 }}>›</button>
           </div>
 
@@ -1637,7 +1646,7 @@ export default function PianificazionePage() {
             <button
               onClick={() => setZoom(z => Math.max(0.8, z - 0.2))}
               style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
-              title="Zoom Out"
+              title={tr("Zoom Out")}
             >
               -
             </button>
@@ -1647,7 +1656,7 @@ export default function PianificazionePage() {
             <button
               onClick={() => setZoom(z => Math.min(2.0, z + 0.2))}
               style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", width: 26, height: 26, borderRadius: 6, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
-              title="Zoom In"
+              title={tr("Zoom In")}
             >
               +
             </button>
@@ -1663,7 +1672,7 @@ export default function PianificazionePage() {
             <span 
               title={effBreakdown 
                 ? `Dettagli Score:\nCopertura Backlog: ${effBreakdown.copertura_backlog?.toFixed(1)}%\nUtilizzo Tecnici: ${effBreakdown.utilizzo_tecnici?.toFixed(1)}%\nRispetto Priorità: ${effBreakdown.rispetto_priorita?.toFixed(1)}%\nRiduzione Spostamenti: ${effBreakdown.riduzione_spostamenti?.toFixed(1)}%\nMatching Competenze: ${effBreakdown.matching_competenze?.toFixed(1)}%`
-                : "Score di efficienza del piano"}
+                : tr("Score di efficienza del piano")}
               style={{
               fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
               background: effScore >= 80
@@ -1680,14 +1689,14 @@ export default function PianificazionePage() {
                   : "0 0 10px rgba(239,68,68,0.15)",
               letterSpacing: "0.05em",
             }}>
-              ◈ Score {Math.round(effScore)}
+              {tr("◈ Score")} {Math.round(effScore)}
             </span>
           )}
 
           <button
             onClick={requestScoreUpdate}
             disabled={scoreLoading}
-            title="Calcola lo score solo quando richiesto"
+            title={tr("Calcola lo score solo quando richiesto")}
             style={{
               background: scoreLoading ? "rgba(31,41,55,0.8)" : "rgba(31,232,255,0.10)",
               border: "1px solid rgba(31,232,255,0.34)",
@@ -1718,7 +1727,7 @@ export default function PianificazionePage() {
               <button
                 key={val}
                 onClick={() => setScheduleMode(val)}
-                title={val === "proposta" ? "Genera una bozza da rivedere e confermare" : "Genera e conferma automaticamente il piano"}
+                title={val === "proposta" ? tr("Genera una bozza da rivedere e confermare") : tr("Genera e conferma automaticamente il piano")}
                 style={{
                   padding: "4px 10px", fontSize: 11, fontWeight: 700,
                   borderRadius: 5, border: "none",
@@ -1736,7 +1745,7 @@ export default function PianificazionePage() {
           <button
             onClick={() => generatePlan("deterministic")}
             disabled={generando}
-            title="Genera automaticamente il piano assegnando i ticket ai tecnici (no weekend)"
+            title={tr("Genera automaticamente il piano assegnando i ticket ai tecnici (no weekend)")}
             style={{
               background: generando
                 ? "rgba(31,41,55,0.8)"
@@ -1747,14 +1756,14 @@ export default function PianificazionePage() {
               display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s", flexShrink: 0,
             }}
           >
-            {generando ? generandoStatus : "Generazione piano"}
+            {generando ? generandoStatus : tr("Generazione piano")}
           </button>
 
           {/* Felix Agent — motore agentico AI (OpenAI Agents SDK, flag AI_PLANNING_ENABLED) */}
           <button
             onClick={() => generatePlan("agent")}
             disabled={generando}
-            title="Genera il piano con Felix Agent: parte dalla baseline deterministica e la ottimizza (meteo, logistica, bilanciamento). Richiede AI attiva sul backend."
+            title={tr("Genera il piano con Felix Agent: parte dalla baseline deterministica e la ottimizza (meteo, logistica, bilanciamento). Richiede AI attiva sul backend.")}
             style={{
               background: generando
                 ? "rgba(31,41,55,0.8)"
@@ -1765,14 +1774,14 @@ export default function PianificazionePage() {
               display: "flex", alignItems: "center", gap: 6, transition: "box-shadow 0.12s", flexShrink: 0,
             }}
           >
-            🤖 Felix Agent
+            {tr("🤖 Felix Agent")}
           </button>
 
           {/* Badge motore — visibile quando il piano corrente è stato generato dall'agente */}
           {planJson?.plan_metadata?.generated_by === "agent" && (
             <span
               title={planJson.plan_metadata.agent_fallback
-                ? `Fallback deterministico: ${planJson.plan_metadata.agent_fallback_reason ?? "errore agente"}`
+                ? `Fallback deterministico: ${planJson.plan_metadata.agent_fallback_reason ?? tr("errore agente")}`
                 : `Piano ottimizzato da Felix Agent (${planJson.plan_metadata.agent_turns ?? "?"} turni)`}
               style={{
                 padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 6, flexShrink: 0,
@@ -1790,7 +1799,7 @@ export default function PianificazionePage() {
             <button
               onClick={confirmPlan}
               disabled={confermando}
-              title="Applica la proposta: assegna i ticket ai tecnici e pianificali"
+              title={tr("Applica la proposta: assegna i ticket ai tecnici e pianificali")}
               style={{
                 background: confermando ? "rgba(31,41,55,0.8)" : "linear-gradient(135deg, #16a34a, #22c55e)",
                 border: "1px solid rgba(34,197,94,0.5)", color: "#fff", borderRadius: 8, padding: "8px 18px",
@@ -1807,7 +1816,7 @@ export default function PianificazionePage() {
           {false && piano && (
             <button
               onClick={() => setReplanModal(true)}
-              title="Ricalcola piano adattivamente"
+              title={tr("Ricalcola piano adattivamente")}
               style={{
                 background: "transparent",
                 border: "1px solid rgba(55,65,81,0.8)",
@@ -1820,14 +1829,14 @@ export default function PianificazionePage() {
                 transition: "border-color 0.12s, color 0.12s",
               }}
             >
-              ↻ Ricalcola
+              {tr("↻ Ricalcola")}
             </button>
           )}
 
           {/* Svuota Gantt */}
           <button
             onClick={clearGantt}
-            title="Svuota il Gantt e riporta i ticket ad Aperto"
+            title={tr("Svuota il Gantt e riporta i ticket ad Aperto")}
             style={{
               background: "transparent",
               border: "1px solid rgba(239,68,68,0.5)",
@@ -1841,13 +1850,13 @@ export default function PianificazionePage() {
               transition: "all 0.12s",
             }}
           >
-            Svuota Gantt
+            {tr("Svuota Gantt")}
           </button>
 
           </div>
 
           {/* Refresh */}
-          <button onClick={() => loadData()} disabled={loading} title="Aggiorna" style={{
+          <button onClick={() => loadData()} disabled={loading} title={tr("Aggiorna")} style={{
             background: "transparent", border: "1px solid rgba(55,65,81,0.8)", color: "rgba(148,163,184,0.8)",
             width: 28, height: 28, cursor: "pointer", fontSize: 14, opacity: loading ? 0.5 : 1,
             borderRadius: 6, transition: "border-color 0.12s",
@@ -1868,7 +1877,7 @@ export default function PianificazionePage() {
               background: "linear-gradient(90deg, rgba(59,130,246,0.08), transparent)",
               borderBottom: "1px solid rgba(59,130,246,0.12)",
             }}>
-              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "rgba(148,163,184,0.7)", marginBottom: 8, fontWeight: 700 }}>NON PIANIFICATI</div>
+              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "rgba(148,163,184,0.7)", marginBottom: 8, fontWeight: 700 }}>{tr("NON PIANIFICATI")}</div>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
                 {(["", "BD", "PM", "CM"] as const).map((tipo) => {
                   const color = tipo === "BD" ? "#ef4444" : tipo === "PM" ? "#22c55e" : tipo === "CM" ? "#f59e0b" : "#6b7280";
@@ -1879,20 +1888,20 @@ export default function PianificazionePage() {
                       background: filterTipo === tipo ? `${color}22` : "transparent",
                       border: `1px solid ${color}`, color, borderRadius: 3, cursor: "pointer", fontFamily: "inherit",
                     }}>
-                      {tipo || "TUTTI"} ({cnt})
+                      {tipo || tr("TUTTI")} ({cnt})
                     </button>
                   );
                 })}
               </div>
-              <div style={{ fontSize: 10, color: "#4b5563" }}>Trascina sulla timeline o clicca per pianificare →</div>
+              <div style={{ fontSize: 10, color: "#4b5563" }}>{tr("Trascina sulla timeline o clicca per pianificare →")}</div>
             </div>
 
             {/* Lista ticket non pianificati */}
             <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
               {loading ? (
-                <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Caricamento...</div>
+                <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>{tr("Caricamento...")}</div>
               ) : filteredUnscheduled.length === 0 ? (
-                <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>Nessun ticket da pianificare</div>
+                <div style={{ color: "#4b5563", fontSize: 12, textAlign: "center", paddingTop: 24 }}>{tr("Nessun ticket da pianificare")}</div>
               ) : (
                 filteredUnscheduled.map((t) => (
                   <UnscheduledItem key={t.id} ticket={t} onTicketClick={openTicketDetail} postposto={deferredMap.has(t.id)} postposeReason={deferredMap.get(t.id)} />
@@ -1906,7 +1915,7 @@ export default function PianificazionePage() {
           <div style={{ flex: 1, overflow: "auto", position: "relative", background: "var(--surface-0)" }}>
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#6b7280", fontSize: 13 }}>
-                Caricamento dati...
+                {tr("Caricamento dati...")}
               </div>
             ) : (
               <div style={{ minWidth: timelineMinW }}>
@@ -1925,8 +1934,8 @@ export default function PianificazionePage() {
                     position: "sticky", left: 0,
                     background: "var(--surface-2)", zIndex: 11,
                   }}>
-                    <span style={{ lineHeight: 1.1 }}>TECNICO</span>
-                    <span style={{ fontSize: 9, lineHeight: 1.2, color: "#a6f6ff", marginTop: 3 }}>ORE RESIDUE</span>
+                    <span style={{ lineHeight: 1.1 }}>{tr("TECNICO")}</span>
+                    <span style={{ fontSize: 9, lineHeight: 1.2, color: "#a6f6ff", marginTop: 3 }}>{tr("ORE RESIDUE")}</span>
                   </div>
                   {view === "day"
                     ? Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => (
@@ -1966,7 +1975,7 @@ export default function PianificazionePage() {
 
                 {/* Righe tecnici */}
                 {tecnici.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 13 }}>Nessun tecnico attivo trovato</div>
+                  <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 13 }}>{tr("Nessun tecnico attivo trovato")}</div>
                 ) : (
                   tecnici.map((tecnico, rowIdx) => {
                     const tickets = ticketsByTecnico.get(tecnico.id) ?? EMPTY_TICKETS;
@@ -2073,7 +2082,7 @@ export default function PianificazionePage() {
           <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.4 }}>
             {hoverTicket.descrizione && hoverTicket.descrizione.length > 80
               ? hoverTicket.descrizione.substring(0, 80) + "..."
-              : hoverTicket.descrizione || "Nessuna descrizione."}
+              : hoverTicket.descrizione || tr("Nessuna descrizione.")}
           </div>
           {(hoverTicket.asset_name || hoverTicket.impianto_name || hoverTicket.sito_name) && (
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-default)", fontSize: 10, color: "var(--text-muted)" }}>

@@ -6,6 +6,7 @@ import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import styles from "./tecnici.module.css";
 import AssenzeModal from "../components/AssenzeModal";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Tecnico = {
   id: number;
@@ -71,6 +72,7 @@ const colFilterInput: React.CSSProperties = {
 };
 
 export default function TecniciPage() {
+  const tr = useT();
   const { user } = useAuth();
   const isAdmin = user?.ruolo === "responsabile" || user?.ruolo === "superadmin";
 
@@ -150,7 +152,7 @@ export default function TecniciPage() {
       const d = await apiGet<Tecnico[]>("/tecnici");
       setTecnici(d);
     } catch {
-      notify.error("Errore caricamento tecnici.");
+      notify.error(tn("Errore caricamento tecnici."));
     }
   }
 
@@ -159,7 +161,7 @@ export default function TecniciPage() {
       const d = await apiGet<OreStats>("/tecnici/statistiche");
       setStats(d);
     } catch {
-      notify.error("Errore caricamento statistiche.");
+      notify.error(tn("Errore caricamento statistiche."));
     }
   }
 
@@ -191,7 +193,7 @@ export default function TecniciPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nome.trim()) { notify.error("Il campo 'Nome' è obbligatorio."); return; }
+    if (!nome.trim()) { notify.error(tn("Il campo 'Nome' è obbligatorio.")); return; }
     try {
       setIsSaving(true);
       const payload: Record<string, unknown> = {
@@ -243,17 +245,17 @@ export default function TecniciPage() {
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <div className={styles.eyebrow}>Workforce</div>
-          <h1 className={styles.title}>Tecnici</h1>
-          <p className={styles.subtitle}>Skill, disponibilità, stato e ore uomo per l&apos;allocazione automatica.</p>
+          <div className={styles.eyebrow}>{tr("Workforce")}</div>
+          <h1 className={styles.title}>{tr("Tecnici")}</h1>
+          <p className={styles.subtitle}>{tr("Skill, disponibilità, stato e ore uomo per l'allocazione automatica.")}</p>
         </div>
         <div className={styles.heroStats}>
           <div className={styles.heroStat}>
-            <span className={styles.heroStatLabel}>Totale</span>
+            <span className={styles.heroStatLabel}>{tr("Totale")}</span>
             <strong className={styles.heroStatValue}>{tecnici.length}</strong>
           </div>
           <div className={styles.heroStat}>
-            <span className={styles.heroStatLabel}>In servizio</span>
+            <span className={styles.heroStatLabel}>{tr("In servizio")}</span>
             <strong className={styles.heroStatValue} style={{ color: "#34d399" }}>
               {tecnici.filter(t => t.stato === "in servizio").length}
             </strong>
@@ -264,26 +266,26 @@ export default function TecniciPage() {
       {/* Statistiche ore uomo */}
       {stats && (
         <section className={styles.card} style={{ padding: "20px 24px" }}>
-          <h2 className={styles.cardTitle} style={{ marginBottom: 16 }}>Ore uomo disponibili</h2>
-          <p className={styles.cardSubtitle} style={{ marginBottom: 16 }}>Solo tecnici in servizio · Calendario lun-ven</p>
+          <h2 className={styles.cardTitle} style={{ marginBottom: 16 }}>{tr("Ore uomo disponibili")}</h2>
+          <p className={styles.cardSubtitle} style={{ marginBottom: 16 }}>{tr("Solo tecnici in servizio · Calendario lun-ven")}</p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={statCard}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>Oggi</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>{tr("Oggi")}</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: "#818cf8", lineHeight: 1 }}>{stats.oggi.ore}h</div>
               <div style={{ fontSize: 10, color: "var(--text-soft)", marginTop: 4 }}>{stats.oggi.giorno}</div>
             </div>
             <div style={statCard}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>Settimana</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>{tr("Settimana")}</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>{stats.settimana.ore}h</div>
               <div style={{ fontSize: 10, color: "var(--text-soft)", marginTop: 4 }}>dal {stats.settimana.dal} al {stats.settimana.al}</div>
             </div>
             <div style={statCard}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>Mese</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>{tr("Mese")}</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: "#34d399", lineHeight: 1 }}>{stats.mese.ore}h</div>
               <div style={{ fontSize: 10, color: "var(--text-soft)", marginTop: 4 }}>{stats.mese.mese}</div>
             </div>
             <div style={statCard}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>Anno</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 6 }}>{tr("Anno")}</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: "#fbbf24", lineHeight: 1 }}>{stats.anno.ore.toLocaleString()}h</div>
               <div style={{ fontSize: 10, color: "var(--text-soft)", marginTop: 4 }}>{stats.anno.anno}</div>
             </div>
@@ -293,7 +295,7 @@ export default function TecniciPage() {
               {stats.per_tecnico.map(t => (
                 <div key={t.nome} style={{ background: "rgba(99,102,241,.08)", border: "1px solid rgba(99,102,241,.15)", borderRadius: 8, padding: "6px 12px", fontSize: 12 }}>
                   <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{t.nome}</span>
-                  <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>{t.ore_giornaliere?.toFixed(1)}h/gg</span>
+                  <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>{tr("{ore} h/gg", { ore: t.ore_giornaliere?.toFixed(1) })}</span>
                 </div>
               ))}
             </div>
@@ -306,61 +308,61 @@ export default function TecniciPage() {
         {/* Form */}
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2 className={styles.cardTitle}>{editId !== null ? `Modifica tecnico #${editId}` : "Nuovo tecnico"}</h2>
-            <p className={styles.cardSubtitle}>Inserisci anagrafica, skill e disponibilità.</p>
+            <h2 className={styles.cardTitle}>{editId !== null ? `Modifica tecnico #${editId}` : tr("Nuovo tecnico")}</h2>
+            <p className={styles.cardSubtitle}>{tr("Inserisci anagrafica, skill e disponibilità.")}</p>
           </div>
           <form onSubmit={handleSubmit} className={styles.form}>
             <div className={styles.field}>
-              <label className={styles.label}>Nome *</label>
-              <input className={styles.input} value={nome} onChange={e => setNome(e.target.value)} placeholder="Es. Felix" />
+              <label className={styles.label}>{tr("Nome *")}</label>
+              <input className={styles.input} value={nome} onChange={e => setNome(e.target.value)} placeholder={tr("Es. Felix")} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Cognome</label>
-              <input className={styles.input} value={cognome} onChange={e => setCognome(e.target.value)} placeholder="Es. Rossi" />
+              <label className={styles.label}>{tr("Cognome")}</label>
+              <input className={styles.input} value={cognome} onChange={e => setCognome(e.target.value)} placeholder={tr("Es. Rossi")} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Skill</label>
-              <input className={styles.input} value={skill} onChange={e => setSkill(e.target.value)} placeholder="Es. cabina_mt,trasformatore" />
+              <label className={styles.label}>{tr("Skill")}</label>
+              <input className={styles.input} value={skill} onChange={e => setSkill(e.target.value)} placeholder={tr("Es. cabina_mt,trasformatore")} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Ore/giorno</label>
+              <label className={styles.label}>{tr("Ore/giorno")}</label>
               <input className={styles.input} type="number" min={1} max={24} value={ore} onChange={e => setOre(Number(e.target.value))} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Stato *</label>
+              <label className={styles.label}>{tr("Stato *")}</label>
               <select className={styles.input} value={statoCampo} onChange={e => setStatoCampo(e.target.value)}>
                 {STATI_TECNICO.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Orario inizio</label>
+              <label className={styles.label}>{tr("Orario inizio")}</label>
               <input className={styles.input} type="time" value={orarioInizio} onChange={e => setOrarioInizio(e.target.value)} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Orario fine</label>
+              <label className={styles.label}>{tr("Orario fine")}</label>
               <input className={styles.input} type="time" value={orarioFine} onChange={e => setOrarioFine(e.target.value)} />
             </div>
             <div className={`${styles.field} ${styles.span2}`} style={{ display: "flex", flexDirection: "column" }}>
-              <label className={styles.label}>Limitazioni orarie</label>
-              <input className={styles.input} value={limitazioniOrarie} onChange={e => setLimitazioniOrarie(e.target.value)} placeholder="Es. no turno notturno, solo mattina" />
+              <label className={styles.label}>{tr("Limitazioni orarie")}</label>
+              <input className={styles.input} value={limitazioniOrarie} onChange={e => setLimitazioniOrarie(e.target.value)} placeholder={tr("Es. no turno notturno, solo mattina")} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Telefono</label>
-              <input className={styles.input} value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Es. +39 333 1234567" />
+              <label className={styles.label}>{tr("Telefono")}</label>
+              <input className={styles.input} value={telefono} onChange={e => setTelefono(e.target.value)} placeholder={tr("Es. +39 333 1234567")} />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Sede / Indirizzo</label>
-              <input className={styles.input} value={sedeIndirizzo} onChange={e => setSedeIndirizzo(e.target.value)} placeholder="Es. Via Roma 1, Milano" title="Usato dalla mappa emergenze per localizzare il tecnico" />
+              <label className={styles.label}>{tr("Sede / Indirizzo")}</label>
+              <input className={styles.input} value={sedeIndirizzo} onChange={e => setSedeIndirizzo(e.target.value)} placeholder={tr("Es. Via Roma 1, Milano")} title={tr("Usato dalla mappa emergenze per localizzare il tecnico")} />
             </div>
             {isAdmin && (
               <div className={`${styles.field} ${styles.span2}`} style={{ display: "flex", flexDirection: "column" }}>
-                <label className={styles.label}>Collega account utente</label>
+                <label className={styles.label}>{tr("Collega account utente")}</label>
                 <select
                   className={styles.input}
                   value={utenteId ?? ""}
                   onChange={e => setUtenteId(e.target.value ? Number(e.target.value) : null)}
                 >
-                  <option value="">— Nessuno (scollega) —</option>
+                  <option value="">{tr("— Nessuno (scollega) —")}</option>
                   {utenti
                     .filter(u => u.ruolo === "tecnico" && u.is_active && (u.tecnico_id == null || u.tecnico_id === editId))
                     .map(u => (
@@ -369,14 +371,14 @@ export default function TecniciPage() {
                   }
                 </select>
                 <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>
-                  Solo utenti con ruolo &quot;tecnico&quot; non ancora associati ad altro tecnico
+                  {tr("Solo utenti con ruolo \"tecnico\" non ancora associati ad altro tecnico")}
                 </span>
               </div>
             )}
             <div className={styles.actions}>
-              <button className={styles.button} type="submit" disabled={isSaving}>{isSaving ? "Salvataggio..." : editId !== null ? "Salva modifiche" : "Salva tecnico"}</button>
+              <button className={styles.button} type="submit" disabled={isSaving}>{isSaving ? "Salvataggio..." : editId !== null ? tr("Salva modifiche") : tr("Salva tecnico")}</button>
               {editId !== null && (
-                <button type="button" onClick={cancelEdit} style={{ marginLeft: 8, padding: "8px 16px", background: "transparent", border: "1px solid rgba(75,85,99,.5)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+                <button type="button" onClick={cancelEdit} style={{ marginLeft: 8, padding: "8px 16px", background: "transparent", border: "1px solid rgba(75,85,99,.5)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>{tr("Annulla")}</button>
               )}
             </div>
           </form>
@@ -386,11 +388,11 @@ export default function TecniciPage() {
         <section className={styles.card}>
           <div className={`${styles.cardHead} ${styles.cardHeadRow}`}>
             <div>
-              <h2 className={styles.cardTitle}>Registro tecnici</h2>
-              <p className={styles.cardSubtitle}>Elenco competenze, disponibilità e stato operativo.</p>
+              <h2 className={styles.cardTitle}>{tr("Registro tecnici")}</h2>
+              <p className={styles.cardSubtitle}>{tr("Elenco competenze, disponibilità e stato operativo.")}</p>
             </div>
             <div className={styles.searchWrap}>
-              <input className={styles.input} value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome o skill..." />
+              <input className={styles.input} value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("Cerca per nome o skill...")} />
             </div>
           </div>
           <div className={styles.tableWrap}>
@@ -404,13 +406,13 @@ export default function TecniciPage() {
                   <SortTh label="Ore/gg" col="ore_giornaliere" />
                   <SortTh label="Orario" col="orario_inizio" />
                   <SortTh label="Stato" col="stato" />
-                  {isAdmin && <th style={{ fontSize: 10, color: "var(--text-muted)" }}>Account</th>}
+                  {isAdmin && <th style={{ fontSize: 10, color: "var(--text-muted)" }}>{tr("Account")}</th>}
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTecnici.length === 0 ? (
-                  <tr><td colSpan={isAdmin ? 9 : 8}><div className={styles.empty}>Nessun tecnico trovato</div></td></tr>
+                  <tr><td colSpan={isAdmin ? 9 : 8}><div className={styles.empty}>{tr("Nessun tecnico trovato")}</div></td></tr>
                 ) : (
                   filteredTecnici.map(t => (
                     <tr key={t.id} style={editId === t.id ? { background: "rgba(99,102,241,0.07)" } : undefined}>
@@ -461,7 +463,7 @@ export default function TecniciPage() {
                           {editId === t.id ? "Annulla" : "Modifica"}
                         </button>
                         <button onClick={() => setShowAssenzeFor(t)} style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(245,158,11,.4)", color: "#f59e0b", background: "transparent", cursor: "pointer", borderRadius: 4 }}>
-                          Assenze
+                          {tr("Assenze")}
                         </button>
                       </td>
                     </tr>

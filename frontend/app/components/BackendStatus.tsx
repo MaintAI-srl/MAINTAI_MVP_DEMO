@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { API_BASE } from "@/app/lib/api";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 
 type Status = "checking" | "online" | "warming" | "offline";
 
@@ -15,6 +16,7 @@ const WARMING_THRESHOLD_MS = 5_000; // dopo 5s senza risposta → mostra "in avv
  * Ping ogni 30s sull'endpoint /health.
  */
 export function BackendStatus() {
+  const tr = useT();
   const [status, setStatus] = useState<Status>("checking");
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
 
@@ -61,7 +63,7 @@ export function BackendStatus() {
   return (
     <div
       className="fixed bottom-4 right-4 z-[9999] flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900/95 px-3 py-2 text-sm text-white shadow-xl backdrop-blur-sm"
-      title={lastCheck ? `Ultimo controllo: ${lastCheck.toLocaleTimeString("it-IT")}` : undefined}
+      title={lastCheck ? `Ultimo controllo: ${lastCheck.toLocaleTimeString(getLocaleTag())}` : undefined}
     >
       <span className={`h-2 w-2 rounded-full ${dotColor}`} />
       <span className="text-gray-200">{message}</span>
@@ -69,7 +71,7 @@ export function BackendStatus() {
         <button
           onClick={check}
           className="ml-1 rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-          title="Riprova connessione"
+          title={tr("Riprova connessione")}
         >
           ↺
         </button>

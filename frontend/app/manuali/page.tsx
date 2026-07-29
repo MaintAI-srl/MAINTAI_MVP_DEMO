@@ -6,6 +6,8 @@ import { apiGet, apiPatch, apiUpload } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useApiQuery, invalidateQueries } from "@/lib/useApiQuery";
 import Skeleton from "../components/Skeleton";
+import { useT, tn } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 
 type Asset = { id: number; name: string; categoria: string };
 
@@ -75,6 +77,7 @@ const labelSt: React.CSSProperties = {
 };
 
 export default function ManualiPage() {
+  const tr = useT();
   const [assets, setAssets] = useState<Asset[]>([]);
   // #21 useApiQuery: caching automatico + refetch on focus per la lista manuali
   const { data: manualiRemote, loading: loadingList, refetch: reloadManuali } = useApiQuery<Manuale[]>("/manuali");
@@ -112,14 +115,14 @@ export default function ManualiPage() {
         setAssets(data);
         if (data.length > 0) setSelectedAssetId(data[0].id);
       })
-      .catch(() => notify.error("Errore caricamento asset."));
+      .catch(() => notify.error(tn("Errore caricamento asset.")));
     // Il caricamento manuali è gestito da useApiQuery (mount automatico)
   }, []);
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
-    if (!uploadFile) { notify.error("Seleziona un file PDF."); return; }
-    if (assetMode === "new" && !newAssetName.trim()) { notify.error("Inserisci il nome del nuovo asset."); return; }
+    if (!uploadFile) { notify.error(tn("Seleziona un file PDF.")); return; }
+    if (assetMode === "new" && !newAssetName.trim()) { notify.error(tn("Inserisci il nome del nuovo asset.")); return; }
     setLoadingUpload(true);
     setUploadResult(null);
     const formData = new FormData();
@@ -156,7 +159,7 @@ export default function ManualiPage() {
       await apiPatch(`/manuali/${manualeId}`, { stato: nuovoStato });
       setManuali(prev => prev.map(m => m.id === manualeId ? { ...m, stato: nuovoStato } : m));
     } catch {
-      notify.error("Errore aggiornamento stato manuale.");
+      notify.error(tn("Errore aggiornamento stato manuale."));
     }
   }
 
@@ -167,7 +170,7 @@ export default function ManualiPage() {
       const data = await apiGet<PianoManuale>(`/manuali/${manualeId}/piano`);
       setSelectedManuale(data);
     } catch {
-      notify.error("Impossibile caricare il piano manutenzione.");
+      notify.error(tn("Impossibile caricare il piano manutenzione."));
     } finally {
       setLoadingPiano(false);
     }
@@ -209,12 +212,12 @@ export default function ManualiPage() {
         <div style={{ position: "absolute", bottom: -40, left: 200, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#10b981", marginBottom: 8 }}>AI Knowledge Base</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#10b981", marginBottom: 8 }}>{tr("AI Knowledge Base")}</div>
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 900, fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #e2e8f0 0%, #34d399 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1, marginBottom: 6 }}>
-            Manuali Tecnici
+            {tr("Manuali Tecnici")}
           </h1>
           <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 13 }}>
-            Carica un PDF — l&apos;AI estrae le attività di manutenzione e genera il piano nel DB.
+            {tr("Carica un PDF — l'AI estrae le attività di manutenzione e genera il piano nel DB.")}
           </p>
         </div>
 
@@ -222,10 +225,10 @@ export default function ManualiPage() {
           {[
             { label: "Manuali caricati", value: manuali.length, color: "#818cf8" },
             { label: "Attivi", value: attivi, color: "#34d399" },
-            { label: "Attività totali", value: totaleTasks, color: "#fbbf24" },
+            { label: tr("Attività totali"), value: totaleTasks, color: "#fbbf24" },
           ].map(k => (
             <div key={k.label} style={{ background: "var(--border-subtle)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{k.label}</div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{tr(k.label)}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
             </div>
           ))}
@@ -238,13 +241,13 @@ export default function ManualiPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>📄</div>
             <div>
-              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>Carica manuale PDF</h2>
-              <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)" }}>L&apos;AI analizza il contenuto ed estrae automaticamente le attività di manutenzione</p>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>{tr("Carica manuale PDF")}</h2>
+              <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)" }}>{tr("L'AI analizza il contenuto ed estrae automaticamente le attività di manutenzione")}</p>
             </div>
           </div>
           <form onSubmit={handleUpload}>
             <div style={{ marginBottom: 16 }}>
-              <label style={labelSt}>Asset di riferimento</label>
+              <label style={labelSt}>{tr("Asset di riferimento")}</label>
               <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                 {(["existing", "new"] as const).map(mode => (
                   <button key={mode} type="button" onClick={() => setAssetMode(mode)} style={{
@@ -254,38 +257,38 @@ export default function ManualiPage() {
                     borderColor: assetMode === mode ? "rgba(99,102,241,0.4)" : "rgba(75,85,99,0.3)",
                     fontWeight: assetMode === mode ? 700 : 400,
                   }}>
-                    {mode === "existing" ? "Asset esistente" : "Crea nuovo asset"}
+                    {mode === "existing" ? tr("Asset esistente") : tr("Crea nuovo asset")}
                   </button>
                 ))}
               </div>
 
               {assetMode === "existing" ? (
                 <select style={inputSt} value={selectedAssetId} onChange={(e) => setSelectedAssetId(e.target.value === "" ? "" : Number(e.target.value))}>
-                  <option value="">-- Nessun asset (rilevazione automatica AI) --</option>
+                  <option value="">{tr("-- Nessun asset (rilevazione automatica AI) --")}</option>
                   {assets.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.categoria})</option>)}
                 </select>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, marginTop: 0 }}>
                   <div style={{ gridColumn: "1/3" }}>
-                    <label style={labelSt}>Nome asset *</label>
-                    <input style={inputSt} value={newAssetName} onChange={(e) => setNewAssetName(e.target.value)} placeholder="Es. Pompa centrifuga P02" />
+                    <label style={labelSt}>{tr("Nome asset *")}</label>
+                    <input style={inputSt} value={newAssetName} onChange={(e) => setNewAssetName(e.target.value)} placeholder={tr("Es. Pompa centrifuga P02")} />
                   </div>
                   <div>
-                    <label style={labelSt}>Categoria</label>
+                    <label style={labelSt}>{tr("Categoria")}</label>
                     <select style={inputSt} value={newAssetCategoria} onChange={(e) => setNewAssetCategoria(e.target.value)}>
                       {CATEGORIE.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div style={{ gridColumn: "1/-1" }}>
-                    <label style={labelSt}>Area</label>
-                    <input style={inputSt} value={newAssetArea} onChange={(e) => setNewAssetArea(e.target.value)} placeholder="Es. Reparto 3" />
+                    <label style={labelSt}>{tr("Area")}</label>
+                    <input style={inputSt} value={newAssetArea} onChange={(e) => setNewAssetArea(e.target.value)} placeholder={tr("Es. Reparto 3")} />
                   </div>
                 </div>
               )}
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={labelSt}>File PDF</label>
+              <label style={labelSt}>{tr("File PDF")}</label>
               <input style={inputSt} type="file" accept=".pdf" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} />
             </div>
 
@@ -294,11 +297,11 @@ export default function ManualiPage() {
               disabled={loadingUpload || !uploadFile}
               style={{ background: loadingUpload ? "rgba(16,185,129,0.3)" : "linear-gradient(135deg,#10b981,#059669)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontWeight: 700, fontSize: 13, cursor: loadingUpload || !uploadFile ? "not-allowed" : "pointer", opacity: !uploadFile ? 0.5 : 1 }}
             >
-              {loadingUpload ? "⏳ Analisi AI in corso..." : "Carica e analizza"}
+              {loadingUpload ? "⏳ Analisi AI in corso..." : tr("Carica e analizza")}
             </button>
             {loadingUpload && (
               <p style={{ marginTop: 10, color: "var(--text-muted)", fontSize: 12 }}>
-                L&apos;AI sta leggendo il manuale ed estraendo le attività di manutenzione...
+                {tr("L'AI sta leggendo il manuale ed estraendo le attività di manutenzione...")}
               </p>
             )}
           </form>
@@ -311,13 +314,13 @@ export default function ManualiPage() {
               <div>
                 <h3 style={{ margin: "0 0 4px", color: "var(--text-primary)", fontWeight: 800 }}>{uploadResult.filename}</h3>
                 <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                  {uploadResult.pages} pagine · asset: {uploadResult.asset_name || "non rilevato"}
+                  {uploadResult.pages} pagine · asset: {uploadResult.asset_name || tr("non rilevato")}
                   {uploadResult.asset_id ? ` (ID #${uploadResult.asset_id})` : ""}
                 </span>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 28, fontWeight: 900, color: "#22c55e", lineHeight: 1 }}>{uploadResult.task_count}</div>
-                <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em" }}>attività</div>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em" }}>{tr("attività")}</div>
               </div>
             </div>
             {uploadResult.warning && <p style={{ fontSize: 12, color: "#fbbf24", marginBottom: 12, background: "rgba(251,191,36,0.08)", padding: "8px 12px", borderRadius: 6 }}>{uploadResult.warning}</p>}
@@ -326,7 +329,7 @@ export default function ManualiPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["Attività", "Frequenza (gg)", "Durata (h)", "Priorità"].map(h => (
+                      {[tr("Attività"), "Frequenza (gg)", tr("Durata (h)"), tr("Priorità")].map(h => (
                         <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-muted)" }}>{h}</th>
                       ))}
                     </tr>
@@ -337,7 +340,7 @@ export default function ManualiPage() {
                         <td style={{ padding: "9px 12px" }}>{t.attivita}</td>
                         <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{t.frequenza_giorni ?? "—"}</td>
                         <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{t.durata_ore?.toFixed(1) ?? "—"}</td>
-                        <td style={{ padding: "9px 12px" }}><span style={{ ...prioritaStyle(t.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{t.priorita}</span></td>
+                        <td style={{ padding: "9px 12px" }}><span style={{ ...prioritaStyle(t.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{labelPriorita(t.priorita)}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -350,12 +353,12 @@ export default function ManualiPage() {
         {/* ── Lista manuali ── */}
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: 14, padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>Manuali caricati</h2>
+            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{tr("Manuali caricati")}</h2>
             <span style={{ fontSize: 11, background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{manuali.length}</span>
             {/* search col filter */}
             <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
               {["nome"].map(col => (
-                <input key={col} value={colFilters[col] ?? ""} onChange={e => setColFilters(p => ({ ...p, [col]: e.target.value }))} placeholder="Cerca nome..." style={{ background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 7, color: "var(--text-primary)", padding: "6px 12px", fontSize: 12, outline: "none", width: 180 }} />
+                <input key={col} value={colFilters[col] ?? ""} onChange={e => setColFilters(p => ({ ...p, [col]: e.target.value }))} placeholder={tr("Cerca nome...")} style={{ background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 7, color: "var(--text-primary)", padding: "6px 12px", fontSize: 12, outline: "none", width: 180 }} />
               ))}
             </div>
           </div>
@@ -365,7 +368,7 @@ export default function ManualiPage() {
               <Skeleton variant="table" rows={4} cols={5} />
             </div>
           ) : manuali.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>Nessun manuale caricato.</div>
+            <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>{tr("Nessun manuale caricato.")}</div>
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -375,10 +378,10 @@ export default function ManualiPage() {
                       { label: "ID", col: "id" },
                       { label: "Nome file", col: "nome" },
                       { label: "Pagine", col: "pagine" },
-                      { label: "Attività", col: "task_count" },
+                      { label: tr("Attività"), col: "task_count" },
                       { label: "Ver.", col: "version" },
-                      { label: "Stato", col: null },
-                      { label: "Piano", col: null },
+                      { label: tr("Stato"), col: null },
+                      { label: tr("Piano"), col: null },
                     ].map(({ label, col }) => (
                       <th key={label} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-muted)", cursor: col ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}
                         onClick={() => col && handleSort(col)}>
@@ -414,7 +417,7 @@ export default function ManualiPage() {
                       <td style={{ padding: "10px 12px" }}>
                         {m.task_count > 0 ? (
                           <button onClick={() => handleViewPiano(m.id)} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid rgba(99,102,241,0.35)", color: "#818cf8", background: selectedManuale?.id_manuale === m.id ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.06)", cursor: "pointer", borderRadius: 6, fontWeight: 600 }}>
-                            {selectedManuale?.id_manuale === m.id ? "Chiudi" : "Vedi piano →"}
+                            {selectedManuale?.id_manuale === m.id ? tr("Chiudi") : tr("Vedi piano →")}
                           </button>
                         ) : (
                           <span style={{ color: "var(--text-disabled)", fontSize: 12 }}>—</span>
@@ -429,20 +432,20 @@ export default function ManualiPage() {
         </div>
 
         {/* ── Dettaglio piano ── */}
-        {loadingPiano && <div style={{ color: "var(--text-muted)", padding: "16px", textAlign: "center", fontSize: 13 }}>Caricamento piano...</div>}
+        {loadingPiano && <div style={{ color: "var(--text-muted)", padding: "16px", textAlign: "center", fontSize: 13 }}>{tr("Caricamento piano...")}</div>}
         {selectedManuale && !loadingPiano && (
           <div style={{ background: "var(--bg-card)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 14, padding: "22px 24px", borderTop: "2px solid #6366f1" }}>
             <div style={{ marginBottom: 18 }}>
-              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 800 }}>Piano — {selectedManuale.filename}</h2>
+              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 800 }}>{tr("Piano —")} {selectedManuale.filename}</h2>
               <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>
-                {selectedManuale.attivita.length} attività di manutenzione estratte dal manuale
+                {tr("{n} attività di manutenzione estratte dal manuale", { n: selectedManuale.attivita.length })}
               </p>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["#", "Descrizione attività", "Frequenza (gg)", "Durata (h)", "Priorità", "Asset"].map(h => (
+                    {["#", tr("Descrizione attività"), "Frequenza (gg)", tr("Durata (h)"), tr("Priorità"), tr("Asset")].map(h => (
                       <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-muted)" }}>{h}</th>
                     ))}
                   </tr>
@@ -454,7 +457,7 @@ export default function ManualiPage() {
                       <td style={{ padding: "9px 12px" }}>{a.descrizione}</td>
                       <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{a.frequenza_giorni ?? "—"}</td>
                       <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{a.durata_ore?.toFixed(1) ?? "—"}</td>
-                      <td style={{ padding: "9px 12px" }}><span style={{ ...prioritaStyle(a.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{a.priorita}</span></td>
+                      <td style={{ padding: "9px 12px" }}><span style={{ ...prioritaStyle(a.priorita), fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{labelPriorita(a.priorita)}</span></td>
                       <td style={{ padding: "9px 12px", color: a.asset_id ? "#818cf8" : "var(--text-disabled)", fontSize: 12 }}>{a.asset_id ? `#${a.asset_id}` : "—"}</td>
                     </tr>
                   ))}

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { apiPost } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useT } from "@/app/lib/i18n";
 import {
   Bot,
   BrainCircuit,
@@ -271,6 +272,7 @@ function ActionPreview({ intent }: { intent: string }) {
 }
 
 export default function GuideBot() {
+  const tr = useT();
   const { isAuthenticated, user } = useAuth();
   const pathname = usePathname();
   const pageGuide = useMemo(() => guideForPath(pathname || "/"), [pathname]);
@@ -331,10 +333,10 @@ export default function GuideBot() {
                 <BrainCircuit size={21} className="text-cyan-200" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-black text-white tracking-[0.18em]">FELIX</h3>
+                <h3 className="text-base font-black text-white tracking-[0.18em]">{tr("FELIX")}</h3>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs text-emerald-300 font-bold uppercase tracking-[0.16em]">Guida tutorial passo passo</span>
+                  <span className="text-xs text-emerald-300 font-bold uppercase tracking-[0.16em]">{tr("Guida tutorial passo passo")}</span>
                 </div>
               </div>
             </div>
@@ -342,7 +344,7 @@ export default function GuideBot() {
               <button onClick={() => setIsMinimized(!isMinimized)} className="p-2 hover:bg-white/10 rounded-lg text-slate-300 transition-colors" aria-label={isMinimized ? "Espandi Felix" : "Minimizza Felix"}>
                 {isMinimized ? <Maximize2 size={16} /> : <Minus size={16} />}
               </button>
-              <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-red-500/20 hover:text-red-300 rounded-lg text-slate-300 transition-colors" aria-label="Chiudi Felix">
+              <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-red-500/20 hover:text-red-300 rounded-lg text-slate-300 transition-colors" aria-label={tr("Chiudi Felix")}>
                 <X size={16} />
               </button>
             </div>
@@ -387,7 +389,7 @@ export default function GuideBot() {
                         <div className="flex items-center gap-3 mt-1">
                           <ActionPreview intent={m.content.toLowerCase()} />
                           <div className="text-[10px] font-black text-cyan-400/60 uppercase tracking-widest italic animate-pulse">
-                            Visual Preview
+                            {tr("Visual Preview")}
                           </div>
                         </div>
                       )}
@@ -400,7 +402,7 @@ export default function GuideBot() {
                     <Bot size={20} className="mt-2 text-cyan-300" />
                     <div className="bg-white/6 border border-white/10 px-4 py-3 rounded-2xl rounded-tl-md text-slate-300 flex items-center gap-2 text-base">
                       <Loader2 size={15} className="animate-spin text-cyan-300" />
-                      Felix sta preparando la procedura...
+                      {tr("Felix sta preparando la procedura...")}
                     </div>
                   </div>
                 )}
@@ -420,7 +422,7 @@ export default function GuideBot() {
                     onClick={() => sendMessage()}
                     disabled={!input.trim() || loading}
                     className="absolute right-1.5 top-1.5 p-2 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 text-[#07111F] rounded-lg transition-all"
-                    aria-label="Invia messaggio"
+                    aria-label={tr("Invia messaggio")}
                   >
                     <Send size={17} />
                   </button>
@@ -439,12 +441,12 @@ export default function GuideBot() {
         className={`group relative flex items-center justify-center w-16 h-16 rounded-2xl shadow-2xl transition-all duration-500 transform hover:scale-105 active:scale-95 ${
           isOpen ? "scale-0 opacity-0 pointer-events-none" : "scale-100 opacity-100"
         }`}
-        aria-label="Apri Felix"
+        aria-label={tr("Apri Felix")}
       >
         <div className="absolute inset-0 rounded-2xl bg-cyan-400 blur-md opacity-35 group-hover:opacity-60 transition-opacity animate-pulse" />
         <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-700 flex items-center justify-center border border-white/25">
           <Sparkles className="text-white group-hover:rotate-12 transition-transform" />
-          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-emerald-400 text-[#07111F] border-2 border-[#07111F] rounded-full text-[10px] font-black flex items-center justify-center">AI</span>
+          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-emerald-400 text-[#07111F] border-2 border-[#07111F] rounded-full text-[10px] font-black flex items-center justify-center">{tr("AI")}</span>
         </div>
       </button>
     </div>

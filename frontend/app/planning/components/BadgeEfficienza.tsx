@@ -1,6 +1,7 @@
 "use client";
 
 import type { EfficiencyBreakdown } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 interface Props {
   score: number;
@@ -24,6 +25,7 @@ function coloreValore(valore: number, target: number): string {
 
 export default function BadgeEfficienza({ score, breakdown }: Props) {
   // Colore e label in base al punteggio globale
+  const tr = useT();
   const bg =
     score >= 90 ? "#22c55e" :
     score >= 70 ? "#f59e0b" :
@@ -79,7 +81,7 @@ export default function BadgeEfficienza({ score, breakdown }: Props) {
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: bg }}>{label}</div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-            Efficienza piano corrente
+            {tr("Efficienza piano corrente")}
           </div>
         </div>
       </div>

@@ -24,7 +24,7 @@ export const viewport: Viewport = {
   themeColor: "#f5f7fb",
 };
 
-// Tema e classe dispositivo vengono applicati prima del paint;
+// Tema, lingua e classe dispositivo vengono applicati prima del paint;
 // ViewportController riallinea la classe dopo l'hydration.
 const bootstrapScript = `
   (function() {
@@ -32,6 +32,12 @@ const bootstrapScript = `
       var root = document.documentElement;
       var t = localStorage.getItem('maintai_theme');
       root.setAttribute('data-theme', (t === 'dark' || t === 'light') ? t : 'light');
+
+      // Lingua scelta dall'utente: applicata su <html lang> prima del primo
+      // paint, così I18nProvider la legge da lì e non c'è un lampo di italiano
+      // per chi lavora in inglese.
+      var lang = localStorage.getItem('maintai_locale');
+      root.setAttribute('lang', (lang === 'it' || lang === 'en') ? lang : 'it');
 
       var vw = Math.round((window.visualViewport && window.visualViewport.width) || window.innerWidth || 0);
       var ua = navigator.userAgent || '';

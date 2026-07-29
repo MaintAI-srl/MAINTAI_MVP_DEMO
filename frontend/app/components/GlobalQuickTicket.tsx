@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { apiPost, apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Asset = { id: number; name: string; nome: string; codice: string };
 
 export default function GlobalQuickTicket() {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +33,7 @@ export default function GlobalQuickTicket() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!titolo.trim()) { notify.error("Titolo obbligatorio"); return; }
+    if (!titolo.trim()) { notify.error(tn("Titolo obbligatorio")); return; }
 
     setLoading(true);
     try {
@@ -45,7 +47,7 @@ export default function GlobalQuickTicket() {
         durata_stimata_ore: 1, // default
         fascia_oraria: "diurna"
       });
-      notify.success("Ticket creato con successo!");
+      notify.success(tn("Ticket creato con successo!"));
       setOpen(false);
       // Pulisco il form
       setTitolo("");
@@ -64,8 +66,8 @@ export default function GlobalQuickTicket() {
     <Sheet open={open} onOpenChange={setOpen}>
       {/* Compatto (solo +): lo spazio in topbar è occupato dai nomi degli Agenti AI */}
       <SheetTrigger
-        title="Quick Ticket — crea un nuovo ticket rapido"
-        aria-label="Quick Ticket"
+        title={tr("Quick Ticket — crea un nuovo ticket rapido")}
+        aria-label={tr("Quick Ticket")}
         style={{
           background: "linear-gradient(135deg, #3b82f6, #2563eb)",
           color: "white",
@@ -95,8 +97,8 @@ export default function GlobalQuickTicket() {
         }}
       >
         <div style={{ padding: "24px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#3b82f6", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Fast Action</div>
-          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 22, fontWeight: 800 }}>Nuovo Ticket</SheetTitle>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#3b82f6", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{tr("Fast Action")}</div>
+          <SheetTitle style={{ color: "var(--text-primary)", fontSize: 22, fontWeight: 800 }}>{tr("Nuovo Ticket")}</SheetTitle>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
@@ -104,14 +106,14 @@ export default function GlobalQuickTicket() {
 
             {/* Titolo */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Titolo *</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{tr("Titolo *")}</label>
               <input
                 type="text"
                 value={titolo}
                 onChange={e => setTitolo(e.target.value)}
                 required
                 autoFocus
-                placeholder="Breve descrizione o sintomo fallimento"
+                placeholder={tr("Breve descrizione o sintomo fallimento")}
                 style={{
                   background: "var(--surface-3)",
                   color: "var(--text-primary)",
@@ -126,7 +128,7 @@ export default function GlobalQuickTicket() {
 
             {/* Asset */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset Principale</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{tr("Asset Principale")}</label>
               <select
                 value={assetId}
                 onChange={e => setAssetId(e.target.value)}
@@ -140,7 +142,7 @@ export default function GlobalQuickTicket() {
                   fontSize: 14
                 }}
               >
-                <option value="">Seleziona asset id/codice</option>
+                <option value="">{tr("Seleziona asset id/codice")}</option>
                 {assets.map(a => <option key={a.id} value={String(a.id)}>{a.codice ? `[${a.codice}] ` : ""}{a.name || a.nome}</option>)}
               </select>
             </div>
@@ -148,7 +150,7 @@ export default function GlobalQuickTicket() {
             {/* Modalità One-Click / Priorità / Tipo */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tipo</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{tr("Tipo")}</label>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {["BD", "CM"].map(t => (
                     <button
@@ -176,7 +178,7 @@ export default function GlobalQuickTicket() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Priorità</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{tr("Priorità")}</label>
                 <select
                   value={priorita}
                   onChange={e => setPriorita(e.target.value)}
@@ -191,15 +193,15 @@ export default function GlobalQuickTicket() {
                     fontSize: 13
                   }}
                 >
-                  <option value="Alta">Alta</option>
-                  <option value="Media">Media</option>
-                  <option value="Bassa">Bassa</option>
+                  <option value="Alta">{tr("Alta")}</option>
+                  <option value="Media">{tr("Media")}</option>
+                  <option value="Bassa">{tr("Bassa")}</option>
                 </select>
               </div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Stato asset</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{tr("Stato asset")}</label>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {[
                   { value: "", label: "Mantieni", color: "var(--text-muted)" },
@@ -221,22 +223,22 @@ export default function GlobalQuickTicket() {
                       cursor: "pointer",
                     }}
                   >
-                    {s.label}
+                    {tr(s.label)}
                   </button>
                 ))}
               </div>
             </div>
 
             <div style={{ marginTop: "auto", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-              Il ticket verrà salvato in stato <strong>Aperto</strong> e sarà visibile nella lista Ticket o pronto per l&apos;assegnazione nel Planner.
+              {tr("Il ticket verrà salvato in stato")} <strong>{tr("Aperto")}</strong> e sarà visibile nella lista Ticket o pronto per l&apos;assegnazione nel Planner.
             </div>
 
           </div>
 
           <div style={{ padding: "20px 24px", borderTop: "1px solid var(--border-default)", background: "var(--surface-2)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} style={{ color: "var(--text-muted)" }}>Annulla</Button>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} style={{ color: "var(--text-muted)" }}>{tr("Annulla")}</Button>
             <Button type="submit" disabled={loading} style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)", fontWeight: 700, padding: "0 24px" }}>
-              {loading ? "Creazione..." : "Salva Ticket Ora"}
+              {loading ? tr("Creazione...") : tr("Salva Ticket Ora")}
             </Button>
           </div>
         </form>

@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiGet } from "../../lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 
 // ─── Tipi ───────────────────────────────────────────────────────────────────
 
@@ -56,7 +58,7 @@ function prioritaColor(p: string): string {
 function formatDate(iso?: string): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+    return new Date(iso).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "short", year: "numeric" });
   } catch {
     return iso.split("T")[0];
   }
@@ -113,7 +115,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
               fontSize: "11px",
               border: `1px solid ${prioritaColor(ticket.priorita)}44`,
             }}>
-              {ticket.priorita}
+              {labelPriorita(ticket.priorita)}
             </span>
           </div>
           <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3 }}>
@@ -159,6 +161,7 @@ function Kv({ label, value }: { label: string; value: string }) {
 // ─── Pagina principale ───────────────────────────────────────────────────────
 
 export default function StoricoAssetPage() {
+  const tr = useT();
   const params = useParams();
   const router = useRouter();
   const assetId = params.asset_id as string;
@@ -185,7 +188,7 @@ export default function StoricoAssetPage() {
         return;
       }
       setError("Impossibile caricare lo storico. Verifica la connessione.");
-      notify.error("Errore nel caricamento dello storico");
+      notify.error(tn("Errore nel caricamento dello storico"));
     } finally {
       setLoading(false);
     }
@@ -204,7 +207,7 @@ export default function StoricoAssetPage() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--surface-0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "var(--text-muted)", fontSize: "16px" }}>Caricamento storico...</div>
+        <div style={{ color: "var(--text-muted)", fontSize: "16px" }}>{tr("Caricamento storico...")}</div>
       </div>
     );
   }
@@ -219,7 +222,7 @@ export default function StoricoAssetPage() {
             onClick={loadData}
             style={{ background: "#1e40af", color: "#fff", border: "none", borderRadius: "10px", padding: "12px 24px", fontSize: "16px", cursor: "pointer", minHeight: "48px" }}
           >
-            Riprova
+            {tr("Riprova")}
           </button>
         </div>
       </div>
@@ -234,7 +237,7 @@ export default function StoricoAssetPage() {
           <button
             onClick={() => router.back()}
             style={{ background: "var(--surface-3)", border: "none", borderRadius: "8px", padding: "8px 12px", color: "var(--text-muted)", cursor: "pointer", fontSize: "16px", minHeight: "44px", minWidth: "44px" }}
-            aria-label="Torna indietro"
+            aria-label={tr("Torna indietro")}
           >
             ←
           </button>
@@ -242,7 +245,7 @@ export default function StoricoAssetPage() {
             <div style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               {asset?.sito_nome && `${asset.sito_nome} › `}
               {asset?.impianto_nome && `${asset.impianto_nome} › `}
-              Storico
+              {tr("Storico")}
             </div>
             <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>
               🔧 {asset?.nome ?? `Asset #${assetId}`}
@@ -269,12 +272,12 @@ export default function StoricoAssetPage() {
               lineHeight: "24px",
             }}
           >
-            + Nuovo ticket
+            {tr("+ Nuovo ticket")}
           </Link>
           <button
             onClick={loadData}
             style={{ background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: "10px", padding: "12px 14px", color: "var(--text-muted)", cursor: "pointer", fontSize: "18px", minHeight: "48px", minWidth: "48px" }}
-            title="Aggiorna"
+            title={tr("Aggiorna")}
           >
             ↻
           </button>
@@ -284,7 +287,7 @@ export default function StoricoAssetPage() {
       {/* Filtri tipo */}
       <div style={{ display: "flex", gap: "8px", padding: "12px 16px", overflowX: "auto" }}>
         {[
-          { id: "tutti", label: "Tutti" },
+          { id: "tutti", label: tr("Tutti") },
           { id: "BD", label: "Guasti" },
           { id: "PM", label: "Preventivi" },
           { id: "CM", label: "Correttivi" },
@@ -305,7 +308,7 @@ export default function StoricoAssetPage() {
               minHeight: "36px",
             }}
           >
-            {f.label}
+            {tr(f.label)}
             {f.id !== "tutti" && (
               <span style={{ marginLeft: "6px", opacity: 0.7 }}>
                 ({tickets.filter(t => t.tipo === f.id).length})
@@ -322,12 +325,12 @@ export default function StoricoAssetPage() {
             <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
             <div style={{ fontSize: "18px", color: "var(--text-muted)", marginBottom: "8px" }}>
               {tickets.length === 0
-                ? "Nessun intervento registrato"
-                : "Nessun intervento per questo filtro"}
+                ? tr("Nessun intervento registrato")
+                : tr("Nessun intervento per questo filtro")}
             </div>
             {tickets.length === 0 && (
               <div style={{ fontSize: "14px", color: "#64748b" }}>
-                Gli interventi chiusi appariranno qui
+                {tr("Gli interventi chiusi appariranno qui")}
               </div>
             )}
           </div>

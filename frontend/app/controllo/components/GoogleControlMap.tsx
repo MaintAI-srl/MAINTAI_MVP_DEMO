@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { controlCenterTechnicianPlace, controlCenterTicketPlace, geocodePlace, type LatLon } from "../geo";
 import type { ControlCenterBDTicket, ControlCenterRouteTecnico, ImpiantoMarker, SitoOverview } from "../types";
 import { STATUS_COLORS, STATUS_LABELS } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 // ── Tipi minimi dell'API Google Maps (il progetto non include @types/google.maps) ──
 type GLatLng = { lat: number; lng: number };
@@ -177,6 +178,7 @@ export default function GoogleControlMap({
   onSelectSito,
   onSelectEmergency,
 }: GoogleControlMapProps) {
+  const tr = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapsRef = useRef<GMapsApi | null>(null);
   const mapRef = useRef<GMap | null>(null);
@@ -426,7 +428,7 @@ export default function GoogleControlMap({
         alignItems: "center", justifyContent: "center", gap: 8,
         background: "var(--surface-2)", borderRadius: 10, padding: 24, textAlign: "center",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#f87171" }}>Google Maps non disponibile</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#f87171" }}>{tr("Google Maps non disponibile")}</div>
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{loadError}</div>
       </div>
     );

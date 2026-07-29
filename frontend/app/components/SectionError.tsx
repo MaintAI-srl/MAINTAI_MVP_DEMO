@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/app/lib/i18n";
 
 export default function SectionError({
   error,
@@ -7,6 +8,7 @@ export default function SectionError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const tr = useT();
   return (
     <div style={{
       display: "flex",
@@ -32,10 +34,10 @@ export default function SectionError({
       </div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontWeight: 600, fontSize: "16px", color: "var(--text-primary)", marginBottom: "6px" }}>
-          Errore nel caricamento
+          {tr("Errore nel caricamento")}
         </div>
         <div style={{ fontSize: "13px", maxWidth: "380px" }}>
-          {error.message || "Si è verificato un errore imprevisto."}
+          {error.message || tr("Si è verificato un errore imprevisto.")}
         </div>
       </div>
       <button
@@ -51,7 +53,7 @@ export default function SectionError({
           cursor: "pointer",
         }}
       >
-        Riprova
+        {tr("Riprova")}
       </button>
     </div>
   );

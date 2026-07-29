@@ -10,8 +10,10 @@ import { useAuth } from "../../lib/auth";
 import { VERSION } from "../../lib/version";
 import { LogOut, Monitor, UserRound, Building2, BadgeCheck } from "lucide-react";
 import { C, glass, IconBadge } from "../shared";
+import { useT } from "@/app/lib/i18n";
 
 export default function MobileProfiloPage() {
+  const tr = useT();
   const router = useRouter();
   const { user, logout } = useAuth();
 
@@ -25,7 +27,7 @@ export default function MobileProfiloPage() {
     <div className="m-page m-scroll" style={{ padding: "16px 16px 24px", gap: 12 }}>
 
       <div style={{ fontWeight: 800, fontSize: "clamp(22px, 6vw, 26px)", color: C.text, letterSpacing: "-0.02em", marginBottom: 4 }}>
-        Profilo
+        {tr("Profilo")}
       </div>
 
       {/* Card utente */}
@@ -51,7 +53,7 @@ export default function MobileProfiloPage() {
         <div className="m-fade-up m-d1" style={{ ...glass, padding: "15px 18px", display: "flex", alignItems: "center", gap: 13 }}>
           <IconBadge Icon={Building2} color={C.teal} size={44} iconSize={20} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: C.text3, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2 }}>Azienda</div>
+            <div style={{ fontSize: 11, color: C.text3, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2 }}>{tr("Azienda")}</div>
             <div style={{ fontWeight: 700, fontSize: 16, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user.tenant_nome}
             </div>
@@ -70,9 +72,9 @@ export default function MobileProfiloPage() {
       >
         <IconBadge Icon={Monitor} color={C.purple} size={44} iconSize={20} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>Versione desktop</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>{tr("Versione desktop")}</div>
           <div style={{ fontSize: 13, color: C.text3, marginTop: 2, lineHeight: 1.4 }}>
-            Passa al gestionale completo. Torni qui aprendo /m.
+            {tr("Passa al gestionale completo. Torni qui aprendo /m.")}
           </div>
         </div>
       </button>
@@ -88,11 +90,11 @@ export default function MobileProfiloPage() {
           display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
         }}
       >
-        <LogOut size={19} strokeWidth={2.2} /> Esci
+        <LogOut size={19} strokeWidth={2.2} /> {tr("Esci")}
       </button>
 
       <div style={{ textAlign: "center", fontSize: 12, color: C.text3, fontFamily: "var(--font-mono)", marginTop: 8 }}>
-        MaintAI Campo · v{VERSION}
+        {tr("MaintAI Campo · v")}{VERSION}
       </div>
     </div>
   );

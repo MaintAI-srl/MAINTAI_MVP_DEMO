@@ -6,6 +6,8 @@ import { apiGet, apiPost, apiPut, apiDelete, API_BASE } from "../lib/api";
 import { notify } from "@/lib/toast";
 import StatusToggle from "../components/StatusToggle";
 import { ASSET_STATUS_OPTIONS, assetStatusLabel, assetStatusStyle } from "../lib/assetStatus";
+import { useT, tn } from "@/app/lib/i18n";
+import { labelCriticita, labelPriorita, labelStato } from "@/app/lib/i18n/domain";
 
 // Lazy load del componente QR (client-only, niente SSR necessario ma usiamo dynamic per uniformità)
 const AssetQRCodeLazy = dynamic(() => import("../components/AssetQRCode"), { ssr: false });
@@ -85,7 +87,8 @@ type SelectionType = "sito" | "impianto" | "asset" | null;
 // ─── Chips & helpers ──────────────────────────────────────────────────────────
 
 function CriticitaChip({ valore }: { valore?: string | null }) {
-  if (!valore) return <span style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px" }}>Non classificato</span>;
+  const tr = useT();
+  if (!valore) return <span style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px" }}>{tr("Non classificato")}</span>;
   // Nuovi valori A/B/C (M1.2)
   const mapABC: Record<string, string> = { A: "#ef4444", B: "#f97316", C: "#22c55e" };
   // Vecchi valori legacy
@@ -197,6 +200,7 @@ const btnDanger: React.CSSProperties = {
 function ModalConferma({ titolo, messaggio, onClose, onConferma }: {
   titolo: string; messaggio: string; onClose: () => void; onConferma: () => void;
 }) {
+  const tr = useT();
   const [deleting, setDeleting] = useState(false);
   const conferma = async () => { setDeleting(true); await onConferma(); };
   return (
@@ -204,7 +208,7 @@ function ModalConferma({ titolo, messaggio, onClose, onConferma }: {
       <ModalTitle onClose={onClose}>{titolo}</ModalTitle>
       <div style={{ color: "var(--text-secondary)", fontSize: "14px", marginBottom: "24px", lineHeight: 1.6 }}>{messaggio}</div>
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-        <button style={btnSecondary} onClick={onClose}>Annulla</button>
+        <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
         <button style={btnDanger} onClick={conferma} disabled={deleting}>{deleting ? "Eliminando..." : "Elimina"}</button>
       </div>
     </ModalOverlay>
@@ -214,14 +218,15 @@ function ModalConferma({ titolo, messaggio, onClose, onConferma }: {
 // ─── Modal Nuovo Sito ─────────────────────────────────────────────────────────
 
 function ModalNuovoSito({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const tr = useT();
   const [form, setForm] = useState({ nome: "", descrizione: "", ubicazione: "", citta: "", paese: "Italia", responsabile: "", telefono_responsabile: "", email_responsabile: "", note: "" });
   const [saving, setSaving] = useState(false);
   const save = async () => { if (!form.nome.trim()) return; setSaving(true); try { await apiPost("/siti", form); onCreated(); onClose(); } catch { } finally { setSaving(false); } };
   const upd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (
     <ModalOverlay onClose={onClose}>
-      <ModalTitle onClose={onClose}>Nuovo Sito</ModalTitle>
-      <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} placeholder="Es. Stabilimento Nord" /></FormField>
+      <ModalTitle onClose={onClose}>{tr("Nuovo Sito")}</ModalTitle>
+      <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} placeholder={tr("Es. Stabilimento Nord")} /></FormField>
       <FormField label="Descrizione"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.descrizione} onChange={upd("descrizione")} /></FormField>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
         <FormField label="Ubicazione"><input style={inputStyle} value={form.ubicazione} onChange={upd("ubicazione")} /></FormField>
@@ -233,8 +238,8 @@ function ModalNuovoSito({ onClose, onCreated }: { onClose: () => void; onCreated
       </div>
       <FormField label="Note"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.note} onChange={upd("note")} /></FormField>
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-        <button style={btnSecondary} onClick={onClose}>Annulla</button>
-        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : "Crea Sito"}</button>
+        <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
+        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : tr("Crea Sito")}</button>
       </div>
     </ModalOverlay>
   );
@@ -243,13 +248,14 @@ function ModalNuovoSito({ onClose, onCreated }: { onClose: () => void; onCreated
 // ─── Modal Modifica Sito ──────────────────────────────────────────────────────
 
 function ModalModificaSito({ sito, onClose, onSaved }: { sito: SitoNode; onClose: () => void; onSaved: () => void }) {
+  const tr = useT();
   const [form, setForm] = useState({ nome: sito.nome || "", descrizione: sito.descrizione || "", ubicazione: sito.ubicazione || "", citta: sito.citta || "", paese: sito.paese || "Italia", responsabile: sito.responsabile || "", telefono_responsabile: sito.telefono_responsabile || "", email_responsabile: sito.email_responsabile || "", note: sito.note || "" });
   const [saving, setSaving] = useState(false);
   const save = async () => { setSaving(true); try { await apiPut(`/siti/${sito.id}`, form); onSaved(); onClose(); } catch { } finally { setSaving(false); } };
   const upd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (
     <ModalOverlay onClose={onClose}>
-      <ModalTitle onClose={onClose}>Modifica Sito — {sito.nome}</ModalTitle>
+      <ModalTitle onClose={onClose}>{tr("Modifica Sito —")} {sito.nome}</ModalTitle>
       <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} /></FormField>
       <FormField label="Descrizione"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.descrizione} onChange={upd("descrizione")} /></FormField>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -262,8 +268,8 @@ function ModalModificaSito({ sito, onClose, onSaved }: { sito: SitoNode; onClose
       </div>
       <FormField label="Note"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.note} onChange={upd("note")} /></FormField>
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-        <button style={btnSecondary} onClick={onClose}>Annulla</button>
-        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : "Salva"}</button>
+        <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
+        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : tr("Salva")}</button>
       </div>
     </ModalOverlay>
   );
@@ -272,20 +278,21 @@ function ModalModificaSito({ sito, onClose, onSaved }: { sito: SitoNode; onClose
 // ─── Modal Nuovo Impianto ─────────────────────────────────────────────────────
 
 function ModalNuovoImpianto({ sitoId, sitoNome, onClose, onCreated }: { sitoId: number; sitoNome: string; onClose: () => void; onCreated: () => void }) {
+  const tr = useT();
   const [form, setForm] = useState({ nome: "", tipologia: "", descrizione: "", note: "" });
   const [saving, setSaving] = useState(false);
   const save = async () => { if (!form.nome.trim()) return; setSaving(true); try { await apiPost("/impianti", { ...form, sito_id: sitoId }); onCreated(); onClose(); } catch { } finally { setSaving(false); } };
   const upd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (
     <ModalOverlay onClose={onClose}>
-      <ModalTitle onClose={onClose}>Nuovo Impianto — {sitoNome}</ModalTitle>
-      <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} placeholder="Es. Cabina MT 01" /></FormField>
-      <FormField label="Tipologia"><input style={inputStyle} value={form.tipologia} onChange={upd("tipologia")} placeholder="Es. Cabina MT, Pompe, HVAC" /></FormField>
+      <ModalTitle onClose={onClose}>{tr("Nuovo Impianto —")} {sitoNome}</ModalTitle>
+      <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} placeholder={tr("Es. Cabina MT 01")} /></FormField>
+      <FormField label="Tipologia"><input style={inputStyle} value={form.tipologia} onChange={upd("tipologia")} placeholder={tr("Es. Cabina MT, Pompe, HVAC")} /></FormField>
       <FormField label="Descrizione"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.descrizione} onChange={upd("descrizione")} /></FormField>
       <FormField label="Note"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.note} onChange={upd("note")} /></FormField>
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-        <button style={btnSecondary} onClick={onClose}>Annulla</button>
-        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : "Crea Impianto"}</button>
+        <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
+        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : tr("Crea Impianto")}</button>
       </div>
     </ModalOverlay>
   );
@@ -294,20 +301,21 @@ function ModalNuovoImpianto({ sitoId, sitoNome, onClose, onCreated }: { sitoId: 
 // ─── Modal Modifica Impianto ──────────────────────────────────────────────────
 
 function ModalModificaImpianto({ impianto, onClose, onSaved }: { impianto: ImpiantoNode; onClose: () => void; onSaved: () => void }) {
+  const tr = useT();
   const [form, setForm] = useState({ nome: impianto.nome || "", tipologia: impianto.tipologia || "", descrizione: impianto.descrizione || "", note: impianto.note || "" });
   const [saving, setSaving] = useState(false);
   const save = async () => { setSaving(true); try { await apiPut(`/impianti/${impianto.id}`, form); onSaved(); onClose(); } catch { } finally { setSaving(false); } };
   const upd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (
     <ModalOverlay onClose={onClose}>
-      <ModalTitle onClose={onClose}>Modifica Impianto — {impianto.nome}</ModalTitle>
+      <ModalTitle onClose={onClose}>{tr("Modifica Impianto —")} {impianto.nome}</ModalTitle>
       <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} /></FormField>
       <FormField label="Tipologia"><input style={inputStyle} value={form.tipologia} onChange={upd("tipologia")} /></FormField>
       <FormField label="Descrizione"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.descrizione} onChange={upd("descrizione")} /></FormField>
       <FormField label="Note"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.note} onChange={upd("note")} /></FormField>
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-        <button style={btnSecondary} onClick={onClose}>Annulla</button>
-        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : "Salva"}</button>
+        <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
+        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : tr("Salva")}</button>
       </div>
     </ModalOverlay>
   );
@@ -316,6 +324,7 @@ function ModalModificaImpianto({ impianto, onClose, onSaved }: { impianto: Impia
 // ─── Modal Genera Asset Multipli ──────────────────────────────────────────────
 
 function ModalGeneraAssetMultipli({ impiantoId, impiantoNome, onClose, onCreated }: { impiantoId: number; impiantoNome: string; onClose: () => void; onCreated: () => void }) {
+  const tr = useT();
   const [step, setStep] = useState(1);
   const [prefisso, setPrefisso] = useState("");
   const [quantita, setQuantita] = useState(3);
@@ -337,48 +346,48 @@ function ModalGeneraAssetMultipli({ impiantoId, impiantoNome, onClose, onCreated
 
   return (
     <ModalOverlay onClose={onClose}>
-      <ModalTitle onClose={onClose}>Genera Asset Multipli — {impiantoNome}</ModalTitle>
+      <ModalTitle onClose={onClose}>{tr("Genera Asset Multipli —")} {impiantoNome}</ModalTitle>
       {step === 1 && (
         <>
           <FormField label="Prefisso nome asset">
-            <input style={inputStyle} value={prefisso} onChange={e => setPrefisso(e.target.value)} placeholder="Es. Pompa, Motore, Valvola" />
+            <input style={inputStyle} value={prefisso} onChange={e => setPrefisso(e.target.value)} placeholder={tr("Es. Pompa, Motore, Valvola")} />
           </FormField>
           <FormField label="Quanti asset creare? (1-99)">
             <input style={inputStyle} type="number" min={1} max={99} value={quantita} onChange={e => setQuantita(Math.min(99, Math.max(1, Number(e.target.value))))} />
           </FormField>
           {prefisso && quantita > 0 && (
             <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>Anteprima nomi</div>
+              <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>{tr("Anteprima nomi")}</div>
               {preview.slice(0, 6).map(n => <div key={n} style={{ fontSize: "13px", padding: "2px 0", color: "var(--blue)" }}>→ {n}</div>)}
-              {preview.length > 6 && <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>... e altri {preview.length - 6}</div>}
+              {preview.length > 6 && <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{tr("... e altri")} {preview.length - 6}</div>}
             </div>
           )}
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-            <button style={btnSecondary} onClick={onClose}>Annulla</button>
-            <button style={btnPrimary} onClick={() => setStep(2)} disabled={!prefisso.trim()}>Avanti →</button>
+            <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
+            <button style={btnPrimary} onClick={() => setStep(2)} disabled={!prefisso.trim()}>{tr("Avanti →")}</button>
           </div>
         </>
       )}
       {step === 2 && (
         <>
           <div style={{ background: "var(--blue-glow)", border: "1px solid var(--blue-border)", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Questi dati verranno applicati a tutti i {quantita} asset generati. Potrai modificarli singolarmente dopo.
+            {tr("Questi dati verranno applicati a tutti i")} {quantita} asset generati. Potrai modificarli singolarmente dopo.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <FormField label="Area"><input style={inputStyle} value={area} onChange={e => setArea(e.target.value)} /></FormField>
             <FormField label="Criticita'">
               <select style={inputStyle} value={criticita} onChange={e => setCriticita(e.target.value)}>
-                <option value="bassa">Bassa</option>
-                <option value="media">Media</option>
-                <option value="alta">Alta</option>
-                <option value="critica">Critica</option>
+                <option value="bassa">{tr("Bassa")}</option>
+                <option value="media">{tr("Media")}</option>
+                <option value="alta">{tr("Alta")}</option>
+                <option value="critica">{tr("Critica")}</option>
               </select>
             </FormField>
             <FormField label="Marca (opz.)"><input style={inputStyle} value={marca} onChange={e => setMarca(e.target.value)} /></FormField>
             <FormField label="Modello (opz.)"><input style={inputStyle} value={modello} onChange={e => setModello(e.target.value)} /></FormField>
           </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-            <button style={btnSecondary} onClick={() => setStep(1)}>← Indietro</button>
+            <button style={btnSecondary} onClick={() => setStep(1)}>{tr("← Indietro")}</button>
             <button style={btnPrimary} onClick={genera} disabled={saving}>{saving ? "Generando..." : `Genera ${quantita} asset`}</button>
           </div>
         </>
@@ -390,15 +399,16 @@ function ModalGeneraAssetMultipli({ impiantoId, impiantoNome, onClose, onCreated
 // ─── Modal Nuovo Asset ────────────────────────────────────────────────────────
 
 function ModalNuovoAsset({ impiantoId, impiantoNome, onClose, onCreated }: { impiantoId: number; impiantoNome: string; onClose: () => void; onCreated: () => void }) {
+  const tr = useT();
   const [form, setForm] = useState({ nome: "", area: "Generale", codice: "", descrizione: "", marca: "", modello: "", matricola: "", numero_serie: "", criticita: "media", posizione_fisica: "", impianto_id: impiantoId });
   const [saving, setSaving] = useState(false);
   const save = async () => { if (!form.nome.trim()) return; setSaving(true); try { await apiPost("/assets", form); onCreated(); onClose(); } catch { } finally { setSaving(false); } };
   const upd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (
     <ModalOverlay onClose={onClose}>
-      <ModalTitle onClose={onClose}>Nuovo Asset — {impiantoNome}</ModalTitle>
+      <ModalTitle onClose={onClose}>{tr("Nuovo Asset —")} {impiantoNome}</ModalTitle>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-        <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} placeholder="Es. Pompa centrifuga" /></FormField>
+        <FormField label="Nome *"><input style={inputStyle} value={form.nome} onChange={upd("nome")} placeholder={tr("Es. Pompa centrifuga")} /></FormField>
         <FormField label="Area"><input style={inputStyle} value={form.area} onChange={upd("area")} /></FormField>
         <FormField label="Marca"><input style={inputStyle} value={form.marca} onChange={upd("marca")} /></FormField>
         <FormField label="Modello"><input style={inputStyle} value={form.modello} onChange={upd("modello")} /></FormField>
@@ -406,16 +416,16 @@ function ModalNuovoAsset({ impiantoId, impiantoNome, onClose, onCreated }: { imp
         <FormField label="N. Serie"><input style={inputStyle} value={form.numero_serie} onChange={upd("numero_serie")} /></FormField>
         <FormField label="Criticita'">
           <select style={inputStyle} value={form.criticita} onChange={upd("criticita")}>
-            <option value="bassa">Bassa</option><option value="media">Media</option>
-            <option value="alta">Alta</option><option value="critica">Critica</option>
+            <option value="bassa">{tr("Bassa")}</option><option value="media">{tr("Media")}</option>
+            <option value="alta">{tr("Alta")}</option><option value="critica">{tr("Critica")}</option>
           </select>
         </FormField>
         <FormField label="Posizione fisica"><input style={inputStyle} value={form.posizione_fisica} onChange={upd("posizione_fisica")} /></FormField>
       </div>
       <FormField label="Descrizione"><textarea style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }} value={form.descrizione} onChange={upd("descrizione")} /></FormField>
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-        <button style={btnSecondary} onClick={onClose}>Annulla</button>
-        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : "Crea Asset"}</button>
+        <button style={btnSecondary} onClick={onClose}>{tr("Annulla")}</button>
+        <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? "Salvo..." : tr("Crea Asset")}</button>
       </div>
     </ModalOverlay>
   );
@@ -427,18 +437,19 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
   sito: SitoNode; onModifica: () => void; onElimina: () => void;
   onAddImpianto: () => void; onSelectImpianto: (imp: ImpiantoNode) => void;
 }) {
+  const tr = useT();
   const [localSearch, setLocalSearch] = useState("");
   return (
     <div style={{ padding: "24px", height: "100%", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
         <div>
-          <div style={{ fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "1px" }}>Sito</div>
+          <div style={{ fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "1px" }}>{tr("Sito")}</div>
           <h2 style={{ margin: "4px 0 0", fontSize: "22px", fontWeight: 700 }}>{sito.nome}</h2>
           {sito.citta && <div style={{ fontSize: "13px", color: "var(--text-secondary)" }}>{sito.ubicazione ? `${sito.ubicazione}, ` : ""}{sito.citta}, {sito.paese}</div>}
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <button style={btnPrimary} onClick={onModifica}>Modifica</button>
-          <button style={btnDanger} onClick={onElimina}>Elimina</button>
+          <button style={btnPrimary} onClick={onModifica}>{tr("Modifica")}</button>
+          <button style={btnDanger} onClick={onElimina}>{tr("Elimina")}</button>
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
@@ -449,7 +460,7 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
       </div>
       {(sito.responsabile || sito.email_responsabile) && (
         <div style={{ background: "var(--bg-elevated)", borderRadius: "8px", padding: "14px 16px", marginBottom: "20px", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>Responsabile</div>
+          <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>{tr("Responsabile")}</div>
           {sito.responsabile && <div style={{ fontSize: "14px", fontWeight: 600 }}>{sito.responsabile}</div>}
           {sito.telefono_responsabile && <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{sito.telefono_responsabile}</div>}
           {sito.email_responsabile && <div style={{ fontSize: "12px", color: "var(--blue)" }}>{sito.email_responsabile}</div>}
@@ -458,15 +469,15 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
       {sito.descrizione && <div style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>{sito.descrizione}</div>}
       
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "16px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>Impianti ({sito.n_impianti})</div>
+        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{tr("Impianti (")}{sito.n_impianti})</div>
         <div style={{ flex: 1, maxWidth: "300px" }}>
           <input 
-            placeholder="Filtra impianti..." 
+            placeholder={tr("Filtra impianti...")} 
             onChange={(e) => setLocalSearch(e.target.value)}
             style={{ ...inputStyle, padding: "5px 10px", fontSize: "12px" }} 
           />
         </div>
-        <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }} onClick={onAddImpianto}>+ Impianto</button>
+        <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }} onClick={onAddImpianto}>{tr("+ Impianto")}</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {sito.impianti.filter(i => !localSearch || i.nome.toLowerCase().includes(localSearch.toLowerCase())).map(imp => (
@@ -485,9 +496,9 @@ function PanelSito({ sito, onModifica, onElimina, onAddImpianto, onSelectImpiant
             </div>
           </div>
         ))}
-        {sito.impianti.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun impianto. Clicca &quot;+ Impianto&quot; per aggiungerne uno.</div>}
+        {sito.impianti.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>{tr("Nessun impianto. Clicca \"+ Impianto\" per aggiungerne uno.")}</div>}
       </div>
-      {sito.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {sito.note}</div>}
+      {sito.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>{tr("Note:")}</strong> {sito.note}</div>}
     </div>
   );
 }
@@ -498,6 +509,7 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
   impianto: ImpiantoNode; onModifica: () => void; onElimina: () => void;
   onAddAsset: () => void; onGeneraAsset: () => void; onSelectSito: () => void;
 }) {
+  const tr = useT();
   const [localSearch, setLocalSearch] = useState("");
   return (
     <div style={{ padding: "24px", height: "100%", overflowY: "auto" }}>
@@ -505,14 +517,14 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
         <div>
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "4px" }}>
             <span style={{ cursor: "pointer", color: "var(--blue)" }} onClick={onSelectSito}>{impianto.sito_nome}</span>
-            <span style={{ margin: "0 6px" }}>›</span><span>Impianto</span>
+            <span style={{ margin: "0 6px" }}>›</span><span>{tr("Impianto")}</span>
           </div>
           <h2 style={{ margin: "0 0 4px", fontSize: "22px", fontWeight: 700 }}>⚙ {impianto.nome}</h2>
           {impianto.tipologia && <div style={{ fontSize: "13px", color: "var(--text-secondary)" }}>{impianto.tipologia}</div>}
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <button style={btnPrimary} onClick={onModifica}>Modifica</button>
-          <button style={btnDanger} onClick={onElimina}>Elimina</button>
+          <button style={btnPrimary} onClick={onModifica}>{tr("Modifica")}</button>
+          <button style={btnDanger} onClick={onElimina}>{tr("Elimina")}</button>
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
@@ -522,17 +534,17 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
       {impianto.descrizione && <div style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>{impianto.descrizione}</div>}
       
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "16px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>Asset ({impianto.n_asset})</div>
+        <div style={{ fontSize: "13px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{tr("Asset (")}{impianto.n_asset})</div>
         <div style={{ flex: 1, maxWidth: "300px" }}>
           <input 
-            placeholder="Filtra asset..." 
+            placeholder={tr("Filtra asset...")} 
             onChange={(e) => setLocalSearch(e.target.value)}
             style={{ ...inputStyle, padding: "5px 10px", fontSize: "12px" }} 
           />
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <button style={{ ...btnSecondary, fontSize: "12px", padding: "5px 10px" }} onClick={onGeneraAsset}>⚡ Genera multipli</button>
-          <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }} onClick={onAddAsset}>+ Asset</button>
+          <button style={{ ...btnSecondary, fontSize: "12px", padding: "5px 10px" }} onClick={onGeneraAsset}>{tr("⚡ Genera multipli")}</button>
+          <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }} onClick={onAddAsset}>{tr("+ Asset")}</button>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -548,9 +560,9 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
             </div>
           </div>
         ))}
-        {impianto.assets.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>Nessun asset. Clicca &quot;+ Asset&quot; per aggiungerne uno.</div>}
+        {impianto.assets.length === 0 && <div style={{ color: "var(--text-secondary)", fontSize: "13px", padding: "20px", textAlign: "center" }}>{tr("Nessun asset. Clicca \"+ Asset\" per aggiungerne uno.")}</div>}
       </div>
-      {impianto.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>Note:</strong> {impianto.note}</div>}
+      {impianto.note && <div style={{ marginTop: "20px", padding: "12px", background: "var(--bg-elevated)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)" }}><strong>{tr("Note:")}</strong> {impianto.note}</div>}
     </div>
   );
 }
@@ -560,6 +572,7 @@ function PanelImpianto({ impianto, onModifica, onElimina, onAddAsset, onGeneraAs
 function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   assetId: number; onSelectImpianto: () => void; onSelectSito: () => void; onElimina: () => void;
 }) {
+  const tr = useT();
   const [detail, setDetail] = useState<AssetDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"anagrafica" | "vincoli" | "piani" | "documenti" | "ticket" | "kpi" | "procedure" | "nota_senior" | "qr">("anagrafica");
@@ -667,8 +680,8 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
   };
 
 
-  if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>Caricamento...</div>;
-  if (!detail) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>Asset non trovato</div>;
+  if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>{tr("Caricamento...")}</div>;
+  if (!detail) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>{tr("Asset non trovato")}</div>;
 
   const tabs = [
     { id: "anagrafica", label: "Anagrafica" },
@@ -690,7 +703,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "4px" }}>
             {detail.sito_nome && <><span style={{ cursor: "pointer", color: "var(--blue)" }} onClick={onSelectSito}>{detail.sito_nome}</span><span style={{ margin: "0 6px" }}>›</span></>}
             {detail.impianto_nome && <><span style={{ cursor: "pointer", color: "var(--blue)" }} onClick={onSelectImpianto}>{detail.impianto_nome}</span><span style={{ margin: "0 6px" }}>›</span></>}
-            <span>Asset</span>
+            <span>{tr("Asset")}</span>
           </div>
           <h2 style={{ margin: "0 0 6px", fontSize: "20px", fontWeight: 700 }}>🔧 {detail.nome}</h2>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -709,17 +722,17 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
           ? <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
                 style={{ ...btnSecondary, fontSize: "11px", padding: "6px 10px", display: "flex", alignItems: "center", gap: "4px" }}
-                title="Stampa QR code — incolla sulla macchina per accesso rapido"
+                title={tr("Stampa QR code — incolla sulla macchina per accesso rapido")}
                 onClick={() => setTab("qr")}
               >
-                QR Code
+                {tr("QR Code")}
               </button>
-              <button style={btnPrimary} onClick={() => setEditing(true)}>Modifica</button>
-              <button style={btnDanger} onClick={onElimina}>Elimina</button>
+              <button style={btnPrimary} onClick={() => setEditing(true)}>{tr("Modifica")}</button>
+              <button style={btnDanger} onClick={onElimina}>{tr("Elimina")}</button>
             </div>
           : <div style={{ display: "flex", gap: "8px" }}>
-              <button style={btnSecondary} onClick={() => setEditing(false)}>Annulla</button>
-              <button style={btnPrimary} onClick={saveEdit} disabled={saving}>{saving ? "Salvo..." : "Salva"}</button>
+              <button style={btnSecondary} onClick={() => setEditing(false)}>{tr("Annulla")}</button>
+              <button style={btnPrimary} onClick={saveEdit} disabled={saving}>{saving ? "Salvo..." : tr("Salva")}</button>
             </div>
         }
       </div>
@@ -727,7 +740,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       <div className="page-tabs">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} className={tab === t.id ? "active" : ""}>
-            {t.label}
+            {tr(t.label)}
           </button>
         ))}
       </div>
@@ -749,21 +762,21 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             <FormField label="Posizione fisica"><input style={inputStyle} value={editForm.posizione_fisica || ""} onChange={upd("posizione_fisica")} /></FormField>
             <FormField label="Criticita' (A/B/C)">
               <select style={inputStyle} value={editForm.criticita || ""} onChange={upd("criticita")}>
-                <option value="">Non classificato</option>
-                <option value="A">A — Critica (alta priorità)</option>
-                <option value="B">B — Importante</option>
-                <option value="C">C — Standard</option>
+                <option value="">{tr("Non classificato")}</option>
+                <option value="A">{tr("A — Critica (alta priorità)")}</option>
+                <option value="B">{tr("B — Importante")}</option>
+                <option value="C">{tr("C — Standard")}</option>
               </select>
             </FormField>
             <FormField label="Costo orario fermo (euro/h)">
-              <input style={inputStyle} type="number" min={0} step={0.01} value={editForm.costo_orario_fermo ?? ""} onChange={e => setEditForm(p => ({ ...p, costo_orario_fermo: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="Es. 500" />
+              <input style={inputStyle} type="number" min={0} step={0.01} value={editForm.costo_orario_fermo ?? ""} onChange={e => setEditForm(p => ({ ...p, costo_orario_fermo: e.target.value ? parseFloat(e.target.value) : null }))} placeholder={tr("Es. 500")} />
             </FormField>
             <FormField label="Codice ricambio esterno">
-              <input style={inputStyle} value={editForm.codice_ricambio_esterno || ""} onChange={upd("codice_ricambio_esterno")} placeholder="Codice per integrazione futura" />
+              <input style={inputStyle} value={editForm.codice_ricambio_esterno || ""} onChange={upd("codice_ricambio_esterno")} placeholder={tr("Codice per integrazione futura")} />
             </FormField>
             <FormField label="Stato">
               <select style={inputStyle} value={editForm.stato || "service"} onChange={upd("stato")}>
-                {ASSET_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {ASSET_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{tr(s.label)}</option>)}
               </select>
             </FormField>
           </div>
@@ -794,7 +807,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       {tab === "vincoli" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {(["vincoli_operativi", "vincoli_manutenzione", "note_tecniche"] as const).map((field) => {
-            const labels: Record<string, string> = { vincoli_operativi: "Vincoli operativi", vincoli_manutenzione: "Vincoli manutenzione", note_tecniche: "Note tecniche" };
+            const labels: Record<string, string> = { vincoli_operativi: "Vincoli operativi", vincoli_manutenzione: tr("Vincoli manutenzione"), note_tecniche: "Note tecniche" };
             return (
               <div key={field}>
                 <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "6px", textTransform: "uppercase" }}>{labels[field]}</div>
@@ -810,7 +823,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 
       {tab === "kpi" && (
         <div>
-          {kpiLoading && <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Calcolo KPI...</div>}
+          {kpiLoading && <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>{tr("Calcolo KPI...")}</div>}
           {!kpiLoading && kpi && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px" }}>
@@ -818,45 +831,45 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                   <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.mtbf_giorni !== null ? "#22c55e" : "var(--text-secondary)" }}>
                     {kpi.mtbf_giorni !== null ? `${kpi.mtbf_giorni}gg` : "N/D"}
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>MTBF</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Media giorni fra guasti</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{tr("MTBF")}</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{tr("Media giorni fra guasti")}</div>
                 </div>
                 <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
                   <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.mttr_ore !== null ? "#f59e0b" : "var(--text-secondary)" }}>
                     {kpi.mttr_ore !== null ? `${kpi.mttr_ore}h` : "N/D"}
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>MTTR</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Media ore per riparazione</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{tr("MTTR")}</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{tr("Media ore per riparazione")}</div>
                 </div>
                 <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
                   <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.n_guasti_90gg > 3 ? "#ef4444" : kpi.n_guasti_90gg > 0 ? "#f59e0b" : "#22c55e" }}>
                     {kpi.n_guasti_90gg}
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Guasti 90gg</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Ultimi 90 giorni</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{tr("Guasti 90gg")}</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{tr("Ultimi 90 giorni")}</div>
                 </div>
                 <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
                   <div style={{ fontSize: "28px", fontWeight: 700, color: kpi.disponibilita_pct !== null ? (kpi.disponibilita_pct >= 90 ? "#22c55e" : kpi.disponibilita_pct >= 75 ? "#f59e0b" : "#ef4444") : "var(--text-secondary)" }}>
                     {kpi.disponibilita_pct !== null ? `${kpi.disponibilita_pct}%` : "N/D"}
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Disponibilità</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>MTBF / (MTBF + MTTR/24)</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{tr("Disponibilità")}</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>{tr("MTBF / (MTBF + MTTR/24)")}</div>
                 </div>
               </div>
               {kpi.n_guasti_90gg < 2 && (
                 <div style={{ background: "var(--surface-3)", border: "1px solid var(--border-default)", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
-                  MTBF e MTTR richiedono almeno 2 guasti chiusi (BD/CM). Con {kpi.n_guasti_90gg} guasto registrato i valori saranno disponibili dopo il secondo intervento.
+                  {tr("MTBF e MTTR richiedono almeno 2 guasti chiusi (BD/CM). Con")} {kpi.n_guasti_90gg} guasto registrato i valori saranno disponibili dopo il secondo intervento.
                 </div>
               )}
               {detail && detail.costo_orario_fermo && kpi.mttr_ore && (
                 <div style={{ background: "#1c1917", border: "1px solid #f97316", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", color: "#f97316" }}>
-                  Costo medio per fermo stimato: <strong>€{(kpi.mttr_ore * detail.costo_orario_fermo).toFixed(2)}</strong> per intervento ({kpi.mttr_ore}h × €{detail.costo_orario_fermo}/h)
+                  {tr("Costo medio per fermo stimato:")} <strong>€{(kpi.mttr_ore * detail.costo_orario_fermo).toFixed(2)}</strong> per intervento ({kpi.mttr_ore}h × €{detail.costo_orario_fermo}/h)
                 </div>
               )}
             </>
           )}
           {!kpiLoading && !kpi && (
-            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Nessun dato disponibile</div>
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>{tr("Nessun dato disponibile")}</div>
           )}
         </div>
       )}
@@ -864,18 +877,18 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       {tab === "piani" && (
         <div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
-            <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }}>+ Aggiungi Piano</button>
+            <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }}>{tr("+ Aggiungi Piano")}</button>
           </div>
           {detail.piani_manutenzione?.length ? detail.piani_manutenzione.map(p => (
             <div key={p.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "14px", marginBottom: "10px" }}>
               <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>{p.descrizione}</div>
               <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
-                <span>Ogni {p.frequenza_giorni}gg</span><span>{p.durata_ore}h</span>
-                <span>Priorità: {p.priorita}</span>
-                {p.prossima_scadenza && <span>Scad: {p.prossima_scadenza.split("T")[0]}</span>}
+                <span>{tr("Ogni")} {p.frequenza_giorni}gg</span><span>{p.durata_ore}h</span>
+                <span>{tr("Priorità:")} {labelPriorita(p.priorita)}</span>
+                {p.prossima_scadenza && <span>{tr("Scad:")} {p.prossima_scadenza.split("T")[0]}</span>}
               </div>
             </div>
-          )) : <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Nessun piano associato</div>}
+          )) : <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>{tr("Nessun piano associato")}</div>}
         </div>
       )}
 
@@ -883,27 +896,27 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
         <div>
           {/* ── Header ── */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>Documenti Asset</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>{tr("Documenti Asset")}</div>
             <button style={{ ...btnPrimary, fontSize: "12px", padding: "6px 12px" }} onClick={() => { setDocUploadShow(true); setDocUploadForm({ nome: "", tipo: "Manuale", file: null }); }}>
-              + Carica documento
+              {tr("+ Carica documento")}
             </button>
           </div>
 
           {/* ── Modal upload ── */}
           {docUploadShow && (
             <ModalOverlay onClose={() => setDocUploadShow(false)}>
-              <ModalTitle onClose={() => setDocUploadShow(false)}>Carica documento</ModalTitle>
+              <ModalTitle onClose={() => setDocUploadShow(false)}>{tr("Carica documento")}</ModalTitle>
               <FormField label="Nome documento *">
-                <input style={inputStyle} value={docUploadForm.nome} onChange={e => setDocUploadForm(p => ({ ...p, nome: e.target.value }))} placeholder="Es. Manuale utente pompa" />
+                <input style={inputStyle} value={docUploadForm.nome} onChange={e => setDocUploadForm(p => ({ ...p, nome: e.target.value }))} placeholder={tr("Es. Manuale utente pompa")} />
               </FormField>
               <FormField label="Tipo *">
                 <select style={inputStyle} value={docUploadForm.tipo} onChange={e => setDocUploadForm(p => ({ ...p, tipo: e.target.value }))}>
-                  <option value="Esploso">Esploso (vista esplosa)</option>
-                  <option value="Manuale">Manuale</option>
-                  <option value="Schema elettrico">Schema elettrico</option>
-                  <option value="Datasheet">Datasheet</option>
-                  <option value="Certificato">Certificato</option>
-                  <option value="Altro">Altro</option>
+                  <option value="Esploso">{tr("Esploso (vista esplosa)")}</option>
+                  <option value="Manuale">{tr("Manuale")}</option>
+                  <option value="Schema elettrico">{tr("Schema elettrico")}</option>
+                  <option value="Datasheet">{tr("Datasheet")}</option>
+                  <option value="Certificato">{tr("Certificato")}</option>
+                  <option value="Altro">{tr("Altro")}</option>
                 </select>
               </FormField>
               <FormField label="File (PDF, PNG, JPG) *">
@@ -915,7 +928,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 />
               </FormField>
               <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-                <button style={btnSecondary} onClick={() => setDocUploadShow(false)}>Annulla</button>
+                <button style={btnSecondary} onClick={() => setDocUploadShow(false)}>{tr("Annulla")}</button>
                 <button style={btnPrimary} disabled={docUploading || !docUploadForm.nome.trim() || !docUploadForm.file} onClick={async () => {
                   if (!docUploadForm.file || !docUploadForm.nome.trim()) return;
                   setDocUploading(true);
@@ -931,7 +944,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                     if (tenantCtx) headers["X-Tenant-Id"] = tenantCtx;
                     const res = await fetch(`${API_BASE}/assets/${assetId}/documenti`, { method: "POST", body: fd, credentials: "include", headers });
                     if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.detail || "Errore upload"); }
-                    notify.success("Documento caricato con successo.");
+                    notify.success(tn("Documento caricato con successo."));
                     setDocUploadShow(false);
                     await loadDocumenti();
                   } catch (e: unknown) {
@@ -939,7 +952,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                   } finally {
                     setDocUploading(false);
                   }
-                }}>{docUploading ? "Caricamento..." : "Carica"}</button>
+                }}>{docUploading ? tr("Caricamento...") : tr("Carica")}</button>
               </div>
             </ModalOverlay>
           )}
@@ -964,7 +977,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                       style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", display: "block", borderRadius: "8px" }}
                     />
                   ) : (
-                    <div style={{ padding: "60px", color: "var(--text-secondary)", fontSize: "13px", textAlign: "center" }}>Caricamento immagine...</div>
+                    <div style={{ padding: "60px", color: "var(--text-secondary)", fontSize: "13px", textAlign: "center" }}>{tr("Caricamento immagine...")}</div>
                   )}
                 </div>
 
@@ -972,7 +985,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 {viewerDoc.esploso_analisi && viewerDoc.esploso_analisi.length > 0 && (
                   <div>
                     <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.5px" }}>
-                      {viewerDoc.esploso_analisi.length} Parti identificate
+                      {viewerDoc.esploso_analisi.length} {tr("Parti identificate")}
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
                       {viewerDoc.esploso_analisi.map((p) => (
@@ -994,12 +1007,12 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 
           {/* ── Lista documenti ── */}
           {docLoading ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Caricamento...</div>
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>{tr("Caricamento...")}</div>
           ) : documenti.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
               <div style={{ fontSize: "32px", marginBottom: "8px" }}>📄</div>
-              <div style={{ fontWeight: 600 }}>Nessun documento caricato</div>
-              <div style={{ fontSize: "12px", marginTop: "4px" }}>Manuale · Schema elettrico · Datasheet · Certificato · Esploso · Altro</div>
+              <div style={{ fontWeight: 600 }}>{tr("Nessun documento caricato")}</div>
+              <div style={{ fontSize: "12px", marginTop: "4px" }}>{tr("Manuale · Schema elettrico · Datasheet · Certificato · Esploso · Altro")}</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -1015,7 +1028,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 600, fontSize: "13px" }}>{doc.nome}</span>
                         <span style={{ fontSize: "10px", background: tipoColore + "22", color: tipoColore, border: `1px solid ${tipoColore}55`, borderRadius: "4px", padding: "1px 7px", fontWeight: 700 }}>{doc.tipo}</span>
-                        {doc.ha_analisi && <span style={{ fontSize: "10px", background: "#8b5cf622", color: "#8b5cf6", border: "1px solid #8b5cf655", borderRadius: "4px", padding: "1px 7px" }}>Analisi AI</span>}
+                        {doc.ha_analisi && <span style={{ fontSize: "10px", background: "#8b5cf622", color: "#8b5cf6", border: "1px solid #8b5cf655", borderRadius: "4px", padding: "1px 7px" }}>{tr("Analisi AI")}</span>}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>{doc.filename} · {doc.created_at?.split("T")[0]}</div>
                     </div>
@@ -1026,25 +1039,25 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                           style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px" }}
                           onClick={() => setViewerDoc(doc)}
                         >
-                          Visualizza
+                          {tr("Visualizza")}
                         </button>
                       )}
                       {/* Scarica */}
                       <a href={`${API_BASE}/assets/${assetId}/documenti/${doc.id}/file`} target="_blank" rel="noopener noreferrer" style={{ ...btnSecondary, padding: "5px 10px", fontSize: "11px", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                        Scarica
+                        {tr("Scarica")}
                       </a>
                       {/* Elimina */}
                       <button style={{ ...btnDanger, padding: "5px 10px", fontSize: "11px" }} onClick={async () => {
-                        if (!confirm(`Eliminare il documento "${doc.nome}"?`)) return;
+                        if (!confirm(tn("Eliminare il documento \"{nome}\"?", { nome: doc.nome }))) return;
                         try {
                           await apiDelete(`/assets/${assetId}/documenti/${doc.id}`);
-                          notify.success("Documento eliminato.");
+                          notify.success(tn("Documento eliminato."));
                           setDocumenti(prev => prev.filter(d => d.id !== doc.id));
                           if (viewerDoc?.id === doc.id) setViewerDoc(null);
                         } catch (e: unknown) {
                           notify.error(e instanceof Error ? e.message : "Errore eliminazione");
                         }
-                      }}>Elimina</button>
+                      }}>{tr("Elimina")}</button>
                     </div>
                   </div>
                 );
@@ -1057,7 +1070,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       {tab === "ticket" && (
         <div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
-            <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }}>+ Apri Ticket</button>
+            <button style={{ ...btnPrimary, fontSize: "12px", padding: "5px 10px" }}>{tr("+ Apri Ticket")}</button>
           </div>
           {detail.tickets?.length ? detail.tickets.map(t => (
             <div key={t.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1066,11 +1079,11 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>#{t.id} · {t.tipo} · {t.created_at?.split("T")[0]}</div>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
-                <span style={{ fontSize: "11px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{t.stato}</span>
-                <span style={{ fontSize: "11px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{t.priorita}</span>
+                <span style={{ fontSize: "11px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{labelStato(t.stato)}</span>
+                <span style={{ fontSize: "11px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px" }}>{labelPriorita(t.priorita)}</span>
               </div>
             </div>
-          )) : <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Nessun ticket</div>}
+          )) : <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>{tr("Nessun ticket")}</div>}
         </div>
       )}
 
@@ -1078,37 +1091,37 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       {tab === "procedure" && (
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>Procedure Operative</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>{tr("Procedure Operative")}</div>
             <button style={{ ...btnPrimary, fontSize: "12px", padding: "6px 12px" }} onClick={() => setProcNuovaForm({ show: true, titolo: "", tipo: "ispezione", passiRaw: "" })}>
-              + Nuova procedura
+              {tr("+ Nuova procedura")}
             </button>
           </div>
 
           {/* Form nuova procedura */}
           {procNuovaForm.show && (
             <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--blue)", borderRadius: "10px", padding: "16px", marginBottom: "16px" }}>
-              <div style={{ fontWeight: 600, fontSize: "13px", marginBottom: "12px", color: "var(--blue)" }}>Nuova Procedura</div>
+              <div style={{ fontWeight: 600, fontSize: "13px", marginBottom: "12px", color: "var(--blue)" }}>{tr("Nuova Procedura")}</div>
               <FormField label="Titolo *">
-                <input style={inputStyle} value={procNuovaForm.titolo} onChange={e => setProcNuovaForm(p => ({ ...p, titolo: e.target.value }))} placeholder="Es. Ispezione mensile motore" />
+                <input style={inputStyle} value={procNuovaForm.titolo} onChange={e => setProcNuovaForm(p => ({ ...p, titolo: e.target.value }))} placeholder={tr("Es. Ispezione mensile motore")} />
               </FormField>
               <FormField label="Tipo">
                 <select style={inputStyle} value={procNuovaForm.tipo} onChange={e => setProcNuovaForm(p => ({ ...p, tipo: e.target.value }))}>
-                  <option value="ispezione">Ispezione</option>
-                  <option value="sostituzione">Sostituzione</option>
-                  <option value="taratura">Taratura</option>
-                  <option value="loto">LOTO</option>
-                  <option value="emergenza">Emergenza</option>
+                  <option value="ispezione">{tr("Ispezione")}</option>
+                  <option value="sostituzione">{tr("Sostituzione")}</option>
+                  <option value="taratura">{tr("Taratura")}</option>
+                  <option value="loto">{tr("LOTO")}</option>
+                  <option value="emergenza">{tr("Emergenza")}</option>
                 </select>
               </FormField>
               <FormField label="Passi (uno per riga)">
                 <textarea style={{ ...inputStyle, resize: "vertical", minHeight: "80px" }}
                   value={procNuovaForm.passiRaw}
                   onChange={e => setProcNuovaForm(p => ({ ...p, passiRaw: e.target.value }))}
-                  placeholder={"1. Spegnere e segregare l'impianto\n2. Verificare assenza tensione\n3. ..."}
+                  placeholder={tr("1. Spegnere e segregare l'impianto\n2. Verificare assenza tensione\n3. ...")}
                 />
               </FormField>
               <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                <button style={btnSecondary} onClick={() => setProcNuovaForm({ show: false, titolo: "", tipo: "ispezione", passiRaw: "" })}>Annulla</button>
+                <button style={btnSecondary} onClick={() => setProcNuovaForm({ show: false, titolo: "", tipo: "ispezione", passiRaw: "" })}>{tr("Annulla")}</button>
                 <button style={btnPrimary} disabled={procSaving} onClick={async () => {
                   if (!procNuovaForm.titolo.trim()) return;
                   setProcSaving(true);
@@ -1128,11 +1141,11 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
             </div>
           )}
 
-          {procLoading && <div style={{ textAlign: "center", padding: "30px", color: "var(--text-secondary)" }}>Caricamento...</div>}
+          {procLoading && <div style={{ textAlign: "center", padding: "30px", color: "var(--text-secondary)" }}>{tr("Caricamento...")}</div>}
           {!procLoading && procedure.length === 0 && (
             <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
               <div style={{ fontSize: "28px", marginBottom: "8px" }}>📋</div>
-              <div>Nessuna procedura. Clicca &quot;+ Nuova procedura&quot;.</div>
+              <div>{tr("Nessuna procedura. Clicca \"+ Nuova procedura\".")}</div>
             </div>
           )}
 
@@ -1152,14 +1165,14 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                   </div>
                   <div style={{ display: "flex", gap: "6px" }} onClick={e => e.stopPropagation()}>
                     <button style={{ ...btnSecondary, fontSize: "11px", padding: "3px 8px" }} onClick={() => { setProcEditId(proc.id); setProcEditForm({ titolo: proc.titolo, tipo: proc.tipo, passiRaw: proc.passi.join("\n") }); }}>
-                      Modifica
+                      {tr("Modifica")}
                     </button>
                     <button style={{ ...btnDanger, fontSize: "11px", padding: "3px 8px" }} onClick={async () => {
-                      if (!confirm(`Eliminare la procedura "${proc.titolo}"?`)) return;
+                      if (!confirm(tn("Eliminare la procedura \"{titolo}\"?", { titolo: proc.titolo }))) return;
                       await apiDelete(`/assets/${assetId}/procedure/${proc.id}`);
                       await loadProcedure();
                     }}>
-                      Elimina
+                      {tr("Elimina")}
                     </button>
                   </div>
                 </div>
@@ -1171,18 +1184,18 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                     </FormField>
                     <FormField label="Tipo">
                       <select style={inputStyle} value={procEditForm.tipo} onChange={e => setProcEditForm(p => ({ ...p, tipo: e.target.value }))}>
-                        <option value="ispezione">Ispezione</option>
-                        <option value="sostituzione">Sostituzione</option>
-                        <option value="taratura">Taratura</option>
-                        <option value="loto">LOTO</option>
-                        <option value="emergenza">Emergenza</option>
+                        <option value="ispezione">{tr("Ispezione")}</option>
+                        <option value="sostituzione">{tr("Sostituzione")}</option>
+                        <option value="taratura">{tr("Taratura")}</option>
+                        <option value="loto">{tr("LOTO")}</option>
+                        <option value="emergenza">{tr("Emergenza")}</option>
                       </select>
                     </FormField>
                     <FormField label="Passi (uno per riga)">
                       <textarea style={{ ...inputStyle, resize: "vertical", minHeight: "80px" }} value={procEditForm.passiRaw} onChange={e => setProcEditForm(p => ({ ...p, passiRaw: e.target.value }))} />
                     </FormField>
                     <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                      <button style={btnSecondary} onClick={() => setProcEditId(null)}>Annulla</button>
+                      <button style={btnSecondary} onClick={() => setProcEditId(null)}>{tr("Annulla")}</button>
                       <button style={btnPrimary} disabled={procSaving} onClick={async () => {
                         setProcSaving(true);
                         try {
@@ -1191,7 +1204,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                           await loadProcedure();
                         } catch { } finally { setProcSaving(false); }
                       }}>
-                        {procSaving ? "Salvo..." : "Salva"}
+                        {procSaving ? "Salvo..." : tr("Salva")}
                       </button>
                     </div>
                   </div>
@@ -1213,25 +1226,25 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       {/* ── Tab Nota Senior ─────────────────────────────────────────────── */}
       {tab === "nota_senior" && (
         <div>
-          <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-primary)", marginBottom: "16px" }}>Note Tecniche Senior</div>
-          {notaLoading && <div style={{ textAlign: "center", padding: "30px", color: "var(--text-secondary)" }}>Caricamento...</div>}
+          <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-primary)", marginBottom: "16px" }}>{tr("Note Tecniche Senior")}</div>
+          {notaLoading && <div style={{ textAlign: "center", padding: "30px", color: "var(--text-secondary)" }}>{tr("Caricamento...")}</div>}
           {!notaLoading && !notaEditing && notaSenior && (
             <div>
               <div style={{ background: "#1a2744", border: "1px solid #fbbf24", borderRadius: "10px", padding: "16px", marginBottom: "12px" }}>
                 <div style={{ whiteSpace: "pre-wrap", fontSize: "14px", lineHeight: 1.7, color: "#fef3c7" }}>{notaSenior.testo}</div>
                 <div style={{ marginTop: "10px", fontSize: "11px", color: "#92400e", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  {notaSenior.autore && <span>Autore: {notaSenior.autore}</span>}
-                  {notaSenior.updated_at && <span>Aggiornata: {notaSenior.updated_at.split("T")[0]}</span>}
+                  {notaSenior.autore && <span>{tr("Autore:")} {notaSenior.autore}</span>}
+                  {notaSenior.updated_at && <span>{tr("Aggiornata:")} {notaSenior.updated_at.split("T")[0]}</span>}
                 </div>
               </div>
-              <button style={{ ...btnSecondary, fontSize: "12px" }} onClick={() => { setNotaTesto(notaSenior.testo); setNotaEditing(true); }}>Modifica nota</button>
+              <button style={{ ...btnSecondary, fontSize: "12px" }} onClick={() => { setNotaTesto(notaSenior.testo); setNotaEditing(true); }}>{tr("Modifica nota")}</button>
             </div>
           )}
           {!notaLoading && !notaEditing && !notaSenior && (
             <div style={{ textAlign: "center", padding: "40px" }}>
               <div style={{ fontSize: "28px", marginBottom: "8px" }}>📝</div>
-              <div style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>Nessuna nota tecnica senior</div>
-              <button style={btnPrimary} onClick={() => { setNotaTesto(""); setNotaEditing(true); }}>Aggiungi nota tecnica</button>
+              <div style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>{tr("Nessuna nota tecnica senior")}</div>
+              <button style={btnPrimary} onClick={() => { setNotaTesto(""); setNotaEditing(true); }}>{tr("Aggiungi nota tecnica")}</button>
             </div>
           )}
           {notaEditing && (
@@ -1240,10 +1253,10 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                 style={{ ...inputStyle, resize: "vertical", minHeight: "160px", lineHeight: 1.7, fontSize: "14px" }}
                 value={notaTesto}
                 onChange={e => setNotaTesto(e.target.value)}
-                placeholder="Aggiungi qui trucchi, errori tipici, note di configurazione che solo l&apos;esperto conosce..."
+                placeholder={tr("Aggiungi qui trucchi, errori tipici, note di configurazione che solo l'esperto conosce...")}
               />
               <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "10px" }}>
-                <button style={btnSecondary} onClick={() => { setNotaEditing(false); setNotaTesto(notaSenior?.testo ?? ""); }}>Annulla</button>
+                <button style={btnSecondary} onClick={() => { setNotaEditing(false); setNotaTesto(notaSenior?.testo ?? ""); }}>{tr("Annulla")}</button>
                 <button style={btnPrimary} onClick={async () => {
                   if (!notaTesto.trim()) return;
                   try {
@@ -1251,7 +1264,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
                     setNotaEditing(false);
                     await loadNotaSenior();
                   } catch { }
-                }}>Salva nota</button>
+                }}>{tr("Salva nota")}</button>
               </div>
             </div>
           )}
@@ -1262,11 +1275,10 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
       {tab === "qr" && (
         <div>
           <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-primary)", marginBottom: "16px" }}>
-            QR Code Asset
+            {tr("QR Code Asset")}
           </div>
           <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "20px", lineHeight: 1.6 }}>
-            Incolla questo QR sull&apos;asset fisico. Scansionando il codice si apre direttamente
-            la scheda dell&apos;asset nel sistema MaintAI.
+            {tr("Incolla questo QR sull'asset fisico. Scansionando il codice si apre direttamente la scheda dell'asset nel sistema MaintAI.")}
           </div>
           <AssetQRCodeLazy assetId={detail.id} assetCode={detail.codice} assetNome={detail.nome} />
         </div>
@@ -1278,6 +1290,7 @@ function PanelAsset({ assetId, onSelectImpianto, onSelectSito, onElimina }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AssetPage() {
+  const tr = useT();
   const [siti, setSiti] = useState<SitoNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [treeSearch, setTreeSearch] = useState("");
@@ -1352,21 +1365,21 @@ export default function AssetPage() {
       {/* ── Albero sinistro ── */}
       <div style={{ width: "320px", minWidth: "260px", flexShrink: 0, background: "var(--bg-surface)", borderRight: "1px solid var(--border-strong)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
         <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>Siti & Asset</div>
-          <button style={{ ...btnPrimary, fontSize: "11px", padding: "4px 10px" }} onClick={() => setModalNuovoSito(true)}>+ Sito</button>
+          <div style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>{tr("Siti & Asset")}</div>
+          <button style={{ ...btnPrimary, fontSize: "11px", padding: "4px 10px" }} onClick={() => setModalNuovoSito(true)}>{tr("+ Sito")}</button>
         </div>
         {/* Barra di ricerca albero */}
         <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)" }}>
           <input
             value={treeSearch}
             onChange={e => setTreeSearch(e.target.value)}
-            placeholder="Cerca sito, impianto, asset..."
+            placeholder={tr("Cerca sito, impianto, asset...")}
             style={{ width: "100%", background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", borderRadius: "6px", color: "var(--text-primary)", padding: "6px 10px", fontSize: "12px", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
           />
         </div>
 
-        {loading && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Caricamento...</div>}
-        {!loading && siti.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>Nessun sito. Clicca &quot;+ Sito&quot;.</div>}
+        {loading && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>{tr("Caricamento...")}</div>}
+        {!loading && siti.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>{tr("Nessun sito. Clicca \"+ Sito\".")}</div>}
 
         <div style={{ padding: "8px 0" }}>
           {(() => {
@@ -1393,7 +1406,7 @@ export default function AssetPage() {
                 <span style={{ fontSize: "11px", color: "var(--text-secondary)", width: "12px", flexShrink: 0 }}>{effectiveExpandedSiti.has(sito.id) ? "▼" : "▶"}</span>
                 <span style={{ fontSize: "13px" }}>📍</span>
                 <span style={{ fontSize: "13px", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sito.nome}</span>
-                <span title="Aggiungi impianto" onClick={e => { e.stopPropagation(); setModalNuovoImpianto({ sitoId: sito.id, sitoNome: sito.nome }); }} style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.8 }}>+</span>
+                <span title={tr("Aggiungi impianto")} onClick={e => { e.stopPropagation(); setModalNuovoImpianto({ sitoId: sito.id, sitoNome: sito.nome }); }} style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.8 }}>+</span>
               </div>
 
               {/* Impianti */}
@@ -1403,8 +1416,8 @@ export default function AssetPage() {
                     <span style={{ fontSize: "11px", color: "var(--text-secondary)", width: "12px", flexShrink: 0 }}>{effectiveExpandedImpianti.has(imp.id) ? "▼" : "▶"}</span>
                     <span style={{ fontSize: "12px" }}>⚙</span>
                     <span style={{ fontSize: "12px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{imp.nome}</span>
-                    <span title="Genera asset multipli" onClick={e => { e.stopPropagation(); setModalGeneraAsset({ impiantoId: imp.id, impiantoNome: imp.nome }); }} style={{ fontSize: "11px", color: "var(--amber)", cursor: "pointer", padding: "0 3px" }}>⚡</span>
-                    <span title="Aggiungi asset" onClick={e => { e.stopPropagation(); setModalNuovoAsset({ impiantoId: imp.id, impiantoNome: imp.nome }); }} style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.8 }}>+</span>
+                    <span title={tr("Genera asset multipli")} onClick={e => { e.stopPropagation(); setModalGeneraAsset({ impiantoId: imp.id, impiantoNome: imp.nome }); }} style={{ fontSize: "11px", color: "var(--amber)", cursor: "pointer", padding: "0 3px" }}>⚡</span>
+                    <span title={tr("Aggiungi asset")} onClick={e => { e.stopPropagation(); setModalNuovoAsset({ impiantoId: imp.id, impiantoNome: imp.nome }); }} style={{ fontSize: "14px", color: "var(--blue)", cursor: "pointer", padding: "0 2px", opacity: 0.8 }}>+</span>
                   </div>
 
                   {/* Asset */}
@@ -1413,7 +1426,7 @@ export default function AssetPage() {
                       <span style={{ fontSize: "12px" }}>🔧</span>
                       <span style={{ fontSize: "12px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nome}</span>
                       {(a.criticita === "critica" || a.criticita === "alta") && (
-                        <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "999px", background: a.criticita === "critica" ? "var(--red-dim)" : "rgba(249,115,22,0.2)", color: a.criticita === "critica" ? "var(--red)" : "#f97316" }}>{a.criticita}</span>
+                        <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "999px", background: a.criticita === "critica" ? "var(--red-dim)" : "rgba(249,115,22,0.2)", color: a.criticita === "critica" ? "var(--red)" : "#f97316" }}>{labelCriticita(a.criticita)}</span>
                       )}
                     </div>
                   ))}
@@ -1429,8 +1442,8 @@ export default function AssetPage() {
         {!selType && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-secondary)" }}>
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>🏭</div>
-            <div style={{ fontSize: "16px", fontWeight: 600 }}>Seleziona un elemento dall&apos;albero</div>
-            <div style={{ fontSize: "13px", marginTop: "8px" }}>Clicca su un sito, impianto o asset per vederne i dettagli</div>
+            <div style={{ fontSize: "16px", fontWeight: 600 }}>{tr("Seleziona un elemento dall'albero")}</div>
+            <div style={{ fontSize: "13px", marginTop: "8px" }}>{tr("Clicca su un sito, impianto o asset per vederne i dettagli")}</div>
           </div>
         )}
 

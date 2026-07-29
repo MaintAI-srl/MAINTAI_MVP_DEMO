@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "../lib/api";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
+import { labelPriorita, labelStato } from "@/app/lib/i18n/domain";
 
 type Scadenza = {
   id: number;
@@ -32,6 +34,7 @@ export default function NotificationPanel({
   enableScadenze = true,
   enableTickets = true,
 }: NotificationPanelProps) {
+  const tr = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [tab, setTab] = useState<TabType>(enableScadenze ? "scadenze" : "tickets");
   const [scadenze, setScadenze] = useState<Scadenza[]>([]);
@@ -128,12 +131,12 @@ export default function NotificationPanel({
           }}>
             {/* Header */}
             <div style={{ padding: "14px 18px 0", borderBottom: "1px solid var(--border-subtle)" }}>
-              <div style={{ fontWeight: 800, fontSize: 12, color: "#fff", marginBottom: 10, letterSpacing: "0.08em" }}>NOTIFICHE</div>
+              <div style={{ fontWeight: 800, fontSize: 12, color: "#fff", marginBottom: 10, letterSpacing: "0.08em" }}>{tr("NOTIFICHE")}</div>
               {/* Tabs */}
               <div style={{ display: "flex", gap: 0 }}>
                 {([
                   enableScadenze ? ["scadenze", "Scadenze PM", scadenze.length] : null,
-                  enableTickets ? ["tickets", "Attività", ticketsAssegnati.length] : null,
+                  enableTickets ? ["tickets", tr("Attività"), ticketsAssegnati.length] : null,
                 ].filter(Boolean) as [TabType, string, number][]).map(([t, label, count]) => (
                   <button
                     key={t}
@@ -160,10 +163,10 @@ export default function NotificationPanel({
               {tab === "scadenze" && (
                 <>
                   {loadingScadenze ? (
-                    <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 12 }}>Caricamento...</div>
+                    <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 12 }}>{tr("Caricamento...")}</div>
                   ) : scadenze.length === 0 ? (
                     <div style={{ padding: 36, textAlign: "center", color: "#64748b", fontSize: 12 }}>
-                      Nessuna scadenza imminente nei prossimi 15 giorni.
+                      {tr("Nessuna scadenza imminente nei prossimi 15 giorni.")}
                     </div>
                   ) : (
                     scadenze.map(s => (
@@ -173,12 +176,12 @@ export default function NotificationPanel({
                             {s.asset_nome}
                           </span>
                           <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                            {new Date(s.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                            {new Date(s.scadenza).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "short" })}
                           </span>
                         </div>
                         <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.4 }}>{s.descrizione}</div>
                         {s.urgenza === "alta" && (
-                          <div style={{ fontSize: 10, color: "#f87171", fontWeight: 700, marginTop: 3 }}>URGENTE</div>
+                          <div style={{ fontSize: 10, color: "#f87171", fontWeight: 700, marginTop: 3 }}>{tr("URGENTE")}</div>
                         )}
                       </div>
                     ))
@@ -189,24 +192,24 @@ export default function NotificationPanel({
               {tab === "tickets" && (
                 <>
                   {loadingTickets ? (
-                    <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 12 }}>Caricamento...</div>
+                    <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 12 }}>{tr("Caricamento...")}</div>
                   ) : ticketsAssegnati.length === 0 ? (
                     <div style={{ padding: 36, textAlign: "center", color: "#64748b", fontSize: 12 }}>
-                      Nessun ticket attivo al momento.
+                      {tr("Nessun ticket attivo al momento.")}
                     </div>
                   ) : (
                     ticketsAssegnati.map(t => (
                       <div key={t.id} style={{ padding: "12px 18px", borderBottom: "1px solid var(--border-subtle)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                           <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 3, color: PRIO_COLOR[t.priorita?.toLowerCase()] ?? "#94a3b8", background: `${PRIO_COLOR[t.priorita?.toLowerCase()] ?? "#94a3b8"}20` }}>
-                            {t.priorita}
+                            {labelPriorita(t.priorita)}
                           </span>
-                          <span style={{ fontSize: 9, color: "#64748b", background: "var(--border-subtle)", padding: "2px 5px", borderRadius: 3 }}>{t.stato}</span>
+                          <span style={{ fontSize: 9, color: "#64748b", background: "var(--border-subtle)", padding: "2px 5px", borderRadius: 3 }}>{labelStato(t.stato)}</span>
                         </div>
                         <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.3, marginBottom: 2 }}>{t.titolo}</div>
                         {t.planned_start && (
                           <div style={{ fontSize: 10, color: "#64748b" }}>
-                            Pianificato: {new Date(t.planned_start).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            {tr("Pianificato:")} {new Date(t.planned_start).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </div>
                         )}
                       </div>
@@ -223,7 +226,7 @@ export default function NotificationPanel({
                   onClick={() => { setIsOpen(false); router.push("/scadenze"); }}
                   style={{ background: "transparent", border: "none", color: "#818cf8", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                 >
-                  Calendario scadenze →
+                  {tr("Calendario scadenze →")}
                 </button>
               )}
               {enableTickets && (
@@ -231,7 +234,7 @@ export default function NotificationPanel({
                   onClick={() => { setIsOpen(false); router.push("/ticket"); }}
                   style={{ background: "transparent", border: "none", color: "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}
                 >
-                  Tutti i ticket →
+                  {tr("Tutti i ticket →")}
                 </button>
               )}
             </div>

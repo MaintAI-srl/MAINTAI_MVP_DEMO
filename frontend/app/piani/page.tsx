@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { apiGet, apiPost, apiPut, apiUpload } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
+import { labelPriorita, labelStato } from "@/app/lib/i18n/domain";
 
 // ─── Tipi ─────────────────────────────────────────────────────────────────────
 
@@ -76,7 +78,7 @@ type TicketHistory = {
 
 function fmt(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("it-IT", { 
+  return new Date(iso).toLocaleDateString(getLocaleTag(), { 
     day: "2-digit", 
     month: "2-digit", 
     year: "numeric",
@@ -102,7 +104,7 @@ function StatoBadge({ label }: { label: string }) {
       background: "rgba(99,102,241,0.1)", color: "#a5b4fc",
       borderColor: "rgba(99,102,241,0.3)"
     }}>
-      {label}
+      {labelStato(label)}
     </span>
   );
 }
@@ -111,7 +113,7 @@ function PrioritaBadge({ label }: { label: string }) {
   const style = PRIORITA_STYLES[label] || PRIORITA_STYLES["Media"];
   return (
     <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-semibold", style.badge)}>
-      {label}
+      {labelPriorita(label)}
     </span>
   );
 }
@@ -127,6 +129,7 @@ function AssetSelector({
   onToggle: (id: number) => void,
   onSelectAll: (ids: number[]) => void
 }) {
+  const tr = useT();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AssetOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,7 +140,7 @@ function AssetSelector({
       const res = await apiGet<AssetOption[]>(`/assets?query=${encodeURIComponent(q)}&limit=50`);
       setResults(res || []);
     } catch { 
-      notify.error("Errore nel recupero degli asset"); 
+      notify.error(tn("Errore nel recupero degli asset")); 
       setResults([]);
     }
     finally { setLoading(false); }
@@ -155,7 +158,7 @@ function AssetSelector({
         <div style={{ position: "relative", flex: 1 }}>
           <input 
             type="text" 
-            placeholder="Cerca asset per nome o codice..."
+            placeholder={tr("Cerca asset per nome o codice...")}
             value={query}
             onChange={e => setQuery(e.target.value)}
             style={{
@@ -177,7 +180,7 @@ function AssetSelector({
             cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s"
           }}
         >
-          Seleziona gruppo
+          {tr("Seleziona gruppo")}
         </button>
       </div>
 
@@ -189,11 +192,11 @@ function AssetSelector({
       }}>
         {loading ? (
           <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Ricerca in corso...
+            {tr("Ricerca in corso...")}
           </div>
         ) : results.length === 0 ? (
           <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Nessun asset trovato
+            {tr("Nessun asset trovato")}
           </div>
         ) : (
           results.map(asset => {
@@ -234,7 +237,7 @@ function AssetSelector({
 
       {selectedIds.length > 0 && (
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          <span style={{ color: "#a5b4fc", fontWeight: 600 }}>{selectedIds.length}</span> asset selezionati
+          {tr("{n} asset selezionati", { n: selectedIds.length })}
         </div>
       )}
     </div>
@@ -248,6 +251,7 @@ function ModalPiano({ piano, onClose, onSaved }: {
   onClose: () => void;
   onSaved: (p: Piano) => void;
 }) {
+  const tr = useT();
   const [form, setForm] = useState({
     descrizione: piano?.descrizione || "",
     asset_ids: piano?.asset_ids || [],
@@ -258,7 +262,7 @@ function ModalPiano({ piano, onClose, onSaved }: {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (form.asset_ids.length === 0) {
-      notify.error("Associa almeno un asset al piano.");
+      notify.error(tn("Associa almeno un asset al piano."));
       return;
     }
     setSaving(true);
@@ -295,10 +299,10 @@ function ModalPiano({ piano, onClose, onSaved }: {
         }}>
           <div>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0, marginBottom: 4 }}>
-              {piano ? "Modifica Piano" : "Nuovo Piano di Manutenzione"}
+              {piano ? tr("Modifica Piano") : tr("Nuovo Piano di Manutenzione")}
             </h3>
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
-              {piano ? `Piano: ${piano.nome_codificato}` : "Definisci il perimetro e gli asset associati"}
+              {piano ? `Piano: ${piano.nome_codificato}` : tr("Definisci il perimetro e gli asset associati")}
             </p>
           </div>
           <button 
@@ -313,12 +317,12 @@ function ModalPiano({ piano, onClose, onSaved }: {
           {/* Descrizione */}
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-              Descrizione operativa
+              {tr("Descrizione operativa")}
             </label>
             <textarea 
               value={form.descrizione}
               onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))}
-              placeholder="Es. Piano Manutenzione Preventiva Q.E. Bassa Tensione — Reparto Nord"
+              placeholder={tr("Es. Piano Manutenzione Preventiva Q.E. Bassa Tensione — Reparto Nord")}
               style={{
                 width: "100%", background: "var(--bg-surface)",
                 border: "1px solid var(--border-strong)", borderRadius: 8,
@@ -334,7 +338,7 @@ function ModalPiano({ piano, onClose, onSaved }: {
           {/* Selezione Asset */}
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-              Selezione asset per il piano
+              {tr("Selezione asset per il piano")}
             </label>
             <AssetSelector 
               selectedIds={form.asset_ids} 
@@ -357,7 +361,7 @@ function ModalPiano({ piano, onClose, onSaved }: {
                 fontWeight: 600, background: "transparent", cursor: "pointer"
               }}
             >
-              Annulla
+              {tr("Annulla")}
             </button>
             <button 
               type="submit"
@@ -370,7 +374,7 @@ function ModalPiano({ piano, onClose, onSaved }: {
                 transition: "all 0.15s"
               }}
             >
-              {saving ? "Salvataggio..." : (piano ? "Aggiorna Piano" : "Crea Piano Operativo")}
+              {saving ? "Salvataggio..." : (piano ? tr("Aggiorna Piano") : tr("Crea Piano Operativo"))}
             </button>
           </div>
         </form>
@@ -392,6 +396,7 @@ function DrawerTask({
   onClose: () => void; 
   onUpdated: (t: Task) => void 
 }) {
+  const tr = useT();
   const isNew = !task.id;
   const [form, setForm] = useState({
     nome: task.nome || "",
@@ -472,7 +477,7 @@ function DrawerTask({
             </span>
           )}
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {isNew ? "Nuova Attività" : (task.nome || "Modifica Attività")}
+            {isNew ? tr("Nuova Attività") : (task.nome || tr("Modifica Attività"))}
           </h2>
         </div>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 26, cursor: "pointer", lineHeight: 1, padding: 4 }}>×</button>
@@ -481,12 +486,12 @@ function DrawerTask({
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
         <div>
-          {fieldLabel("Titolo Attività")}
+          {fieldLabel(tr("Titolo Attività"))}
           {fieldInput({ type: "text", value: form.nome, onChange: e => setForm(f => ({ ...f, nome: e.target.value })) })}
         </div>
 
         <div>
-          {fieldLabel("Descrizione / Istruzioni operative")}
+          {fieldLabel(tr("Descrizione / Istruzioni operative"))}
           <textarea 
             value={form.descrizione} 
             onChange={e => setForm(f => ({ ...f, descrizione: e.target.value }))} 
@@ -502,14 +507,14 @@ function DrawerTask({
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
-            {fieldLabel("Frequenza (giorni)")}
+            {fieldLabel(tr("Frequenza (giorni)"))}
             {fieldInput({
               type: "number", value: form.frequenza_giorni, placeholder: "Es. 30",
               onChange: e => setForm(f => ({ ...f, frequenza_giorni: parseInt(e.target.value) || 1 }))
             })}
           </div>
           <div>
-            {fieldLabel("Durata stimata (ore)")}
+            {fieldLabel(tr("Durata stimata (ore)"))}
             {fieldInput({
               type: "number", step: "0.5", value: form.durata_ore, placeholder: "Es. 2",
               onChange: e => setForm(f => ({ ...f, durata_ore: parseFloat(e.target.value) || 0 }))
@@ -521,10 +526,10 @@ function DrawerTask({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#43edd3", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                Regola scadenza
+                {tr("Regola scadenza")}
               </div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                Calendario, ore di funzionamento, oppure la prima tra le due condizioni.
+                {tr("Calendario, ore di funzionamento, oppure la prima tra le due condizioni.")}
               </div>
             </div>
             {task.current_running_hours !== null && task.current_running_hours !== undefined && (
@@ -536,9 +541,9 @@ function DrawerTask({
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             {[
-              { value: "calendar", label: "Solo calendario" },
-              { value: "condition", label: "Solo condizione" },
-              { value: "calendar_or_condition", label: "Calendario + condizione" },
+              { value: "calendar", label: tr("Solo calendario") },
+              { value: "condition", label: tr("Solo condizione") },
+              { value: "calendar_or_condition", label: tr("Calendario + condizione") },
             ].map(option => {
               const active = form.trigger_mode === option.value;
               return (
@@ -557,7 +562,7 @@ function DrawerTask({
                     cursor: "pointer",
                   }}
                 >
-                  {option.label}
+                  {tr(option.label)}
                 </button>
               );
             })}
@@ -567,7 +572,7 @@ function DrawerTask({
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  {fieldLabel("Soglia ore funzionamento")}
+                  {fieldLabel(tr("Soglia ore funzionamento"))}
                   {fieldInput({
                     type: "number",
                     min: 0,
@@ -577,7 +582,7 @@ function DrawerTask({
                   })}
                 </div>
                 <div>
-                  {fieldLabel("Ore ultimo intervento")}
+                  {fieldLabel(tr("Ore ultimo intervento"))}
                   {fieldInput({
                     type: "number",
                     min: 0,
@@ -589,9 +594,9 @@ function DrawerTask({
                 </div>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                Il trigger scatta quando le ore dell&apos;asset raggiungono <strong style={{ color: "#43edd3" }}>{((form.condition_last_done_hours || 0) + (form.condition_threshold_hours || 0)).toFixed(1)} h</strong>.
+                {tr("Il trigger scatta quando le ore dell'asset raggiungono")} <strong style={{ color: "#43edd3" }}>{((form.condition_last_done_hours || 0) + (form.condition_threshold_hours || 0)).toFixed(1)} h</strong>.
                 {task.condition_remaining_hours !== null && task.condition_remaining_hours !== undefined && (
-                  <span> Ore residue attuali: <strong style={{ color: task.condition_remaining_hours <= 0 ? "#f87171" : "#f6a233" }}>{task.condition_remaining_hours.toFixed(1)} h</strong>.</span>
+                  <span> {tr("Ore residue attuali:")} <strong style={{ color: task.condition_remaining_hours <= 0 ? "#f87171" : "#f6a233" }}>{task.condition_remaining_hours.toFixed(1)} h</strong>.</span>
                 )}
               </div>
             </>
@@ -600,7 +605,7 @@ function DrawerTask({
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
-            {fieldLabel("Priorità")}
+            {fieldLabel(tr("Priorità"))}
             <select
               value={form.priorita}
               onChange={e => setForm(f => ({ ...f, priorita: e.target.value }))}
@@ -611,13 +616,13 @@ function DrawerTask({
                 outline: "none", fontFamily: "var(--font-body)", appearance: "none", cursor: "pointer"
               }}
             >
-              <option value="Alta">Alta</option>
-              <option value="Media">Media</option>
-              <option value="Bassa">Bassa</option>
+              <option value="Alta">{tr("Alta")}</option>
+              <option value="Media">{tr("Media")}</option>
+              <option value="Bassa">{tr("Bassa")}</option>
             </select>
           </div>
           <div>
-            {fieldLabel("Stato task")}
+            {fieldLabel(tr("Stato task"))}
             <select
               value={form.task_stato}
               onChange={e => setForm(f => ({ ...f, task_stato: e.target.value }))}
@@ -628,9 +633,9 @@ function DrawerTask({
                 outline: "none", fontFamily: "var(--font-body)", appearance: "none", cursor: "pointer"
               }}
             >
-              <option value="active">Attivo</option>
-              <option value="paused">In pausa</option>
-              <option value="archived">Archiviato</option>
+              <option value="active">{tr("Attivo")}</option>
+              <option value="paused">{tr("In pausa")}</option>
+              <option value="archived">{tr("Archiviato")}</option>
             </select>
           </div>
         </div>
@@ -638,11 +643,11 @@ function DrawerTask({
         {/* Generazione automatica */}
         <div style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            Generazione automatica ticket
+            {tr("Generazione automatica ticket")}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
-              {fieldLabel("Modalità")}
+              {fieldLabel(tr("Modalità"))}
               <select
                 value={form.generation_mode}
                 onChange={e => setForm(f => ({ ...f, generation_mode: e.target.value }))}
@@ -653,13 +658,13 @@ function DrawerTask({
                   outline: "none", fontFamily: "var(--font-body)", appearance: "none", cursor: "pointer"
                 }}
               >
-                <option value="manual">Manuale</option>
-                <option value="auto">Automatica</option>
-                <option value="disabled">Disabilitata</option>
+                <option value="manual">{tr("Manuale")}</option>
+                <option value="auto">{tr("Automatica")}</option>
+                <option value="disabled">{tr("Disabilitata")}</option>
               </select>
             </div>
             <div>
-              {fieldLabel("Giorni di anticipo (default: 7)")}
+              {fieldLabel(tr("Giorni di anticipo (default: 7)"))}
               {fieldInput({
                 type: "number",
                 min: 1,
@@ -673,17 +678,17 @@ function DrawerTask({
           </div>
           {form.generation_mode === "auto" && (
             <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
-              Il sistema genererà automaticamente un ticket <strong style={{ color: "#a5b4fc" }}>{form.generate_days_before_due || 7} giorni prima</strong> della scadenza calcolata in base alla frequenza. Se il campo è vuoto viene usato il default di 7 giorni.
+              {tr("Il sistema genererà automaticamente un ticket")} <strong style={{ color: "#a5b4fc" }}>{form.generate_days_before_due || 7} giorni prima</strong> della scadenza calcolata in base alla frequenza. Se il campo è vuoto viene usato il default di 7 giorni.
             </div>
           )}
           {form.generation_mode === "manual" && (
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              I ticket vengono generati solo manualmente premendo &quot;Genera Ticket&quot;.
+              {tr("I ticket vengono generati solo manualmente premendo \"Genera Ticket\".")}
             </div>
           )}
           {form.generation_mode === "disabled" && (
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              La generazione ticket è disabilitata per questa attività.
+              {tr("La generazione ticket è disabilitata per questa attività.")}
             </div>
           )}
         </div>
@@ -702,7 +707,7 @@ function DrawerTask({
             fontWeight: 600, background: "transparent", cursor: "pointer"
           }}
         >
-          Annulla
+          {tr("Annulla")}
         </button>
         <button 
           onClick={handleSave} 
@@ -715,7 +720,7 @@ function DrawerTask({
             transition: "all 0.15s"
           }}
         >
-          {saving ? "Salvataggio..." : "Salva Modifiche"}
+          {saving ? "Salvataggio..." : tr("Salva Modifiche")}
         </button>
       </div>
     </div>
@@ -725,6 +730,7 @@ function DrawerTask({
 // ─── PAGE COMPONENT ───────────────────────────────────────────────────────────
 
 export default function PianiPage() {
+  const tr = useT();
   const [piani, setPiani] = useState<Piano[]>([]);
   const [selectedPianoId, setSelectedPianoId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -746,7 +752,7 @@ export default function PianiPage() {
     try {
       const res = await apiGet<{ items: Piano[] }>("/piani-manutenzione?limit=500");
       setPiani(res.items || []);
-    } catch { notify.error("Impossibile caricare i piani"); }
+    } catch { notify.error(tn("Impossibile caricare i piani")); }
     finally { setLoading(false); }
   }, []);
 
@@ -763,7 +769,7 @@ export default function PianiPage() {
         const res = await apiGet<{ items: TicketHistory[] }>(`/tickets?piano_id=${pid}&limit=200`);
         setHistory(res.items || []);
       }
-    } catch { notify.error(`Errore caricamento ${tab}`); }
+    } catch { notify.error(tn("Errore caricamento {tab}", { tab: tab })); }
     finally { setFetchingContent(false); }
   }, []);
 
@@ -787,7 +793,7 @@ export default function PianiPage() {
     if (!pid) return;
     try {
       const res = await apiPost<{ created: number }>(`/piani-manutenzione/${pid}/tasks/${task.id}/genera-ticket`);
-      notify.success(`${res.created} ticket generati con successo in stato APERTO`);
+      notify.success(tn("{created} ticket generati con successo in stato APERTO", { created: res.created }));
       fetchContent(pid, "tasks");
     } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore generazione ticket"); }
   }
@@ -809,10 +815,10 @@ export default function PianiPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 2 }}>
-                Piani operativi
+                {tr("Piani operativi")}
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
-                Piano di Manutenzione
+                {tr("Piano di Manutenzione")}
               </div>
             </div>
             <span style={{
@@ -834,13 +840,13 @@ export default function PianiPage() {
               alignItems: "center", justifyContent: "center", gap: 8
             }}
           >
-            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Definisci Nuovo Piano
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> {tr("Definisci Nuovo Piano")}
           </button>
 
           <div style={{ position: "relative" }}>
             <input 
               type="text" 
-              placeholder="Cerca piano operativo..."
+              placeholder={tr("Cerca piano operativo...")}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{
@@ -862,7 +868,7 @@ export default function PianiPage() {
             ))
           ) : filteredPiani.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--text-disabled)", fontSize: 13 }}>
-              Nessun piano disponibile
+              {tr("Nessun piano disponibile")}
             </div>
           ) : (
             filteredPiani.map(p => {
@@ -893,7 +899,7 @@ export default function PianiPage() {
                     </button>
                   </div>
                   <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>
-                    {p.descrizione || "Nessuna specifica tecnica aggiuntiva."}
+                    {p.descrizione || tr("Nessuna specifica tecnica aggiuntiva.")}
                   </p>
                   <div style={{ display: "flex", gap: 12 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: "var(--blue-bright)", background: "rgba(59,130,246,0.08)", padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(59,130,246,0.15)" }}>
@@ -927,10 +933,10 @@ export default function PianiPage() {
               ⚡
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 8px" }}>
-              Seleziona un piano
+              {tr("Seleziona un piano")}
             </h2>
             <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 380, lineHeight: 1.6, margin: 0 }}>
-              Scegli un piano operativo dalla sidebar per visualizzare task, manuali e cronologia interventi. Puoi anche creare un nuovo piano con il pulsante in alto a sinistra.
+              {tr("Scegli un piano operativo dalla sidebar per visualizzare task, manuali e cronologia interventi. Puoi anche creare un nuovo piano con il pulsante in alto a sinistra.")}
             </p>
           </div>
         ) : (
@@ -957,11 +963,11 @@ export default function PianiPage() {
 
                 <div style={{ display: "flex", gap: 12, flexShrink: 0, marginLeft: 24 }}>
                   <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 20px", textAlign: "center", minWidth: 110 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Attività</div>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>{tr("Attività")}</div>
                     <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)" }}>{selectedPiano.task_count}</div>
                   </div>
                   <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 20px", textAlign: "center", minWidth: 110 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Ticket aperti</div>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>{tr("Ticket aperti")}</div>
                     <div style={{ fontSize: 24, fontWeight: 800, color: selectedPiano.open_ticket_count > 0 ? "var(--amber)" : "var(--text-primary)" }}>
                       {selectedPiano.open_ticket_count}
                     </div>
@@ -972,16 +978,16 @@ export default function PianiPage() {
               {/* TABS */}
               <div className="page-tabs" style={{ marginBottom: 0 }}>
                 {[
-                  { id: "tasks",   label: "⚙️ Attività e Task" },
-                  { id: "manuali", label: "📚 Manuali Tecnici" },
-                  { id: "history", label: "📋 Cronologia Ticket" },
+                  { id: "tasks",   label: tr("⚙️ Attività e Task") },
+                  { id: "manuali", label: tr("📚 Manuali Tecnici") },
+                  { id: "history", label: tr("📋 Cronologia Ticket") },
                 ].map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as "tasks" | "manuali" | "history")}
                     className={activeTab === tab.id ? "active" : ""}
                   >
-                    {tab.label}
+                    {tr(tab.label)}
                   </button>
                 ))}
               </div>
@@ -995,8 +1001,8 @@ export default function PianiPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>Piano operativo</h3>
-                      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>Frequenze e priorità degli interventi pianificati</p>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>{tr("Piano operativo")}</h3>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{tr("Frequenze e priorità degli interventi pianificati")}</p>
                     </div>
                     <div style={{ display: "flex", gap: 10 }}>
                       <label style={{
@@ -1006,7 +1012,7 @@ export default function PianiPage() {
                         border: "1px solid var(--border-strong)", color: "var(--text-secondary)",
                         display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s"
                       }}>
-                        {uploading ? "⌛ Elaborazione..." : "📤 Importa PDF"}
+                        {uploading ? tr("⌛ Elaborazione...") : "📤 Importa PDF"}
                         <input 
                           type="file" style={{ display: "none" }} accept=".pdf" disabled={uploading}
                           onChange={async (e) => {
@@ -1019,7 +1025,7 @@ export default function PianiPage() {
                               const pid = selectedPianoId;
                               if (!pid) throw new Error("Seleziona prima un piano");
                               await apiUpload(`/piani-manutenzione/${pid}/import-pdf`, fd);
-                              notify.success("Manuale importato. Task estratti.");
+                              notify.success(tn("Manuale importato. Task estratti."));
                               fetchContent(pid, "tasks");
                               fetchContent(pid, "manuali");
                             } catch (err: unknown) { notify.error(err instanceof Error ? err.message : "Errore import"); }
@@ -1035,7 +1041,7 @@ export default function PianiPage() {
                           cursor: "pointer", display: "flex", alignItems: "center", gap: 6
                         }}
                       >
-                        + Aggiungi Task
+                        {tr("+ Aggiungi Task")}
                       </button>
                     </div>
                   </div>
@@ -1045,9 +1051,9 @@ export default function PianiPage() {
                       [1,2,3,4].map(i => <div key={i} style={{ height: 72, background: "var(--bg-elevated)", borderRadius: 10, animation: "pulse 1.4s infinite" }} />)
                     ) : tasks.length === 0 ? (
                       <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 12 }}>
-                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nessun task programmato</div>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{tr("Nessun task programmato")}</div>
                         <div style={{ fontSize: 12, color: "var(--text-disabled)", marginTop: 6 }}>
-                          Aggiungi task manualmente o importa un manuale PDF
+                          {tr("Aggiungi task manualmente o importa un manuale PDF")}
                         </div>
                       </div>
                     ) : (
@@ -1071,9 +1077,9 @@ export default function PianiPage() {
                             </div>
                             <div style={{ display: "flex", gap: 16 }}>
                               <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>#{task.codice || task.id}</span>
-                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.trigger_mode === "condition" ? "solo condizione" : `ogni ${task.frequenza_giorni}g`}</span>
-                              {task.trigger_mode === "calendar_or_condition" && <span style={{ fontSize: 11, color: "#43edd3" }}>cal+cond</span>}
-                              {task.condition_remaining_hours !== null && task.condition_remaining_hours !== undefined && <span style={{ fontSize: 11, color: task.condition_remaining_hours <= 0 ? "#f87171" : "var(--text-muted)" }}>{task.condition_remaining_hours.toFixed(0)}h residue</span>}
+                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.trigger_mode === "condition" ? tr("solo condizione") : `ogni ${task.frequenza_giorni}g`}</span>
+                              {task.trigger_mode === "calendar_or_condition" && <span style={{ fontSize: 11, color: "#43edd3" }}>{tr("cal+cond")}</span>}
+                              {task.condition_remaining_hours !== null && task.condition_remaining_hours !== undefined && <span style={{ fontSize: 11, color: task.condition_remaining_hours <= 0 ? "#f87171" : "var(--text-muted)" }}>{tr("{ore}h residue", { ore: task.condition_remaining_hours.toFixed(0) })}</span>}
                               <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.durata_ore}h</span>
                             </div>
                           </div>
@@ -1082,7 +1088,7 @@ export default function PianiPage() {
 
                           <div style={{ textAlign: "right", minWidth: 100 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--blue-bright)" }}>{fmt(task.next_due_at).split(",")[0]}</div>
-                            <div style={{ fontSize: 10, color: "var(--text-disabled)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Scadenza</div>
+                            <div style={{ fontSize: 10, color: "var(--text-disabled)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Scadenza")}</div>
                           </div>
 
                           <button 
@@ -1094,7 +1100,7 @@ export default function PianiPage() {
                               cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s"
                             }}
                           >
-                            Genera Ticket
+                            {tr("Genera Ticket")}
                           </button>
                         </div>
                       ))
@@ -1106,20 +1112,20 @@ export default function PianiPage() {
               {/* MANUALI */}
               {activeTab === "manuali" && (
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 20px" }}>Manuali Tecnici</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 20px" }}>{tr("Manuali Tecnici")}</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
                     {fetchingContent ? (
                       [1,2,3].map(i => <div key={i} style={{ height: 200, background: "var(--bg-elevated)", borderRadius: 12, animation: "pulse 1.4s infinite" }} />)
                     ) : manuali.length === 0 ? (
                       <div style={{ gridColumn: "1/-1", padding: "48px 24px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 12 }}>
-                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nessun documento tecnico caricato</div>
-                        <div style={{ fontSize: 12, color: "var(--text-disabled)", marginTop: 6 }}>Importa un PDF dalla sezione Attività</div>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{tr("Nessun documento tecnico caricato")}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-disabled)", marginTop: 6 }}>{tr("Importa un PDF dalla sezione Attività")}</div>
                       </div>
                     ) : (
                       manuali.map(m => (
                         <div key={m.id} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 180, transition: "border-color 0.15s" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                            <div style={{ width: 40, height: 40, background: "rgba(239,68,68,0.1)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--red)", border: "1px solid rgba(239,68,68,0.2)" }}>PDF</div>
+                            <div style={{ width: 40, height: 40, background: "rgba(239,68,68,0.1)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--red)", border: "1px solid rgba(239,68,68,0.2)" }}>{tr("PDF")}</div>
                             <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0, lineHeight: 1.4 }}>{m.nome}</h4>
                             <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--text-muted)" }}>
                               <span>{m.pagine} pagine</span>
@@ -1127,7 +1133,7 @@ export default function PianiPage() {
                             </div>
                           </div>
                           <button style={{ width: "100%", padding: "8px 0", marginTop: 12, background: "var(--bg-overlay)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text-secondary)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                            Sfoglia documento
+                            {tr("Sfoglia documento")}
                           </button>
                         </div>
                       ))
@@ -1139,13 +1145,13 @@ export default function PianiPage() {
               {/* HISTORY */}
               {activeTab === "history" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Storico Interventi del Piano</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>{tr("Storico Interventi del Piano")}</h3>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {fetchingContent ? (
                       [1,2,3,4].map(i => <div key={i} style={{ height: 68, background: "var(--bg-elevated)", borderRadius: 10, animation: "pulse 1.4s infinite" }} />)
                     ) : history.length === 0 ? (
                       <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 12 }}>
-                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nessun ticket emesso per questo piano</div>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{tr("Nessun ticket emesso per questo piano")}</div>
                       </div>
                     ) : (
                       history.map(tk => (
@@ -1157,7 +1163,7 @@ export default function PianiPage() {
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{tk.titolo}</div>
                               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                                {fmt(tk.created_at)}  ·  Priorità {tk.priorita}
+                                {fmt(tk.created_at)}  ·  Priorità {labelPriorita(tk.priorita)}
                               </div>
                             </div>
                           </div>

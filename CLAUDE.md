@@ -325,6 +325,73 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...   # opzionale — mappa Google del Centro di
 - shadcn/ui Dialog: usare sempre `showCloseButton={false}` e aggiungere un singolo pulsante × custom
 - Dialog z-index: `z-[9999]` per popup, `z-[9998]` per overlay (il planning usa z-index:1000)
 
+---
+
+## Internazionalizzazione (IT / EN)
+
+L'interfaccia è bilingue **italiano (default) / inglese**. Il selettore lingua è
+nella topbar desktop, nell'header della shell mobile `/m` e nella pagina di login;
+la scelta è salvata in `localStorage` (`maintai_locale`) e applicata su `<html lang>`
+dallo script di bootstrap in `app/layout.tsx`, prima del primo paint.
+
+**Il database non è toccato**: stati, tipi e priorità restano in italiano su DB e
+API. Si traduce solo l'etichetta mostrata.
+
+### File
+
+```
+frontend/app/lib/i18n/
+  index.tsx        — I18nProvider, useT(), useI18n(), tn(), getLocaleTag()
+  dictionary.ts    — mappa IT → EN (unico file da estendere)
+  domain.ts        — etichette dei valori di dominio (stato/tipo/priorità/ruolo…)
+frontend/app/components/LanguageSwitcher.tsx
+frontend/scripts/i18n_missing_keys.mjs   — report delle stringhe senza traduzione
+```
+
+### Regole
+
+1. **La stringa italiana è la chiave.** `t("Nuovo Ticket")` restituisce l'italiano
+   in `it` e cerca il dizionario in `en`. Una chiave assente resta in italiano:
+   degrado morbido voluto, mai una chiave grezza a schermo.
+2. **Nel JSX si usa `useT()`** (nel codice generato la variabile si chiama `tr`,
+   perché `t` è già usato ovunque come parametro di callback sui ticket).
+   Per **toast, `confirm()` e messaggi non renderizzati** si usa `tn()`: è stabile,
+   non entra nelle dipendenze degli hook e non fa rieseguire le fetch al cambio lingua.
+3. **Interpolazione, mai concatenazione**: `t("Ticket #{id} creato", { id })`.
+   L'ordine delle parole cambia tra le lingue.
+4. **Valori di dominio**: usare `labelStato` / `labelPriorita` / `labelRuolo`… da
+   `i18n/domain.ts`. Su `<select>` il `value` resta italiano e si traduce solo il
+   testo dell'`<option>` — un `<option>` **senza** `value` esplicito invierebbe al
+   backend il testo tradotto.
+5. **Mai avvolgere in `t()`** stringhe usate in confronti (`stato === "Aperto"`),
+   id/slug, chiavi di oggetto, classi CSS o percorsi API.
+6. **Date e numeri**: `getLocaleTag()` al posto di `"it-IT"` hardcoded
+   (`en` → `en-GB`, quindi gg/mm/aaaa anche in inglese).
+
+### Terminologia
+
+L'inglese segue il lessico manutentivo (CMMS / EN 13306), non la traduzione
+letterale: *Fermo* → **Downtime**, *Guasto* → **Failure/Breakdown**, *Intervento* →
+**Work order**, *Pianificazione* → **Scheduling**, *Giacenza* → **Stock on hand**,
+*Scorta* → **Reorder level**, *Attestato* → **Certification**, *Scadenziario* →
+**Due Schedule**, *DPI* → **PPE**. Le sigle BD/PM/CM/ISP restano invariate.
+
+### Aggiungere testo nuovo
+
+Scrivere la stringa in italiano dentro `t()`/`tn()`, poi aggiungere la voce in
+`dictionary.ts`. Per verificare la copertura:
+
+```bash
+cd frontend && node scripts/i18n_missing_keys.mjs
+```
+
+Restano volutamente fuori dal dizionario le voci identiche nelle due lingue
+(MTBF, OEE, km/h, MaintAI, Felix, BD/PM/CM…): il fallback le rende già correttamente.
+
+**Non ancora tradotti**: i `metadata` statici di `app/xr/layout.tsx` (title e
+description della pagina XR, risolti lato server) e i contenuti che arrivano dal
+backend (log di sistema, motivazioni del planner, risposte AI).
+
 ## Configurazione moduli (pagina Funzionalità)
 
 `backend/core/modules.py` decide quali moduli sono attivi. Tre livelli, in ordine:

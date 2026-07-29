@@ -2,6 +2,8 @@
 
 import type { PlannedWO, TicketData, TecnicoData } from "../types";
 import { tipoStyle } from "../types";
+import { useT } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 
 interface WODetailDrawerProps {
   wo: PlannedWO | null;
@@ -41,6 +43,7 @@ const COMPLEXITY_LABELS: Record<string, string> = {
 };
 
 export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetailDrawerProps) {
+  const tr = useT();
   if (!wo || !ticket) return null;
 
   const s = tipoStyle(ticket.tipo, wo.is_continuation);
@@ -134,7 +137,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
                   fontWeight: 600,
                 }}
               >
-                {ticket.priorita}
+                {labelPriorita(ticket.priorita)}
               </span>
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", lineHeight: 1.4 }}>
@@ -156,7 +159,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
               lineHeight: 1,
               flexShrink: 0,
             }}
-            aria-label="Chiudi"
+            aria-label={tr("Chiudi")}
           >
             ×
           </button>
@@ -166,30 +169,30 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
         <div style={{ flex: 1, padding: "16px", display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Slot pianificato */}
-          <Section title="Slot pianificato">
+          <Section title={tr("Slot pianificato")}>
             <Row label="Data" value={wo.planned_date} />
             <Row label="Orario" value={`${wo.planned_start_time} → ${wo.planned_end_time}`} />
             <Row label="Durata" value={`${wo.duration_hours}h`} />
             {wo.is_continuation && (
               <div style={{ fontSize: 11, color: "#a855f7", marginTop: 4 }}>
-                Continuazione di WO #{wo.parent_wo_id}
+                {tr("Continuazione di WO #")}{wo.parent_wo_id}
               </div>
             )}
           </Section>
 
           {/* Tecnico */}
-          <Section title="Tecnico assegnato">
+          <Section title={tr("Tecnico assegnato")}>
             <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 600 }}>{tecnicoNome}</div>
             {tecnicoSkill && (
               <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-                Competenze: {tecnicoSkill}
+                {tr("Competenze:")} {tecnicoSkill}
               </div>
             )}
           </Section>
 
           {/* Confidence */}
           {confPct !== null && (
-            <Section title="Confidence">
+            <Section title={tr("Confidence")}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {/* Barra */}
                 <div
@@ -220,7 +223,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
 
           {/* Risk Level */}
           {risk && RISK_COLORS[risk] && (
-            <Section title="Livello di rischio">
+            <Section title={tr("Livello di rischio")}>
               <span
                 style={{
                   background: RISK_COLORS[risk]!.bg,
@@ -239,7 +242,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
 
           {/* Complexity */}
           {complexity && COMPLEXITY_COLORS[complexity] && (
-            <Section title="Complessità">
+            <Section title={tr("Complessità")}>
               <span
                 style={{
                   background: COMPLEXITY_COLORS[complexity]!.bg,
@@ -257,7 +260,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
 
           {/* Motivazione */}
           {wo.motivation && (
-            <Section title="Motivazione">
+            <Section title={tr("Motivazione")}>
               <div
                 style={{
                   fontSize: 12,
@@ -274,7 +277,7 @@ export default function WODetailDrawer({ wo, ticket, tecnico, onClose }: WODetai
 
           {/* Warnings */}
           {wo.warnings && wo.warnings.length > 0 && (
-            <Section title="Avvisi">
+            <Section title={tr("Avvisi")}>
               {wo.warnings.map((w, i) => (
                 <div
                   key={i}

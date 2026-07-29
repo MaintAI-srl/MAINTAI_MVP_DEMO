@@ -8,6 +8,7 @@ import {
 import { useAuth } from "@/app/lib/auth";
 import { apiGet } from "@/app/lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
 
@@ -46,7 +47,7 @@ interface ReportData {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(getLocaleTag(), {
     style: "currency", currency: "EUR", maximumFractionDigits: 0,
   }).format(n);
 }
@@ -72,6 +73,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 // ─── Pagina ───────────────────────────────────────────────────────────────────
 
 export default function ReportEconomicoPage() {
+  const tr = useT();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -122,7 +124,7 @@ export default function ReportEconomicoPage() {
     return (
       <div style={pageWrap}>
         <div style={{ color: "var(--text-muted)", textAlign: "center", paddingTop: "60px" }}>
-          Caricamento report...
+          {tr("Caricamento report...")}
         </div>
       </div>
     );
@@ -140,10 +142,10 @@ export default function ReportEconomicoPage() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "28px" }}>
         <div>
           <h1 style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
-            📊 Report Economico Manutenzione
+            {tr("📊 Report Economico Manutenzione")}
           </h1>
           <p style={{ color: "#64748b", fontSize: "13px", margin: "4px 0 0" }}>
-            Periodo: {data.da} → {data.a} ({data.periodo_mesi} mesi)
+            {tr("Periodo:")} {data.da} → {data.a} ({data.periodo_mesi} mesi)
           </p>
         </div>
 
@@ -157,10 +159,10 @@ export default function ReportEconomicoPage() {
               borderRadius: "8px", padding: "8px 12px", fontSize: "13px", cursor: "pointer",
             }}
           >
-            <option value={3}>Ultimi 3 mesi</option>
-            <option value={6}>Ultimi 6 mesi</option>
-            <option value={12}>Ultimi 12 mesi</option>
-            <option value={24}>Ultimi 24 mesi</option>
+            <option value={3}>{tr("Ultimi 3 mesi")}</option>
+            <option value={6}>{tr("Ultimi 6 mesi")}</option>
+            <option value={12}>{tr("Ultimi 12 mesi")}</option>
+            <option value={24}>{tr("Ultimi 24 mesi")}</option>
           </select>
 
           {/* Export Excel */}
@@ -185,7 +187,7 @@ export default function ReportEconomicoPage() {
               fontWeight: 600, cursor: "pointer",
             }}
           >
-            🖨️ Stampa PDF
+            {tr("🖨️ Stampa PDF")}
           </button>
         </div>
       </div>
@@ -237,7 +239,7 @@ export default function ReportEconomicoPage() {
 
       {/* ── Trend mensile ── */}
       <div style={sectionCard}>
-        <div style={sectionTitle}>📅 Trend mensile — Costo Evitato vs Subito</div>
+        <div style={sectionTitle}>{tr("📅 Trend mensile — Costo Evitato vs Subito")}</div>
         <div style={{ height: "280px" }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.trend_mensile} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
@@ -266,11 +268,11 @@ export default function ReportEconomicoPage() {
       {/* ── Top asset ── */}
       {data.top_asset.length > 0 && (
         <div style={{ ...sectionCard, marginTop: "20px" }}>
-          <div style={sectionTitle}>🏭 Top asset per costo fermo subito</div>
+          <div style={sectionTitle}>{tr("🏭 Top asset per costo fermo subito")}</div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #374151" }}>
-                {["Asset", "Costo subito", "Ticket BD", "€/ora fermo"].map(h => (
+                {[tr("Asset"), "Costo subito", tr("Ticket BD"), "€/ora fermo"].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -301,11 +303,11 @@ export default function ReportEconomicoPage() {
         border: "1px solid var(--border-default)", fontSize: "12px", color: "#4b5563",
         lineHeight: 1.7,
       }}>
-        <strong style={{ color: "#6b7280" }}>Metodologia di calcolo</strong><br />
-        <em>Costo evitato</em>: somma di (durata stimata × costo orario fermo) per tutti i ticket
+        <strong style={{ color: "#6b7280" }}>{tr("Metodologia di calcolo")}</strong><br />
+        <em>{tr("Costo evitato")}</em>: somma di (durata stimata × costo orario fermo) per tutti i ticket
         PM e CM chiusi nel periodo. Rappresenta il costo del fermo <em>prevenuto</em> grazie alla manutenzione programmata.<br />
-        <em>Costo subito</em>: stessa formula per i ticket BD chiusi. Rappresenta il costo del fermo
-        <em> realmente verificatosi</em>. Sono esclusi gli asset privi di &quot;costo orario fermo&quot;.
+        <em>{tr("Costo subito")}</em>: stessa formula per i ticket BD chiusi. Rappresenta il costo del fermo
+        <em> {tr("realmente verificatosi")}</em>. Sono esclusi gli asset privi di &quot;costo orario fermo&quot;.
       </div>
 
       {/* ── CSS stampa ── */}

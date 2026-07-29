@@ -3,8 +3,10 @@ import { useState, useEffect, useCallback } from "react";
 import { apiGet } from "../../lib/api";
 import { notify } from "@/lib/toast";
 import StatusToggle from "../../components/StatusToggle";
+import { useT } from "@/app/lib/i18n";
 
 export default function AdminLogsPage() {
+  const tr = useT();
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [lines, setLines] = useState(100);
@@ -61,8 +63,8 @@ export default function AdminLogsPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)", padding: "20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <h1 style={{ fontSize: "20px", fontWeight: 700 }}>LOG DI SISTEMA</h1>
-          <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>Monitoraggio in tempo reale delle operazioni backend</p>
+          <h1 style={{ fontSize: "20px", fontWeight: 700 }}>{tr("LOG DI SISTEMA")}</h1>
+          <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>{tr("Monitoraggio in tempo reale delle operazioni backend")}</p>
         </div>
         <StatusToggle 
           size="sm"
@@ -81,14 +83,14 @@ export default function AdminLogsPage() {
               value={lines}
               onChange={(e) => setLines(Number(e.target.value))}
              >
-               <option value={50}>Ultime 50 righe</option>
-               <option value={100}>Ultime 100 righe</option>
-               <option value={500}>Ultime 500 righe</option>
-               <option value={1000}>Ultime 1000 righe</option>
+               <option value={50}>{tr("Ultime 50 righe")}</option>
+               <option value={100}>{tr("Ultime 100 righe")}</option>
+               <option value={500}>{tr("Ultime 500 righe")}</option>
+               <option value={1000}>{tr("Ultime 1000 righe")}</option>
              </select>
            ) : (
              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>LIVELLO:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>{tr("LIVELLO:")}</span>
                 <StatusToggle 
                   size="sm"
                   currentValue={level}
@@ -100,7 +102,7 @@ export default function AdminLogsPage() {
                     { value: "ERROR", label: "ERR", color: "var(--red)" },
                   ]}
                 />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginLeft: 8 }}>MODULO:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginLeft: 8 }}>{tr("MODULO:")}</span>
                 <StatusToggle 
                   size="sm"
                   currentValue={module}
@@ -134,7 +136,7 @@ export default function AdminLogsPage() {
         boxShadow: "inset 0 2px 10px rgba(0,0,0,0.5)"
       }}>
         {loading && logs.length === 0 ? (
-          <div style={{ color: "var(--text-muted)", textAlign: "center", marginTop: "40px" }}>Caricamento in corso...</div>
+          <div style={{ color: "var(--text-muted)", textAlign: "center", marginTop: "40px" }}>{tr("Caricamento in corso...")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {logs.map((log, i) => (
@@ -151,13 +153,13 @@ export default function AdminLogsPage() {
                 {log}
               </div>
             ))}
-            {logs.length === 0 && <div style={{ color: "var(--text-muted)", textAlign: "center" }}>Nessun log registrato.</div>}
+            {logs.length === 0 && <div style={{ color: "var(--text-muted)", textAlign: "center" }}>{tr("Nessun log registrato.")}</div>}
           </div>
         )}
       </div>
       
       <div style={{ marginTop: "12px", fontSize: "11px", color: "var(--text-muted)", textAlign: "right" }}>
-        Visualizzate {logs.length} righe. Formato ISO-8601 UTC.
+        {tr("Visualizzate")} {logs.length} righe. Formato ISO-8601 UTC.
       </div>
     </div>
   );

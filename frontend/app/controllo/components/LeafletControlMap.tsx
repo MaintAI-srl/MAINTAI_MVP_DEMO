@@ -7,6 +7,7 @@ import Link from "next/link";
 import { controlCenterTechnicianPlace, controlCenterTicketPlace, geocodePlace, resolvePlaceLatLon, type LatLon } from "../geo";
 import type { ControlCenterBDTicket, ControlCenterRouteTecnico, ImpiantoMarker, SitoOverview } from "../types";
 import { STATUS_COLORS, STATUS_LABELS } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 // Fallback OpenStreetMap del Centro di Controllo: usato quando
 // NEXT_PUBLIC_GOOGLE_MAPS_API_KEY non è configurata. Stessi dati e colori
@@ -119,6 +120,7 @@ export default function LeafletControlMap({
   onSelectSito,
   onSelectEmergency,
 }: LeafletControlMapProps) {
+  const tr = useT();
   const [roadRoutes, setRoadRoutes] = useState<RoadRoute[]>([]);
   const [resolvedEmergenze, setResolvedEmergenze] = useState<Record<number, LatLon>>({});
   const points: [number, number][] = [];
@@ -266,15 +268,15 @@ export default function LeafletControlMap({
                 </div>
                 {sito.indirizzo && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{sito.indirizzo}</div>}
                 <div style={{ fontSize: 12, lineHeight: 1.7 }}>
-                  <div>🏭 {sito.n_impianti} impianti · {sito.n_asset} asset</div>
+                  <div>🏭 {tr("{impianti} impianti · {asset} asset", { impianti: sito.n_impianti, asset: sito.n_asset })}</div>
                   <div>⚙️ {sito.asset_stati.service} operativi · {sito.asset_stati.stopped} fermi · <strong style={{ color: "#ef4444" }}>{sito.asset_stati.out_of_service} guasti</strong></div>
-                  <div>🎫 {sito.ticket.aperti} WO aperti · {sito.ticket.in_corso} in corso · {sito.ticket.pianificati} pianificati</div>
+                  <div>🎫 {sito.ticket.aperti} {tr("WO aperti ·")} {sito.ticket.in_corso} in corso · {sito.ticket.pianificati} pianificati</div>
                   {sito.ticket.bd_attivi > 0 && (
                     <div style={{ color: "#ef4444", fontWeight: 700 }}>⚠️ {sito.ticket.bd_attivi} breakdown attivi</div>
                   )}
                 </div>
                 <Link href="/asset" style={{ display: "inline-block", marginTop: 8, fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>
-                  Apri Siti &amp; Asset →
+                  {tr("Apri Siti & Asset →")}
                 </Link>
               </div>
             </Popup>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "../../lib/api";
 import { notify } from "@/lib/toast";
+import { useT, tn } from "@/app/lib/i18n";
 
 type EmailConfigItem = {
   id: number;
@@ -23,6 +24,7 @@ const PROVIDERS = [
 ];
 
 export default function EmailConfigPage() {
+  const tr = useT();
   const [configs, setConfigs]         = useState<EmailConfigItem[]>([]);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
@@ -58,7 +60,7 @@ export default function EmailConfigPage() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!form.imap_server || !form.email_address || !form.password) {
-      notify.error("Compila tutti i campi obbligatori (Server, Email, Password)");
+      notify.error(tn("Compila tutti i campi obbligatori (Server, Email, Password)"));
       return;
     }
     setSaving(true);
@@ -70,7 +72,7 @@ export default function EmailConfigPage() {
         password:     form.password,
         active:       true,
       });
-      notify.success("Connessione verificata e salvata. Il polling email è attivo ogni 5 minuti.");
+      notify.success(tn("Connessione verificata e salvata. Il polling email è attivo ogni 5 minuti."));
       setForm(f => ({ ...f, email_address: "", password: "" }));
       loadData();
     } catch (err: unknown) {
@@ -81,11 +83,11 @@ export default function EmailConfigPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Rimuovere questa integrazione email?")) return;
+    if (!window.confirm(tn("Rimuovere questa integrazione email?"))) return;
     try {
       await apiDelete(`/email-config/${id}`);
       setConfigs(c => c.filter(x => x.id !== id));
-      notify.success("Configurazione rimossa.");
+      notify.success(tn("Configurazione rimossa."));
     } catch (err: unknown) {
       notify.error(err instanceof Error ? err.message : "Errore durante l'eliminazione");
     }
@@ -98,23 +100,23 @@ export default function EmailConfigPage() {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--blue-bright)", marginBottom: 8 }}>
-          Integrazione
+          {tr("Integrazione")}
         </div>
-        <h1 className="page-title" style={{ fontSize: 30, marginBottom: 8 }}>Email → Ticket</h1>
+        <h1 className="page-title" style={{ fontSize: 30, marginBottom: 8 }}>{tr("Email → Ticket")}</h1>
         <p className="page-subtitle" style={{ color: "var(--text-secondary)" }}>
-          Ogni email ricevuta sulla casella configurata viene convertita automaticamente in un Ticket aperto.
+          {tr("Ogni email ricevuta sulla casella configurata viene convertita automaticamente in un Ticket aperto.")}
         </p>
       </div>
 
 
       {/* Form */}
       <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: 28, marginBottom: 32, boxShadow: "0 4px 24px rgba(0,0,0,0.1)" }}>
-        <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>Aggiungi casella email</h3>
+        <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>{tr("Aggiungi casella email")}</h3>
 
         {/* Selezione provider */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)" }}>
-            Provider
+            {tr("Provider")}
           </label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {PROVIDERS.map((p, i) => (
@@ -130,7 +132,7 @@ export default function EmailConfigPage() {
                   transition: "all 0.15s",
                 }}
               >
-                {p.label}
+                {tr(p.label)}
               </button>
             ))}
           </div>
@@ -139,11 +141,11 @@ export default function EmailConfigPage() {
         <form onSubmit={handleAdd} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-secondary)" }}>
-              Indirizzo email della casella *
+              {tr("Indirizzo email della casella *")}
             </label>
             <input
               type="email" className="input" style={{ width: "100%" }}
-              placeholder="es. manutenzioni@azienda.com"
+              placeholder={tr("es. manutenzioni@azienda.com")}
               value={form.email_address}
               onChange={e => setForm({ ...form, email_address: e.target.value })}
             />
@@ -151,7 +153,7 @@ export default function EmailConfigPage() {
 
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-secondary)" }}>
-              Server IMAP *
+              {tr("Server IMAP *")}
             </label>
             <input
               type="text" className="input" style={{ width: "100%" }}
@@ -163,7 +165,7 @@ export default function EmailConfigPage() {
 
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-secondary)" }}>
-              Porta IMAP
+              {tr("Porta IMAP")}
             </label>
             <input
               type="number" className="input" style={{ width: "100%" }}
@@ -174,7 +176,7 @@ export default function EmailConfigPage() {
 
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-secondary)" }}>
-              Password *{isGmail && <span style={{ color: "var(--amber)", marginLeft: 8 }}>⚠ Gmail richiede App Password</span>}
+              {tr("Password *")}{isGmail && <span style={{ color: "var(--amber)", marginLeft: 8 }}>{tr("⚠ Gmail richiede App Password")}</span>}
             </label>
             <input
               type="password" className="input" style={{ width: "100%" }}
@@ -184,16 +186,16 @@ export default function EmailConfigPage() {
             />
             {isGmail && (
               <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                <strong style={{ color: "var(--amber)" }}>Gmail: come generare l&apos;App Password</strong><br />
-                1. Vai su <strong>myaccount.google.com</strong> → <strong>Sicurezza</strong><br />
-                2. Attiva la <strong>Verifica in 2 passaggi</strong> (se non è già attiva)<br />
-                3. Cerca <strong>&quot;Password per le app&quot;</strong> → seleziona &quot;Posta&quot; → &quot;Altro&quot;<br />
-                4. Copia le 16 lettere generate e incollale qui sopra
+                <strong style={{ color: "var(--amber)" }}>{tr("Gmail: come generare l'App Password")}</strong><br />
+                {tr("1. Vai su")} <strong>myaccount.google.com</strong> → <strong>{tr("Sicurezza")}</strong><br />
+                {tr("2. Attiva la")} <strong>{tr("Verifica in 2 passaggi")}</strong> {tr("(se non è già attiva)")}<br />
+                {tr("3. Cerca")} <strong>{tr("\"Password per le app\"")}</strong> → seleziona &quot;Posta&quot; → &quot;Altro&quot;<br />
+                {tr("4. Copia le 16 lettere generate e incollale qui sopra")}
               </div>
             )}
             {form.imap_server === "outlook.office365.com" && (
               <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                <strong style={{ color: "#818cf8" }}>Outlook / O365:</strong> usa la tua password Microsoft normale, oppure genera una App Password se l&apos;account ha l&apos;autenticazione a più fattori attiva (<strong>account.microsoft.com</strong> → Sicurezza).
+                <strong style={{ color: "#818cf8" }}>{tr("Outlook / O365:")}</strong> usa la tua password Microsoft normale, oppure genera una App Password se l&apos;account ha l&apos;autenticazione a più fattori attiva (<strong>account.microsoft.com</strong> → Sicurezza).
               </div>
             )}
           </div>
@@ -205,20 +207,20 @@ export default function EmailConfigPage() {
               className="btn"
               style={{ width: "100%", padding: "12px", background: "var(--blue)", color: "white", fontWeight: 700, fontSize: 14 }}
             >
-              {saving ? "Verifica connessione in corso..." : "Testa connessione e salva"}
+              {saving ? "Verifica connessione in corso..." : tr("Testa connessione e salva")}
             </button>
           </div>
         </form>
       </div>
 
       {/* Lista caselle attive */}
-      <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 16 }}>Caselle sincronizzate</h3>
+      <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 16 }}>{tr("Caselle sincronizzate")}</h3>
 
       {loading ? (
-        <div style={{ color: "var(--text-muted)", padding: 20 }}>Caricamento...</div>
+        <div style={{ color: "var(--text-muted)", padding: 20 }}>{tr("Caricamento...")}</div>
       ) : configs.length === 0 ? (
         <div style={{ padding: "40px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: 10, color: "var(--text-muted)" }}>
-          Nessuna casella email configurata.
+          {tr("Nessuna casella email configurata.")}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -228,7 +230,7 @@ export default function EmailConfigPage() {
                 <div style={{ fontWeight: 700, fontSize: 15, display: "flex", alignItems: "center", gap: 10 }}>
                   ✉️ {c.email_address}
                   <span style={{ fontSize: 11, background: "rgba(16,185,129,0.15)", color: "var(--green)", padding: "2px 10px", borderRadius: 10, fontWeight: 600 }}>
-                    ATTIVA · polling ogni 5min
+                    {tr("ATTIVA · polling ogni 5min")}
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
@@ -239,7 +241,7 @@ export default function EmailConfigPage() {
                 onClick={() => handleDelete(c.id)}
                 style={{ background: "transparent", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}
               >
-                Disconnetti
+                {tr("Disconnetti")}
               </button>
             </div>
           ))}

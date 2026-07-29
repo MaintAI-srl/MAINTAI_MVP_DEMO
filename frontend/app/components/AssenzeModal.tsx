@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "../lib/api";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 type Assenza = {
   id: number;
@@ -19,6 +20,7 @@ type Props = {
 };
 
 export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
+  const tr = useT();
   const [assenze, setAssenze] = useState<Assenza[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,12 +50,12 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!dataInizio || !dataFine) return alert("Inserisci inizio e fine");
+    if (!dataInizio || !dataFine) return alert(tn("Inserisci inizio e fine"));
     
     // Add timezone adjustment logic assuming local dates input
     const di = new Date(dataInizio);
     const df = new Date(dataFine);
-    if (di > df) return alert("Inizio deve essere precedente a Fine");
+    if (di > df) return alert(tn("Inizio deve essere precedente a Fine"));
 
     try {
       await apiPost(`/tecnici/${tecnico.id}/assenze`, {
@@ -76,7 +78,7 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Rimuovere questa assenza?")) return;
+    if (!confirm(tn("Rimuovere questa assenza?"))) return;
     try {
       await apiDelete(`/tecnici/assenze/${id}`);
       loadAssenze();
@@ -85,7 +87,7 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
         window.dispatchEvent(new CustomEvent("maintai:data-changed"));
       }
     } catch {
-      alert("Errore di rete");
+      alert(tn("Errore di rete"));
     }
   }
 
@@ -100,50 +102,52 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
         borderRadius: 16, width: "95%", maxWidth: 600, padding: 24, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Calendario Assenze · {nameFull}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-soft)", fontSize: 20, cursor: "pointer" }}>&times;</button>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>{tr("Calendario Assenze ·")} {nameFull}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-soft)", fontSize: 20, cursor: "pointer" }}>{tr("×")}</button>
         </div>
 
         {/* Add Form */}
         <form onSubmit={handleAdd} style={{ display: "flex", gap: 12, marginBottom: 24, padding: 16, background: "var(--border-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 120 }}>
-            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>Dal</label>
+            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>{tr("Dal")}</label>
             <input required type="date" value={dataInizio} onChange={e => setDataInizio(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, background: "var(--card-bg)", color: "white", border: "1px solid var(--border-color)" }} />
           </div>
           <div style={{ flex: 1, minWidth: 120 }}>
-            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>Al</label>
+            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>{tr("Al")}</label>
             <input required type="date" value={dataFine} onChange={e => setDataFine(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, background: "var(--card-bg)", color: "white", border: "1px solid var(--border-color)" }} />
           </div>
           <div style={{ flex: 1, minWidth: 100 }}>
-            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>Motivo</label>
+            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>{tr("Motivo")}</label>
             <select value={tipo} onChange={e => setTipo(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, background: "var(--card-bg)", color: "white", border: "1px solid var(--border-color)" }}>
-              <option>Ferie</option>
-              <option>Malattia</option>
-              <option>Corso</option>
-              <option>Permesso/Altro</option>
+              {/* Il `value` esplicito è obbligatorio: senza, il valore inviato
+                  al backend sarebbe il testo tradotto invece del codice IT. */}
+              <option value="Ferie">{tr("Ferie")}</option>
+              <option value="Malattia">{tr("Malattia")}</option>
+              <option value="Corso">{tr("Corso")}</option>
+              <option value="Permesso/Altro">{tr("Permesso/Altro")}</option>
             </select>
           </div>
           <div style={{ flex: 2, minWidth: 200 }}>
-            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>Note (Opzionale)</label>
-            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Dettagli..." style={{ width: "100%", padding: "8px 12px", borderRadius: 6, background: "var(--card-bg)", color: "white", border: "1px solid var(--border-color)" }} />
+            <label style={{ display: "block", fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>{tr("Note (Opzionale)")}</label>
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder={tr("Dettagli...")} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, background: "var(--card-bg)", color: "white", border: "1px solid var(--border-color)" }} />
           </div>
           <div>
-            <button type="submit" style={{ padding: "8px 16px", borderRadius: 6, background: "var(--blue-bright)", color: "white", border: "none", fontWeight: 600, cursor: "pointer", height: 36 }}>Aggiungi</button>
+            <button type="submit" style={{ padding: "8px 16px", borderRadius: 6, background: "var(--blue-bright)", color: "white", border: "none", fontWeight: 600, cursor: "pointer", height: 36 }}>{tr("Aggiungi")}</button>
           </div>
         </form>
 
         {/* List */}
         <div>
-          <h3 style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 12 }}>Assenze Registrate</h3>
+          <h3 style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 12 }}>{tr("Assenze Registrate")}</h3>
           {loading ? (
-            <div style={{ textAlign: "center", padding: 20, color: "var(--text-soft)" }}>Caricamento in corso...</div>
+            <div style={{ textAlign: "center", padding: 20, color: "var(--text-soft)" }}>{tr("Caricamento in corso...")}</div>
           ) : assenze.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 30, background: "var(--surface-1)", borderRadius: 12, border: "1px dashed var(--border-default)", color: "var(--text-soft)" }}>Nessuna assenza programmata.</div>
+            <div style={{ textAlign: "center", padding: 30, background: "var(--surface-1)", borderRadius: 12, border: "1px dashed var(--border-default)", color: "var(--text-soft)" }}>{tr("Nessuna assenza programmata.")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto" }}>
               {assenze.sort((a,b) => new Date(a.data_inizio).getTime() - new Date(b.data_inizio).getTime()).map(ass => {
-                const start = new Date(ass.data_inizio).toLocaleDateString("it-IT");
-                const end = new Date(ass.data_fine).toLocaleDateString("it-IT");
+                const start = new Date(ass.data_inizio).toLocaleDateString(getLocaleTag());
+                const end = new Date(ass.data_fine).toLocaleDateString(getLocaleTag());
                 const isPast = new Date(ass.data_fine).getTime() < Date.now();
                 return (
                   <div key={ass.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "var(--border-subtle)", border: "1px solid var(--border-subtle)", borderRadius: 8, opacity: isPast ? 0.6 : 1 }}>
@@ -159,7 +163,7 @@ export default function AssenzeModal({ tecnico, onClose, onUpdate }: Props) {
                         {ass.note && <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{ass.note}</div>}
                       </div>
                     </div>
-                    <button onClick={() => handleDelete(ass.id)} style={{ background: "none", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", transition: "0.2s" }}>Rimuovi</button>
+                    <button onClick={() => handleDelete(ass.id)} style={{ background: "none", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", transition: "0.2s" }}>{tr("Rimuovi")}</button>
                   </div>
                 );
               })}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE } from "../lib/api";
+import { useT } from "@/app/lib/i18n";
 
 interface AssetQRCodeProps {
   assetId: number;
@@ -17,6 +18,7 @@ interface QRResponse {
 }
 
 export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCodeProps) {
+  const tr = useT();
   const [qr, setQr] = useState<QRResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
         color: "var(--text-secondary)",
         fontSize: "13px",
       }}>
-        Generazione QR in corso...
+        {tr("Generazione QR in corso...")}
       </div>
     );
   }
@@ -88,8 +90,8 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
         color: "var(--text-secondary)",
         fontSize: "13px",
       }}>
-        <div style={{ fontSize: "24px", marginBottom: "8px" }}>QR</div>
-        <div>{error || "QR non disponibile"}</div>
+        <div style={{ fontSize: "24px", marginBottom: "8px" }}>{tr("QR")}</div>
+        <div>{error || tr("QR non disponibile")}</div>
       </div>
     );
   }
@@ -134,7 +136,7 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
           </div>
         )}
         <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "4px", opacity: 0.6 }}>
-          Scansiona per aprire l&apos;asset nel sistema
+          {tr("Scansiona per aprire l'asset nel sistema")}
         </div>
       </div>
 
@@ -142,7 +144,7 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
       <div style={{ display: "flex", gap: "8px" }}>
         <button
           onClick={handleStampa}
-          title="Apre una pagina di stampa ottimizzata"
+          title={tr("Apre una pagina di stampa ottimizzata")}
           style={{
             background: "var(--blue)",
             color: "#fff",
@@ -154,11 +156,11 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
             fontWeight: 600,
           }}
         >
-          Stampa QR
+          {tr("Stampa QR")}
         </button>
         <button
           onClick={handleDownload}
-          title="Scarica PNG ad alta risoluzione"
+          title={tr("Scarica PNG ad alta risoluzione")}
           style={{
             background: "transparent",
             color: "var(--text-primary)",
@@ -169,7 +171,7 @@ export default function AssetQRCode({ assetId, assetCode, assetNome }: AssetQRCo
             fontSize: "12px",
           }}
         >
-          Scarica PNG
+          {tr("Scarica PNG")}
         </button>
       </div>
     </div>

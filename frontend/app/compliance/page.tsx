@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiGet, apiPost, apiDelete } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 // ─── Tipi ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ function scadenzaColor(giorni?: number | null): { bg: string; color: string; lab
 
 function formatDate(iso?: string): string {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }); }
+  try { return new Date(iso).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "short", year: "numeric" }); }
   catch { return iso.split("T")[0]; }
 }
 
@@ -52,6 +53,7 @@ function ModalAggiungiAttestato({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const tr = useT();
   const [form, setForm] = useState({
     tecnico_id: tecnici[0]?.id ?? 0,
     tipo_corso: "",
@@ -66,8 +68,8 @@ function ModalAggiungiAttestato({
     setForm(p => ({ ...p, [k]: e.target.value }));
 
   const save = async () => {
-    if (!form.tipo_corso.trim()) { notify.warning("Il tipo corso è obbligatorio"); return; }
-    if (!form.tecnico_id) { notify.warning("Seleziona un tecnico"); return; }
+    if (!form.tipo_corso.trim()) { notify.warning(tn("Il tipo corso è obbligatorio")); return; }
+    if (!form.tecnico_id) { notify.warning(tn("Seleziona un tecnico")); return; }
     setSaving(true);
     try {
       await apiPost(`/tecnici/${form.tecnico_id}/attestati`, {
@@ -77,7 +79,7 @@ function ModalAggiungiAttestato({
         data_scadenza: form.data_scadenza || undefined,
         note: form.note || undefined,
       });
-      notify.success("Attestato aggiunto");
+      notify.success(tn("Attestato aggiunto"));
       onCreated();
       onClose();
     } catch (err: unknown) {
@@ -95,7 +97,7 @@ function ModalAggiungiAttestato({
         onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>Nuovo Attestato</h2>
+          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>{tr("Nuovo Attestato")}</h2>
           <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--text-muted)" }}>×</button>
         </div>
 
@@ -109,11 +111,11 @@ function ModalAggiungiAttestato({
           </Field>
           <Field label="Tipo Corso *">
             <input style={inputSt} value={form.tipo_corso} onChange={upd("tipo_corso")}
-              placeholder="Es. Lavori Elettrici PES/PAV, LOTO, Primo Soccorso..." />
+              placeholder={tr("Es. Lavori Elettrici PES/PAV, LOTO, Primo Soccorso...")} />
           </Field>
           <Field label="Ente Certificatore">
             <input style={inputSt} value={form.ente_certificatore} onChange={upd("ente_certificatore")}
-              placeholder="Es. IMQ, BSI, Organismo aziendale" />
+              placeholder={tr("Es. IMQ, BSI, Organismo aziendale")} />
           </Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <Field label="Data Conseguimento">
@@ -125,13 +127,13 @@ function ModalAggiungiAttestato({
           </div>
           <Field label="Note">
             <textarea style={{ ...inputSt, resize: "vertical", minHeight: "60px" }} value={form.note} onChange={upd("note")}
-              placeholder="Note aggiuntive..." />
+              placeholder={tr("Note aggiuntive...")} />
           </Field>
         </div>
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
-          <button style={btnSec} onClick={onClose}>Annulla</button>
-          <button style={btnPri} onClick={save} disabled={saving}>{saving ? "Salvo..." : "Aggiungi Attestato"}</button>
+          <button style={btnSec} onClick={onClose}>{tr("Annulla")}</button>
+          <button style={btnPri} onClick={save} disabled={saving}>{saving ? "Salvo..." : tr("Aggiungi Attestato")}</button>
         </div>
       </div>
     </div>
@@ -163,6 +165,7 @@ const btnSec: React.CSSProperties = {
 // ─── Pagina Compliance ───────────────────────────────────────────────────────
 
 export default function CompliancePage() {
+  const tr = useT();
   const [attestati, setAttestati] = useState<Attestato[]>([]);
   const [tecnici, setTecnici] = useState<TecnicoOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,7 +178,7 @@ export default function CompliancePage() {
       const data = await apiGet<Attestato[]>("/attestati/scadenze");
       setAttestati(data);
     } catch {
-      notify.error("Errore nel caricamento degli attestati");
+      notify.error(tn("Errore nel caricamento degli attestati"));
     } finally {
       setLoading(false);
     }
@@ -194,14 +197,14 @@ export default function CompliancePage() {
   }, [loadAttestati, loadTecnici]);
 
   const deleteAttestato = async (att: Attestato) => {
-    if (!confirm(`Eliminare l'attestato "${att.tipo_corso}" di ${att.tecnico_nome}?`)) return;
+    if (!confirm(tn("Eliminare l'attestato \"{tipo_corso}\" di {tecnico_nome}?", { tipo_corso: att.tipo_corso, tecnico_nome: att.tecnico_nome }))) return;
     setDeletingId(att.id);
     try {
       await apiDelete(`/tecnici/${att.tecnico_id}/attestati/${att.id}`);
-      notify.success("Attestato eliminato");
+      notify.success(tn("Attestato eliminato"));
       await loadAttestati();
     } catch {
-      notify.error("Errore nell'eliminazione");
+      notify.error(tn("Errore nell'eliminazione"));
     } finally {
       setDeletingId(null);
     }
@@ -217,13 +220,13 @@ export default function CompliancePage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "var(--text-primary)" }}>Scadenzario Attestati</h1>
+          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "var(--text-primary)" }}>{tr("Scadenzario Attestati")}</h1>
           <div style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
-            Attestati in scadenza nei prossimi 90 giorni · {attestati.length} totale
+            {tr("Attestati in scadenza nei prossimi 90 giorni ·")} {attestati.length} totale
           </div>
         </div>
         <button style={btnPri} onClick={() => setShowModal(true)}>
-          + Aggiungi Attestato
+          {tr("+ Aggiungi Attestato")}
         </button>
       </div>
 
@@ -238,18 +241,18 @@ export default function CompliancePage() {
 
       {loading && (
         <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)", fontSize: "16px" }}>
-          Caricamento...
+          {tr("Caricamento...")}
         </div>
       )}
 
       {!loading && attestati.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px", background: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border-default)" }}>
           <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
-          <div style={{ fontSize: "18px", color: "var(--text-muted)", marginBottom: "8px" }}>Nessun attestato in scadenza</div>
+          <div style={{ fontSize: "18px", color: "var(--text-muted)", marginBottom: "8px" }}>{tr("Nessun attestato in scadenza")}</div>
           <div style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
-            Gli attestati che scadono nei prossimi 90 giorni appariranno qui
+            {tr("Gli attestati che scadono nei prossimi 90 giorni appariranno qui")}
           </div>
-          <button style={btnPri} onClick={() => setShowModal(true)}>Aggiungi primo attestato</button>
+          <button style={btnPri} onClick={() => setShowModal(true)}>{tr("Aggiungi primo attestato")}</button>
         </div>
       )}
 
@@ -257,12 +260,12 @@ export default function CompliancePage() {
         <div style={{ background: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border-default)", overflow: "hidden" }}>
           {/* Intestazione tabella */}
           <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 2fr 1fr 1fr 80px", gap: "12px", padding: "12px 16px", background: "var(--surface-2)", borderBottom: "1px solid var(--border-default)", fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            <div>Tecnico</div>
-            <div>Tipo Corso</div>
-            <div>Ente</div>
-            <div>Conseguimento</div>
-            <div>Scadenza</div>
-            <div>Giorni</div>
+            <div>{tr("Tecnico")}</div>
+            <div>{tr("Tipo Corso")}</div>
+            <div>{tr("Ente")}</div>
+            <div>{tr("Conseguimento")}</div>
+            <div>{tr("Scadenza")}</div>
+            <div>{tr("Giorni")}</div>
           </div>
 
           {attestati.map(a => {
@@ -284,13 +287,13 @@ export default function CompliancePage() {
                     fontWeight: 700,
                     whiteSpace: "nowrap",
                   }}>
-                    {sc.label}
+                    {tr(sc.label)}
                   </span>
                   <button
                     onClick={() => deleteAttestato(a)}
                     disabled={deletingId === a.id}
                     style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b", fontSize: "16px", padding: "2px 4px", borderRadius: "4px" }}
-                    title="Elimina attestato"
+                    title={tr("Elimina attestato")}
                   >
                     🗑
                   </button>

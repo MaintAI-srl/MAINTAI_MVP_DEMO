@@ -17,6 +17,9 @@ import { VERSION } from "./lib/version";
 import { getVisibleNavGroups, PAGE_LABELS } from "./lib/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import { BackendStatus } from "./components/BackendStatus";
+import LanguageSwitcher from "./components/LanguageSwitcher";
+import { I18nProvider, useI18n, useT } from "@/app/lib/i18n";
+import { ruoloLabel } from "@/app/lib/i18n/domain";
 import ViewportController, {
   detectDeviceClass,
   isCompactDevice,
@@ -30,6 +33,7 @@ import {
 // Fonts now loaded above individually
 
 function GlobalOfflineIndicator() {
+  const tr = useT();
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
@@ -65,12 +69,13 @@ function GlobalOfflineIndicator() {
       gap: 8,
     }}>
       <span>📡</span>
-      Modalità offline — alcune funzioni non disponibili. Dati visibili dal cache locale.
+      {tr("Modalità offline — alcune funzioni non disponibili. Dati visibili dal cache locale.")}
     </div>
   );
 }
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
+  const { t: tr, locale, localeTag } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, logout, user, isModuleEnabled, modulesLoaded } = useAuth();
@@ -196,14 +201,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute("data-theme", nextTheme);
   };
 
+  // Titolo della scheda: il <title> del layout server è statico, quindi la
+  // lingua la applica il client.
+  useEffect(() => {
+    document.title = `MaintAI — ${tr("Centro di Controllo")}`;
+  }, [tr]);
+
   useEffect(() => {
     function tick() {
-      setTime(new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      setTime(new Date().toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     }
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [localeTag]);
 
   // Pagine pubbliche (nessun redirect al login)
   const isPublicPage = pathname === "/login" || pathname.startsWith("/check/");
@@ -253,13 +264,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Le etichette di NAV_GROUPS / PAGE_LABELS restano in italiano nel sorgente:
+  // sono chiavi del dizionario, tradotte qui al momento del render.
   const pageLabel = pathname === "/"
-    ? "Home"
-    : Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI";
+    ? tr("Home")
+    : tr(Object.entries(PAGE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? "MaintAI");
 
-  const sectionLabel = filteredNav.find((group) =>
+  const sectionLabel = tr(filteredNav.find((group) =>
     group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
-  )?.section ?? (pathname === "/" ? "HOME" : "OPERAZIONI");
+  )?.section ?? (pathname === "/" ? "HOME" : "OPERAZIONI"));
 
   return (
     <div className={`app-shell${sidebarOpen ? " sidebar-open" : ""}`}>
@@ -269,7 +282,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         type="button"
         className="sidebar-mobile-overlay"
         onClick={() => setSidebarOpen(false)}
-        aria-label="Chiudi menu laterale"
+        aria-label={tr("Chiudi menu laterale")}
         tabIndex={sidebarOpen ? 0 : -1}
       />
 
@@ -297,7 +310,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="sidebar-logo-text">
             <div className="sidebar-logo-name">MAINTAI</div>
             <div className="sidebar-logo-sub">
-              Manutenzione Ind.
+              {tr("Manutenzione Ind.")}
             </div>
           </div>
         </Link>
@@ -306,7 +319,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1, padding: "12px 10px", position: "relative", zIndex: 1 }}>
           {filteredNav.map((group) => (
             <div key={group.section} style={{ marginBottom: 6 }}>
-              <div className="sidebar-section-label">{group.section}</div>
+              <div className="sidebar-section-label">{tr(group.section)}</div>
               <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 {group.items.map((item) => {
                   const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -321,7 +334,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                       <span className="nav-icon">
                         <Icon size={14} strokeWidth={1.8} />
                       </span>
-                      {item.label}
+                      {tr(item.label)}
                     </Link>
                   );
                 })}
@@ -350,7 +363,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="system-status">
             <span className="status-pulse" />
             <span className="status-text">
-              {isSuperadmin ? "SUPERADMIN" : isTecnico ? "CAMPO" : "SISTEMA OK"}
+              {isSuperadmin ? tr("SUPERADMIN") : isTecnico ? tr("CAMPO") : tr("SISTEMA OK")}
             </span>
             <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
               v{VERSION}
@@ -363,10 +376,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         type="button"
         className="sidebar-menu-tab"
         onClick={toggleSidebar}
-        aria-label={sidebarOpen ? "Nascondi menu laterale" : "Mostra menu laterale"}
+        aria-label={sidebarOpen ? tr("Nascondi menu laterale") : tr("Mostra menu laterale")}
         aria-expanded={sidebarOpen}
       >
-        <span>MENU</span>
+        <span>{tr("MENU")}</span>
       </button>
 
       {/* ══════════════════════════════════════════════════════════
@@ -381,7 +394,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             <button
               className="mobile-menu-btn"
               onClick={toggleSidebar}
-              aria-label={sidebarOpen ? "Nascondi menu" : "Apri menu"}
+              aria-label={sidebarOpen ? tr("Nascondi menu") : tr("Apri menu")}
             >☰</button>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <span className="topbar-section">
@@ -421,11 +434,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             {/* Clock */}
             <div className="topbar-time">{time}</div>
 
+            {/* Lingua */}
+            <LanguageSwitcher />
+
             {/* Theme */}
             <button
               onClick={toggleTheme}
               className="topbar-icon-btn"
-              title={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
+              title={theme === "dark" ? tr("Tema chiaro") : tr("Tema scuro")}
             >
               {theme === "dark" ? <Sun size={14} strokeWidth={1.8} /> : <Moon size={14} strokeWidth={1.8} />}
             </button>
@@ -445,12 +461,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                   background: "var(--cobalt-dim)",
                   padding: "1.5px 6px", borderRadius: 4,
                 }}>
-                  {user?.ruolo}
+                  {ruoloLabel(user?.ruolo, locale)}
                 </span>
               </div>
               <button
                 onClick={logout}
-                title="Esci"
+                title={tr("Esci")}
                 style={{
                   width: 32, height: 32,
                   background: "var(--red-dim)",
@@ -506,7 +522,7 @@ function AppShellExtras() {
  */
 export default function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <I18nProvider>
       <AuthProvider>
         <AppLayoutContent>{children}</AppLayoutContent>
         <AppShellExtras />
@@ -526,6 +542,6 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
       <ViewportController />
       <InstallPrompt />
       <BackendStatus />
-    </>
+    </I18nProvider>
   );
 }

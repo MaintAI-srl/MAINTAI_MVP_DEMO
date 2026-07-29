@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Download, Share, SquarePlus, X } from "lucide-react";
+import { useT } from "@/app/lib/i18n";
 
 /**
  * Banner di installazione PWA mostrato al primo avvio.
@@ -69,6 +70,7 @@ function wasDismissedRecently(): boolean {
 }
 
 export default function InstallPrompt() {
+  const tr = useT();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [mode, setMode] = useState<"hidden" | "native" | "ios" | "android-manual">("hidden");
   const [installing, setInstalling] = useState(false);
@@ -146,7 +148,7 @@ export default function InstallPrompt() {
   return (
     <div
       role="dialog"
-      aria-label="Installa MaintAI"
+      aria-label={tr("Installa MaintAI")}
       className="m-fade-up"
       style={{
         position: "fixed",
@@ -167,7 +169,7 @@ export default function InstallPrompt() {
       }}
     >
       <button
-        aria-label="Chiudi"
+        aria-label={tr("Chiudi")}
         onClick={dismiss}
         className="m-press"
         style={{
@@ -185,7 +187,7 @@ export default function InstallPrompt() {
         {/* eslint-disable-next-line @next/next/no-img-element -- icona statica piccola del banner */}
         <img
           src="/logo.png"
-          alt="MaintAI"
+          alt={tr("MaintAI")}
           style={{
             width: 44, height: 44, borderRadius: 12, objectFit: "contain",
             background: "rgba(10,132,255,0.12)", border: "1px solid rgba(10,132,255,0.30)",
@@ -194,10 +196,10 @@ export default function InstallPrompt() {
         />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.01em", lineHeight: 1.2 }}>
-            Installa MaintAI
+            {tr("Installa MaintAI")}
           </div>
           <div style={{ fontSize: 12, color: "rgba(235,235,245,0.6)", marginTop: 2, lineHeight: 1.4 }}>
-            Aggiungi l&apos;app alla schermata Home per l&apos;accesso rapido, anche offline.
+            {tr("Aggiungi l'app alla schermata Home per l'accesso rapido, anche offline.")}
           </div>
         </div>
       </div>
@@ -216,7 +218,7 @@ export default function InstallPrompt() {
           }}
         >
           <Download size={17} strokeWidth={2.3} />
-          {installing ? "Installazione…" : "INSTALLA APP"}
+          {installing ? tr("Installazione…") : "INSTALLA APP"}
         </button>
       ) : mode === "android-manual" ? (
         <div style={{
@@ -226,13 +228,13 @@ export default function InstallPrompt() {
           display: "flex", flexDirection: "column", gap: 4,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span>1.</span> Apri il menu <b style={{ color: "#F5F5F7" }}>⋮</b> del browser
+            <span>1.</span> {tr("Apri il menu")} <b style={{ color: "#F5F5F7" }}>⋮</b> del browser
           </div>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
             <span>2.</span>
             <span>
-              Scegli <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF", verticalAlign: "-2px", display: "inline" }} aria-label="Aggiungi" />{" "}
-              <b style={{ color: "#F5F5F7" }}>Installa app / Aggiungi a schermata Home</b>
+              {tr("Scegli")} <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF", verticalAlign: "-2px", display: "inline" }} aria-label={tr("Aggiungi")} />{" "}
+              <b style={{ color: "#F5F5F7" }}>{tr("Installa app / Aggiungi a schermata Home")}</b>
             </span>
           </div>
         </div>
@@ -244,14 +246,14 @@ export default function InstallPrompt() {
           display: "flex", flexDirection: "column", gap: 4,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span>1.</span> Tocca <Share size={14} strokeWidth={2.2} style={{ color: "#0A84FF" }} aria-label="Condividi" />
-            <b style={{ color: "#F5F5F7" }}>Condividi</b>
+            <span>1.</span> {tr("Tocca")} <Share size={14} strokeWidth={2.2} style={{ color: "#0A84FF" }} aria-label={tr("Condividi")} />
+            <b style={{ color: "#F5F5F7" }}>{tr("Condividi")}</b>
           </div>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
             <span>2.</span>
             <span>
-              Scegli <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF", verticalAlign: "-2px", display: "inline" }} aria-label="Aggiungi" />{" "}
-              <b style={{ color: "#F5F5F7" }}>Aggiungi alla schermata Home</b>
+              {tr("Scegli")} <SquarePlus size={14} strokeWidth={2.2} style={{ color: "#0A84FF", verticalAlign: "-2px", display: "inline" }} aria-label={tr("Aggiungi")} />{" "}
+              <b style={{ color: "#F5F5F7" }}>{tr("Aggiungi alla schermata Home")}</b>
             </span>
           </div>
         </div>

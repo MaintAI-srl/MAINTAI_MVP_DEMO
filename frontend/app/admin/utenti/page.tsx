@@ -5,6 +5,7 @@ import { apiGet, apiPost, apiPut } from "../../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../../lib/auth";
 import { useRouter } from "next/navigation";
+import { useT, tn } from "@/app/lib/i18n";
 
 type UtenteItem = {
   id: number;
@@ -48,6 +49,7 @@ function generatePassword() {
 }
 
 export default function AdminUtentiPage() {
+  const tr = useT();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -95,12 +97,12 @@ export default function AdminUtentiPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!newUsername.trim()) { notify.error("Username obbligatorio."); return; }
-    if (!newPassword) { notify.error("Password obbligatoria."); return; }
+    if (!newUsername.trim()) { notify.error(tn("Username obbligatorio.")); return; }
+    if (!newPassword) { notify.error(tn("Password obbligatoria.")); return; }
     setSaving(true);
     try {
       await apiPost("/utenti", { username: newUsername.trim(), password: newPassword, ruolo: newRuolo });
-      notify.success(`Utente "${newUsername}" creato con successo.`);
+      notify.success(tn("Utente \"{newUsername}\" creato con successo.", { newUsername: newUsername }));
       setShowModal(false);
       setNewUsername(""); setNewPassword(""); setNewRuolo("tecnico"); setShowPwd(false);
       await load();
@@ -115,11 +117,11 @@ export default function AdminUtentiPage() {
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
     if (!resetFor) return;
-    if (!resetPwd) { notify.error("Inserisci la nuova password."); return; }
+    if (!resetPwd) { notify.error(tn("Inserisci la nuova password.")); return; }
     setResetting(true);
     try {
       await apiPut(`/utenti/${resetFor.id}/password`, { new_password: resetPwd });
-      notify.success(`Password di "${resetFor.username}" aggiornata. L'utente dovrà rifare il login.`);
+      notify.success(tn("Password di \"{username}\" aggiornata. L'utente dovrà rifare il login.", { username: resetFor.username }));
       setResetFor(null); setResetPwd(""); setShowResetPwd(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore";
@@ -171,19 +173,19 @@ export default function AdminUtentiPage() {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".12em", color: "#818cf8", fontWeight: 700, marginBottom: 6 }}>
-          Impostazioni
+          {tr("Impostazioni")}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
-              Gestione Utenti
+              {tr("Gestione Utenti")}
             </h1>
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0" }}>
-              Crea, gestisci e monitora gli account del tuo tenant.
+              {tr("Crea, gestisci e monitora gli account del tuo tenant.")}
             </p>
           </div>
           <button onClick={() => setShowModal(true)} style={btnPrimary}>
-            + Nuovo Utente
+            {tr("+ Nuovo Utente")}
           </button>
         </div>
       </div>
@@ -191,23 +193,23 @@ export default function AdminUtentiPage() {
       {/* Tabella utenti */}
       <div style={card}>
         <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
-          Utenti del tenant{utenti.length > 0 ? ` (${utenti.length})` : ""}
+          {tr("Utenti del tenant")}{utenti.length > 0 ? ` (${utenti.length})` : ""}
         </h2>
 
         {loading ? (
           <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)", fontSize: 13 }}>
-            Caricamento...
+            {tr("Caricamento...")}
           </div>
         ) : utenti.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)", fontSize: 13 }}>
-            Nessun utente trovato.
+            {tr("Nessun utente trovato.")}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,.07)" }}>
-                  {["Username", "Ruolo", "Stato", "Tecnico collegato", "Azioni"].map(h => (
+                  {["Username", "Ruolo", tr("Stato"), tr("Tecnico collegato"), "Azioni"].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".08em" }}>
                       {h}
                     </th>
@@ -220,7 +222,7 @@ export default function AdminUtentiPage() {
                     <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-primary)" }}>
                       {u.username}
                       {u.username === user?.username && (
-                        <span style={{ marginLeft: 6, fontSize: 10, color: "#818cf8" }}>(tu)</span>
+                        <span style={{ marginLeft: 6, fontSize: 10, color: "#818cf8" }}>{tr("(tu)")}</span>
                       )}
                     </td>
                     <td style={{ padding: "10px 12px" }}>
@@ -234,7 +236,7 @@ export default function AdminUtentiPage() {
                         border: `1px solid ${u.is_active ? "rgba(52,211,153,.3)" : "rgba(148,163,184,.2)"}`,
                         padding: "2px 8px", borderRadius: 4,
                       }}>
-                        {u.is_active ? "Attivo" : "Inattivo"}
+                        {u.is_active ? tr("Attivo") : "Inattivo"}
                       </span>
                     </td>
                     <td style={{ padding: "10px 12px", color: "var(--text-soft)", fontSize: 12 }}>
@@ -250,7 +252,7 @@ export default function AdminUtentiPage() {
                           onClick={() => { setResetFor(u); setResetPwd(""); setShowResetPwd(false); }}
                           style={{ fontSize: 11, padding: "3px 10px", border: "1px solid rgba(99,102,241,.4)", color: "#818cf8", background: "transparent", cursor: "pointer", borderRadius: 4 }}
                         >
-                          Reset Password
+                          {tr("Reset Password")}
                         </button>
                         {u.username !== user?.username && (
                           <button
@@ -263,7 +265,7 @@ export default function AdminUtentiPage() {
                               opacity: togglingId === u.id ? 0.5 : 1,
                             }}
                           >
-                            {togglingId === u.id ? "..." : u.is_active ? "Disattiva" : "Attiva"}
+                            {togglingId === u.id ? "..." : u.is_active ? "Disattiva" : tr("Attiva")}
                           </button>
                         )}
                       </div>
@@ -284,53 +286,53 @@ export default function AdminUtentiPage() {
         >
           <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 420, position: "relative", zIndex: 9999 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Nuovo Utente</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{tr("Nuovo Utente")}</h3>
               <button onClick={() => setShowModal(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
             </div>
             <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>Username *</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>{tr("Username *")}</label>
                 <input
                   style={inputStyle}
                   value={newUsername}
                   onChange={e => setNewUsername(e.target.value)}
-                  placeholder="Es. mario.rossi"
+                  placeholder={tr("Es. mario.rossi")}
                   autoFocus
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>Password *</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>{tr("Password *")}</label>
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 80 }}
                     type={showPwd ? "text" : "password"}
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    placeholder="Min 8 car., maiusc., num., simbolo"
+                    placeholder={tr("Min 8 car., maiusc., num., simbolo")}
                   />
                   <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 4 }}>
                     <button type="button" onClick={() => setShowPwd(p => !p)} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(255,255,255,.07)", border: "1px solid var(--border-default)", borderRadius: 3, color: "var(--text-muted)", cursor: "pointer" }}>
-                      {showPwd ? "Nascondi" : "Mostra"}
+                      {showPwd ? tr("Nascondi") : tr("Mostra")}
                     </button>
                     <button type="button" onClick={() => setNewPassword(generatePassword())} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(99,102,241,.15)", border: "1px solid rgba(99,102,241,.3)", borderRadius: 3, color: "#818cf8", cursor: "pointer" }}>
-                      Genera
+                      {tr("Genera")}
                     </button>
                   </div>
                 </div>
                 <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>
-                  Min 8 car. — maiusc., minusc., numero, simbolo (@$!%*?&#^_-)
+                  {tr("Min 8 car. — maiusc., minusc., numero, simbolo (@$!%*?&#^_-)")}
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>Ruolo</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>{tr("Ruolo")}</label>
                 <select style={inputStyle} value={newRuolo} onChange={e => setNewRuolo(e.target.value)}>
                   {RUOLI.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                <button type="button" onClick={() => setShowModal(false)} style={btnSecondary}>Annulla</button>
+                <button type="button" onClick={() => setShowModal(false)} style={btnSecondary}>{tr("Annulla")}</button>
                 <button type="submit" disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
-                  {saving ? "Creazione..." : "Crea utente"}
+                  {saving ? tr("Creazione...") : tr("Crea utente")}
                 </button>
               </div>
             </form>
@@ -346,39 +348,39 @@ export default function AdminUtentiPage() {
         >
           <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 400, position: "relative", zIndex: 9999 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Reset Password</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{tr("Reset Password")}</h3>
               <button onClick={() => { setResetFor(null); setResetPwd(""); }} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
             </div>
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-secondary)" }}>
-              Nuova password per <strong style={{ color: "var(--text-primary)" }}>{resetFor.username}</strong>.
+              {tr("Nuova password per")} <strong style={{ color: "var(--text-primary)" }}>{resetFor.username}</strong>.
               Le sessioni attive verranno invalidate.
             </p>
             <form onSubmit={handleResetPassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>Nuova password *</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>{tr("Nuova password *")}</label>
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 80 }}
                     type={showResetPwd ? "text" : "password"}
                     value={resetPwd}
                     onChange={e => setResetPwd(e.target.value)}
-                    placeholder="Min 8 car., maiusc., num., simbolo"
+                    placeholder={tr("Min 8 car., maiusc., num., simbolo")}
                     autoFocus
                   />
                   <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 4 }}>
                     <button type="button" onClick={() => setShowResetPwd(p => !p)} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(255,255,255,.07)", border: "1px solid var(--border-default)", borderRadius: 3, color: "var(--text-muted)", cursor: "pointer" }}>
-                      {showResetPwd ? "Nascondi" : "Mostra"}
+                      {showResetPwd ? tr("Nascondi") : tr("Mostra")}
                     </button>
                     <button type="button" onClick={() => setResetPwd(generatePassword())} style={{ fontSize: 10, padding: "2px 6px", background: "rgba(99,102,241,.15)", border: "1px solid rgba(99,102,241,.3)", borderRadius: 3, color: "#818cf8", cursor: "pointer" }}>
-                      Genera
+                      {tr("Genera")}
                     </button>
                   </div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button type="button" onClick={() => { setResetFor(null); setResetPwd(""); }} style={btnSecondary}>Annulla</button>
+                <button type="button" onClick={() => { setResetFor(null); setResetPwd(""); }} style={btnSecondary}>{tr("Annulla")}</button>
                 <button type="submit" disabled={resetting} style={{ ...btnPrimary, background: "#dc2626", opacity: resetting ? 0.7 : 1 }}>
-                  {resetting ? "Aggiornamento..." : "Aggiorna password"}
+                  {resetting ? tr("Aggiornamento...") : "Aggiorna password"}
                 </button>
               </div>
             </form>

@@ -5,6 +5,7 @@ import { useDroppable, useDraggable } from "@dnd-kit/core";
 import type { PlannedWO, TicketData, TecnicoData } from "../types";
 import { tipoStyle, GIORNI_SETTIMANA, MESI } from "../types";
 import { localDateStr } from "../../lib/datetime";
+import { useT } from "@/app/lib/i18n";
 
 // ── Costanti layout ───────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ interface Props {
 // ── Droppable: cella slot 30-min in un giorno ─────────────────────────────────
 
 function DroppableSlot({ id, top }: { id: string; top: number }) {
+  const tr = useT();
   const { setNodeRef, isOver } = useDroppable({ id });
   const slotH = HOUR_HEIGHT / 2;
   return (
@@ -139,7 +141,7 @@ function DroppableSlot({ id, top }: { id: string; top: number }) {
           whiteSpace: "nowrap",
           letterSpacing: "0.05em",
         }}>
-          ➕ Rilascia qui
+          {tr("➕ Rilascia qui")}
         </div>
       )}
     </div>
@@ -160,6 +162,7 @@ function WOBlock({
   width: string;
   onDoubleClick: () => void;
 }) {
+  const tr = useT();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `wo||${wo.wo_id}`,
     data: { woId: wo.wo_id },
@@ -200,7 +203,7 @@ function WOBlock({
         outline: isDragging ? "2px solid rgba(96,165,250,0.7)" : "none",
         transition: isDragging ? "none" : "filter 100ms",
       }}
-      title="Trascina per spostare · Doppio clic per riassegnare tecnico"
+      title={tr("Trascina per spostare · Doppio clic per riassegnare tecnico")}
     >
       <div style={{ lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         #{wo.wo_id} {ticket?.titolo ?? "—"}
@@ -230,6 +233,7 @@ function ReassignModal({
   onSave: (newTecnicoId: number) => void;
   onClose: () => void;
 }) {
+  const tr = useT();
   const [selected, setSelected] = useState(currentTecnicoId ?? tecnici[0]?.id ?? 0);
 
   return (
@@ -251,14 +255,14 @@ function ReassignModal({
         boxShadow: "0 24px 60px rgba(0,0,0,0.6)",
       }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#f9fafb", marginBottom: 4 }}>
-          Riassegna Tecnico
+          {tr("Riassegna Tecnico")}
         </div>
         <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 16 }}>
-          Ticket #{woId} · Doppio clic nel piano per modificare
+          {tr("Ticket #")}{woId} · Doppio clic nel piano per modificare
         </div>
 
         <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
-          Nuovo tecnico
+          {tr("Nuovo tecnico")}
         </label>
         <select
           value={selected}
@@ -281,7 +285,7 @@ function ReassignModal({
             flex: 1, background: "var(--border-strong)", border: "1px solid var(--border-default)",
             color: "var(--text-muted)", borderRadius: 6, padding: "9px 0",
             cursor: "pointer", fontSize: 13,
-          }}>Annulla</button>
+          }}>{tr("Annulla")}</button>
           <button
             onClick={() => { onSave(selected); onClose(); }}
             style={{
@@ -289,7 +293,7 @@ function ReassignModal({
               color: "#86efac", borderRadius: 6, padding: "9px 0",
               cursor: "pointer", fontSize: 13, fontWeight: 600,
             }}
-          >Salva</button>
+          >{tr("Salva")}</button>
         </div>
       </div>
     </div>
@@ -301,6 +305,7 @@ function ReassignModal({
 export default function KanbanSettimanale({
   wos, ticketMap, tecnicoMap, tecnici, weekStart, onWeekChange, onReassignTecnico,
 }: Props) {
+  const tr = useT();
   const [reassigning, setReassigning] = useState<{ woId: number; tecnicoId: number | undefined } | null>(null);
 
   const weekDays = getWeekDays(weekStart);
@@ -350,12 +355,12 @@ export default function KanbanSettimanale({
         <button
           onClick={() => onWeekChange(startOfWeek(new Date()))}
           style={{ background: "transparent", border: "1px solid #3b82f655", color: "#3b82f6", borderRadius: 6, padding: "6px 10px", cursor: "pointer", fontSize: 11 }}
-        >Questa settimana</button>
+        >{tr("Questa settimana")}</button>
       </div>
 
       {/* Hint DnD */}
       <div style={{ fontSize: 10, color: "#374151", textAlign: "center", marginBottom: 8 }}>
-        Trascina i blocchi per spostare · Doppio clic per riassegnare tecnico
+        {tr("Trascina i blocchi per spostare · Doppio clic per riassegnare tecnico")}
       </div>
 
       {/* Calendario */}

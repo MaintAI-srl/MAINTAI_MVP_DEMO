@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { apiPost, apiGet } from "@/app/lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 
 type StepType = "question" | "check" | "conclusion";
 
@@ -75,17 +77,19 @@ const ASSET_TYPES = [
 
 // ── Badge RPN ─────────────────────────────────────────────────────────────────
 function RpnBadge({ cls, rpn }: { cls: string; rpn: number }) {
+  const tr = useT();
   const color = cls === "HIGH" ? "#ef4444" : cls === "MEDIUM" ? "#f59e0b" : "#22c55e";
   const bg = cls === "HIGH" ? "#ef444418" : cls === "MEDIUM" ? "#f59e0b18" : "#22c55e18";
   return (
     <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 3, fontWeight: 700, color, background: bg, border: `1px solid ${color}44`, fontFamily: "monospace" }}>
-      RPN {rpn} · {cls}
+      {tr("RPN")} {rpn} · {cls}
     </span>
   );
 }
 
 // ── FIE Panel ─────────────────────────────────────────────────────────────────
 function FIEPanel({ ticketId }: { ticketId: string }) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [symptoms, setSymptoms] = useState("");
   const [assetType, setAssetType] = useState("");
@@ -103,7 +107,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
 
   async function handleAnalyze() {
     if (!symptoms.trim()) {
-      notify.warning("Inserisci i sintomi prima di avviare l'analisi.");
+      notify.warning(tn("Inserisci i sintomi prima di avviare l'analisi."));
       return;
     }
     setAnalyzing(true);
@@ -120,7 +124,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
         setSelectedFmId(data.failure_modes_ranked[0].failure_mode_id);
       }
     } catch {
-      notify.error("Errore durante l'analisi FIE. Riprova.");
+      notify.error(tn("Errore durante l'analisi FIE. Riprova."));
     } finally {
       setAnalyzing(false);
     }
@@ -128,7 +132,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
 
   async function handleSaveLearn() {
     if (!realCause.trim() || !actionTaken.trim()) {
-      notify.warning("Compila causa reale e azione intrapresa prima di salvare.");
+      notify.warning(tn("Compila causa reale e azione intrapresa prima di salvare."));
       return;
     }
     setSaving(true);
@@ -147,7 +151,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
       setActionTaken("");
       setResolutionTime("");
     } catch {
-      notify.error("Errore nel salvataggio del learning. Riprova.");
+      notify.error(tn("Errore nel salvataggio del learning. Riprova."));
     } finally {
       setSaving(false);
     }
@@ -178,8 +182,8 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
       {/* Header collassabile */}
       <div style={headerStyle} onClick={() => setOpen(o => !o)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 11, letterSpacing: "0.15em", color: "#6366f1", fontWeight: 700 }}>FIE</span>
-          <span style={{ fontSize: 11, letterSpacing: "0.12em", color: "var(--text-muted)" }}>FAILURE INTELLIGENCE ENGINE</span>
+          <span style={{ fontSize: 11, letterSpacing: "0.15em", color: "#6366f1", fontWeight: 700 }}>{tr("FIE")}</span>
+          <span style={{ fontSize: 11, letterSpacing: "0.12em", color: "var(--text-muted)" }}>{tr("FAILURE INTELLIGENCE ENGINE")}</span>
         </div>
         <span style={{ fontSize: 12, color: "#6b7280" }}>{open ? "▲" : "▼"}</span>
       </div>
@@ -188,11 +192,11 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Form analisi */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <label style={{ fontSize: 10, letterSpacing: "0.12em", color: "#6b7280" }}>SINTOMI OSSERVATI *</label>
+            <label style={{ fontSize: 10, letterSpacing: "0.12em", color: "#6b7280" }}>{tr("SINTOMI OSSERVATI *")}</label>
             <textarea
               value={symptoms}
               onChange={e => setSymptoms(e.target.value)}
-              placeholder="Descrivi i sintomi: rumore, vibrazione, temperatura, perdite, errori..."
+              placeholder={tr("Descrivi i sintomi: rumore, vibrazione, temperatura, perdite, errori...")}
               rows={3}
               style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", resize: "vertical", outline: "none" }}
             />
@@ -200,15 +204,15 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
 
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 10, letterSpacing: "0.12em", color: "#6b7280", display: "block", marginBottom: 6 }}>TIPO ASSET</label>
+              <label style={{ fontSize: 10, letterSpacing: "0.12em", color: "#6b7280", display: "block", marginBottom: 6 }}>{tr("TIPO ASSET")}</label>
               <select
                 value={assetType}
                 onChange={e => setAssetType(e.target.value)}
                 style={{ width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", outline: "none" }}
               >
-                <option value="">— Auto-detect dall&apos;asset —</option>
+                <option value="">{tr("— Auto-detect dall'asset —")}</option>
                 {ASSET_TYPES.map(at => (
-                  <option key={at.value} value={at.value}>{at.label}</option>
+                  <option key={at.value} value={at.value}>{tr(at.label)}</option>
                 ))}
               </select>
             </div>
@@ -225,7 +229,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
           {analyzing && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6b7280", fontSize: 11 }}>
               <div style={{ width: 14, height: 14, border: "2px solid #374151", borderTop: "2px solid #6366f1", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-              <span>Analisi AI in corso sulla knowledge base FMECA...</span>
+              <span>{tr("Analisi AI in corso sulla knowledge base FMECA...")}</span>
             </div>
           )}
 
@@ -234,26 +238,26 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {/* Sintesi */}
               <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-default)", padding: "10px 14px" }}>
-                <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280", marginBottom: 6 }}>ANALISI AI — {result.asset_type_used.toUpperCase()}</div>
-                <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, marginBottom: 6 }}>{result.most_probable_cause || result.explanation || "Nessuna causa identificata."}</div>
+                <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280", marginBottom: 6 }}>{tr("ANALISI AI —")} {result.asset_type_used.toUpperCase()}</div>
+                <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, marginBottom: 6 }}>{result.most_probable_cause || result.explanation || tr("Nessuna causa identificata.")}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 10, color: "#6b7280" }}>Confidenza:</span>
+                  <span style={{ fontSize: 10, color: "#6b7280" }}>{tr("Confidenza:")}</span>
                   <span style={{ fontSize: 10, color: result.confidence_score >= 0.7 ? "#22c55e" : result.confidence_score >= 0.4 ? "#f59e0b" : "#ef4444" }}>
                     {Math.round(result.confidence_score * 100)}%
                   </span>
-                  <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 8 }}>Priorità:</span>
+                  <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 8 }}>{tr("Priorità:")}</span>
                   <span style={{ fontSize: 10, color: result.priority === "HIGH" ? "#ef4444" : result.priority === "MEDIUM" ? "#f59e0b" : "#22c55e" }}>{result.priority}</span>
                 </div>
               </div>
 
               {result.failure_modes_ranked.length === 0 ? (
                 <div style={{ fontSize: 12, color: "#6b7280", textAlign: "center", padding: "12px 0" }}>
-                  Nessun failure mode trovato per questo tipo asset. Aggiungi dati FMECA nella knowledge base.
+                  {tr("Nessun failure mode trovato per questo tipo asset. Aggiungi dati FMECA nella knowledge base.")}
                 </div>
               ) : (
                 <>
                   {/* Top 3 failure modes */}
-                  <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>TOP 3 FAILURE MODES IDENTIFICATI</div>
+                  <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>{tr("TOP 3 FAILURE MODES IDENTIFICATI")}</div>
                   {result.failure_modes_ranked.map((fm, i) => (
                     <div key={fm.failure_mode_id} style={{ border: "1px solid var(--border-default)", background: "var(--surface-2)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
@@ -267,14 +271,14 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                         </div>
                       </div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        <span style={{ color: "#6b7280" }}>Componente: </span>{fm.component}
+                        <span style={{ color: "#6b7280" }}>{tr("Componente:")} </span>{fm.component}
                         {fm.mtbf_hours != null && fm.mtbf_hours > 0 && (
-                          <span style={{ marginLeft: 12, color: "#6b7280" }}>MTBF: {fm.mtbf_hours.toLocaleString("it-IT")}h</span>
+                          <span style={{ marginLeft: 12, color: "#6b7280" }}>{tr("MTBF:")} {fm.mtbf_hours.toLocaleString(getLocaleTag())}h</span>
                         )}
                       </div>
                       {fm.failure_cause && (
                         <div style={{ fontSize: 11, color: "var(--text-muted)", borderLeft: "2px solid #374151", paddingLeft: 8 }}>
-                          <span style={{ color: "#6b7280" }}>Causa: </span>{fm.failure_cause}
+                          <span style={{ color: "#6b7280" }}>{tr("Causa:")} </span>{fm.failure_cause}
                         </div>
                       )}
                       {fm.ai_explanation && (
@@ -282,7 +286,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                       )}
                       {fm.recommended_action && (
                         <div style={{ fontSize: 11, color: "#22c55e" }}>
-                          <span style={{ color: "#6b7280" }}>Azione: </span>{fm.recommended_action}
+                          <span style={{ color: "#6b7280" }}>{tr("Azione:")} </span>{fm.recommended_action}
                         </div>
                       )}
                     </div>
@@ -290,10 +294,10 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
 
                   {/* Sezione conferma / learning */}
                   <div style={{ borderTop: "1px solid #1f2937", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>CONFERMA E APPRENDIMENTO</div>
+                    <div style={{ fontSize: 9, letterSpacing: "0.15em", color: "#6b7280" }}>{tr("CONFERMA E APPRENDIMENTO")}</div>
 
                     <div>
-                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>CAUSA CONFERMATA</label>
+                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>{tr("CAUSA CONFERMATA")}</label>
                       <select
                         value={selectedFmId === "other" ? "other" : String(selectedFmId)}
                         onChange={e => setSelectedFmId(e.target.value === "other" ? "other" : parseInt(e.target.value, 10))}
@@ -304,27 +308,27 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                             #{fm.rank} — {fm.failure_mode} ({fm.component})
                           </option>
                         ))}
-                        <option value="other">Altro (non in lista)</option>
+                        <option value="other">{tr("Altro (non in lista)")}</option>
                       </select>
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>CAUSA REALE *</label>
+                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>{tr("CAUSA REALE *")}</label>
                       <textarea
                         value={realCause}
                         onChange={e => setRealCause(e.target.value)}
-                        placeholder="Descrivi la causa effettiva riscontrata..."
+                        placeholder={tr("Descrivi la causa effettiva riscontrata...")}
                         rows={2}
                         style={{ width: "100%", background: "var(--surface-0)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
                       />
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>AZIONE INTRAPRESA *</label>
+                      <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>{tr("AZIONE INTRAPRESA *")}</label>
                       <textarea
                         value={actionTaken}
                         onChange={e => setActionTaken(e.target.value)}
-                        placeholder="Descrivi l'intervento eseguito..."
+                        placeholder={tr("Descrivi l'intervento eseguito...")}
                         rows={2}
                         style={{ width: "100%", background: "var(--surface-0)", border: "1px solid var(--border-default)", color: "var(--text-primary)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
                       />
@@ -332,7 +336,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
 
                     <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
                       <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>TEMPO RISOLUZIONE (min)</label>
+                        <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 6 }}>{tr("TEMPO RISOLUZIONE (min)")}</label>
                         <input
                           type="number"
                           value={resolutionTime}
@@ -343,7 +347,7 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                         />
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 2 }}>
-                        <label style={{ fontSize: 10, color: "#6b7280" }}>RISOLTO:</label>
+                        <label style={{ fontSize: 10, color: "#6b7280" }}>{tr("RISOLTO:")}</label>
                         <button
                           onClick={() => setSuccessFlag(s => !s)}
                           style={{ padding: "6px 14px", background: "transparent", border: `1px solid ${successFlag ? "#22c55e" : "#ef4444"}`, color: successFlag ? "#22c55e" : "#ef4444", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em" }}
@@ -359,10 +363,10 @@ function FIEPanel({ ticketId }: { ticketId: string }) {
                         disabled={saving || !realCause.trim() || !actionTaken.trim()}
                         style={{ padding: "8px 20px", background: "transparent", border: "1px solid #22c55e", color: saving ? "#6b7280" : "#22c55e", fontSize: 11, letterSpacing: "0.12em", cursor: saving || !realCause.trim() || !actionTaken.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: saving || !realCause.trim() || !actionTaken.trim() ? 0.5 : 1 }}
                       >
-                        {saving ? "SALVATAGGIO..." : "SALVA E APPRENDI"}
+                        {saving ? "SALVATAGGIO..." : tr("SALVA E APPRENDI")}
                       </button>
                       {savedOk && (
-                        <span style={{ fontSize: 11, color: "#22c55e" }}>Learning aggiornato</span>
+                        <span style={{ fontSize: 11, color: "#22c55e" }}>{tr("Learning aggiornato")}</span>
                       )}
                     </div>
                   </div>
@@ -389,6 +393,7 @@ function TipoBadge({ tipo }: { tipo: string }) {
 
 // ── Selettore ticket ──────────────────────────────────────────────────────────
 function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
+  const tr = useT();
   const [query, setQuery]       = useState("");
   const [tickets, setTickets]   = useState<TicketOption[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -415,8 +420,8 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
     <div style={styles.selectorWrap}>
       <div style={styles.selectorHeader}>
         <div style={styles.startIcon}>⬡</div>
-        <p style={styles.startTitle}>SELEZIONA TICKET DA ANALIZZARE</p>
-        <p style={styles.startSub}>Scegli il ticket su cui avviare la sessione diagnostica guidata AI.</p>
+        <p style={styles.startTitle}>{tr("SELEZIONA TICKET DA ANALIZZARE")}</p>
+        <p style={styles.startSub}>{tr("Scegli il ticket su cui avviare la sessione diagnostica guidata AI.")}</p>
       </div>
 
       {/* Search bar */}
@@ -427,7 +432,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Cerca per #ID, descrizione o asset..."
+          placeholder={tr("Cerca per #ID, descrizione o asset...")}
           style={{
             width: "100%", padding: "10px 12px 10px 36px", boxSizing: "border-box",
             background: "var(--bg-surface)", border: "1px solid var(--border-default)",
@@ -443,10 +448,10 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
       {/* Risultati */}
       <div style={{ width: "100%", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 0, border: "1px solid var(--border-default)", maxHeight: 380, overflowY: "auto" }}>
         {loading ? (
-          <div style={{ padding: "24px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>Caricamento...</div>
+          <div style={{ padding: "24px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{tr("Caricamento...")}</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: "24px", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
-            {query ? "Nessun ticket trovato" : "Nessun ticket attivo"}
+            {query ? tr("Nessun ticket trovato") : tr("Nessun ticket attivo")}
           </div>
         ) : filtered.map((t, i) => (
           <button
@@ -477,7 +482,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
             <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
               <TipoBadge tipo={t.tipo} />
               <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 3, fontWeight: 700, color: t.priorita === "Alta" ? "#ef4444" : t.priorita === "Media" ? "#f59e0b" : "#22c55e", background: "var(--surface-3)", border: "1px solid var(--border-default)" }}>
-                {t.priorita}
+                {labelPriorita(t.priorita)}
               </span>
             </div>
             <span style={{ fontSize: 14, color: "var(--text-muted)", flexShrink: 0 }}>›</span>
@@ -497,6 +502,7 @@ function TicketSelector({ onSelect }: { onSelect: (t: TicketOption) => void }) {
 
 // ── Main diagnostic content ───────────────────────────────────────────────────
 function DiagnosticContent() {
+  const tr = useT();
   const searchParams  = useSearchParams();
   const router        = useRouter();
   const initialId     = searchParams.get("id") ?? "";
@@ -574,11 +580,11 @@ function DiagnosticContent() {
         <div style={styles.gridBg} />
         <header style={styles.header}>
           <div style={styles.headerLeft}>
-            <span style={styles.headerTitle}>ANALISI INGEGNERIA AI</span>
+            <span style={styles.headerTitle}>{tr("ANALISI INGEGNERIA AI")}</span>
           </div>
           <div style={styles.statusDot}>
             <span style={{ ...styles.dot, background: "var(--text-muted)" }} />
-            <span style={styles.statusLabel}>SELEZIONA TICKET</span>
+            <span style={styles.statusLabel}>{tr("SELEZIONA TICKET")}</span>
           </div>
         </header>
         <main style={{ ...styles.main, alignItems: "center", justifyContent: "center" }}>
@@ -601,14 +607,14 @@ function DiagnosticContent() {
           <button
             onClick={resetToSelect}
             style={{ background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", padding: "3px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
-            title="Scegli altro ticket"
+            title={tr("Scegli altro ticket")}
           >
-            ← CAMBIA
+            {tr("← CAMBIA")}
           </button>
           <span style={styles.badge} title={ticketLabel}>
-            TICKET {ticketId ? `#${ticketId}` : "—"}
+            {tr("TICKET")} {ticketId ? `#${ticketId}` : "—"}
           </span>
-          <span style={styles.headerTitle}>SESSIONE DIAGNOSTICA</span>
+          <span style={styles.headerTitle}>{tr("SESSIONE DIAGNOSTICA")}</span>
         </div>
         <div style={styles.statusDot}>
           <span style={{ ...styles.dot, background: status === "active" ? "var(--green)" : status === "concluded" ? "var(--amber)" : "var(--text-muted)" }} />
@@ -623,7 +629,7 @@ function DiagnosticContent() {
             <div style={styles.startIcon}>⬡</div>
             {selectedTicket && (
               <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", padding: "12px 20px", textAlign: "center", maxWidth: 480 }}>
-                <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", marginBottom: 6 }}>TICKET SELEZIONATO</div>
+                <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", marginBottom: 6 }}>{tr("TICKET SELEZIONATO")}</div>
                 <div style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600, marginBottom: 4 }}>{selectedTicket.titolo}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedTicket.asset_name} · <TipoBadge tipo={selectedTicket.tipo} /></div>
               </div>
@@ -632,15 +638,15 @@ function DiagnosticContent() {
             {/* FIE — Failure Intelligence Engine */}
             {ticketId && <FIEPanel ticketId={ticketId} />}
 
-            <p style={styles.startTitle}>ANALISI GUIDATA PRONTA</p>
-            <p style={styles.startSub}>Il sistema porrà domande mirate per identificare la root cause del guasto. Rispondi in modo conciso e preciso.</p>
-            <button style={styles.startBtn} onClick={startSession} disabled={!ticketId}>AVVIA SESSIONE</button>
+            <p style={styles.startTitle}>{tr("ANALISI GUIDATA PRONTA")}</p>
+            <p style={styles.startSub}>{tr("Il sistema porrà domande mirate per identificare la root cause del guasto. Rispondi in modo conciso e preciso.")}</p>
+            <button style={styles.startBtn} onClick={startSession} disabled={!ticketId}>{tr("AVVIA SESSIONE")}</button>
           </div>
         )}
         {status === "loading" && (
           <div style={styles.startScreen}>
             <div style={styles.spinner} />
-            <p style={styles.startSub}>Analisi ticket in corso...</p>
+            <p style={styles.startSub}>{tr("Analisi ticket in corso...")}</p>
           </div>
         )}
         {(status === "active" || status === "concluded") && messages.map((msg, i) => (
@@ -651,9 +657,9 @@ function DiagnosticContent() {
         {sending && (
           <div style={{ ...styles.msgRow, justifyContent: "flex-start" }}>
             <div style={styles.aiBubbleWrap}>
-              <div style={styles.aiAvatar}>AI</div>
+              <div style={styles.aiAvatar}>{tr("AI")}</div>
               <div style={{ ...styles.aiBubble, borderColor: "var(--border-strong)", padding: "12px 16px" }}>
-                <p style={{ ...styles.bubbleContent, color: "var(--text-secondary)", fontStyle: "italic" }}>Elaborazione in corso...</p>
+                <p style={{ ...styles.bubbleContent, color: "var(--text-secondary)", fontStyle: "italic" }}>{tr("Elaborazione in corso...")}</p>
               </div>
             </div>
           </div>
@@ -663,7 +669,7 @@ function DiagnosticContent() {
       {status === "active" && (
         <footer style={styles.footer}>
           <div style={styles.inputWrap}>
-            <textarea style={styles.textarea} value={reply} onChange={e => setReply(e.target.value)} onKeyDown={handleKey} placeholder="Descrivi ciò che hai osservato... (Invio per inviare)" rows={2} disabled={sending} />
+            <textarea style={styles.textarea} value={reply} onChange={e => setReply(e.target.value)} onKeyDown={handleKey} placeholder={tr("Descrivi ciò che hai osservato... (Invio per inviare)")} rows={2} disabled={sending} />
             <button style={{ ...styles.sendBtn, opacity: sending || !reply.trim() ? 0.4 : 1 }} onClick={sendReply} disabled={sending || !reply.trim()}>{sending ? "..." : "→"}</button>
           </div>
         </footer>
@@ -671,9 +677,9 @@ function DiagnosticContent() {
       {status === "concluded" && (
         <footer style={styles.footer}>
           <div style={{ ...styles.concludedBar, display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
-            <span>✓ SESSIONE CONCLUSA — ROOT CAUSE IDENTIFICATA</span>
+            <span>{tr("✓ SESSIONE CONCLUSA — ROOT CAUSE IDENTIFICATA")}</span>
             <button onClick={resetToSelect} style={{ background: "transparent", border: "1px solid #f59e0b55", color: "var(--amber)", padding: "4px 14px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}>
-              NUOVA ANALISI →
+              {tr("NUOVA ANALISI →")}
             </button>
           </div>
         </footer>
@@ -683,19 +689,21 @@ function DiagnosticContent() {
 }
 
 export default function DiagnosticPage() {
+  const tr = useT();
   return (
-    <Suspense fallback={<div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "var(--bg-base)", color: "var(--text-muted)" }}>Caricamento...</div>}>
+    <Suspense fallback={<div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "var(--bg-base)", color: "var(--text-muted)" }}>{tr("Caricamento...")}</div>}>
       <DiagnosticContent />
     </Suspense>
   );
 }
 
 function AiMessage({ step, timestamp }: { step: Step; timestamp: Date }) {
+  const tr = useT();
   const isCheck = step.type === "check";
   const isConclusion = step.type === "conclusion";
   return (
     <div style={styles.aiBubbleWrap}>
-      <div style={styles.aiAvatar}>AI</div>
+      <div style={styles.aiAvatar}>{tr("AI")}</div>
       <div style={{ ...styles.aiBubble, borderColor: isConclusion ? "var(--amber)" : isCheck ? "var(--blue)" : "var(--border-strong)" }}>
         <div style={{ ...styles.typeTag, background: isConclusion ? "#f59e0b22" : isCheck ? "#3b82f622" : "#ffffff08", color: isConclusion ? "var(--amber)" : isCheck ? "#60a5fa" : "var(--text-secondary)", borderColor: isConclusion ? "#f59e0b44" : isCheck ? "#3b82f644" : "#ffffff11" }}>
           {isConclusion ? "◈ ROOT CAUSE" : isCheck ? "▣ VERIFICA SUL CAMPO" : "◇ DOMANDA"}
@@ -704,32 +712,33 @@ function AiMessage({ step, timestamp }: { step: Step; timestamp: Date }) {
         {step.detail && <p style={styles.bubbleDetail}>{step.detail}</p>}
         {isConclusion && step.root_cause && (
           <div style={styles.rootCauseBox}>
-            <p style={styles.rootCauseLabel}>ROOT CAUSE IDENTIFICATA</p>
+            <p style={styles.rootCauseLabel}>{tr("ROOT CAUSE IDENTIFICATA")}</p>
             <p style={styles.rootCauseText}>{step.root_cause}</p>
           </div>
         )}
         {isConclusion && step.recommended_actions && step.recommended_actions.length > 0 && (
           <div style={styles.actionsBox}>
-            <p style={styles.actionsLabel}>AZIONI RACCOMANDATE</p>
+            <p style={styles.actionsLabel}>{tr("AZIONI RACCOMANDATE")}</p>
             {step.recommended_actions.map((a, i) => (
               <div key={i} style={styles.actionItem}><span style={styles.actionNum}>{i + 1}</span><span>{a}</span></div>
             ))}
           </div>
         )}
-        <span style={styles.timestamp}>{timestamp.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span style={styles.timestamp}>{timestamp.toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
     </div>
   );
 }
 
 function UserMessage({ text, timestamp }: { text: string; timestamp: Date }) {
+  const tr = useT();
   return (
     <div style={styles.userBubbleWrap}>
       <div style={styles.userBubble}>
         <p style={styles.userText}>{text}</p>
-        <span style={styles.timestampUser}>{timestamp.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span style={styles.timestampUser}>{timestamp.toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
-      <div style={styles.userAvatar}>TEC</div>
+      <div style={styles.userAvatar}>{tr("TEC")}</div>
     </div>
   );
 }

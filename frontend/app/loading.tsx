@@ -1,4 +1,9 @@
+"use client";
+
+import { useT } from "@/app/lib/i18n";
+
 export default function Loading() {
+  const tr = useT();
   return (
     <div style={{
       position: "fixed",
@@ -20,7 +25,7 @@ export default function Loading() {
       {/* eslint-disable-next-line @next/next/no-img-element -- logo nella schermata di caricamento; next/image aggiungerebbe overhead nel primo paint */}
       <img
         src="/logo.png"
-        alt="MaintAI Logo Caricamento"
+        alt="MaintAI"
         style={{
           width: "100px",
           height: "100px",
@@ -36,7 +41,7 @@ export default function Loading() {
         fontWeight: 600,
         textTransform: "uppercase" 
       }}>
-        Inizializzazione...
+        {tr("Inizializzazione...")}
       </div>
     </div>
   );

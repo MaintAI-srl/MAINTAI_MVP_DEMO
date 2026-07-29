@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useT } from "@/app/lib/i18n";
 // API_BASE locale — la pagina di stampa usa il suo layout isolato, non accede agli alias
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? (process.env.NODE_ENV === "production" ? "/api" : "https://maintai-v3.onrender.com");
 
@@ -13,6 +14,7 @@ interface QRResponse {
 }
 
 export default function PrintAssetQR() {
+  const tr = useT();
   const params = useParams();
   const assetId = params?.assetId as string;
 
@@ -55,7 +57,7 @@ export default function PrintAssetQR() {
   if (error) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#ef4444", fontSize: "16px" }}>
-        Errore: {error}
+        {tr("Errore:")} {error}
       </div>
     );
   }
@@ -63,7 +65,7 @@ export default function PrintAssetQR() {
   if (!qr) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#6b7280", fontSize: "14px" }}>
-        Caricamento QR...
+        {tr("Caricamento QR...")}
       </div>
     );
   }
@@ -143,7 +145,7 @@ export default function PrintAssetQR() {
         letterSpacing: "1px",
         textTransform: "uppercase",
       }}>
-        MaintAI — Sistema di Gestione Manutenzione
+        {tr("MaintAI — Sistema di Gestione Manutenzione")}
       </div>
 
       {/* Pulsante stampa visibile solo a video */}
@@ -162,7 +164,7 @@ export default function PrintAssetQR() {
         }}
         className="no-print"
       >
-        Stampa
+        {tr("Stampa")}
       </button>
 
       <style>{`

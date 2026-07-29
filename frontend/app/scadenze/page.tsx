@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, RefreshCw, Search } from "lucide-react";
 import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 
 type ScadenzaRow = {
   id: number;
@@ -46,7 +47,7 @@ function formatDate(iso: string | null) {
   if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function formatDays(days: number | null, row?: ScadenzaRow) {
@@ -54,7 +55,7 @@ function formatDays(days: number | null, row?: ScadenzaRow) {
     if (row?.trigger_kind === "condition") {
       if (row.condition_remaining_hours === null || row.condition_remaining_hours === undefined) return "In attesa ore";
       if (row.condition_remaining_hours <= 0) return "Soglia raggiunta";
-      return `${row.condition_remaining_hours.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`;
+      return `${row.condition_remaining_hours.toLocaleString(getLocaleTag(), { maximumFractionDigits: 1 })} h`;
     }
     return "-";
   }
@@ -121,6 +122,7 @@ function KpiTile({ label, value, detail, color, icon }: {
 }
 
 export default function ScadenzePage() {
+  const tr = useT();
   const [rows, setRows] = useState<ScadenzaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -181,13 +183,13 @@ export default function ScadenzePage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, marginBottom: 22 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#5b8fff", fontWeight: 800, marginBottom: 7 }}>
-            Manutenzione programmata
+            {tr("Manutenzione programmata")}
           </div>
           <h1 className="page-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.05 }}>
-            Scadenziario
+            {tr("Scadenziario")}
           </h1>
           <p className="page-subtitle" style={{ margin: "7px 0 0", maxWidth: 760 }}>
-            Asset con scadenze ricavate dai piani di manutenzione, con ultimo intervento, prossima occorrenza e giorni residui.
+            {tr("Asset con scadenze ricavate dai piani di manutenzione, con ultimo intervento, prossima occorrenza e giorni residui.")}
           </p>
         </div>
 
@@ -212,10 +214,10 @@ export default function ScadenzePage() {
             }}
           >
             <RefreshCw size={15} />
-            Aggiorna
+            {tr("Aggiorna")}
           </button>
           <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-            {generatedAt ? `sync ${formatDate(generatedAt)}` : "sync non disponibile"}
+            {generatedAt ? `sync ${formatDate(generatedAt)}` : tr("sync non disponibile")}
           </span>
         </div>
       </header>
@@ -263,7 +265,7 @@ export default function ScadenzePage() {
                     fontWeight: 750,
                   }}
                 >
-                  {item.label} <span style={{ color: active ? "#8bb8ff" : "var(--text-muted)", marginLeft: 5 }}>{item.count}</span>
+                  {tr(item.label)} <span style={{ color: active ? "#8bb8ff" : "var(--text-muted)", marginLeft: 5 }}>{item.count}</span>
                 </button>
               );
             })}
@@ -274,7 +276,7 @@ export default function ScadenzePage() {
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Cerca sito, asset, piano..."
+              placeholder={tr("Cerca sito, asset, piano...")}
               style={{
                 width: "100%",
                 height: 34,
@@ -294,7 +296,7 @@ export default function ScadenzePage() {
           <table style={{ width: "100%", minWidth: 1260, borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
-                {["Sito", "Impianto", "Asset", "Piano", "Tipo", "Freq.", "Ultima", "Prossima", "Ore asset", "Giorni rimanenti"].map(label => (
+                {[tr("Sito"), tr("Impianto"), tr("Asset"), tr("Piano"), "Tipo", "Freq.", "Ultima", "Prossima", tr("Ore asset"), tr("Giorni rimanenti")].map(label => (
                   <th key={label} style={thStyle}>{label}</th>
                 ))}
               </tr>
@@ -314,8 +316,8 @@ export default function ScadenzePage() {
                 const status = statusForDays(row.giorni_rimanenti, row);
                 const prio = priorityStyle(row.priorita || "Media");
                 const conditionText = row.trigger_kind === "condition"
-                  ? `Soglia ${row.condition_due_at_hours?.toLocaleString("it-IT", { maximumFractionDigits: 1 }) ?? "-"} h`
-                  : row.task || "Task manutenzione";
+                  ? `Soglia ${row.condition_due_at_hours?.toLocaleString(getLocaleTag(), { maximumFractionDigits: 1 }) ?? "-"} h`
+                  : row.task || tr("Task manutenzione");
                 // Calcola celle ore asset
                 const hasHours = row.current_running_hours !== null && row.current_running_hours !== undefined;
                 const hasRemaining = row.condition_remaining_hours !== null && row.condition_remaining_hours !== undefined;
@@ -353,7 +355,7 @@ export default function ScadenzePage() {
                       {hasHours ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                           <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#10d9b0", fontWeight: 700 }}>
-                            {row.current_running_hours!.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h
+                            {row.current_running_hours!.toLocaleString(getLocaleTag(), { maximumFractionDigits: 1 })} h
                           </span>
                           {hasRemaining && (
                             <span style={{
@@ -363,7 +365,7 @@ export default function ScadenzePage() {
                             }}>
                               {remainingDue
                                 ? "▲ Soglia raggiunta"
-                                : `−${row.condition_remaining_hours!.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h al tagliando`}
+                                : `−${row.condition_remaining_hours!.toLocaleString(getLocaleTag(), { maximumFractionDigits: 1 })} h al tagliando`}
                             </span>
                           )}
                         </div>
@@ -374,7 +376,7 @@ export default function ScadenzePage() {
                     <td style={tdStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
                         <span style={{ ...badgeStyle, color: status.color, background: status.bg, borderColor: status.border }}>
-                          {status.label}
+                          {tr(status.label)}
                         </span>
                         <span style={{ fontWeight: 850, color: status.color, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
                           {formatDays(row.giorni_rimanenti, row)}
@@ -391,7 +393,7 @@ export default function ScadenzePage() {
               {!loading && filteredRows.length === 0 && (
                 <tr>
                   <td colSpan={10} style={{ padding: "44px 18px", textAlign: "center", color: "var(--text-muted)", borderTop: "1px solid rgba(91,143,255,0.08)" }}>
-                    Nessuna scadenza corrisponde ai filtri selezionati.
+                    {tr("Nessuna scadenza corrisponde ai filtri selezionati.")}
                   </td>
                 </tr>
               )}

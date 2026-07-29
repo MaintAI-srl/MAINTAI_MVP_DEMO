@@ -19,6 +19,7 @@ import { apiGetBlob } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { PdfRasterizer } from "./lib/pdfRaster";
 import { LiveQrScanner } from "./lib/liveQrScanner";
+import { useT } from "@/app/lib/i18n";
 import {
   detectXrCapabilities,
   XrPdfViewer,
@@ -47,6 +48,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 export default function XrPrototipoPage() {
+  const tr = useT();
   const [caps, setCaps] = useState<XrCapabilities | null>(null);
   const [step, setStep] = useState<Step>("start");
   const [scanning, setScanning] = useState(false);
@@ -340,7 +342,7 @@ export default function XrPrototipoPage() {
         <QrScanner
           onScan={(v) => void gestisciScansione(v)}
           onCancel={() => setScanning(false)}
-          title="Scansiona QR asset"
+          title={tr("Scansiona QR asset")}
           subtitle="Inquadra la targhetta QR sulla macchina"
         />
       )}
@@ -351,15 +353,15 @@ export default function XrPrototipoPage() {
             <Glasses size={22} />
           </span>
           <div>
-            <h1 style={S.title}>Visore XR — Manuale sul campo</h1>
+            <h1 style={S.title}>{tr("Visore XR — Manuale sul campo")}</h1>
             <p style={S.subtitle}>
-              Prototipo · Meta Quest 3 · WebXR <code style={S.code}>immersive-ar</code>
+              {tr("Prototipo · Meta Quest 3 · WebXR")} <code style={S.code}>immersive-ar</code>
             </p>
           </div>
         </div>
         {step !== "start" && (
           <button onClick={ricomincia} style={S.ghostButton}>
-            <RefreshCw size={15} /> Ricomincia
+            <RefreshCw size={15} /> {tr("Ricomincia")}
           </button>
         )}
       </header>
@@ -370,16 +372,15 @@ export default function XrPrototipoPage() {
         <div style={S.installBox}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <Glasses size={16} />
-            <strong style={{ fontSize: 13 }}>Installa come app del visore</strong>
+            <strong style={{ fontSize: 13 }}>{tr("Installa come app del visore")}</strong>
           </div>
           <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-            Installata, MaintAI XR compare nella libreria del Quest con la sua icona e parte a
-            tutto schermo direttamente qui, senza la barra del browser.
-            {!installPrompt && " Dal browser del visore: menu ⋮ → Installa (o Salva nella libreria)."}
+            {tr("Installata, MaintAI XR compare nella libreria del Quest con la sua icona e parte a tutto schermo direttamente qui, senza la barra del browser.")}
+            {!installPrompt && tr(" Dal browser del visore: menu ⋮ → Installa (o Salva nella libreria).")}
           </p>
           {installPrompt && (
             <button onClick={() => void installaApp()} style={{ ...S.secondaryButton, marginTop: 10 }}>
-              Installa MaintAI XR
+              {tr("Installa MaintAI XR")}
             </button>
           )}
         </div>
@@ -407,12 +408,11 @@ export default function XrPrototipoPage() {
       {!inSessione && xrPronto && (
         <section style={S.enterCard}>
           <button onClick={entraInXr} style={S.primaryButton}>
-            <Glasses size={18} /> Entra subito in XR
+            <Glasses size={18} /> {tr("Entra subito in XR")}
           </button>
           <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-            Entri in realtà mista con un pannello vuoto e apri il manuale dopo, inquadrando il QR
-            della macchina. Se preferisci sceglierlo prima, usa i passaggi qui sotto.
-            {installata && " L'app non può entrare in XR da sola all'avvio: il browser richiede un tocco."}
+            {tr("Entri in realtà mista con un pannello vuoto e apri il manuale dopo, inquadrando il QR della macchina. Se preferisci sceglierlo prima, usa i passaggi qui sotto.")}
+            {installata && tr(" L'app non può entrare in XR da sola all'avvio: il browser richiede un tocco.")}
           </p>
         </section>
       )}
@@ -420,13 +420,12 @@ export default function XrPrototipoPage() {
       {/* ── Step 1: scansione ── */}
       {step === "start" && (
         <section style={S.card}>
-          <h2 style={S.cardTitle}>1 · Identifica l&apos;asset</h2>
+          <h2 style={S.cardTitle}>{tr("1 · Identifica l'asset")}</h2>
           <p style={S.paragraph}>
-            Inquadra il QR code stampato sulla macchina. Sono accettate le etichette QR asset,
-            i QR del check di primo livello e il codice asset digitato a mano.
+            {tr("Inquadra il QR code stampato sulla macchina. Sono accettate le etichette QR asset, i QR del check di primo livello e il codice asset digitato a mano.")}
           </p>
           <button onClick={() => setScanning(true)} style={S.primaryButton} disabled={!!busy}>
-            <ScanLine size={18} /> Scansiona QR
+            <ScanLine size={18} /> {tr("Scansiona QR")}
           </button>
           <ManualInput onSubmit={(v) => void gestisciScansione(v)} disabled={!!busy} />
         </section>
@@ -435,9 +434,9 @@ export default function XrPrototipoPage() {
       {/* ── Step 2: scelta documento ── */}
       {step === "documenti" && (
         <section style={S.card}>
-          <h2 style={S.cardTitle}>2 · Scegli il documento</h2>
+          <h2 style={S.cardTitle}>{tr("2 · Scegli il documento")}</h2>
           <p style={S.paragraph}>
-            <Boxes size={14} style={{ verticalAlign: "-2px" }} /> Asset:{" "}
+            <Boxes size={14} style={{ verticalAlign: "-2px" }} /> {tr("Asset:")}{" "}
             <strong>{asset?.nome}</strong>
             {asset?.codice ? ` (${asset.codice})` : ""}
           </p>
@@ -458,7 +457,7 @@ export default function XrPrototipoPage() {
                 </span>
               </button>
             ))}
-            {documenti.length === 0 && <p style={S.paragraph}>Nessun PDF disponibile per questo asset.</p>}
+            {documenti.length === 0 && <p style={S.paragraph}>{tr("Nessun PDF disponibile per questo asset.")}</p>}
           </div>
         </section>
       )}
@@ -466,14 +465,14 @@ export default function XrPrototipoPage() {
       {/* ── Step 3: pronto / in sessione ── */}
       {step === "pronto" && (
         <section style={S.card}>
-          <h2 style={S.cardTitle}>3 · Entra in modalità XR</h2>
+          <h2 style={S.cardTitle}>{tr("3 · Entra in modalità XR")}</h2>
           <p style={S.paragraph}>
             <strong>{asset?.nome}</strong> · {documentoAttivo?.nome} · {pagine} pagine
           </p>
 
           <div style={S.previewWrap}>
             <canvas ref={previewRef} style={S.previewCanvas} />
-            <div style={S.previewCaption}>Anteprima pagina 1 (già rasterizzata per la texture XR)</div>
+            <div style={S.previewCaption}>{tr("Anteprima pagina 1 (già rasterizzata per la texture XR)")}</div>
           </div>
 
           <label style={S.checkboxRow}>
@@ -484,8 +483,7 @@ export default function XrPrototipoPage() {
               disabled={inSessione}
             />
             <span>
-              <Camera size={14} style={{ verticalAlign: "-2px" }} /> Continua a leggere i QR durante la
-              sessione XR (cambia manuale inquadrando un&apos;altra macchina)
+              <Camera size={14} style={{ verticalAlign: "-2px" }} /> {tr("Continua a leggere i QR durante la sessione XR (cambia manuale inquadrando un'altra macchina)")}
             </span>
           </label>
 
@@ -497,57 +495,54 @@ export default function XrPrototipoPage() {
               disabled={inSessione}
             />
             <span>
-              <Glasses size={14} style={{ verticalAlign: "-2px" }} /> Il pannello passa dietro mani e
-              oggetti reali (occlusione dalla depth map del visore).
+              <Glasses size={14} style={{ verticalAlign: "-2px" }} /> {tr("Il pannello passa dietro mani e oggetti reali (occlusione dalla depth map del visore).")}
               <span style={{ display: "block", color: "var(--text-muted)", fontSize: 12, marginTop: 3 }}>
-                Disattivandola il testo è più nitido: senza occlusione il pannello può usare il
-                compositore del visore (WebXR Layers), che campiona la texture alla risoluzione
-                nativa del display. Con l&apos;occlusione il disegno passa dal nostro shader.
+                {tr("Disattivandola il testo è più nitido: senza occlusione il pannello può usare il compositore del visore (WebXR Layers), che campiona la texture alla risoluzione nativa del display. Con l'occlusione il disegno passa dal nostro shader.")}
               </span>
             </span>
           </label>
 
           {!inSessione ? (
             <button onClick={entraInXr} style={S.primaryButton} disabled={!xrPronto}>
-              <Glasses size={18} /> Entra in XR
+              <Glasses size={18} /> {tr("Entra in XR")}
             </button>
           ) : (
             <div style={S.sessionBox}>
-              <div style={{ fontWeight: 800, marginBottom: 6 }}>Sessione XR attiva</div>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>{tr("Sessione XR attiva")}</div>
               <div style={S.sessionMeta}>
-                Pagina {xrStatus?.page}/{xrStatus?.pageCount} · zoom{" "}
+                {tr("Pagina")} {xrStatus?.page}/{xrStatus?.pageCount} · zoom{" "}
                 {Math.round((xrStatus?.zoom ?? 1) * 100)}% · rendering{" "}
                 <code style={S.code}>{xrStatus?.mode === "layers" ? "WebXR Layers" : "WebGL"}</code>
-                {" · sovraimpressione "}
+                {tr(" · sovraimpressione ")}
                 <code style={S.code}>
-                  {xrStatus?.anchor === "fisso" ? "fissa nella stanza" : "segue la testa"}
+                  {xrStatus?.anchor === "fisso" ? tr("fissa nella stanza") : tr("segue la testa")}
                 </code>
-                {" · occlusione "}
+                {tr(" · occlusione ")}
                 <code style={S.code}>
                   {xrStatus?.occlusion
-                    ? "attiva"
+                    ? tr("attiva")
                     : xrStatus?.occlusionAvailable
-                      ? "disattivata"
-                      : "non disponibile"}
+                      ? tr("disattivata")
+                      : tr("non disponibile")}
                 </code>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   onClick={() => viewerRef.current?.toggleAnchor()}
                   style={S.secondaryButton}
-                  title="Click dello stick nel visore"
+                  title={tr("Click dello stick nel visore")}
                 >
                   {xrStatus?.anchor === "fisso" ? "Aggancia alla testa" : "Fissa nella stanza"}
                 </button>
                 <button
                   onClick={() => viewerRef.current?.recenter()}
                   style={S.secondaryButton}
-                  title="Tasto A/X nel visore"
+                  title={tr("Tasto A/X nel visore")}
                 >
-                  Riporta davanti
+                  {tr("Riporta davanti")}
                 </button>
                 <button onClick={esciDaXr} style={S.dangerButton}>
-                  <X size={16} /> Termina sessione
+                  <X size={16} /> {tr("Termina sessione")}
                 </button>
               </div>
             </div>
@@ -555,7 +550,7 @@ export default function XrPrototipoPage() {
 
           {!xrPronto && (
             <p style={S.hint}>
-              Questo browser non espone una sessione <code style={S.code}>immersive-ar</code>. Apri
+              {tr("Questo browser non espone una sessione")} <code style={S.code}>immersive-ar</code>. Apri
               la pagina dal browser del Meta Quest 3 (o da un browser con emulatore WebXR) per
               avviare il visore.
             </p>
@@ -573,11 +568,11 @@ export default function XrPrototipoPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CapabilityPanel({ caps }: { caps: XrCapabilities | null }) {
+  const tr = useT();
   if (!caps) {
     return (
       <div style={S.capsRow}>
-        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Rilevamento capacità del
-        dispositivo…
+        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> {tr("Rilevamento capacità del dispositivo…")}
       </div>
     );
   }
@@ -598,7 +593,7 @@ function CapabilityPanel({ caps }: { caps: XrCapabilities | null }) {
     <div style={S.capsRow}>
       {items.map((item) => (
         <span key={item.label} style={{ ...S.capChip, ...(item.ok ? S.capOk : S.capKo) }} title={item.nota}>
-          {item.ok ? "●" : "○"} {item.label}
+          {item.ok ? "●" : "○"} {tr(item.label)}
         </span>
       ))}
     </div>
@@ -606,10 +601,11 @@ function CapabilityPanel({ caps }: { caps: XrCapabilities | null }) {
 }
 
 function ManualInput({ onSubmit, disabled }: { onSubmit: (v: string) => void; disabled: boolean }) {
+  const tr = useT();
   const [value, setValue] = useState("");
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={S.docMeta}>Oppure inserisci codice o ID asset:</div>
+      <div style={S.docMeta}>{tr("Oppure inserisci codice o ID asset:")}</div>
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <input
           value={value}
@@ -617,7 +613,7 @@ function ManualInput({ onSubmit, disabled }: { onSubmit: (v: string) => void; di
           onKeyDown={(e) => {
             if (e.key === "Enter" && value.trim()) onSubmit(value.trim());
           }}
-          placeholder="Es. POMPA-001 oppure 42"
+          placeholder={tr("Es. POMPA-001 oppure 42")}
           style={S.input}
         />
         <button
@@ -625,7 +621,7 @@ function ManualInput({ onSubmit, disabled }: { onSubmit: (v: string) => void; di
           disabled={disabled || !value.trim()}
           style={S.secondaryButton}
         >
-          Apri
+          {tr("Apri")}
         </button>
       </div>
     </div>
@@ -633,6 +629,7 @@ function ManualInput({ onSubmit, disabled }: { onSubmit: (v: string) => void; di
 }
 
 function ControlsLegend() {
+  const tr = useT();
   const rows: [string, string][] = [
     ["Stick ← / →", "pagina precedente / successiva"],
     ["Stick ↑ / ↓", "ingrandisci / rimpicciolisci il pannello"],
@@ -644,7 +641,7 @@ function ControlsLegend() {
   ];
   return (
     <div style={S.legend}>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>Comandi controller nel visore</div>
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>{tr("Comandi controller nel visore")}</div>
       {rows.map(([key, desc]) => (
         <div key={key} style={S.legendRow}>
           <span style={S.legendKey}>{key}</span>

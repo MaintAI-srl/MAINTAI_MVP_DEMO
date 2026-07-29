@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiGet } from "../../lib/api";
 import { notify } from "../../../lib/toast";
+import { useT } from "@/app/lib/i18n";
 
 // ── Tipi risposta API ────────────────────────────────────────────────────────
 
@@ -117,6 +118,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string | 
 // ── Pannello principale ──────────────────────────────────────────────────────
 
 export default function RollingAnalysisPanel() {
+  const tr = useT();
   const [data, setData] = useState<RollingAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -151,10 +153,10 @@ export default function RollingAnalysisPanel() {
       }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 800, color: "#f9fafb" }}>
-            ◈ Rolling 7-Day Analysis
+            {tr("◈ Rolling 7-Day Analysis")}
           </div>
           <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-            Readiness Gate · Freeze Zones · Insertion Score · PM Protection
+            {tr("Readiness Gate · Freeze Zones · Insertion Score · PM Protection")}
           </div>
         </div>
         <button
@@ -186,7 +188,7 @@ export default function RollingAnalysisPanel() {
           color: "#374151",
           fontSize: 13,
         }}>
-          Clicca &quot;Avvia Analisi&quot; per valutare readiness, freeze zones e priorità di tutti i ticket
+          {tr("Clicca \"Avvia Analisi\" per valutare readiness, freeze zones e priorità di tutti i ticket")}
         </div>
       )}
 
@@ -242,12 +244,12 @@ export default function RollingAnalysisPanel() {
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             {/* Filtro zona */}
             {[
-              { key: "all", label: "Tutte le zone" },
+              { key: "all", label: tr("Tutte le zone") },
               { key: "FROZEN_24", label: "❄ Frozen" },
               { key: "PROTECTED_48", label: "🛡 Protected" },
               { key: "FLEXIBLE_72", label: "↕ Flexible" },
               { key: "DYNAMIC_168", label: "⚡ Dynamic" },
-              { key: "unscheduled", label: "Non sched." },
+              { key: "unscheduled", label: tr("Non sched.") },
             ].map(({ key, label }) => (
               <button
                 key={key}
@@ -267,7 +269,7 @@ export default function RollingAnalysisPanel() {
             {/* Filtro status */}
             <div style={{ marginLeft: 8, display: "flex", gap: 6 }}>
               {[
-                { key: "all", label: "Tutti" },
+                { key: "all", label: tr("Tutti") },
                 { key: "READY", label: "✓ READY" },
                 { key: "NOT_READY", label: "✗ NOT READY" },
               ].map(({ key, label }) => (
@@ -309,20 +311,20 @@ export default function RollingAnalysisPanel() {
               letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}>
-              <div>ID</div>
-              <div>Tipo</div>
-              <div>P.Class</div>
-              <div>Titolo</div>
-              <div>Status</div>
-              <div>Zona</div>
-              <div>Ins.</div>
-              <div>Dis.</div>
-              <div>Net</div>
+              <div>{tr("ID")}</div>
+              <div>{tr("Tipo")}</div>
+              <div>{tr("P.Class")}</div>
+              <div>{tr("Titolo")}</div>
+              <div>{tr("Status")}</div>
+              <div>{tr("Zona")}</div>
+              <div>{tr("Ins.")}</div>
+              <div>{tr("Dis.")}</div>
+              <div>{tr("Net")}</div>
             </div>
 
             {filtered.length === 0 && (
               <div style={{ padding: 32, textAlign: "center", color: "#374151", fontSize: 13 }}>
-                Nessun ticket per i filtri selezionati
+                {tr("Nessun ticket per i filtri selezionati")}
               </div>
             )}
 
@@ -405,10 +407,10 @@ export default function RollingAnalysisPanel() {
                       {/* Bottleneck */}
                       <div>
                         <div style={{ fontSize: 10, color: "#4b5563", fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>
-                          Bottleneck
+                          {tr("Bottleneck")}
                         </div>
                         {a.bottlenecks.length === 0
-                          ? <span style={{ color: "#22c55e" }}>✓ Nessun bottleneck rilevato</span>
+                          ? <span style={{ color: "#22c55e" }}>{tr("✓ Nessun bottleneck rilevato")}</span>
                           : a.bottlenecks.map(b => (
                             <div key={b} style={{ color: "#fca5a5", marginBottom: 3 }}>
                               ✗ {BOTTLENECK_IT[b] ?? b}
@@ -420,7 +422,7 @@ export default function RollingAnalysisPanel() {
                       {/* PM Protection */}
                       <div>
                         <div style={{ fontSize: 10, color: "#4b5563", fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>
-                          PM Protection
+                          {tr("PM Protection")}
                         </div>
                         {a.pm_protected
                           ? <span style={{ color: "#fbbf24" }}>🛡 {a.pm_protection_reason}</span>
@@ -428,7 +430,7 @@ export default function RollingAnalysisPanel() {
                         }
                         {a.freeze_zone && (
                           <div style={{ marginTop: 8, color: "#4b5563", fontSize: 11 }}>
-                            Zona corrente: <span style={{ color: zoneColor, fontWeight: 700 }}>
+                            {tr("Zona corrente:")} <span style={{ color: zoneColor, fontWeight: 700 }}>
                               {ZONE_LABEL[a.freeze_zone] ?? a.freeze_zone}
                             </span>
                           </div>
@@ -438,7 +440,7 @@ export default function RollingAnalysisPanel() {
                       {/* Can-enter + Note */}
                       <div>
                         <div style={{ fontSize: 10, color: "#4b5563", fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>
-                          Può entrare
+                          {tr("Può entrare")}
                         </div>
                         {Object.entries(a.can_enter).map(([zone, ok]) => (
                           <div key={zone} style={{
@@ -469,7 +471,7 @@ export default function RollingAnalysisPanel() {
           {/* ── Note proxy ─────────────────────────────────────────────────── */}
           {data.kpi.note && data.kpi.note.length > 0 && (
             <div style={{ marginTop: 16, padding: "10px 14px", background: "var(--surface-3)", border: "1px solid #1e293b", borderRadius: 8 }}>
-              <div style={{ fontSize: 10, color: "#374151", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>Note proxy — campi non disponibili nel DB attuale</div>
+              <div style={{ fontSize: 10, color: "#374151", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>{tr("Note proxy — campi non disponibili nel DB attuale")}</div>
               {data.kpi.note.map((n, i) => (
                 <div key={i} style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>• {n}</div>
               ))}

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 type TecnicoRow = {
   id: number;
@@ -91,6 +92,7 @@ function copreGiorno(a: Assenza, day: Date): boolean {
 }
 
 export default function PersonalePage() {
+  const tr = useT();
   const [tecnici, setTecnici] = useState<TecnicoRow[]>([]);
   const [assenze, setAssenze] = useState<Assenza[]>([]);
   const [tickets, setTickets] = useState<TicketLite[]>([]);
@@ -125,7 +127,7 @@ export default function PersonalePage() {
       setAssenze(Array.isArray(abs) ? abs : []);
       setTickets(tks?.items ?? []);
     } catch {
-      notify.error("Errore caricamento dati personale.");
+      notify.error(tn("Errore caricamento dati personale."));
     } finally {
       setLoading(false);
     }
@@ -193,7 +195,7 @@ export default function PersonalePage() {
 
   async function salvaAssenza() {
     if (!modal) return;
-    if (modal.dataFine < modal.dataInizio) { notify.error("La data fine deve essere successiva alla data inizio."); return; }
+    if (modal.dataFine < modal.dataInizio) { notify.error(tn("La data fine deve essere successiva alla data inizio.")); return; }
     setSaving(true);
     try {
       const payload = {
@@ -204,10 +206,10 @@ export default function PersonalePage() {
       };
       if (modal.assenzaId) {
         await apiPut(`/tecnici/assenze/${modal.assenzaId}`, payload);
-        notify.success("Assenza aggiornata.");
+        notify.success(tn("Assenza aggiornata."));
       } else {
         await apiPost(`/tecnici/${modal.tecnicoId}/assenze`, payload);
-        notify.success("Assenza registrata.");
+        notify.success(tn("Assenza registrata."));
       }
       setModal(null);
       await load();
@@ -224,12 +226,12 @@ export default function PersonalePage() {
     setSaving(true);
     try {
       await apiDelete(`/tecnici/assenze/${modal.assenzaId}`);
-      notify.success("Assenza eliminata.");
+      notify.success(tn("Assenza eliminata."));
       setModal(null);
       await load();
       window.dispatchEvent(new Event("maintai:data-changed"));
     } catch {
-      notify.error("Errore nell'eliminazione assenza.");
+      notify.error(tn("Errore nell'eliminazione assenza."));
     } finally {
       setSaving(false);
     }
@@ -243,18 +245,18 @@ export default function PersonalePage() {
       {/* Header + KPI */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Personale</h1>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Disponibilità e assenze — clicca una cella per marcare un&apos;assenza</div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>{tr("Personale")}</h1>
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{tr("Disponibilità e assenze — clicca una cella per marcare un'assenza")}</div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
           {[
-            { label: "Tecnici", value: tecnici.length, color: "var(--text-accent)" },
-            { label: "Assenti oggi", value: assentiOggi, color: "#f87171" },
-            { label: "Disponibili oggi", value: Math.max(0, tecnici.length - assentiOggi), color: "#34d399" },
+            { label: tr("Tecnici"), value: tecnici.length, color: "var(--text-accent)" },
+            { label: tr("Assenti oggi"), value: assentiOggi, color: "#f87171" },
+            { label: tr("Disponibili oggi"), value: Math.max(0, tecnici.length - assentiOggi), color: "#34d399" },
           ].map(k => (
             <div key={k.label} style={{ background: "var(--surface-1)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "8px 16px", textAlign: "center" }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: k.color }}>{k.value}</div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)" }}>{k.label}</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)" }}>{tr(k.label)}</div>
             </div>
           ))}
         </div>
@@ -262,34 +264,34 @@ export default function PersonalePage() {
 
       {/* Navigazione settimana */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <button onClick={() => setWeekStart(w => addDays(w, -7))} style={navBtn}>‹ Settimana prec.</button>
-        <button onClick={() => setWeekStart(mondayOf(new Date()))} style={navBtn}>Oggi</button>
-        <button onClick={() => setWeekStart(w => addDays(w, 7))} style={navBtn}>Settimana succ. ›</button>
+        <button onClick={() => setWeekStart(w => addDays(w, -7))} style={navBtn}>{tr("‹ Settimana prec.")}</button>
+        <button onClick={() => setWeekStart(mondayOf(new Date()))} style={navBtn}>{tr("Oggi")}</button>
+        <button onClick={() => setWeekStart(w => addDays(w, 7))} style={navBtn}>{tr("Settimana succ. ›")}</button>
         <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-          {weekStart.toLocaleDateString("it-IT", { day: "2-digit", month: "long" })} — {addDays(weekStart, 6).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
+          {weekStart.toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "long" })} — {addDays(weekStart, 6).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "long", year: "numeric" })}
         </span>
-        <button onClick={load} title="Ricarica" style={{ ...navBtn, marginLeft: "auto" }}>↻</button>
+        <button onClick={load} title={tr("Ricarica")} style={{ ...navBtn, marginLeft: "auto" }}>↻</button>
       </div>
 
       {/* Griglia settimanale */}
       <div style={{ background: "var(--surface-1)", border: "1px solid var(--border-default)", borderRadius: 12, overflow: "auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "180px repeat(7, minmax(110px, 1fr))", minWidth: 960 }}>
           {/* Header riga */}
-          <div style={{ ...headCell, textAlign: "left", paddingLeft: 14 }}>Tecnico</div>
+          <div style={{ ...headCell, textAlign: "left", paddingLeft: 14 }}>{tr("Tecnico")}</div>
           {giorni.map((g, i) => {
             const isToday = toKey(g) === toKey(new Date());
             return (
               <div key={i} style={{ ...headCell, background: isToday ? "rgba(99,102,241,0.12)" : undefined }}>
-                {GIORNI[i]} {g.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
+                {GIORNI[i]} {g.toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit" })}
               </div>
             );
           })}
 
           {loading && tecnici.length === 0 && (
-            <div style={{ gridColumn: "1 / -1", padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>Caricamento…</div>
+            <div style={{ gridColumn: "1 / -1", padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>{tr("Caricamento…")}</div>
           )}
           {!loading && tecnici.length === 0 && (
-            <div style={{ gridColumn: "1 / -1", padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>Nessun tecnico presente.</div>
+            <div style={{ gridColumn: "1 / -1", padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>{tr("Nessun tecnico presente.")}</div>
           )}
 
           {tecnici.map(t => {
@@ -298,7 +300,7 @@ export default function PersonalePage() {
               <div key={t.id} style={{ display: "contents" }}>
                 <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                   {t.nome} {t.cognome ?? ""}
-                  <span style={{ fontSize: 10, fontWeight: 500, color: "var(--text-muted)" }}>{t.ore_giornaliere ?? 8}h/giorno</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "var(--text-muted)" }}>{tr("{ore} h/gg", { ore: t.ore_giornaliere ?? 8 })}</span>
                 </div>
                 {giorni.map((g, i) => {
                   const assCell = tAssenze.filter(a => copreGiorno(a, g));
@@ -329,21 +331,21 @@ export default function PersonalePage() {
                   } else if (cellTickets.length > 0) {
                     content = (
                       <div title={cellTickets.map(tk => `#${tk.id} ${tk.titolo}`).join("\n")} style={{ fontSize: 10.5, fontWeight: 700, color: "#818cf8", textAlign: "center" }}>
-                        Occupato ({cellTickets.length})
-                        <div style={{ fontSize: 9.5, fontWeight: 500, color: "var(--text-muted)" }}>{residuo.toFixed(1)}h residue</div>
+                        {tr("Occupato (")}{cellTickets.length})
+                        <div style={{ fontSize: 9.5, fontWeight: 500, color: "var(--text-muted)" }}>{tr("{ore}h residue", { ore: residuo.toFixed(1) })}</div>
                       </div>
                     );
                   } else if (isWeekend) {
                     content = <span style={{ fontSize: 11, color: "var(--text-soft)" }}>—</span>;
                   } else {
-                    content = <span style={{ fontSize: 10.5, fontWeight: 600, color: "#34d399" }}>Disponibile</span>;
+                    content = <span style={{ fontSize: 10.5, fontWeight: 600, color: "#34d399" }}>{tr("Disponibile")}</span>;
                   }
 
                   return (
                     <div
                       key={i}
                       onClick={() => openCreate(t.id, g)}
-                      title="Clicca per aggiungere un'assenza"
+                      title={tr("Clicca per aggiungere un'assenza")}
                       style={{
                         borderTop: "1px solid var(--border-subtle)",
                         borderLeft: "1px solid var(--border-subtle)",
@@ -364,7 +366,7 @@ export default function PersonalePage() {
 
       {/* Legenda */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)" }}>Legenda:</span>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)" }}>{tr("Legenda:")}</span>
         <LegendChip label="Disponibile" color="#34d399" />
         <LegendChip label="Occupato (ticket)" color="#818cf8" />
         {TIPI_ASSENZA.map(t => <LegendChip key={t} label={t} color={assenzaColor(t)} />)}
@@ -381,7 +383,7 @@ export default function PersonalePage() {
           }}>
             <div style={{ display: "flex", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)" }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>
-                {modal.assenzaId ? "Modifica assenza" : "Nuova assenza"}
+                {modal.assenzaId ? tr("Modifica assenza") : tr("Nuova assenza")}
                 <span style={{ fontWeight: 500, color: "var(--text-muted)" }}> — {tecnicoModal ? `${tecnicoModal.nome} ${tecnicoModal.cognome ?? ""}` : `Tecnico #${modal.tecnicoId}`}</span>
               </div>
               <button onClick={() => setModal(null)} style={{ marginLeft: "auto", background: "transparent", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
@@ -389,13 +391,13 @@ export default function PersonalePage() {
 
             <div style={{ padding: 20, display: "grid", gap: 14 }}>
               <div>
-                <label style={modalLabel}>Tecnico</label>
+                <label style={modalLabel}>{tr("Tecnico")}</label>
                 <select className="select" value={modal.tecnicoId} onChange={e => setModal(m => m && { ...m, tecnicoId: Number(e.target.value) })}>
                   {tecnici.map(t => <option key={t.id} value={t.id}>{t.nome} {t.cognome ?? ""}</option>)}
                 </select>
               </div>
               <div>
-                <label style={modalLabel}>Tipo assenza</label>
+                <label style={modalLabel}>{tr("Tipo assenza")}</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {TIPI_ASSENZA.map(t => {
                     const color = assenzaColor(t);
@@ -416,34 +418,34 @@ export default function PersonalePage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label style={modalLabel}>Data inizio</label>
+                  <label style={modalLabel}>{tr("Data inizio")}</label>
                   <input className="input" type="date" value={modal.dataInizio} onChange={e => setModal(m => m && { ...m, dataInizio: e.target.value })} />
                 </div>
                 <div>
-                  <label style={modalLabel}>Data fine</label>
+                  <label style={modalLabel}>{tr("Data fine")}</label>
                   <input className="input" type="date" value={modal.dataFine} onChange={e => setModal(m => m && { ...m, dataFine: e.target.value })} />
                 </div>
               </div>
               <div>
-                <label style={modalLabel}>Note (opzionale)</label>
-                <textarea className="input" rows={2} value={modal.note} onChange={e => setModal(m => m && { ...m, note: e.target.value })} placeholder="Es. mezza giornata, dettagli…" />
+                <label style={modalLabel}>{tr("Note (opzionale)")}</label>
+                <textarea className="input" rows={2} value={modal.note} onChange={e => setModal(m => m && { ...m, note: e.target.value })} placeholder={tr("Es. mezza giornata, dettagli…")} />
               </div>
 
               {/* Conflitti con ticket pianificati */}
               {conflitti.length > 0 && (
                 <div style={{ border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.08)", borderRadius: 10, padding: "10px 14px" }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: "#f87171", marginBottom: 6 }}>
-                    ⚠ Attenzione: il tecnico è assegnato a {conflitti.length} ticket nel periodo selezionato.
+                    {tr("⚠ Attenzione: il tecnico è assegnato a {n} ticket nel periodo selezionato.", { n: conflitti.length })}
                   </div>
                   <ul style={{ margin: 0, paddingLeft: 16, maxHeight: 90, overflow: "auto" }}>
                     {conflitti.map(c => (
                       <li key={c.id} style={{ fontSize: 11.5, color: "var(--text-soft)" }}>
-                        #{c.id} — {c.titolo} ({c.planned_start ? new Date(c.planned_start).toLocaleDateString("it-IT") : "?"})
+                        #{c.id} — {c.titolo} ({c.planned_start ? new Date(c.planned_start).toLocaleDateString(getLocaleTag()) : "?"})
                       </li>
                     ))}
                   </ul>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
-                    Confermando l&apos;assenza, i ticket restano pianificati e andranno riassegnati dalla pagina Ticket o dal planner.
+                    {tr("Confermando l'assenza, i ticket restano pianificati e andranno riassegnati dalla pagina Ticket o dal planner.")}
                   </div>
                 </div>
               )}
@@ -453,16 +455,16 @@ export default function PersonalePage() {
               {modal.assenzaId && (
                 <button onClick={eliminaAssenza} disabled={saving}
                   style={{ fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(239,68,68,0.4)", background: "transparent", color: "#f87171" }}>
-                  Elimina
+                  {tr("Elimina")}
                 </button>
               )}
               <button onClick={() => setModal(null)} disabled={saving}
                 style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, padding: "8px 16px", borderRadius: 8, cursor: "pointer", border: "1px solid var(--border-default)", background: "transparent", color: "var(--text-secondary)" }}>
-                Annulla
+                {tr("Annulla")}
               </button>
               <button onClick={salvaAssenza} disabled={saving}
                 style={{ fontSize: 12, fontWeight: 800, padding: "8px 18px", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer", border: "none", background: "var(--grad-primary, linear-gradient(135deg,#6366f1,#8b5cf6))", color: "#fff" }}>
-                {saving ? "Salvataggio…" : conflitti.length > 0 ? "Conferma assenza" : "Salva assenza"}
+                {saving ? "Salvataggio…" : conflitti.length > 0 ? tr("Conferma assenza") : tr("Salva assenza")}
               </button>
             </div>
           </div>

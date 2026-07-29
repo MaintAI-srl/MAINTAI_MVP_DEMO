@@ -12,6 +12,7 @@ import { apiGet, apiPost } from "../../lib/api";
 import { notify } from "@/lib/toast";
 import VoiceRecorder from "../../components/VoiceRecorder";
 import QrScanner from "../../components/QrScanner";
+import { useT, tn } from "@/app/lib/i18n";
 import {
   Mic, QrCode, ChevronLeft, ChevronRight, RefreshCw, Search, Package,
   CheckCircle2, Save, Home,
@@ -22,6 +23,7 @@ import {
 } from "../shared";
 
 export default function MobileNuovoTicketPage() {
+  const tr = useT();
   const router = useRouter();
 
   const [step, setStep] = useState<"listen" | "confirm_asset" | "form">("listen");
@@ -75,7 +77,7 @@ export default function MobileNuovoTicketPage() {
       setFoundAssets(assets);
       setStep("confirm_asset");
     } else {
-      notify.error("Nessun asset trovato. Riprova o cerca manualmente sotto.");
+      notify.error(tn("Nessun asset trovato. Riprova o cerca manualmente sotto."));
     }
   }
 
@@ -139,7 +141,7 @@ export default function MobileNuovoTicketPage() {
       setFoundAssets(assets);
       setStep("confirm_asset");
     } else {
-      notify.error("QR non riconosciuto — nessun asset trovato.", "QR");
+      notify.error(tn("QR non riconosciuto — nessun asset trovato."), "QR");
     }
   }
 
@@ -157,7 +159,7 @@ export default function MobileNuovoTicketPage() {
         fascia_oraria: "diurna",
         stato: "Aperto",
       });
-      notify.success("Ticket creato!");
+      notify.success(tn("Ticket creato!"));
       reset();
       router.push("/m/ticket");
     } catch (e) {
@@ -171,7 +173,7 @@ export default function MobileNuovoTicketPage() {
       {/* QR Scanner per identificazione asset */}
       {showQrScan && (
         <QrScanner
-          title="Identifica Asset 📦"
+          title={tr("Identifica Asset 📦")}
           subtitle="Inquadra il QR code sull'asset da segnalare"
           onScan={async (val) => {
             setShowQrScan(false);
@@ -183,17 +185,17 @@ export default function MobileNuovoTicketPage() {
 
       {/* Header vista */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 10px", flexShrink: 0 }}>
-        <button className="m-press" aria-label="Indietro" onClick={handleBack} style={circleBtn}>
+        <button className="m-press" aria-label={tr("Indietro")} onClick={handleBack} style={circleBtn}>
           <ChevronLeft size={22} strokeWidth={2.2} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontWeight: 800, fontSize: "clamp(18px, 5vw, 22px)", letterSpacing: "-0.02em",
             color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.15,
-          }}>Nuovo Ticket</div>
-          <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginTop: 1 }}>Segnala un guasto in pochi secondi</div>
+          }}>{tr("Nuovo Ticket")}</div>
+          <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginTop: 1 }}>{tr("Segnala un guasto in pochi secondi")}</div>
         </div>
-        <button className="m-press" aria-label="Home" onClick={() => { reset(); router.push("/m"); }} style={circleBtn}>
+        <button className="m-press" aria-label={tr("Home")} onClick={() => { reset(); router.push("/m"); }} style={circleBtn}>
           <Home size={19} strokeWidth={2.1} />
         </button>
       </div>
@@ -228,7 +230,7 @@ export default function MobileNuovoTicketPage() {
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                     }}
                   >
-                    <opt.OptIcon size={16} strokeWidth={2.2} /> {opt.label}
+                    <opt.OptIcon size={16} strokeWidth={2.2} /> {tr(opt.label)}
                   </button>
                 );
               })}
@@ -238,7 +240,7 @@ export default function MobileNuovoTicketPage() {
             {inputMethod === "voice" && (
               <>
                 <div style={{ textAlign: "center", color: C.text2, fontSize: 16, lineHeight: 1.5 }}>
-                  Premi il microfono e pronuncia<br/>il nome dell&apos;asset da segnalare
+                  {tr("Premi il microfono e pronuncia")}<br/>il nome dell&apos;asset da segnalare
                 </div>
                 <div style={{ width: "100%", maxWidth: 520 }}>
                   <VoiceRecorder onTranscript={handleVoiceTranscript} />
@@ -249,13 +251,13 @@ export default function MobileNuovoTicketPage() {
                     borderRadius: 14, padding: "12px 16px", width: "100%", maxWidth: 520,
                     color: "#B3B1FF", fontSize: 15,
                   }}>
-                    <div style={{ fontSize: 11, color: C.text3, marginBottom: 4, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Trascritto</div>
+                    <div style={{ fontSize: 11, color: C.text3, marginBottom: 4, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{tr("Trascritto")}</div>
                     {voiceTranscript}
                   </div>
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", maxWidth: 520 }}>
                   <div style={{ flex: 1, height: 1, background: C.border }} />
-                  <span style={{ color: C.text3, fontSize: 13, fontWeight: 600 }}>oppure cerca manualmente</span>
+                  <span style={{ color: C.text3, fontSize: 13, fontWeight: 600 }}>{tr("oppure cerca manualmente")}</span>
                   <div style={{ flex: 1, height: 1, background: C.border }} />
                 </div>
                 <div style={{ width: "100%", maxWidth: 520, position: "relative" }}>
@@ -263,7 +265,7 @@ export default function MobileNuovoTicketPage() {
                   <input
                     value={manualSearch}
                     onChange={e => handleManualSearch(e.target.value)}
-                    placeholder="Cerca asset per nome..."
+                    placeholder={tr("Cerca asset per nome...")}
                     autoComplete="off"
                     style={{
                       width: "100%", boxSizing: "border-box",
@@ -299,7 +301,7 @@ export default function MobileNuovoTicketPage() {
             {inputMethod === "qr" && (
               <div className="m-fade-up" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, width: "100%", maxWidth: 520, paddingTop: 4 }}>
                 <div style={{ textAlign: "center", color: C.text2, fontSize: 16, lineHeight: 1.5 }}>
-                  Scansiona il QR code sull&apos;asset<br/>per identificarlo automaticamente
+                  {tr("Scansiona il QR code sull'asset")}<br/>per identificarlo automaticamente
                 </div>
                 <button
                   className="m-press"
@@ -320,12 +322,12 @@ export default function MobileNuovoTicketPage() {
                     <QrCode size={46} strokeWidth={1.6} />
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontWeight: 800, fontSize: 18, letterSpacing: "0.02em", color: C.text }}>APRI SCANNER QR</div>
-                    <div style={{ fontSize: 13, color: C.text3, marginTop: 4 }}>Richiede accesso alla fotocamera</div>
+                    <div style={{ fontWeight: 800, fontSize: 18, letterSpacing: "0.02em", color: C.text }}>{tr("APRI SCANNER QR")}</div>
+                    <div style={{ fontSize: 13, color: C.text3, marginTop: 4 }}>{tr("Richiede accesso alla fotocamera")}</div>
                   </div>
                 </button>
                 <div style={{ color: C.text3, fontSize: 13, textAlign: "center" }}>
-                  Funziona con Chrome, Edge e Safari 17+
+                  {tr("Funziona con Chrome, Edge e Safari 17+")}
                 </div>
               </div>
             )}
@@ -343,7 +345,7 @@ export default function MobileNuovoTicketPage() {
               <div style={{ flex: 1, height: 1, background: C.border }} />
             </div>
             <div style={{ fontSize: 14, color: C.text2, textAlign: "center" }}>
-              Tocca l&apos;asset corretto per procedere
+              {tr("Tocca l'asset corretto per procedere")}
             </div>
             <div className="m-cols">
               {foundAssets.map((a, idx) => (
@@ -372,7 +374,7 @@ export default function MobileNuovoTicketPage() {
                 color: C.text2, fontSize: 14, cursor: "pointer", padding: "13px", marginTop: 2, fontWeight: 600,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}>
-              <RefreshCw size={15} strokeWidth={2.2} /> Riprova ricerca
+              <RefreshCw size={15} strokeWidth={2.2} /> {tr("Riprova ricerca")}
             </button>
           </div>
         )}
@@ -387,13 +389,13 @@ export default function MobileNuovoTicketPage() {
             }}>
               <IconBadge Icon={Package} color={C.indigo} size={44} iconSize={20} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: C.text3, marginBottom: 2, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Asset selezionato</div>
+                <div style={{ fontSize: 11, color: C.text3, marginBottom: 2, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{tr("Asset selezionato")}</div>
                 <div style={{ fontWeight: 800, fontSize: 17, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedAsset.name}</div>
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: 12, color: C.text2, marginBottom: 9, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Tipo intervento</div>
+              <div style={{ fontSize: 12, color: C.text2, marginBottom: 9, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>{tr("Tipo intervento")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 9 }}>
                 {(["BD","PM","CM"] as const).map(t => {
                   const meta = tipoMeta(t);
@@ -417,7 +419,7 @@ export default function MobileNuovoTicketPage() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, color: C.text2, marginBottom: 9, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Priorità</div>
+              <div style={{ fontSize: 12, color: C.text2, marginBottom: 9, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>{tr("Priorità")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 9 }}>
                 {(["Alta","Media","Bassa"] as const).map(p => {
                   const col = p === "Alta" ? C.red : p === "Media" ? C.orange : (C.text3 as string);
@@ -437,8 +439,8 @@ export default function MobileNuovoTicketPage() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, color: C.text2, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Descrizione (opzionale)</div>
-              <textarea value={nuovoDesc} onChange={e => setNuovoDesc(e.target.value)} rows={3} placeholder="Note sull'intervento..."
+              <div style={{ fontSize: 12, color: C.text2, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>{tr("Descrizione (opzionale)")}</div>
+              <textarea value={nuovoDesc} onChange={e => setNuovoDesc(e.target.value)} rows={3} placeholder={tr("Note sull'intervento...")}
                 style={{
                   width: "100%", background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`,
                   borderRadius: 14, color: C.text, padding: "14px 15px", fontSize: 16,
@@ -456,7 +458,7 @@ export default function MobileNuovoTicketPage() {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}>
               <Save size={19} strokeWidth={2.3} />
-              {saving ? "Salvataggio..." : "SALVA TICKET"}
+              {saving ? "Salvataggio..." : tr("SALVA TICKET")}
             </button>
           </div>
         )}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { apiPost } from "../../lib/api";
 import type { GeneratedPlan } from "../types";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 
 interface StoricoPianiProps {
   piani: GeneratedPlan[];
@@ -81,7 +82,7 @@ function completamentoBadge(pct: number | null | undefined, status: string) {
 function scadenzaCell(scadenza: string | null | undefined) {
   if (!scadenza) return <span style={{ color: "#4b5563", fontSize: 12 }}>—</span>;
   const d = new Date(scadenza);
-  const formatted = d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const formatted = d.toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit", year: "2-digit" });
   const isExpired = d < new Date();
   return (
     <span style={{ fontSize: 12, color: isExpired ? "#fca5a5" : "#e2e8f0", fontVariantNumeric: "tabular-nums" }}>
@@ -100,6 +101,7 @@ function ModaleDeautorizza({
   onConfirm: (motivo: string) => void;
   onClose: () => void;
 }) {
+  const tr = useT();
   const [motivo, setMotivo] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -132,7 +134,7 @@ function ModaleDeautorizza({
         onClick={e => e.stopPropagation()}
       >
         <div style={{ fontSize: 15, fontWeight: 700, color: "#fca5a5", marginBottom: 4 }}>
-          Deautorizza Piano
+          {tr("Deautorizza Piano")}
         </div>
         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 20 }}>
           {piano.plan_label ?? `Piano #${piano.id}`} — questa azione è irreversibile
@@ -140,13 +142,13 @@ function ModaleDeautorizza({
 
         <div>
           <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
-            Motivo deautorizzazione *
+            {tr("Motivo deautorizzazione *")}
           </label>
           <textarea
             value={motivo}
             onChange={e => setMotivo(e.target.value)}
             rows={4}
-            placeholder="Es. Piano superato da nuove priorità operative..."
+            placeholder={tr("Es. Piano superato da nuove priorità operative...")}
             style={{
               width: "100%",
               background: "var(--border-strong)",
@@ -168,7 +170,7 @@ function ModaleDeautorizza({
             border: "1px solid var(--border-default)", color: "var(--text-muted)",
             borderRadius: 6, padding: "9px 0",
             cursor: "pointer", fontSize: 13,
-          }}>Annulla</button>
+          }}>{tr("Annulla")}</button>
           <button
             onClick={handleSubmit}
             disabled={loading || !motivo.trim()}
@@ -184,7 +186,7 @@ function ModaleDeautorizza({
               fontWeight: 600,
             }}
           >
-            {loading ? "Elaborazione..." : "Deautorizza"}
+            {loading ? tr("Elaborazione...") : "Deautorizza"}
           </button>
         </div>
       </div>
@@ -200,6 +202,7 @@ function RigaPiano({
   piano: GeneratedPlan;
   onDeautorizza: (p: GeneratedPlan) => void;
 }) {
+  const tr = useT();
   const [espanso, setEspanso] = useState(false);
   const planned = piano.plan_json?.planned_workorders ?? [];
   const deferred = piano.plan_json?.deferred_workorders ?? [];
@@ -223,7 +226,7 @@ function RigaPiano({
         </td>
         <td style={tdStyle}>
           {piano.created_at
-            ? new Date(piano.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })
+            ? new Date(piano.created_at).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit", year: "2-digit" })
             : "—"}
         </td>
         <td style={tdStyle}>
@@ -263,7 +266,7 @@ function RigaPiano({
                   fontWeight: 600,
                 }}
               >
-                Deautorizza
+                {tr("Deautorizza")}
               </button>
             )}
           </div>
@@ -278,7 +281,7 @@ function RigaPiano({
               {/* Colonna sinistra — pianificati */}
               <div style={{ flex: "1 1 220px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>
-                  PIANIFICATI ({planned.length})
+                  {tr("PIANIFICATI (")}{planned.length})
                 </div>
                 {planned.slice(0, 10).map((wo) => (
                   <div key={wo.wo_id} style={{
@@ -291,14 +294,14 @@ function RigaPiano({
                   </div>
                 ))}
                 {planned.length > 10 && (
-                  <div style={{ fontSize: 11, color: "#4b5563" }}>...e altri {planned.length - 10}</div>
+                  <div style={{ fontSize: 11, color: "#4b5563" }}>{tr("...e altri")} {planned.length - 10}</div>
                 )}
               </div>
 
               {/* Colonna centro — deferred */}
               <div style={{ flex: "1 1 220px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>
-                  NON PIANIFICATI ({deferred.length})
+                  {tr("NON PIANIFICATI (")}{deferred.length})
                 </div>
                 {deferred.slice(0, 6).map((d) => (
                   <div key={d.wo_id} style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
@@ -307,32 +310,32 @@ function RigaPiano({
                   </div>
                 ))}
                 {deferred.length > 6 && (
-                  <div style={{ fontSize: 11, color: "#4b5563" }}>...e altri {deferred.length - 6}</div>
+                  <div style={{ fontSize: 11, color: "#4b5563" }}>{tr("...e altri")} {deferred.length - 6}</div>
                 )}
               </div>
 
               {/* Colonna destra — meta */}
               <div style={{ flex: "0 0 200px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>
-                  DETTAGLI
+                  {tr("DETTAGLI")}
                 </div>
                 {piano.confirmed_at && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
-                    Confermato: <span style={{ color: "#f9fafb" }}>
-                      {new Date(piano.confirmed_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}
+                    {tr("Confermato:")} <span style={{ color: "#f9fafb" }}>
+                      {new Date(piano.confirmed_at).toLocaleString(getLocaleTag(), { dateStyle: "short", timeStyle: "short" })}
                     </span>
                   </div>
                 )}
                 {piano.scadenza && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
-                    Scadenza: <span style={{ color: new Date(piano.scadenza) < new Date() ? "#fca5a5" : "#86efac", fontWeight: 600 }}>
-                      {new Date(piano.scadenza).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                    {tr("Scadenza:")} <span style={{ color: new Date(piano.scadenza) < new Date() ? "#fca5a5" : "#86efac", fontWeight: 600 }}>
+                      {new Date(piano.scadenza).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit", year: "2-digit" })}
                     </span>
                   </div>
                 )}
                 {piano.completion_pct !== null && piano.completion_pct !== undefined && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-                    Completamento:{" "}
+                    {tr("Completamento:")}{" "}
                     <span style={{
                       color: piano.completion_pct >= 80 ? "#86efac" : piano.completion_pct >= 40 ? "#fcd34d" : "#60a5fa",
                       fontWeight: 700,
@@ -341,14 +344,14 @@ function RigaPiano({
                 )}
                 {piano.deauthorized_at && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
-                    Deautorizzato: <span style={{ color: "#fca5a5" }}>
-                      {new Date(piano.deauthorized_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}
+                    {tr("Deautorizzato:")} <span style={{ color: "#fca5a5" }}>
+                      {new Date(piano.deauthorized_at).toLocaleString(getLocaleTag(), { dateStyle: "short", timeStyle: "short" })}
                     </span>
                   </div>
                 )}
                 {piano.deauthorized_by && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
-                    Da: <span style={{ color: "#fca5a5" }}>{piano.deauthorized_by}</span>
+                    {tr("Da:")} <span style={{ color: "#fca5a5" }}>{piano.deauthorized_by}</span>
                   </div>
                 )}
                 {piano.deauthorization_reason && (
@@ -390,6 +393,7 @@ const thStyle: React.CSSProperties = {
 
 // ── Componente principale ──────────────────────────────────────────────────────
 export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
+  const tr = useT();
   const [pianoDeauto, setPianoDeauto] = useState<GeneratedPlan | null>(null);
 
   async function handleDeautorizza(motivo: string) {
@@ -421,10 +425,10 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
       }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#f9fafb" }}>
-            Storico Piani
+            {tr("Storico Piani")}
           </div>
           <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-            Ultimi {piani.length} piani confermati o deautorizzati
+            {tr("Ultimi {n} piani confermati o deautorizzati", { n: piani.length })}
           </div>
         </div>
         <button
@@ -439,28 +443,28 @@ export default function StoricoPiani({ piani, onRefresh }: StoricoPianiProps) {
             fontSize: 11,
           }}
         >
-          ↻ Aggiorna
+          {tr("↻ Aggiorna")}
         </button>
       </div>
 
       {piani.length === 0 ? (
         <div style={{ padding: "32px 20px", textAlign: "center", color: "#4b5563", fontSize: 13 }}>
-          Nessun piano confermato ancora
+          {tr("Nessun piano confermato ancora")}
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--surface-3)" }}>
-                <th style={thStyle}>NUMERO</th>
-                <th style={thStyle}>DATA</th>
-                <th style={thStyle}>APPROVATO DA</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>N° TICKET</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>EFFICIENZA</th>
-                <th style={thStyle}>SCADENZA</th>
-                <th style={thStyle}>COMPLETAMENTO</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>STATO</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>AZIONI</th>
+                <th style={thStyle}>{tr("NUMERO")}</th>
+                <th style={thStyle}>{tr("DATA")}</th>
+                <th style={thStyle}>{tr("APPROVATO DA")}</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>{tr("N° TICKET")}</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>{tr("EFFICIENZA")}</th>
+                <th style={thStyle}>{tr("SCADENZA")}</th>
+                <th style={thStyle}>{tr("COMPLETAMENTO")}</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>{tr("STATO")}</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>{tr("AZIONI")}</th>
               </tr>
             </thead>
             <tbody>
