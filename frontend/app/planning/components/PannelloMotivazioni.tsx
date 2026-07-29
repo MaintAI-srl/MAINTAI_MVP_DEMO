@@ -1,6 +1,7 @@
 "use client";
 
 import type { EfficiencyMotivation } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 interface Props {
   motivations: EfficiencyMotivation[];
@@ -9,6 +10,7 @@ interface Props {
 
 export default function PannelloMotivazioni({ motivations, score }: Props) {
   // Visibile automaticamente se punteggio < 90%
+  const tr = useT();
   if (score >= 90 || motivations.length === 0) return null;
 
   const headerColor = score >= 70 ? "#f59e0b" : "#ef4444";
@@ -32,7 +34,7 @@ export default function PannelloMotivazioni({ motivations, score }: Props) {
       }}>
         <span style={{ fontSize: 16 }}>⚠</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: headerColor }}>
-          Perché il piano non è ottimale
+          {tr("Perché il piano non è ottimale")}
         </span>
       </div>
 
@@ -72,7 +74,7 @@ export default function PannelloMotivazioni({ motivations, score }: Props) {
                 margin: 0,
                 fontStyle: "italic",
               }}>
-                Suggerimento: {m.suggerimento}
+                {tr("Suggerimento:")} {m.suggerimento}
               </p>
             </div>
           );

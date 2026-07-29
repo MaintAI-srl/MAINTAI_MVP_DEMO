@@ -17,6 +17,8 @@ import KanbanBoard, { type KanbanTicket } from "../components/KanbanBoard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ASSET_STATUS_OPTIONS } from "../lib/assetStatus";
 import { useAuth } from "../lib/auth";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
+import { labelPriorita, labelStato } from "@/app/lib/i18n/domain";
 
 // Lazy load mappa emergenze (Leaflet, solo client-side)
 const EmergencyMap = dynamic(() => import("../components/EmergencyMap"), { ssr: false });
@@ -136,6 +138,7 @@ const modalLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTra
 
 // ── Modal: richiesta data pianificazione + tecnico obbligatorio ──────────────
 function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string, tecnicoId: number) => void; onCancel: () => void }) {
+  const tr = useT();
   const getISO = (days: number, hours: number) => {
     const d = new Date();
     d.setDate(d.getDate() + days);
@@ -167,29 +170,29 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
       <div style={{ background: "var(--surface-2)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 20, padding: "32px 28px", width: 440, boxShadow: "0 40px 100px rgba(0,0,0,0.8)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, justifyContent: "center" }}>
           <span style={{ fontSize: 22 }}>📅</span>
-          <div style={{ fontWeight: 900, fontSize: 18, color: "#a78bfa" }}>Pianifica intervento</div>
+          <div style={{ fontWeight: 900, fontSize: 18, color: "#a78bfa" }}>{tr("Pianifica intervento")}</div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 22, textAlign: "center" }}>Imposta data e assegna il tecnico responsabile</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 22, textAlign: "center" }}>{tr("Imposta data e assegna il tecnico responsabile")}</div>
 
         {/* Presets */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Accesso rapido</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{tr("Accesso rapido")}</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
           {presets.map(p => (
             <button key={p.label} onClick={() => setDate(getISO(p.d, p.h))}
               style={{ fontSize: 10, padding: "6px 12px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 7, cursor: "pointer", fontWeight: 600 }}>
-              {p.label}
+              {tr(p.label)}
             </button>
           ))}
         </div>
 
         {/* Data */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{tr("Data e ora")}</div>
         <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
           style={{ width: "100%", background: "var(--surface-3)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "11px 14px", fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box", marginBottom: 20 }} />
 
         {/* Tecnico — OBBLIGATORIO */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
-          Assegna tecnico <span style={{ color: "#f87171" }}>*</span>
+          {tr("Assegna tecnico")} <span style={{ color: "#f87171" }}>*</span>
         </div>
         <select value={tecnicoId ?? ""} onChange={e => setTecnicoId(e.target.value ? Number(e.target.value) : null)}
           style={{
@@ -198,20 +201,20 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
             color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
             padding: "11px 14px", fontSize: 14, outline: "none", cursor: "pointer", boxSizing: "border-box",
           }}>
-          <option value="">— Seleziona tecnico —</option>
+          <option value="">{tr("— Seleziona tecnico —")}</option>
           {tecnici.map(t => (
             <option key={t.id} value={t.id}>{t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}</option>
           ))}
         </select>
         {!tecnicoId && (
-          <div style={{ fontSize: 11, color: "#f87171", marginTop: 5 }}>⚠ Il tecnico è obbligatorio per pianificare</div>
+          <div style={{ fontSize: 11, color: "#f87171", marginTop: 5 }}>{tr("⚠ Il tecnico è obbligatorio per pianificare")}</div>
         )}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>{tr("Annulla")}</button>
           <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(date, tecnicoId!)}
             style={{ flex: 2, padding: "12px", background: canConfirm ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(167,139,250,0.1)", color: canConfirm ? "#fff" : "rgba(167,139,250,0.4)", border: "none", borderRadius: 10, cursor: canConfirm ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, transition: "all 0.2s" }}>
-            ✓ Conferma pianificazione
+            {tr("✓ Conferma pianificazione")}
           </button>
         </div>
       </div>
@@ -221,26 +224,27 @@ function PianificaQuickModal({ onConfirm, onCancel }: { onConfirm: (date: string
 
 // ── Modal: conferma eliminazione con motivo obbligatorio ─────────────────────
 function EliminaConfirmModal({ onConfirm, onCancel }: { onConfirm: (reason: string) => void; onCancel: () => void }) {
+  const tr = useT();
   const [reason, setReason] = useState("");
   const valid = reason.trim().length >= 5;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
       <div style={{ background: "var(--surface-2)", border: "1px solid rgba(248,113,113,0.4)", borderRadius: 16, padding: "28px", width: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16 }}>🗑️</div>
-        <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Elimina ticket</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>Inserisci il motivo dell&apos;eliminazione. Il dato viene salvato nel log di sistema per tracciabilità.</div>
+        <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>{tr("Elimina ticket")}</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18, lineHeight: 1.5 }}>{tr("Inserisci il motivo dell'eliminazione. Il dato viene salvato nel log di sistema per tracciabilità.")}</div>
         <textarea value={reason} onChange={e => setReason(e.target.value)}
-          placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..."
+          placeholder={tr("Es. Ticket duplicato, lavoro annullato, fuori contratto...")}
           rows={3} autoFocus
           style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
         {!valid && reason.length > 0 && (
-          <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>Inserisci almeno 5 caratteri.</div>
+          <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>{tr("Inserisci almeno 5 caratteri.")}</div>
         )}
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+          <button onClick={onCancel} style={{ padding: "8px 18px", background: "transparent", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>{tr("Annulla")}</button>
           <button disabled={!valid} onClick={() => valid && onConfirm(reason.trim())}
             style={{ padding: "8px 22px", background: valid ? "linear-gradient(135deg,#ef4444,#dc2626)" : "var(--border-subtle)", color: valid ? "#fff" : "var(--text-disabled)", border: "none", borderRadius: 8, cursor: valid ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 13 }}>
-            Conferma Eliminazione
+            {tr("Conferma Eliminazione")}
           </button>
         </div>
       </div>
@@ -260,6 +264,7 @@ function ButtonPicker({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const tr = useT();
   return (
     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
       {options.map(opt => {
@@ -286,7 +291,7 @@ function ButtonPicker({
               letterSpacing: "0.3px",
             }}
           >
-            {opt.label}
+            {tr(opt.label)}
           </button>
         );
       })}
@@ -303,6 +308,7 @@ type DetailModalProps = {
 };
 
 function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
+  const tr = useT();
   const { isModuleEnabled } = useAuth();
   const sparePartsOn = isModuleEnabled("spare_parts");
   const [stato, setStato] = useState(ticket.stato);
@@ -418,7 +424,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
       onSaved();
       onClose();
     } catch {
-      notify.error("Errore nel salvataggio.");
+      notify.error(tn("Errore nel salvataggio."));
     } finally { setSaving(false); }
   }
 
@@ -430,10 +436,10 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         ricambio_quantita: ricambioQta.trim() !== "" ? Number(ricambioQta) : null,
         in_attesa_ricambio: inAttesaRicambio,
       });
-      notify.success("Ricambio aggiornato.");
+      notify.success(tn("Ricambio aggiornato."));
       onSaved();
     } catch {
-      notify.error("Errore nel salvataggio ricambio.");
+      notify.error(tn("Errore nel salvataggio ricambio."));
     } finally {
       setSavingRicambio(false);
     }
@@ -442,20 +448,20 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
   function handleSave() {
     // Pianificato richiede data + tecnico obbligatoriamente
     if (stato === "Pianificato" && !plannedStart) {
-      notify.error("Inserisci la data di inizio pianificazione per portare il ticket in 'Pianificato'.");
+      notify.error(tn("Inserisci la data di inizio pianificazione per portare il ticket in 'Pianificato'."));
       return;
     }
     if (stato === "Pianificato" && !tecnicoId) {
-      notify.error("Assegna un tecnico per portare il ticket in 'Pianificato'.");
+      notify.error(tn("Assegna un tecnico per portare il ticket in 'Pianificato'."));
       return;
     }
     // Validazione date: fine non può precedere inizio
     if (plannedStart && plannedFinish && new Date(plannedFinish) < new Date(plannedStart)) {
-      notify.error("La data di fine pianificazione non può precedere quella di inizio.");
+      notify.error(tn("La data di fine pianificazione non può precedere quella di inizio."));
       return;
     }
     if (executionStart && executionFinish && new Date(executionFinish) < new Date(executionStart)) {
-      notify.error("La data di fine esecuzione non può precedere quella di inizio.");
+      notify.error(tn("La data di fine esecuzione non può precedere quella di inizio."));
       return;
     }
     if (stato === "Eliminato") { setShowEliminaDialog(true); return; }
@@ -467,7 +473,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
     <div style={{ position: "relative", width: "100%", color: "var(--text-primary)", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "0" }}>
         <div style={{ marginBottom: 32 }}>
-          <label style={{ ...modalLabel, fontSize: 11, marginBottom: 12 }}>Stato Corrente</label>
+          <label style={{ ...modalLabel, fontSize: 11, marginBottom: 12 }}>{tr("Stato Corrente")}</label>
           <StatusToggle 
             size="lg"
             currentValue={stato}
@@ -485,16 +491,16 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         {/* Sezione Pianificazione */}
         <div style={{ marginBottom: 32, padding: 20, background: "var(--border-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-             <label style={{ ...modalLabel, margin: 0 }}>Pianificazione Intervento</label>
+             <label style={{ ...modalLabel, margin: 0 }}>{tr("Pianificazione Intervento")}</label>
              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => quickPlan(0, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>OGGI 08:00</button>
-                <button onClick={() => quickPlan(1, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>DOMANI</button>
+                <button onClick={() => quickPlan(0, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>{tr("OGGI 08:00")}</button>
+                <button onClick={() => quickPlan(1, 8)} style={{ fontSize: 10, padding: "4px 8px", background: "var(--border-subtle)", color: "var(--text-soft)", border: "1px solid var(--border-default)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>{tr("DOMANI")}</button>
              </div>
           </div>
 
           {/* Durata prevista */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8, display: "block" }}>Durata Prevista</label>
+            <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8, display: "block" }}>{tr("Durata Prevista")}</label>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input type="number" min={0.1} step={0.5} value={durataOre}
                 onChange={e => handleDurataChange(parseFloat(e.target.value) || 1)}
@@ -511,7 +517,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
             {ticket.costo_fermo_stimato != null && ticket.costo_fermo_stimato > 0 && (
               <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.30)", color: "#fbbf24", fontSize: 12, fontWeight: 700 }}>
                 <span>⚠</span>
-                Fermo stimato: €{ticket.costo_fermo_stimato.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {tr("Fermo stimato: €")}{ticket.costo_fermo_stimato.toLocaleString(getLocaleTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </div>
@@ -519,23 +525,23 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>
-                Inizio Pianificato {stato === "Pianificato" && !plannedStart && <span style={{ color: "#f87171" }}>*</span>}
+                {tr("Inizio Pianificato")} {stato === "Pianificato" && !plannedStart && <span style={{ color: "#f87171" }}>*</span>}
               </label>
               <input type="datetime-local" style={{ ...dtInput, borderColor: stato === "Pianificato" && !plannedStart ? "rgba(248,113,113,0.5)" : undefined }} value={plannedStart} onChange={e => handlePlannedChange(e.target.value)} />
             </div>
             <div>
-              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Fine Pianificata</label>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>{tr("Fine Pianificata")}</label>
               <input type="datetime-local" style={dtInput} value={plannedFinish} onChange={e => setPlannedFinish(e.target.value)} />
             </div>
           </div>
           {stato === "Pianificato" && !plannedStart && (
-            <div style={{ fontSize: 11, color: "#f87171", marginTop: 8 }}>La data di inizio è obbligatoria per lo stato Pianificato.</div>
+            <div style={{ fontSize: 11, color: "#f87171", marginTop: 8 }}>{tr("La data di inizio è obbligatoria per lo stato Pianificato.")}</div>
           )}
 
           {/* Tecnico assegnato — obbligatorio per Pianificato */}
           <div style={{ marginTop: 16 }}>
             <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
-              Tecnico assegnato
+              {tr("Tecnico assegnato")}
               {stato === "Pianificato" && <span style={{ color: "#f87171", fontWeight: 800 }}>*</span>}
             </label>
             <select
@@ -547,7 +553,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
                 color: tecnicoId ? "var(--text-primary)" : "var(--text-muted)",
               }}
             >
-              <option value="">— Nessun tecnico assegnato —</option>
+              <option value="">{tr("— Nessun tecnico assegnato —")}</option>
               {tecnicoList.map(t => (
                 <option key={t.id} value={t.id}>
                   {t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}
@@ -555,13 +561,13 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               ))}
             </select>
             {stato === "Pianificato" && !tecnicoId && (
-              <div style={{ fontSize: 11, color: "#f87171", marginTop: 4 }}>⚠ Tecnico obbligatorio per pianificare</div>
+              <div style={{ fontSize: 11, color: "#f87171", marginTop: 4 }}>{tr("⚠ Tecnico obbligatorio per pianificare")}</div>
             )}
           </div>
         </div>
 
         <div style={{ marginBottom: 32 }}>
-          <label style={{ ...modalLabel, fontSize: 11, marginBottom: 10 }}>Stato asset</label>
+          <label style={{ ...modalLabel, fontSize: 11, marginBottom: 10 }}>{tr("Stato asset")}</label>
           <ButtonPicker
             options={ASSET_STATE_OPTIONS}
             value={assetStato}
@@ -571,25 +577,25 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 
         {/* Sezione Esecuzione Dinamica */}
         <div style={{ marginBottom: 32 }}>
-          <label style={{ ...modalLabel, marginBottom: 16 }}>Dati di Esecuzione Personale</label>
+          <label style={{ ...modalLabel, marginBottom: 16 }}>{tr("Dati di Esecuzione Personale")}</label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div style={{ position: "relative" }}>
-              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Inizio Reale</label>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>{tr("Inizio Reale")}</label>
               <input type="datetime-local" style={{ ...dtInput, border: executionStart ? "1px solid rgba(251,191,36,0.4)" : dtInput.border }} value={executionStart} onChange={e => {setExecutionStart(e.target.value); if(e.target.value && stato !== "In corso") setStato("In corso");}} />
               {!executionStart && (
                 <button onClick={() => { setExecutionStart(nowDatetimeLocal()); setStato("In corso"); }}
                   style={{ position: "absolute", right: 10, top: 28, fontSize: 9, padding: "2px 6px", background: "#fbbf24", color: "#000", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 800 }}>
-                  INIZIA ORA
+                  {tr("INIZIA ORA")}
                 </button>
               )}
             </div>
             <div style={{ position: "relative" }}>
-              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Fine Reale</label>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>{tr("Fine Reale")}</label>
               <input type="datetime-local" style={{ ...dtInput, border: executionFinish ? "1px solid rgba(52,211,153,0.4)" : dtInput.border }} value={executionFinish} onChange={e => {setExecutionFinish(e.target.value); if(e.target.value && stato !== "Chiuso") setStato("Chiuso");}} />
               {!executionFinish && (
                 <button onClick={() => { setExecutionFinish(nowDatetimeLocal()); setStato("Chiuso"); }}
                   style={{ position: "absolute", right: 10, top: 28, fontSize: 9, padding: "2px 6px", background: "#34d399", color: "#000", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 800 }}>
-                  CHIUDI ORA
+                  {tr("CHIUDI ORA")}
                 </button>
               )}
             </div>
@@ -599,12 +605,12 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         {/* Descrizione & Allegati */}
         {ticket.descrizione && (
           <div style={{ marginBottom: 24 }}>
-             <label style={modalLabel}>Descrizione / Note</label>
+             <label style={modalLabel}>{tr("Descrizione / Note")}</label>
              <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6, padding: "12px 16px", background: "var(--border-subtle)", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
                 {ticket.descrizione}
              </div>
              {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
-               <div style={{ fontSize: 9, color: "#eab308", marginTop: 4, fontWeight: 700 }}>MANUALE</div>
+               <div style={{ fontSize: 9, color: "#eab308", marginTop: 4, fontWeight: 700 }}>{tr("MANUALE")}</div>
              )}
           </div>
         )}
@@ -612,7 +618,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
         {/* Note */}
         {ticket.note && (
           <div style={{ marginBottom: 24 }}>
-             <label style={modalLabel}>Note</label>
+             <label style={modalLabel}>{tr("Note")}</label>
              <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6, padding: "12px 16px", background: "var(--border-subtle)", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
                 {ticket.note}
              </div>
@@ -621,7 +627,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 
         {/* Allegati */}
         <div style={{ marginBottom: 10 }}>
-          <label style={{ ...modalLabel, marginBottom: 12 }}>Dati e Foto Intervento</label>
+          <label style={{ ...modalLabel, marginBottom: 12 }}>{tr("Dati e Foto Intervento")}</label>
           <div style={{ padding: "8px", background: "var(--border-subtle)", borderRadius: 12, border: "1px dashed var(--border-default)" }}>
             <UploadAllegati ticketId={ticket.id} />
           </div>
@@ -643,9 +649,9 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           >
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span>🔧</span>
-              Ricambi
+              {tr("Ricambi")}
               {inAttesaRicambio && (
-                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(239,68,68,0.18)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", fontWeight: 800 }}>IN ATTESA</span>
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "rgba(239,68,68,0.18)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)", fontWeight: 800 }}>{tr("IN ATTESA")}</span>
               )}
             </span>
             <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{ricambiOpen ? "▲" : "▼"}</span>
@@ -655,10 +661,10 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
               {/* Ricambi strutturati da magazzino (modulo spare_parts) */}
               {sparePartsOn && (
                 <div>
-                  <label style={{ ...modalLabel, marginBottom: 6 }}>Ricambi necessari (magazzino)</label>
+                  <label style={{ ...modalLabel, marginBottom: 6 }}>{tr("Ricambi necessari (magazzino)")}</label>
                   <RicambiTicket ticketId={ticket.id} onChange={onSaved} />
                   <div style={{ height: 1, background: "var(--border-default)", margin: "14px 0 2px" }} />
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Nota libera legacy (opzionale):</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>{tr("Nota libera legacy (opzionale):")}</div>
                 </div>
               )}
               {/* Toggle in attesa ricambio */}
@@ -681,24 +687,24 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
                   }} />
                 </button>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: inAttesaRicambio ? "#fca5a5" : "var(--text-soft)" }}>In attesa ricambio</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Il ticket è bloccato in attesa di un ricambio</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: inAttesaRicambio ? "#fca5a5" : "var(--text-soft)" }}>{tr("In attesa ricambio")}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{tr("Il ticket è bloccato in attesa di un ricambio")}</div>
                 </div>
               </div>
               {/* Note ricambio */}
               <div>
-                <label style={{ ...modalLabel, marginBottom: 6 }}>Note ricambio</label>
+                <label style={{ ...modalLabel, marginBottom: 6 }}>{tr("Note ricambio")}</label>
                 <textarea
                   value={ricambioNote}
                   onChange={e => setRicambioNote(e.target.value)}
                   rows={3}
-                  placeholder="Es. Guarnizione flangia DN50 — codice fornitore X123..."
+                  placeholder={tr("Es. Guarnizione flangia DN50 — codice fornitore X123...")}
                   style={{ width: "100%", background: "var(--surface-2)", border: "1px solid rgba(148,163,184,0.2)", borderRadius: 7, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
                 />
               </div>
               {/* Quantità ricambio */}
               <div>
-                <label style={{ ...modalLabel, marginBottom: 6 }}>Quantità ricambio</label>
+                <label style={{ ...modalLabel, marginBottom: 6 }}>{tr("Quantità ricambio")}</label>
                 <input
                   type="number"
                   min="0"
@@ -717,7 +723,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
                   disabled={savingRicambio}
                   style={{ padding: "7px 20px", borderRadius: 7, background: savingRicambio ? "var(--border-subtle)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", color: "#000", fontWeight: 700, fontSize: 12, cursor: savingRicambio ? "not-allowed" : "pointer" }}
                 >
-                  {savingRicambio ? "Salvataggio…" : "Salva Ricambi"}
+                  {savingRicambio ? "Salvataggio…" : tr("Salva Ricambi")}
                 </button>
               </div>
             </div>
@@ -732,15 +738,15 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           onClick={() => setShowEliminaDialog(true)}
           style={{ borderColor: "rgba(248,113,113,0.4)", color: "#f87171", marginRight: "auto" }}
         >
-          🗑 Elimina
+          {tr("🗑 Elimina")}
         </Button>
         <Button
           variant="outline"
           onClick={() => setShowFirmaModal(true)}
           style={{ borderColor: "rgba(99,102,241,0.4)", color: "#818cf8" }}
-          title="Fai firmare il cliente e stampa il rapportino PDF"
+          title={tr("Fai firmare il cliente e stampa il rapportino PDF")}
         >
-          ✍️ Firma cliente
+          {tr("✍️ Firma cliente")}
         </Button>
         <Button
           variant="outline"
@@ -756,14 +762,14 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           }}
           disabled={pdfBusy}
           style={{ borderColor: "var(--border-default)", color: "var(--text-soft)" }}
-          title="Stampa il rapportino PDF (con la firma già acquisita, se presente)"
+          title={tr("Stampa il rapportino PDF (con la firma già acquisita, se presente)")}
         >
           {pdfBusy ? "PDF…" : "🖨 Stampa PDF"}
         </Button>
-        <Button variant="outline" onClick={onClose} style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>Annulla</Button>
+        <Button variant="outline" onClick={onClose} style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>{tr("Annulla")}</Button>
         <Button onClick={handleSave} disabled={saving}
           style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)", minWidth: 120, fontWeight: 700, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}>
-          {saving ? "Salvataggio…" : "Salva Modifiche"}
+          {saving ? "Salvataggio…" : tr("Salva Modifiche")}
         </Button>
       </div>
 
@@ -785,24 +791,24 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           onClick={(e) => { if (e.target === e.currentTarget) { setShowEliminaDialog(false); setEliminaNote(""); } }}
         >
           <div style={{ width: "min(420px, calc(100vw - 32px))", background: "var(--surface-2)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#f87171", fontWeight: 700 }}>Eliminazione ticket #{ticket.id}</div>
-            <h3 id="elimina-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>Motivo eliminazione</h3>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#f87171", fontWeight: 700 }}>{tr("Eliminazione ticket #")}{ticket.id}</div>
+            <h3 id="elimina-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>{tr("Motivo eliminazione")}</h3>
             <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
-              Il motivo è obbligatorio e verrà salvato nel log di sistema per tracciabilità.
+              {tr("Il motivo è obbligatorio e verrà salvato nel log di sistema per tracciabilità.")}
             </p>
           <textarea value={eliminaNote} onChange={e => setEliminaNote(e.target.value)}
-            placeholder="Es. Ticket duplicato, lavoro annullato, fuori contratto..." rows={3} autoFocus
+            placeholder={tr("Es. Ticket duplicato, lavoro annullato, fuori contratto...")} rows={3} autoFocus
             style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, color: "var(--text-primary)", padding: "10px 13px", fontSize: 13, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
           {eliminaNote.trim().length > 0 && eliminaNote.trim().length < 5 && (
-            <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>Inserisci almeno 5 caratteri.</div>
+            <div style={{ fontSize: 11, color: "#f87171", marginTop: 6 }}>{tr("Inserisci almeno 5 caratteri.")}</div>
           )}
           <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-            <Button variant="ghost" onClick={() => { setShowEliminaDialog(false); setEliminaNote(""); }} style={{ color: "var(--text-muted)" }}>Annulla</Button>
+            <Button variant="ghost" onClick={() => { setShowEliminaDialog(false); setEliminaNote(""); }} style={{ color: "var(--text-muted)" }}>{tr("Annulla")}</Button>
             <Button
               disabled={eliminaNote.trim().length < 5}
               onClick={() => { if (eliminaNote.trim().length >= 5) { setShowEliminaDialog(false); doSave(undefined, eliminaNote.trim()); } }}
               style={{ background: eliminaNote.trim().length >= 5 ? "linear-gradient(135deg,#ef4444,#dc2626)" : "var(--border-subtle)", color: eliminaNote.trim().length >= 5 ? "#fff" : "var(--text-disabled)", fontWeight: 700 }}>
-              Conferma Eliminazione
+              {tr("Conferma Eliminazione")}
             </Button>
           </div>
           </div>
@@ -819,41 +825,41 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
           onClick={(e) => { if (e.target === e.currentTarget) setShowAssetDialog(false); }}
         >
           <div style={{ width: "min(420px, calc(100vw - 32px))", background: "var(--surface-2)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#3b82f6", fontWeight: 700 }}>Chiusura ticket #{ticket.id}</div>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".14em", color: "#3b82f6", fontWeight: 700 }}>{tr("Chiusura ticket #")}{ticket.id}</div>
             <h3 id="asset-ticket-title" style={{ fontSize: 18, fontWeight: 800, margin: "8px 0 0" }}>
-              Verifica Stato Asset
+              {tr("Verifica Stato Asset")}
             </h3>
             <p style={{ margin: "8px 0 16px", fontSize: 13, color: "var(--text-soft)", lineHeight: 1.5 }}>
-              Il ticket è concluso. In che stato si trova l&apos;asset <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong>?
+              {tr("Il ticket è concluso. In che stato si trova l'asset")} <strong style={{ color: "var(--text-primary)" }}>{ticket.asset_name ?? `#${ticket.asset_id}`}</strong>?
             </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={() => { setShowAssetDialog(false); doSave("service"); }}
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontSize: 22 }}>✅</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#34d399" }}>OPERATIVO</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>L&apos;asset è pronto e funzionante.</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#34d399" }}>{tr("OPERATIVO")}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{tr("L'asset è pronto e funzionante.")}</div>
               </div>
             </button>
             <button onClick={() => { setShowAssetDialog(false); doSave("stopped"); }}
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontSize: 22 }}>⏸️</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#fbbf24" }}>FERMO PROG.</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Asset in attesa di ulteriori verifiche.</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#fbbf24" }}>{tr("FERMO PROG.")}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{tr("Asset in attesa di ulteriori verifiche.")}</div>
               </div>
             </button>
             <button onClick={() => { setShowAssetDialog(false); doSave("out of service"); }}
               style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 12, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontSize: 22 }}>🔴</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#f87171" }}>GUASTO</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>L&apos;asset richiede ulteriori interventi.</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#f87171" }}>{tr("GUASTO")}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{tr("L'asset richiede ulteriori interventi.")}</div>
               </div>
             </button>
           </div>
           <Button variant="ghost" className="w-full mt-2" onClick={() => { setShowAssetDialog(false); doSave(""); }} style={{ color: "var(--text-muted)", fontSize: 12 }}>
-            Mantieni stato attuale
+            {tr("Mantieni stato attuale")}
           </Button>
           </div>
         </div>
@@ -865,6 +871,7 @@ function DetailModal({ ticket, onClose, onSaved }: DetailModalProps) {
 // ── Pagina principale ─────────────────────────────────────────────────────
 
 export default function TicketPage() {
+  const tr = useT();
   const { isModuleEnabled } = useAuth();
   const [result, setResult] = useState<PagedResult | null>(null);
   const [archivio, setArchivio] = useState<PagedResult | null>(null);
@@ -898,7 +905,7 @@ export default function TicketPage() {
           const d = await apiGet<PagedResult>(`/tickets?page=1&limit=2000&stato=${STATI_ATTIVI.join(",")}`);
           setAllTicketsForFilter(d.items ?? []);
         } catch {
-          notify.error("Errore caricamento ticket per filtro.");
+          notify.error(tn("Errore caricamento ticket per filtro."));
         } finally {
           setLoadingAllFilter(false);
         }
@@ -997,7 +1004,7 @@ export default function TicketPage() {
     try {
       const d = await apiGet<PagedResult>(`/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ATTIVI.join(",")}`);
       setResult(d);
-    } catch { notify.error("Errore caricamento ticket."); }
+    } catch { notify.error(tn("Errore caricamento ticket.")); }
   }
 
   async function loadArchivio(p: number) {
@@ -1005,7 +1012,7 @@ export default function TicketPage() {
       const d = await apiGet<PagedResult>(`/tickets?page=${p}&limit=${LIMIT}&stato=${STATI_ARCHIVIO.join(",")}`);
       setArchivio(d);
     } catch {
-      notify.error("Errore caricamento archivio ticket.");
+      notify.error(tn("Errore caricamento archivio ticket."));
     }
   }
 
@@ -1013,7 +1020,7 @@ export default function TicketPage() {
     try {
       const d = await apiGet<PagedResult>(`/tickets?page=1&limit=200&stato=${STATI_ATTIVI.join(",")}`);
       setKanbanTickets(d.items);
-    } catch { notify.error("Errore caricamento kanban."); }
+    } catch { notify.error(tn("Errore caricamento kanban.")); }
   }
 
   // Siti derivati dagli asset (già filtrati per tenant dal backend): [sito_id, sito_nome]
@@ -1032,9 +1039,9 @@ export default function TicketPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!titolo.trim()) { notify.error("Il titolo del ticket è obbligatorio."); return; }
-    if (!assetId || assetId === 0) { notify.error("Seleziona un asset valido."); return; }
-    if (durataOre <= 0) { notify.error("La durata deve essere maggiore di zero."); return; }
+    if (!titolo.trim()) { notify.error(tn("Il titolo del ticket è obbligatorio.")); return; }
+    if (!assetId || assetId === 0) { notify.error(tn("Seleziona un asset valido.")); return; }
+    if (durataOre <= 0) { notify.error(tn("La durata deve essere maggiore di zero.")); return; }
     try {
       const autoAssetStato = assetStato || (tipo === "BD" ? "out of service" : stato === "In corso" ? "stopped" : "");
       const oreUomoAuto = Math.round(Number(durataOre) * Math.max(1, tecniciRichiesti) * 100) / 100;
@@ -1058,7 +1065,7 @@ export default function TicketPage() {
       setTecniciRichiesti(1); setOreUomoMode("auto"); setOreUomoManual("");
       setPlannedStart(""); setPlannedFinish("");
       loadAttivi(1); setPage(1);
-    } catch { notify.error("Errore nel salvataggio ticket."); }
+    } catch { notify.error(tn("Errore nel salvataggio ticket.")); }
   }
 
   function statusUpdateError(err: unknown, fallback = "Errore aggiornamento stato.") {
@@ -1140,7 +1147,7 @@ export default function TicketPage() {
             await apiPatch("/tickets/bulk-status", { ids: Array.from(selectedIds), stato: "Eliminato", eliminazione_note: reason });
             setSelectedIds(new Set());
             await Promise.all([loadAttivi(page), tab === "archivio" ? loadArchivio(pageArch) : Promise.resolve()]);
-            notify.success(`${selectedIds.size} ticket eliminati.`);
+            notify.success(tn("{size} ticket eliminati.", { size: selectedIds.size }));
           } catch (err) { statusUpdateError(err, "Errore aggiornamento bulk."); }
         }
       });
@@ -1234,7 +1241,7 @@ export default function TicketPage() {
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
             <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-              {new Date(v).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
+              {new Date(v).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "short", year: "numeric" })}
             </span>
             {isNew && (
               <span style={{
@@ -1247,7 +1254,7 @@ export default function TicketPage() {
                 animation: "pulse-bg 2s ease-in-out infinite",
                 flexShrink: 0,
               }}>
-                NEW
+                {tr("NEW")}
               </span>
             )}
           </div>
@@ -1272,9 +1279,9 @@ export default function TicketPage() {
         return (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
             <span style={{ ...getTipoStyle(t.tipo), fontSize: 10, padding: "2px 7px", borderRadius: 4, fontWeight: 700, letterSpacing: "0.04em" }}>{t.tipo}</span>
-            {t.diagnosi_eseguita && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>AI</span>}
+            {t.diagnosi_eseguita && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 700 }}>{tr("AI")}</span>}
             {t.parent_id && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)", fontWeight: 700 }}>↳#{t.parent_id}</span>}
-            {t.in_attesa_ricambio && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.35)", fontWeight: 800 }}>RICAMBIO</span>}
+            {t.in_attesa_ricambio && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.35)", fontWeight: 800 }}>{tr("RICAMBIO")}</span>}
           </div>
         );
       },
@@ -1296,7 +1303,7 @@ export default function TicketPage() {
         const t = row.original;
         return (
           <span style={{ ...statoStyle(t.stato), fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
-            {t.stato}
+            {labelStato(t.stato)}
           </span>
         );
       },
@@ -1312,8 +1319,8 @@ export default function TicketPage() {
         const d = new Date(v);
         return (
           <span style={{ fontSize: 11, color: "#a78bfa" }}>
-            {d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}{" "}
-            <span style={{ color: "var(--text-soft)" }}>{d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+            {d.toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit" })}{" "}
+            <span style={{ color: "var(--text-soft)" }}>{d.toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" })}</span>
           </span>
         );
       },
@@ -1329,8 +1336,8 @@ export default function TicketPage() {
         const d = new Date(v);
         return (
           <span style={{ fontSize: 11, color: "#a78bfa" }}>
-            {d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}{" "}
-            <span style={{ color: "var(--text-soft)" }}>{d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+            {d.toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit" })}{" "}
+            <span style={{ color: "var(--text-soft)" }}>{d.toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" })}</span>
           </span>
         );
       },
@@ -1373,7 +1380,7 @@ export default function TicketPage() {
       header: "Eseguito",
       cell: ({ getValue }) => {
         const v = getValue<string | null>();
-        return <span style={{ fontSize: 11, color: v ? "#34d399" : "var(--text-soft)" }}>{v ? new Date(v).toLocaleDateString("it-IT") : "—"}</span>;
+        return <span style={{ fontSize: 11, color: v ? "#34d399" : "var(--text-soft)" }}>{v ? new Date(v).toLocaleDateString(getLocaleTag()) : "—"}</span>;
       },
     },
     {
@@ -1388,25 +1395,25 @@ export default function TicketPage() {
               <button
                 onClick={() => handleStatoChange(t.id, "In corso")}
                 style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.3)", color: "#06b6d4", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", whiteSpace: "nowrap" }}
-              >▶ INIZIA</button>
+              >{tr("▶ INIZIA")}</button>
             )}
             {t.stato === "In corso" && (
               <button
                 onClick={() => handleStatoChange(t.id, "Chiuso")}
                 style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", whiteSpace: "nowrap" }}
-              >✓ COMPLETA</button>
+              >{tr("✓ COMPLETA")}</button>
             )}
             {isModuleEnabled("diagnostic_ai") && (
               <a href={`/diagnostic?id=${t.id}`} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8", textDecoration: "none", borderRadius: 4, display: "inline-block" }}>
-                DIAGNOSTICA →
+                {tr("DIAGNOSTICA →")}
               </a>
             )}
             {t.stato !== "Eliminato" && (
               <button
                 onClick={() => handleStatoChange(t.id, "Eliminato")}
                 style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", borderRadius: 4, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
-                title="Elimina ticket"
-              >🗑 ELIMINA</button>
+                title={tr("Elimina ticket")}
+              >{tr("🗑 ELIMINA")}</button>
             )}
           </div>
         );
@@ -1445,8 +1452,8 @@ export default function TicketPage() {
     <div style={{ background: "var(--surface-0)", minHeight: "100%" }}>
       <div className="mb-8 ticket-page-header">
         <div>
-          <h1 className="page-title" style={{ marginBottom: 4 }}>Ticket</h1>
-          <p className="page-subtitle" style={{ margin: 0 }}>Ticket operativi che alimentano il planner automatico.</p>
+          <h1 className="page-title" style={{ marginBottom: 4 }}>{tr("Ticket")}</h1>
+          <p className="page-subtitle" style={{ margin: 0 }}>{tr("Ticket operativi che alimentano il planner automatico.")}</p>
         </div>
         <div className="ticket-page-actions">
           <button
@@ -1454,13 +1461,13 @@ export default function TicketPage() {
             onClick={async () => {
               try {
                 const r = await apiPost<{ updated: number; total: number }>("/sync-tickets-hierarchy", {});
-                notify.success(`Siti sincronizzati: ${r.updated} ticket aggiornati su ${r.total}`);
+                notify.success(tn("Siti sincronizzati: {updated} ticket aggiornati su {total}", { updated: r.updated, total: r.total }));
                 loadAttivi(page);
-              } catch { notify.error("Errore sincronizzazione siti"); }
+              } catch { notify.error(tn("Errore sincronizzazione siti")); }
             }}
             style={{ padding: "9px 16px", borderRadius: 8, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8", fontWeight: 700, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}
           >
-            <span>🔗</span> Sincronizza Siti
+            <span>🔗</span> {tr("Sincronizza Siti")}
           </button>
           <button
             type="button"
@@ -1469,7 +1476,7 @@ export default function TicketPage() {
             }}
             style={{ padding: "9px 20px", borderRadius: 8, background: "linear-gradient(135deg, #1d4ed8, #6366f1)", border: "none", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", fontSize: 13, boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}
           >
-            <span>📊</span> Esporta Excel
+            <span>📊</span> {tr("Esporta Excel")}
           </button>
         </div>
       </div>
@@ -1494,7 +1501,7 @@ export default function TicketPage() {
           }}
         >
           <span style={{ fontSize: 16, lineHeight: 1 }}>{showNuovoTicket ? "×" : "+"}</span>
-          Nuovo Ticket
+          {tr("Nuovo Ticket")}
           {!showNuovoTicket && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>▼</span>}
         </button>
 
@@ -1515,20 +1522,20 @@ export default function TicketPage() {
         >
         <form onSubmit={handleSubmit} className="form-grid-3">
           <div className="span-3">
-            <label className="label">Titolo</label>
+            <label className="label">{tr("Titolo")}</label>
             <input required className="input" value={titolo} onChange={e => setTitolo(e.target.value)} />
           </div>
           <div>
-            <label className="label">Sito</label>
+            <label className="label">{tr("Sito")}</label>
             <select className="select" value={sitoFiltro} onChange={e => handleSitoFiltroChange(Number(e.target.value))}>
-              <option value={0}>Tutti i siti</option>
+              <option value={0}>{tr("Tutti i siti")}</option>
               {sitiDisponibili.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">Asset</label>
+            <label className="label">{tr("Asset")}</label>
             <select required className="select" value={assetId} onChange={e => setAssetId(Number(e.target.value))}>
-              <option value={0}>Seleziona un asset...</option>
+              <option value={0}>{tr("Seleziona un asset...")}</option>
               {assetsFiltrati.map(a => (
                 <option key={a.id} value={a.id}>
                   {a.name}{a.sito_nome ? ` — ${a.sito_nome}` : ""}
@@ -1537,7 +1544,7 @@ export default function TicketPage() {
             </select>
           </div>
           <div>
-            <label className="label">Tipo</label>
+            <label className="label">{tr("Tipo")}</label>
             <ButtonPicker
               options={[
                 { value: "PM",  label: "PM",  color: "#22c55e" },
@@ -1554,7 +1561,7 @@ export default function TicketPage() {
             />
           </div>
           <div>
-            <label className="label">Priorità</label>
+            <label className="label">{tr("Priorità")}</label>
             <ButtonPicker
               options={[
                 { value: "Emergenza", label: "EMERG.", color: "#ef4444" },
@@ -1567,7 +1574,7 @@ export default function TicketPage() {
             />
           </div>
           <div>
-            <label className="label">Nuovo stato asset</label>
+            <label className="label">{tr("Nuovo stato asset")}</label>
             <ButtonPicker
               options={ASSET_STATE_OPTIONS}
               value={assetStato}
@@ -1575,7 +1582,7 @@ export default function TicketPage() {
             />
           </div>
           <div>
-            <label className="label">Stato Ticket</label>
+            <label className="label">{tr("Stato Ticket")}</label>
             <StatusToggle
               size="sm"
               currentValue={stato}
@@ -1590,16 +1597,16 @@ export default function TicketPage() {
             />
           </div>
           <div>
-            <label className="label">Durata ore</label>
+            <label className="label">{tr("Durata ore")}</label>
             <input required min="0.1" step="0.1" className="input" type="number" value={durataOre} onChange={e => setDurataOre(Number(e.target.value))} />
           </div>
           <div>
-            <label className="label">Tecnici necessari</label>
+            <label className="label">{tr("Tecnici necessari")}</label>
             <input className="input" type="number" min="1" max="99" step="1" value={tecniciRichiesti}
               onChange={e => setTecniciRichiesti(Math.max(1, Number(e.target.value) || 1))} />
           </div>
           <div>
-            <label className="label">Ore uomo necessarie</label>
+            <label className="label">{tr("Ore uomo necessarie")}</label>
             <input className="input" type="number" min="0.1" step="0.1"
               value={oreUomoMode === "auto"
                 ? (Number(durataOre) > 0 ? String(Math.round(Number(durataOre) * Math.max(1, tecniciRichiesti) * 100) / 100) : "")
@@ -1609,20 +1616,20 @@ export default function TicketPage() {
             />
             {oreUomoMode === "manual" ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>Valore modificato manualmente</span>
+                <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700 }}>{tr("Valore modificato manualmente")}</span>
                 <button type="button" onClick={() => { setOreUomoMode("auto"); setOreUomoManual(""); }}
                   style={{ fontSize: 10, color: "var(--text-accent)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
-                  Ricalcola automaticamente
+                  {tr("Ricalcola automaticamente")}
                 </button>
               </div>
             ) : (
               <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
-                Calcolo automatico: durata × tecnici
+                {tr("Calcolo automatico: durata × tecnici")}
               </div>
             )}
           </div>
           <div>
-            <label className="label">Fascia</label>
+            <label className="label">{tr("Fascia")}</label>
             <ButtonPicker
               options={[
                 { value: "diurna",   label: "Diurna",   color: "#fbbf24" },
@@ -1633,31 +1640,31 @@ export default function TicketPage() {
             />
           </div>
           <div>
-            <label className="label">Inizio pianificato</label>
+            <label className="label">{tr("Inizio pianificato")}</label>
             <input className="input" type="datetime-local" value={plannedStart} onChange={e => setPlannedStart(e.target.value)} />
           </div>
           <div>
-            <label className="label">Fine pianificata</label>
+            <label className="label">{tr("Fine pianificata")}</label>
             <input className="input" type="datetime-local" value={plannedFinish} onChange={e => setPlannedFinish(e.target.value)} />
           </div>
           <div className="span-3">
-            <label className="label">Descrizione</label>
-            <textarea className="input" rows={3} value={descrizione} onChange={e => setDescrizione(e.target.value)} placeholder="Descrizione dell'intervento…" />
+            <label className="label">{tr("Descrizione")}</label>
+            <textarea className="input" rows={3} value={descrizione} onChange={e => setDescrizione(e.target.value)} placeholder={tr("Descrizione dell'intervento…")} />
           </div>
           <div className="span-3">
-            <label className="label">Note</label>
-            <textarea className="input" rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="Note aggiuntive…" />
+            <label className="label">{tr("Note")}</label>
+            <textarea className="input" rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={tr("Note aggiuntive…")} />
           </div>
           <div className="span-2">
-            <label className="label">Ricambio</label>
-            <input className="input" value={ricambioNote} onChange={e => setRicambioNote(e.target.value)} placeholder="Codice o descrizione ricambio…" />
+            <label className="label">{tr("Ricambio")}</label>
+            <input className="input" value={ricambioNote} onChange={e => setRicambioNote(e.target.value)} placeholder={tr("Codice o descrizione ricambio…")} />
           </div>
           <div>
-            <label className="label">Quantità ricambio</label>
+            <label className="label">{tr("Quantità ricambio")}</label>
             <input className="input" type="number" min="0" step="1" value={ricambioQta} onChange={e => setRicambioQta(e.target.value)} placeholder="0" />
           </div>
           <div className="span-3">
-            <button className="btn-primary" type="submit">Salva ticket</button>
+            <button className="btn-primary" type="submit">{tr("Salva ticket")}</button>
           </div>
         </form>
         </div>
@@ -1667,7 +1674,7 @@ export default function TicketPage() {
       {selectedIds.size > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 8, marginBottom: 12 }}>
           <span style={{ color: "#818cf8", fontSize: 12 }}>{selectedIds.size} selezionati</span>
-          {["Pianificato", "In corso", "Chiuso", "Eliminato"].map(s => {
+          {[tr("Pianificato"), "In corso", "Chiuso", tr("Eliminato")].map(s => {
             const sStyle = statoStyle(s);
             return (
               <button key={s} onClick={() => bulkUpdateStatus(s)}
@@ -1683,7 +1690,7 @@ export default function TicketPage() {
               </button>
             );
           })}
-          <button onClick={() => setSelectedIds(new Set())} style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)", background: "transparent", border: "none", cursor: "pointer" }}>Deseleziona</button>
+          <button onClick={() => setSelectedIds(new Set())} style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)", background: "transparent", border: "none", cursor: "pointer" }}>{tr("Deseleziona")}</button>
         </div>
       )}
 
@@ -1713,7 +1720,7 @@ export default function TicketPage() {
             }}
           >
             <span style={{ color: "var(--cobalt-bright)", fontSize: 16 }}>{tableOpen ? "▲" : "▼"}</span>
-            {tableOpen ? "Nascondi lista" : "Mostra lista"}
+            {tableOpen ? tr("Nascondi lista") : tr("Mostra lista")}
             <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
               {result?.total ?? 0} ticket
             </span>
@@ -1724,7 +1731,7 @@ export default function TicketPage() {
               {loadingAllFilter && (
                 <div style={{ fontSize: 12, color: "#818cf8", padding: "8px 4px", display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #818cf8", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                  Caricamento completo per filtro…
+                  {tr("Caricamento completo per filtro…")}
                 </div>
               )}
               <DataTable
@@ -1751,7 +1758,7 @@ export default function TicketPage() {
       {tab === "archivio" && (
         <>
           <div style={{ color: "rgba(148,163,184,0.7)", fontSize: 12, marginBottom: 12 }}>
-            Ticket chiusi ed eliminati — visibili all&apos;AI per analisi storiche.
+            {tr("Ticket chiusi ed eliminati — visibili all'AI per analisi storiche.")}
           </div>
           <DataTable
             data={archivioItems}
@@ -1773,7 +1780,7 @@ export default function TicketPage() {
       {/* Kanban — sempre visibile */}
       <div style={{ marginTop: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 12 }}>
-          Board Kanban
+          {tr("Board Kanban")}
         </div>
         <KanbanBoard tickets={kanbanTickets} onRefresh={loadKanban} />
       </div>
@@ -1827,14 +1834,14 @@ export default function TicketPage() {
               <SheetHeader style={{ marginBottom: 24, padding: 0, gap: 12 }}>
                 <div style={{ paddingRight: 36 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#3b82f6", marginBottom: 4 }}>
-                    Dettaglio Ticket #{detailTicket.id}
+                    {tr("Dettaglio Ticket #")}{detailTicket.id}
                   </div>
                   <SheetTitle style={{ fontSize: 22, fontWeight: 800, color: "#e2e8f0", margin: 0, lineHeight: 1.2 }}>
                     {detailTicket.titolo}
                   </SheetTitle>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{detailTicket.priorita}</span>
+                  <span style={{ ...getPrioritaStyle(detailTicket.priorita), fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{labelPriorita(detailTicket.priorita)}</span>
                   {detailTicket.priorita === "Emergenza" && isModuleEnabled("emergency") && (
                     <button
                       onClick={() => setShowEmergencyMap(true)}
@@ -1846,15 +1853,15 @@ export default function TicketPage() {
                         animation: "pulse-border 1.5s infinite",
                       }}
                     >
-                      🗺️ Mappa Tecnici
+                      {tr("🗺️ Mappa Tecnici")}
                     </button>
                   )}
                   {detailTicket.sito_name && (
                     <span style={{ fontSize: 12, color: "#a6f6ff", fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: "rgba(31,232,255,0.10)", border: "1px solid rgba(31,232,255,0.22)" }}>
-                      Sito: {detailTicket.sito_name}
+                      {tr("Sito:")} {detailTicket.sito_name}
                     </span>
                   )}
-                  <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{detailTicket.asset_name ?? "Asset non specificato"}</span>
+                  <span style={{ fontSize: 13, color: "var(--text-soft)", fontWeight: 500 }}>{detailTicket.asset_name ?? tr("Asset non specificato")}</span>
                   <span style={{ color: "var(--border-default)" }}>|</span>
                   <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
                     {detailTicket.tipo} · {detailTicket.durata_stimata_ore?.toFixed(1)}h
@@ -1864,7 +1871,7 @@ export default function TicketPage() {
                   {detailTicket.is_manual_plan && detailTicket.stato === "Pianificato" && (
                     <>
                       <span style={{ color: "var(--border-default)" }}>|</span>
-                      <span style={{ fontSize: 10, padding: "2px 6px", background: "rgba(234,179,8,0.2)", border: "1px solid rgba(234,179,8,0.4)", borderRadius: 4, color: "#eab308", fontWeight: 700, textTransform: "uppercase" }}>PIANIFICATO MANUALMENTE</span>
+                      <span style={{ fontSize: 10, padding: "2px 6px", background: "rgba(234,179,8,0.2)", border: "1px solid rgba(234,179,8,0.4)", borderRadius: 4, color: "#eab308", fontWeight: 700, textTransform: "uppercase" }}>{tr("PIANIFICATO MANUALMENTE")}</span>
                     </>
                   )}
                 </div>
@@ -1908,7 +1915,7 @@ export default function TicketPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 10, height: 10, background: "#ef4444", borderRadius: "50%", boxShadow: "0 0 8px rgba(239,68,68,0.7)" }} />
                 <span style={{ fontWeight: 800, fontSize: 16, color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Mappa Tecnici — {detailTicket.titolo}
+                  {tr("Mappa Tecnici —")} {detailTicket.titolo}
                 </span>
               </div>
               <button
@@ -1925,11 +1932,11 @@ export default function TicketPage() {
                 onAssign={async (tecnicoId) => {
                   try {
                     await apiPut(`/tickets/${detailTicket.id}`, { tecnico_id: tecnicoId });
-                    notify.success("Tecnico assegnato al ticket");
+                    notify.success(tn("Tecnico assegnato al ticket"));
                     setShowEmergencyMap(false);
                     handleSaved();
                   } catch {
-                    notify.error("Errore nell'assegnazione del tecnico");
+                    notify.error(tn("Errore nell'assegnazione del tecnico"));
                   }
                 }}
               />

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { API_BASE, apiGet, apiUpload } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Allegato = {
   id: number;
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
+  const tr = useT();
   const [allegati, setAllegati] = useState<Allegato[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -71,7 +73,7 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
         credentials: "include",
       });
       if (!res.ok) {
-        notify.error("Impossibile scaricare il file.");
+        notify.error(tn("Impossibile scaricare il file."));
         return;
       }
       const blob = await res.blob();
@@ -93,7 +95,7 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
       // Rilascia la URL object dopo un breve timeout
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
     } catch {
-      notify.error("Errore durante il download del file.");
+      notify.error(tn("Errore durante il download del file."));
     }
   }
 
@@ -123,11 +125,11 @@ export default function UploadAllegati({ ticketId, onUploadSuccess }: Props) {
           }}
         >
           {uploading ? (
-            <span>Caricamento...</span>
+            <span>{tr("Caricamento...")}</span>
           ) : (
             <>
               <span style={{ fontSize: 18 }}>📸</span>
-              <span>Aggiungi Foto o Documento</span>
+              <span>{tr("Aggiungi Foto o Documento")}</span>
             </>
           )}
         </label>

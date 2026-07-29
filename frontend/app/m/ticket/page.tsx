@@ -11,6 +11,8 @@ import { apiGet } from "../../lib/api";
 import { notify } from "@/lib/toast";
 import Skeleton from "../../components/Skeleton";
 import { ChevronRight, Package, RefreshCw, Inbox } from "lucide-react";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
+import { labelPriorita, labelStato } from "@/app/lib/i18n/domain";
 import {
   C, glass, circleBtn, IconBadge, tipoMeta, prioritaColor, useTecnicoId,
   type Ticket,
@@ -30,6 +32,7 @@ function statoColor(stato: string): string {
 }
 
 export default function MobileTicketListPage() {
+  const tr = useT();
   const router = useRouter();
   const tecnicoId = useTecnicoId();
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -44,10 +47,10 @@ export default function MobileTicketListPage() {
       const d = await apiGet<{ items?: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&limit=100`);
       setTickets(d.items ?? []);
     } catch {
-      notify.error("Errore nel caricamento dei ticket.", "TICKET");
+      notify.error(tn("Errore nel caricamento dei ticket."), tr("TICKET"));
     }
     setLoading(false);
-  }, [tecnicoId]);
+  }, [tecnicoId, tr]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch iniziale all'mount; il ramo senza profilo tecnico chiude solo lo skeleton
@@ -63,11 +66,11 @@ export default function MobileTicketListPage() {
       {/* Titolo + refresh */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 10px", flexShrink: 0 }}>
         <div style={{ fontWeight: 800, fontSize: "clamp(22px, 6vw, 26px)", color: C.text, letterSpacing: "-0.02em" }}>
-          I miei ticket
+          {tr("I miei ticket")}
         </div>
         <button
           className="m-press"
-          aria-label="Aggiorna"
+          aria-label={tr("Aggiorna")}
           onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }}
           disabled={refreshing}
           style={{ ...circleBtn, color: C.text2, cursor: refreshing ? "wait" : "pointer" }}
@@ -124,7 +127,7 @@ export default function MobileTicketListPage() {
               <Inbox size={32} strokeWidth={1.8} />
             </div>
             <div style={{ color: C.text2, fontSize: 16, fontWeight: 600 }}>
-              {filtro === "Tutti" ? "Nessun ticket assegnato" : `Nessun ticket «${filtro}»`}
+              {filtro === "Tutti" ? tr("Nessun ticket assegnato") : `Nessun ticket «${filtro}»`}
             </div>
           </div>
         )}
@@ -135,7 +138,7 @@ export default function MobileTicketListPage() {
               const tInfo = tipoMeta(t.tipo);
               const sCol = statoColor(t.stato);
               const start = t.planned_start
-                ? new Date(t.planned_start).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                ? new Date(t.planned_start).toLocaleString(getLocaleTag(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
                 : null;
               return (
                 <button
@@ -158,12 +161,12 @@ export default function MobileTicketListPage() {
                       <span style={{
                         fontSize: 12, padding: "3px 9px", borderRadius: 99, fontWeight: 800,
                         background: `${sCol}1c`, color: sCol, border: `1px solid ${sCol}40`,
-                      }}>{t.stato}</span>
+                      }}>{labelStato(t.stato)}</span>
                       <span style={{
                         fontSize: 12, padding: "3px 9px", borderRadius: 99, fontWeight: 800,
                         background: `${tInfo.color}1c`, color: tInfo.color, border: `1px solid ${tInfo.color}40`,
                       }}>{t.tipo}</span>
-                      <span style={{ fontSize: 13, color: prioritaColor(t.priorita), fontWeight: 800 }}>{t.priorita}</span>
+                      <span style={{ fontSize: 13, color: prioritaColor(t.priorita), fontWeight: 800 }}>{labelPriorita(t.priorita)}</span>
                     </div>
                     <div style={{ fontSize: 13, color: C.text3, marginTop: 5, display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
                       <Package size={13} strokeWidth={2.2} style={{ flexShrink: 0 }} />

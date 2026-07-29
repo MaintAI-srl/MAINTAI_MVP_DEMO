@@ -8,6 +8,8 @@ import GoogleControlMap from "./components/GoogleControlMap";
 import { controlCenterTechnicianPlace, controlCenterTicketPlace, resolvePlaceLatLon } from "./geo";
 import type { ControlCenterBDTicket, ControlCenterData, ControlCenterRouteTecnico, SitoOverview } from "./types";
 import { STATUS_COLORS, STATUS_LABELS } from "./types";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
+import { labelStato } from "@/app/lib/i18n/domain";
 
 const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -102,7 +104,7 @@ function formatTicketTime(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleString(getLocaleTag(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatRoadRoute(route?: RoadRouteInfo) {
@@ -139,6 +141,7 @@ function ticketToBDTicket(ticket: TicketListItem): ControlCenterBDTicket | null 
 }
 
 export default function ControlCenterPage() {
+  const tr = useT();
   const [data, setData] = useState<ControlCenterData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -314,7 +317,7 @@ export default function ControlCenterPage() {
         { tecnico_id: tecnicoId }
       );
       notify.success(
-        `Ticket assegnato a ${res.tecnico_nome}. Il mobile lo avvisera con allarme sonoro e visivo.`,
+        tr("Ticket assegnato a {tecnico_nome}. Il mobile lo avvisera con allarme sonoro e visivo.", { tecnico_nome: res.tecnico_nome }),
         "DISPATCH"
       );
       await load(true);
@@ -323,7 +326,7 @@ export default function ControlCenterPage() {
       notify.error(err instanceof Error ? err.message : "Errore assegnazione tecnico", "DISPATCH");
       throw err;
     }
-  }, [load, selectedBD]);
+  }, [load, selectedBD, tr]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", paddingBottom: 40 }}>
@@ -338,23 +341,23 @@ export default function ControlCenterPage() {
         <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(91,143,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(91,143,255,0.04) 1px, transparent 1px)", backgroundSize: "32px 32px", pointerEvents: "none" }} />
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#5b8fff", marginBottom: 8 }}>Supervisione</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#5b8fff", marginBottom: 8 }}>{tr("Supervisione")}</div>
             <h1 style={{ margin: 0, fontSize: 30, fontWeight: 900, fontFamily: "var(--font-display)", background: "linear-gradient(135deg, #e2e8f0 0%, #5b8fff 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
-              Centro di Controllo
+              {tr("Centro di Controllo")}
             </h1>
             <p style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: 13 }}>
-              Vista geografica in tempo reale dei siti: stato asset, work order attivi e criticità.
+              {tr("Vista geografica in tempo reale dei siti: stato asset, work order attivi e criticità.")}
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {lastUpdate && (
               <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                Aggiornato {lastUpdate.toLocaleTimeString("it-IT")}
+                {tr("Aggiornato")} {lastUpdate.toLocaleTimeString(getLocaleTag())}
               </span>
             )}
             <button
               onClick={() => load()}
-              title="Aggiorna dati"
+              title={tr("Aggiorna dati")}
               style={{
                 width: 34, height: 34, borderRadius: 9, cursor: "pointer",
                 border: "1px solid var(--border-default)", background: "var(--surface-2)",
@@ -388,7 +391,7 @@ export default function ControlCenterPage() {
 
       {loading && !data && (
         <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "60px 0", fontSize: 13 }}>
-          Caricamento Centro di Controllo...
+          {tr("Caricamento Centro di Controllo...")}
         </div>
       )}
 
@@ -400,7 +403,7 @@ export default function ControlCenterPage() {
             borderRadius: 14, padding: "16px 14px", maxHeight: 640, overflowY: "auto",
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, padding: "0 4px" }}>
-              <h2 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Siti</h2>
+              <h2 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>{tr("Siti")}</h2>
               <span style={{ fontSize: 11, background: "rgba(91,143,255,0.12)", color: "#5b8fff", border: "1px solid rgba(91,143,255,0.25)", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>
                 {data.siti.length}
               </span>
@@ -408,7 +411,7 @@ export default function ControlCenterPage() {
 
             {data.siti.length === 0 && (
               <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 8px", fontSize: 13 }}>
-                Nessun sito registrato. Crea i siti da <strong>Siti &amp; Asset</strong> per popolare la mappa.
+                {tr("Nessun sito registrato. Crea i siti da")} <strong>{tr("Siti & Asset")}</strong> per popolare la mappa.
               </div>
             )}
 
@@ -433,14 +436,14 @@ export default function ControlCenterPage() {
                     <StatusBadge status={sito.status} />
                   </div>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-                    {sito.citta || sito.indirizzo || "Posizione non specificata"}
-                    {senzaPosizione && <span style={{ color: "#fbbf24" }}> · 📍 non localizzato</span>}
+                    {sito.citta || sito.indirizzo || tr("Posizione non specificata")}
+                    {senzaPosizione && <span style={{ color: "#fbbf24" }}> {tr("· 📍 non localizzato")}</span>}
                   </div>
                   <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--text-secondary)", flexWrap: "wrap" }}>
                     <span>🏭 {sito.n_asset} asset</span>
                     {sito.asset_stati.out_of_service > 0 && <span style={{ color: "#ef4444", fontWeight: 700 }}>⚙ {sito.asset_stati.out_of_service} guasti</span>}
-                    {(sito.ticket.aperti + sito.ticket.in_corso) > 0 && <span style={{ color: "#f59e0b", fontWeight: 700 }}>🎫 {sito.ticket.aperti + sito.ticket.in_corso} WO attivi</span>}
-                    {sito.ticket.bd_attivi > 0 && <span style={{ color: "#ef4444", fontWeight: 700 }}>⚠ {sito.ticket.bd_attivi} BD</span>}
+                    {(sito.ticket.aperti + sito.ticket.in_corso) > 0 && <span style={{ color: "#f59e0b", fontWeight: 700 }}>🎫 {sito.ticket.aperti + sito.ticket.in_corso} {tr("WO attivi")}</span>}
+                    {sito.ticket.bd_attivi > 0 && <span style={{ color: "#ef4444", fontWeight: 700 }}>⚠ {sito.ticket.bd_attivi} {tr("BD")}</span>}
                   </div>
                 </div>
               );
@@ -459,12 +462,12 @@ export default function ControlCenterPage() {
                 ))}
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#5b8fff", display: "inline-block" }} />
-                  Impianto
+                  {tr("Impianto")}
                 </span>
               </div>
               {!GMAPS_KEY && (
                 <span style={{ fontSize: 11, color: "#fbbf24", background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.3)", borderRadius: 8, padding: "3px 10px" }}>
-                  Mappa OpenStreetMap — imposta NEXT_PUBLIC_GOOGLE_MAPS_API_KEY per Google Maps
+                  {tr("Mappa OpenStreetMap — imposta NEXT_PUBLIC_GOOGLE_MAPS_API_KEY per Google Maps")}
                 </span>
               )}
             </div>
@@ -473,10 +476,9 @@ export default function ControlCenterPage() {
               {sitiMappabili.length === 0 && data.impianti.length === 0 && !hasEmergencyMapPoints ? (
                 <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center" }}>
                   <div style={{ fontSize: 28 }}>🗺️</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Nessuna posizione disponibile</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{tr("Nessuna posizione disponibile")}</div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", maxWidth: 380 }}>
-                    Aggiungi le coordinate agli impianti oppure compila ubicazione e città dei siti:
-                    il Centro di Controllo li geolocalizza automaticamente.
+                    {tr("Aggiungi le coordinate agli impianti oppure compila ubicazione e città dei siti: il Centro di Controllo li geolocalizza automaticamente.")}
                   </div>
                 </div>
               ) : GMAPS_KEY ? (
@@ -519,10 +521,10 @@ export default function ControlCenterPage() {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, marginBottom: 12, flexWrap: "wrap" }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: "var(--text-primary)" }}>
-                  BD / Emergenze operative
+                  {tr("BD / Emergenze operative")}
                 </h2>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-                  Le urgenze lampeggiano sulla mappa. Clicca una card per calcolare i 3 tecnici piu vicini e mostrare il percorso stradale.
+                  {tr("Le urgenze lampeggiano sulla mappa. Clicca una card per calcolare i 3 tecnici piu vicini e mostrare il percorso stradale.")}
                 </p>
               </div>
               <span style={{
@@ -535,7 +537,7 @@ export default function ControlCenterPage() {
 
             {bdTickets.length === 0 ? (
               <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "22px 8px", textAlign: "center" }}>
-                Nessun breakdown o emergenza attiva.
+                {tr("Nessun breakdown o emergenza attiva.")}
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: selectedBD ? "minmax(280px, 420px) 1fr" : "1fr", gap: 16, alignItems: "start" }}>
@@ -587,16 +589,16 @@ export default function ControlCenterPage() {
                             background: `${color}14`, border: `1px solid ${color}44`,
                             borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap",
                           }}>
-                            {ticket.stato}
+                            {labelStato(ticket.stato)}
                           </span>
                         </div>
                         <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
                           {ticket.asset_nome && <div>{ticket.asset_nome}</div>}
                           <div style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {ticket.sito_nome || ticket.impianto_nome || "Sito non definito"}
+                            {ticket.sito_nome || ticket.impianto_nome || tr("Sito non definito")}
                           </div>
                           <div style={{ color: "var(--text-muted)" }}>
-                            {ticket.tecnico_id ? "Tecnico gia assegnato" : "Da assegnare"}
+                            {ticket.tecnico_id ? tr("Tecnico gia assegnato") : tr("Da assegnare")}
                             {ticket.created_at ? ` - ${formatTicketTime(ticket.created_at)}` : ""}
                           </div>
                         </div>
@@ -616,7 +618,7 @@ export default function ControlCenterPage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 10, fontWeight: 900, color: "#ef4444", letterSpacing: ".14em", textTransform: "uppercase" }}>
-                          Dispatch tecnico
+                          {tr("Dispatch tecnico")}
                         </div>
                         <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text-primary)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {selectedBD.titolo}
@@ -632,14 +634,14 @@ export default function ControlCenterPage() {
                             borderRadius: 8, padding: "5px 9px", whiteSpace: "nowrap",
                           }}
                         >
-                          Luogo su mappa
+                          {tr("Luogo su mappa")}
                         </span>
                       )}
                     </div>
                     <div style={{ marginTop: 12 }}>
                       {nearestLoading && (
                         <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "18px 0" }}>
-                          Calcolo dei tecnici piu vicini...
+                          {tr("Calcolo dei tecnici piu vicini...")}
                         </div>
                       )}
                       {nearestError && (
@@ -656,7 +658,7 @@ export default function ControlCenterPage() {
                       )}
                       {!nearestLoading && !nearestError && nearestTecnici.length === 0 && (
                         <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "18px 0" }}>
-                          Nessun tecnico disponibile con posizione calcolabile.
+                          {tr("Nessun tecnico disponibile con posizione calcolabile.")}
                         </div>
                       )}
                       <div style={{ display: "grid", gap: 9 }}>
@@ -683,8 +685,8 @@ export default function ControlCenterPage() {
                                   <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }}>{tec.nome}</div>
                                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
                                     {hasRoadRoute
-                                      ? (roadRoutesLoading && !roadRoute ? "Calcolo percorso MaintAI..." : roadRoute ? formatRoadRoute(roadRoute) : "Percorso interno non calcolabile")
-                                      : "Luogo tecnico o urgenza mancante"}
+                                      ? (roadRoutesLoading && !roadRoute ? "Calcolo percorso MaintAI..." : roadRoute ? formatRoadRoute(roadRoute) : tr("Percorso interno non calcolabile"))
+                                      : tr("Luogo tecnico o urgenza mancante")}
                                   </div>
                                   {tec.indirizzo_corrente && (
                                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -705,7 +707,7 @@ export default function ControlCenterPage() {
                                         whiteSpace: "nowrap",
                                       }}
                                     >
-                                      Percorso MaintAI
+                                      {tr("Percorso MaintAI")}
                                     </span>
                                   )}
                                   <button
@@ -722,7 +724,7 @@ export default function ControlCenterPage() {
                                       whiteSpace: "nowrap",
                                     }}
                                   >
-                                    Assegna
+                                    {tr("Assegna")}
                                   </button>
                                 </div>
                               </div>

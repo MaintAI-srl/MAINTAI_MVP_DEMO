@@ -5,6 +5,7 @@ import { useDroppable } from "@dnd-kit/core";
 import type { PlannedWO, TicketData, TecnicoData } from "../types";
 import { tipoStyle, timeToCol } from "../types";
 import { localDateStr } from "../../lib/datetime";
+import { useT } from "@/app/lib/i18n";
 
 interface Props {
   wos: PlannedWO[];
@@ -77,6 +78,7 @@ function nextDay(dateStr: string): string {
 }
 
 export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate, onDateChange, onTicketDrop }: Props) {
+  const tr = useT();
   const [tooltip, setTooltip] = useState<{ wo: PlannedWO; x: number; y: number } | null>(null);
 
   // Filtra WOs per il giorno selezionato
@@ -152,7 +154,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
               fontSize: 11,
             }}
           >
-            Oggi
+            {tr("Oggi")}
           </button>
         )}
       </div>
@@ -184,7 +186,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
               paddingLeft: 12,
             }}>
               <span style={{ fontSize: 10, color: "#64748b", fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>
-                TECNICO
+                {tr("TECNICO")}
               </span>
             </div>
 
@@ -218,7 +220,7 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
                 color: "#4b5563",
                 fontSize: 13,
               }}>
-                Nessun intervento pianificato per questo giorno
+                {tr("Nessun intervento pianificato per questo giorno")}
               </div>
             ) : (
               displayTecnici.map((tc, rowIdx) => {
@@ -422,13 +424,13 @@ export default function GanttGiornaliero({ wos, tecnici, ticketMap, selectedDate
               {ticket?.titolo ?? "—"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>
-              Asset: {ticket?.asset_name ?? "—"}
+              {tr("Asset:")} {ticket?.asset_name ?? "—"}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>
-              Orario: {tooltip.wo.planned_start_time} → {tooltip.wo.planned_end_time}
+              {tr("Orario:")} {tooltip.wo.planned_start_time} → {tooltip.wo.planned_end_time}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-              Durata: {tooltip.wo.duration_hours?.toFixed(1)}h
+              {tr("Durata:")} {tooltip.wo.duration_hours?.toFixed(1)}h
             </div>
             {tooltip.wo.motivation && (
               <div style={{

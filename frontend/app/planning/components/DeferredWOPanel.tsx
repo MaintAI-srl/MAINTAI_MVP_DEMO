@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import type { DeferredWO, TicketData } from "../types";
 import { REASON_CODE_LABELS, tipoStyle } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 interface DeferredWOPanelProps {
   deferredWOs: DeferredWO[];
@@ -13,6 +14,7 @@ interface DeferredWOPanelProps {
 const PRIO_ORDER: Record<string, number> = { Alta: 0, Media: 1, Bassa: 2 };
 
 export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCounts }: DeferredWOPanelProps) {
+  const tr = useT();
   const [filterCode, setFilterCode] = useState<string>("");
 
   const ticketMap = useMemo(() => {
@@ -71,7 +73,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 700 }}>
-            WO non pianificati
+            {tr("WO non pianificati")}
           </span>
           <span
             style={{
@@ -103,7 +105,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
               cursor: "pointer",
             }}
           >
-            <option value="">Tutti i motivi</option>
+            <option value="">{tr("Tutti i motivi")}</option>
             {availableCodes.map((code) => (
               <option key={code} value={code}>
                 {REASON_CODE_LABELS[code]?.label ?? code}
@@ -187,9 +189,9 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
                       fontWeight: 700,
                       flexShrink: 0,
                     }}
-                    title="Rimandato 2 volte in piani precedenti"
+                    title={tr("Rimandato 2 volte in piani precedenti")}
                   >
-                    2x rimandato
+                    {tr("2x rimandato")}
                   </span>
                 )}
               </div>
@@ -209,7 +211,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
                       flexShrink: 0,
                     }}
                   >
-                    {rcLabel.label}
+                    {tr(rcLabel.label)}
                   </span>
                 ) : null}
                 <span
@@ -227,7 +229,7 @@ export default function DeferredWOPanel({ deferredWOs, allTickets, deferredCount
               {/* earliest_possible_date se disponibile */}
               {d.earliest_possible_date && (
                 <div style={{ fontSize: 10, color: "#4b5563" }}>
-                  Prima data possibile: {d.earliest_possible_date}
+                  {tr("Prima data possibile:")} {d.earliest_possible_date}
                 </div>
               )}
             </div>

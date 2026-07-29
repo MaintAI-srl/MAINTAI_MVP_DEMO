@@ -15,6 +15,7 @@ import Skeleton from "../../../components/Skeleton";
 import VoiceRecorder from "../../../components/VoiceRecorder";
 import QrScanner from "../../../components/QrScanner";
 import FirmaRapportinoModal from "../../../components/FirmaRapportinoModal";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 import {
   Mic, ChevronLeft, Camera, Check, Play, Pause,
   ShieldCheck, CheckCircle2, MapPin, Save, CalendarCheck, Home,
@@ -25,6 +26,7 @@ import {
 } from "../../shared";
 
 export default function MobileTicketWorkPage() {
+  const tr = useT();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const ticketId = Number(params.id);
@@ -94,11 +96,11 @@ export default function MobileTicketWorkPage() {
       } : prev);
       notify.success(
         newStato === "In corso" ? "✅ Intervento avviato" :
-        newStato === "Chiuso"   ? "✅ Intervento completato!" : `Stato: ${newStato}`, "TICKET"
+        newStato === "Chiuso"   ? "✅ Intervento completato!" : `Stato: ${newStato}`, tr("TICKET")
       );
       if (newStato === "Chiuso") router.push("/m/ticket");
     } catch {
-      notify.error("Errore aggiornamento stato.", "TICKET");
+      notify.error(tn("Errore aggiornamento stato."), tr("TICKET"));
     }
   }
 
@@ -112,7 +114,7 @@ export default function MobileTicketWorkPage() {
 
   async function handleIniziaLavoro() {
     if (!allChecked) {
-      notify.warning("Completa la Safety Checklist prima di avviare.", "SAFETY");
+      notify.warning(tn("Completa la Safety Checklist prima di avviare."), "SAFETY");
       return;
     }
     setStarting(true);
@@ -123,7 +125,7 @@ export default function MobileTicketWorkPage() {
 
   async function handleTermina() {
     if (!allChecked) {
-      notify.warning("Completa la Safety Checklist prima di terminare.", "SAFETY");
+      notify.warning(tn("Completa la Safety Checklist prima di terminare."), "SAFETY");
       return;
     }
     // Propone scansione QR ma non è obbligatoria; poi passa alla firma cliente
@@ -144,21 +146,21 @@ export default function MobileTicketWorkPage() {
     setSavingVoice(true);
     try {
       await apiPut(`/tickets/${ticket.id}`, { note_vocali: transcript.trim() });
-      notify.success("Nota vocale salvata ✓");
+      notify.success(tn("Nota vocale salvata ✓"));
       setTranscript("");
       setShowVoice(false);
-    } catch { notify.error("Errore salvataggio nota"); }
+    } catch { notify.error(tn("Errore salvataggio nota")); }
     setSavingVoice(false);
   }
 
   if (loadError) {
     return (
       <div className="m-page" style={{ padding: "40px 20px", textAlign: "center" }}>
-        <div style={{ color: C.text2, fontSize: 16, fontWeight: 600, marginBottom: 18 }}>Ticket non trovato.</div>
+        <div style={{ color: C.text2, fontSize: 16, fontWeight: 600, marginBottom: 18 }}>{tr("Ticket non trovato.")}</div>
         <button className="m-press" onClick={() => router.push("/m/ticket")} style={{
           padding: "13px 24px", borderRadius: 14, background: "rgba(255,255,255,0.07)",
           border: `1px solid ${C.border}`, color: C.text, fontWeight: 700, fontSize: 15, cursor: "pointer",
-        }}>Torna ai ticket</button>
+        }}>{tr("Torna ai ticket")}</button>
       </div>
     );
   }
@@ -182,7 +184,7 @@ export default function MobileTicketWorkPage() {
       {closeState === "scanning" && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column" }}>
           <QrScanner
-            title="Verifica Presenza 📍"
+            title={tr("Verifica Presenza 📍")}
             subtitle="Scansiona il QR code sull'asset per chiudere"
             onScan={(val) => { setQrScannedValue(val); setCloseState("confirm"); }}
             onCancel={() => setCloseState("idle")}
@@ -202,7 +204,7 @@ export default function MobileTicketWorkPage() {
                 backdropFilter: "blur(12px)",
               }}
             >
-              Salta QR
+              {tr("Salta QR")}
             </button>
           </div>
         </div>
@@ -231,12 +233,12 @@ export default function MobileTicketWorkPage() {
               }}>
                 <CheckCircle2 size={38} strokeWidth={1.8} />
               </div>
-              <div style={{ fontWeight: 800, fontSize: 21, color: C.text, marginBottom: 6, letterSpacing: "-0.02em" }}>QR Verificato</div>
+              <div style={{ fontWeight: 800, fontSize: 21, color: C.text, marginBottom: 6, letterSpacing: "-0.02em" }}>{tr("QR Verificato")}</div>
               <div style={{
                 fontSize: 12, color: C.green, fontWeight: 800, letterSpacing: "0.06em", marginBottom: 12,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
               }}>
-                <MapPin size={13} strokeWidth={2.4} /> PRESENZA FISICA CONFERMATA
+                <MapPin size={13} strokeWidth={2.4} /> {tr("PRESENZA FISICA CONFERMATA")}
               </div>
               <div style={{
                 fontSize: 12, color: C.text3,
@@ -249,7 +251,7 @@ export default function MobileTicketWorkPage() {
               </div>
             </div>
             <div style={{ fontSize: 15, color: C.text2, textAlign: "center", marginBottom: 22, lineHeight: 1.5 }}>
-              La scansione è registrata.<br />Vuoi chiudere l&apos;intervento?
+              {tr("La scansione è registrata.")}<br />{tr("Vuoi chiudere l'intervento?")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button
@@ -261,7 +263,7 @@ export default function MobileTicketWorkPage() {
                   color: C.text2, fontWeight: 700, cursor: "pointer", fontSize: 15,
                 }}
               >
-                Annulla
+                {tr("Annulla")}
               </button>
               <button
                 className="m-press"
@@ -274,7 +276,7 @@ export default function MobileTicketWorkPage() {
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                 }}
               >
-                <Check size={18} strokeWidth={3} /> FIRMA CLIENTE
+                <Check size={18} strokeWidth={3} /> {tr("FIRMA CLIENTE")}
               </button>
             </div>
           </div>
@@ -299,7 +301,7 @@ export default function MobileTicketWorkPage() {
         padding: "10px 0 8px",
         flexShrink: 0,
       }}>
-        <button className="m-press" aria-label="Indietro" onClick={() => router.push("/m/ticket")} style={circleBtn}>
+        <button className="m-press" aria-label={tr("Indietro")} onClick={() => router.push("/m/ticket")} style={circleBtn}>
           <ChevronLeft size={22} strokeWidth={2.2} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -313,9 +315,9 @@ export default function MobileTicketWorkPage() {
           color: tipo.color, background: `${tipo.color}1a`, border: `1px solid ${tipo.color}40`,
           display: "flex", alignItems: "center", gap: 5,
         }}>
-          <tipo.Icon size={12} strokeWidth={2.4} /> {tipo.label}
+          <tipo.Icon size={12} strokeWidth={2.4} /> {tr(tipo.label)}
         </div>
-        <button className="m-press" aria-label="Home" onClick={() => router.push("/m")} style={circleBtn}>
+        <button className="m-press" aria-label={tr("Home")} onClick={() => router.push("/m")} style={circleBtn}>
           <Home size={19} strokeWidth={2.1} />
         </button>
       </div>
@@ -356,7 +358,7 @@ export default function MobileTicketWorkPage() {
                   const formData = new FormData();
                   formData.append("file", file);
                   await apiUpload(`/tickets/${ticket.id}/allegati`, formData);
-                  notify.success("Foto allegata al ticket ✓");
+                  notify.success(tn("Foto allegata al ticket ✓"));
                 } catch (err) {
                   notify.error(err instanceof Error ? err.message : "Errore caricamento foto");
                 } finally {
@@ -393,7 +395,7 @@ export default function MobileTicketWorkPage() {
               }}
             >
               <Mic size={28} strokeWidth={1.9} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.08em" }}>VOCE</span>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.08em" }}>{tr("VOCE")}</span>
             </button>
           </div>
 
@@ -423,7 +425,7 @@ export default function MobileTicketWorkPage() {
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                   }}>
                     <Save size={15} strokeWidth={2.4} />
-                    {savingVoice ? "Salvataggio…" : "SALVA NOTA"}
+                    {savingVoice ? "Salvataggio…" : tr("SALVA NOTA")}
                   </button>
                 </>
               )}
@@ -444,7 +446,7 @@ export default function MobileTicketWorkPage() {
                 fontSize: 12, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase",
                 color: allChecked ? C.green : checklist.length === 0 ? C.text3 : C.red,
               }}>
-                Safety
+                {tr("Safety")}
               </span>
               {checklist.length > 0 && (
                 <span style={{ marginLeft: "auto", fontSize: 12, color: C.text3, fontFamily: "var(--font-mono)", fontWeight: 700 }}>
@@ -455,12 +457,12 @@ export default function MobileTicketWorkPage() {
 
             {checklistLoading ? (
               <div style={{ fontSize: 13, color: C.text3, textAlign: "center", padding: "12px 0" }}>
-                Caricamento checklist...
+                {tr("Caricamento checklist...")}
               </div>
             ) : checklist.length === 0 ? (
               <div style={{ fontSize: 14, color: C.text2, padding: "6px 4px", lineHeight: 1.5 }}>
-                Nessuna checklist configurata per questo asset.<br />
-                <span style={{ color: C.text3 }}>Rispettare le procedure aziendali e indossare i DPI previsti.</span>
+                {tr("Nessuna checklist configurata per questo asset.")}<br />
+                <span style={{ color: C.text3 }}>{tr("Rispettare le procedure aziendali e indossare i DPI previsti.")}</span>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -509,7 +511,7 @@ export default function MobileTicketWorkPage() {
                 fontSize: 12, color: C.green, fontWeight: 800, textAlign: "center", paddingTop: 9,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
               }}>
-                <CheckCircle2 size={14} strokeWidth={2.5} /> SICUREZZA VERIFICATA
+                <CheckCircle2 size={14} strokeWidth={2.5} /> {tr("SICUREZZA VERIFICATA")}
               </div>
             )}
           </div>
@@ -547,15 +549,15 @@ export default function MobileTicketWorkPage() {
                   fontSize: 11, color: C.text3, fontWeight: 800, letterSpacing: "0.14em", marginBottom: 3,
                   display: "flex", alignItems: "center", gap: 5,
                 }}>
-                  <item.ItemIcon size={11} strokeWidth={2.5} color={item.color} /> {item.label}
+                  <item.ItemIcon size={11} strokeWidth={2.5} color={item.color} /> {tr(item.label)}
                 </div>
                 {item.value ? (
                   <>
                     <div style={{ fontSize: "clamp(15px, 4vw, 20px)", fontWeight: 800, color: item.color, fontFamily: "var(--font-mono)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                      {new Date(item.value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(item.value).toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" })}
                     </div>
                     <div style={{ fontSize: 12, color: C.text3, marginTop: 2 }}>
-                      {new Date(item.value).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                      {new Date(item.value).toLocaleDateString(getLocaleTag(), { day: "2-digit", month: "2-digit", year: "2-digit" })}
                     </div>
                   </>
                 ) : (
@@ -590,7 +592,7 @@ export default function MobileTicketWorkPage() {
               >
                 {starting
                   ? "…"
-                  : <><Play size={21} strokeWidth={2.4} fill={allChecked ? "#fff" : "none"} /> INIZIA LAVORO</>}
+                  : <><Play size={21} strokeWidth={2.4} fill={allChecked ? "#fff" : "none"} /> {tr("INIZIA LAVORO")}</>}
               </button>
             )}
 
@@ -614,7 +616,7 @@ export default function MobileTicketWorkPage() {
                   transition: "background 0.25s, box-shadow 0.25s",
                 }}
               >
-                <CheckCircle2 size={20} strokeWidth={2.3} /> TERMINA
+                <CheckCircle2 size={20} strokeWidth={2.3} /> {tr("TERMINA")}
               </button>
             )}
 

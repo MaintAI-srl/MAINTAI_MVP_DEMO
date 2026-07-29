@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { API_BASE, isTauri, saveTauriToken } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { useT, tn } from "@/app/lib/i18n";
+import LanguageSwitcher from "@/app/components/LanguageSwitcher";
 
 /** Tenta una fetch con timeout esplicito in ms. */
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
@@ -18,6 +20,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
 }
 
 export default function LoginPage() {
+  const tr = useT();
   const [username, setUsername]   = useState("");
   const [password, setPassword]   = useState("");
   const [loading, setLoading]     = useState(false);
@@ -124,7 +127,7 @@ export default function LoginPage() {
           return;
         }
         if (res.status === 429) {
-          notify.error("Troppi tentativi. Attendi 1 minuto e riprova.");
+          notify.error(tn("Troppi tentativi. Attendi 1 minuto e riprova."));
           setStatusMsg(null);
           setLoading(false);
           return;
@@ -153,7 +156,7 @@ export default function LoginPage() {
     }
 
     // Tutti e 3 i tentativi falliti
-    notify.error(`${lastError}. Il server potrebbe essere in avvio. Riprova tra 30 secondi.`);
+    notify.error(tn("{lastError}. Il server potrebbe essere in avvio. Riprova tra 30 secondi.", { lastError: lastError }));
     setStatusMsg("⚠️ Server non disponibile — riprova tra poco");
     setLoading(false);
   };
@@ -169,11 +172,14 @@ export default function LoginPage() {
         background: "var(--bg-surface)", border: "1px solid var(--border-strong)",
         borderRadius: "22px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
       }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <LanguageSwitcher />
+        </div>
         <div style={{ textAlign: "center", marginBottom: "clamp(28px, 7vw, 40px)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- logo statico nella pagina di login; next/image non porta benefici */}
           <img src="/logo.png" alt="MaintAI Logo" style={{ width: "clamp(84px, 22vw, 104px)", height: "clamp(84px, 22vw, 104px)", objectFit: "contain", marginBottom: "18px", filter: "drop-shadow(0 0 16px rgba(59,130,246,0.3))" }} />
           <h1 style={{ fontSize: "clamp(32px, 9vw, 42px)", margin: "0 0 10px 0", letterSpacing: "0.1em", fontWeight: 800 }}>MAINTAI</h1>
-          <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "clamp(17px, 4.6vw, 20px)" }}>Accesso Operatori</p>
+          <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "clamp(17px, 4.6vw, 20px)" }}>{tr("Accesso Operatori")}</p>
         </div>
 
         {/* Banner stato server */}
@@ -191,7 +197,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "clamp(20px, 5vw, 26px)" }}>
           <div>
-            <label style={{ display: "block", fontSize: "clamp(14px, 3.6vw, 16px)", color: "var(--text-secondary)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>Username</label>
+            <label style={{ display: "block", fontSize: "clamp(14px, 3.6vw, 16px)", color: "var(--text-secondary)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>{tr("Username")}</label>
             <input
               required autoFocus type="text"
               autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
@@ -207,7 +213,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: "clamp(14px, 3.6vw, 16px)", color: "var(--text-secondary)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>Password</label>
+            <label style={{ display: "block", fontSize: "clamp(14px, 3.6vw, 16px)", color: "var(--text-secondary)", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>{tr("Password")}</label>
             <input
               required type="password"
               autoComplete="current-password"
@@ -236,7 +242,7 @@ export default function LoginPage() {
             }}
           >
             {loading && <span style={{ fontSize: 16 }}>⏳</span>}
-            {loading ? "Connessione in corso..." : "ACCEDI"}
+            {loading ? tr("Connessione in corso...") : tr("ACCEDI")}
           </button>
         </form>
 

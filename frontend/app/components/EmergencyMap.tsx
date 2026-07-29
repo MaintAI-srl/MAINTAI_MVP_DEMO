@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { API_BASE } from "../lib/api";
 import { notify } from "@/lib/toast";
 import type { TecnicoMapData, EmergenzaMapData } from "./emergency/EmergencyMapInner";
+import { useT, tn } from "@/app/lib/i18n";
 
 // Import dinamico SSR-safe del componente mappa (usa Leaflet, solo client)
 const EmergencyMapInner = dynamic(
@@ -54,6 +55,7 @@ function fonteBadge(fonte: string) {
 const TOP3_COLORS = ["#22c55e", "#fbbf24", "#f97316"];
 
 export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) {
+  const tr = useT();
   const [data, setData] = useState<EmergencyResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,9 +101,9 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
         color: "#6b7280",
         fontSize: "13px",
       }}>
-        Localizzazione tecnici in corso...
+        {tr("Localizzazione tecnici in corso...")}
         <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.6 }}>
-          Il sistema sta geocodificando le posizioni via OpenStreetMap
+          {tr("Il sistema sta geocodificando le posizioni via OpenStreetMap")}
         </div>
       </div>
     );
@@ -117,7 +119,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
         color: "#f87171",
         fontSize: "13px",
       }}>
-        <div style={{ fontWeight: 700, marginBottom: "4px" }}>Impossibile caricare la mappa</div>
+        <div style={{ fontWeight: 700, marginBottom: "4px" }}>{tr("Impossibile caricare la mappa")}</div>
         <div style={{ opacity: 0.8 }}>{error}</div>
       </div>
     );
@@ -153,10 +155,10 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
       }}>
         <div style={{ width: "12px", height: "12px", background: "#ef4444", borderRadius: "50%", flexShrink: 0, boxShadow: "0 0 8px rgba(239,68,68,0.6)" }} />
         <div>
-          <div style={{ fontWeight: 700, fontSize: "13px", color: "#f87171" }}>EMERGENZA — {emergenza.sito || "Sito non specificato"}</div>
+          <div style={{ fontWeight: 700, fontSize: "13px", color: "#f87171" }}>{tr("EMERGENZA —")} {emergenza.sito || tr("Sito non specificato")}</div>
           {emergenza.asset_nome && (
             <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-              Asset: {emergenza.asset_nome}
+              {tr("Asset:")} {emergenza.asset_nome}
             </div>
           )}
           {emergenza.indirizzo && (
@@ -164,7 +166,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
           )}
           {!hasCoordsEmergenza && (
             <div style={{ fontSize: "11px", color: "#fbbf24", marginTop: "4px" }}>
-              Geocoding non disponibile — configura l&apos;indirizzo del sito per la visualizzazione sulla mappa
+              {tr("Geocoding non disponibile — configura l'indirizzo del sito per la visualizzazione sulla mappa")}
             </div>
           )}
         </div>
@@ -180,12 +182,12 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
         {/* Colonna sinistra: tecnici consigliati */}
         <div>
           <div style={{ fontSize: "11px", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>
-            Tecnici pi&ugrave; vicini
+            {tr("Tecnici più vicini")}
           </div>
 
           {tecnici_consigliati.length === 0 && (
             <div style={{ color: "#6b7280", fontSize: "13px", padding: "16px 0" }}>
-              Nessun tecnico disponibile trovato.
+              {tr("Nessun tecnico disponibile trovato.")}
             </div>
           )}
 
@@ -223,7 +225,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                     </div>
                   )}
                   {tec.distanza_km === null && (
-                    <div style={{ fontSize: "11px", color: "#4b5563" }}>dist. N/D</div>
+                    <div style={{ fontSize: "11px", color: "#4b5563" }}>{tr("dist. N/D")}</div>
                   )}
                 </div>
 
@@ -234,7 +236,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                     border: `1px solid ${badge.color}44`,
                     borderRadius: "999px",
                   }}>
-                    {badge.label}
+                    {tr(badge.label)}
                   </span>
                   {tec.telefono && (
                     <a
@@ -253,7 +255,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                       onClick={(e) => e.stopPropagation()}
                       style={{ fontSize: "11px", color: "#60a5fa", textDecoration: "none", fontWeight: 700 }}
                     >
-                      Strada Google Maps
+                      {tr("Strada Google Maps")}
                     </a>
                   )}
                 </div>
@@ -273,7 +275,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                         setAssigningId(tec.tecnico_id);
                         await onAssign(tec.tecnico_id);
                       } catch {
-                        notify.error("Assegnazione non completata");
+                        notify.error(tn("Assegnazione non completata"));
                       } finally {
                         setAssigningId(null);
                       }
@@ -292,7 +294,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                       opacity: assigningId === tec.tecnico_id ? 0.7 : 1,
                     }}
                   >
-                    {assigningId === tec.tecnico_id ? "Assegnazione..." : "Assegna questo tecnico"}
+                    {assigningId === tec.tecnico_id ? tr("Assegnazione...") : tr("Assegna questo tecnico")}
                   </button>
                 )}
               </div>
@@ -303,7 +305,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
           {tutti_tecnici.length > 3 && (
             <details style={{ marginTop: "8px" }}>
               <summary style={{ cursor: "pointer", fontSize: "12px", color: "#6b7280", padding: "6px 0" }}>
-                Altri {tutti_tecnici.length - 3} tecnici disponibili
+                {tr("altri {n} tecnici disponibili", { n: tutti_tecnici.length - 3 })}
               </summary>
               <div style={{ marginTop: "8px" }}>
                 {tutti_tecnici.slice(3).map((tec) => {
@@ -331,7 +333,7 @@ export default function EmergencyMap({ ticketId, onAssign }: EmergencyMapProps) 
                           background: badge.bg, color: badge.color,
                           borderRadius: "999px",
                         }}>
-                          {badge.label}
+                          {tr(badge.label)}
                         </span>
                       </div>
                       {tec.distanza_km !== null && (

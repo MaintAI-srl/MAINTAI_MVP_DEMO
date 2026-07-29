@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 import {
   Wrench, ClipboardList, Settings, Search, Pause,
 } from "lucide-react";
@@ -154,8 +155,8 @@ export function LiveClock() {
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-      setDateStr(now.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" }).toUpperCase());
+      setTime(now.toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      setDateStr(now.toLocaleDateString(getLocaleTag(), { weekday: "short", day: "2-digit", month: "short" }).toUpperCase());
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -179,6 +180,7 @@ export function LiveClock() {
 
 // ── Contatore MTTR (con supporto pausa) ───────────────────────────────────────
 export function MttrCounter({ start, paused, pausedAt }: { start?: string; paused: boolean; pausedAt: number }) {
+  const tr = useT();
   const [sec, setSec] = useState(0);
   useEffect(() => {
     if (!start) return;
@@ -208,7 +210,7 @@ export function MttrCounter({ start, paused, pausedAt }: { start?: string; pause
         marginBottom: 6, textTransform: "uppercase",
         display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
       }}>
-        {paused ? <><Pause size={11} strokeWidth={2.5} /> IN PAUSA</> : "MTTR"}
+        {paused ? <><Pause size={11} strokeWidth={2.5} /> {tr("IN PAUSA")}</> : "MTTR"}
       </div>
       <div style={{
         fontSize: "clamp(26px, 7vw, 40px)", fontWeight: 800, fontFamily: "var(--font-mono)",

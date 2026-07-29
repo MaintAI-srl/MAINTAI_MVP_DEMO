@@ -7,6 +7,7 @@ import styles from "./assets.module.css";
 import AssetAnalyticsModal from "../components/AssetAnalyticsModal";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import { ASSET_STATUS_OPTIONS, assetStatusLabel, assetStatusStyle } from "../lib/assetStatus";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Impianto = { id: number; nome: string };
 type Asset = {
@@ -35,6 +36,7 @@ type Asset = {
 };
 
 export default function AssetsPage() {
+  const tr = useT();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [impianti, setImpianti] = useState<Impianto[]>([]);
 
@@ -65,7 +67,7 @@ export default function AssetsPage() {
     loadAssets();
     apiGet<Impianto[]>("/impianti")
       .then(d => { if (Array.isArray(d)) setImpianti(d); })
-      .catch(() => notify.error("Errore caricamento impianti."));
+      .catch(() => notify.error(tn("Errore caricamento impianti.")));
   }, []);
 
   useEffect(() => {
@@ -99,7 +101,7 @@ export default function AssetsPage() {
       const d = await apiGet<Asset[]>("/assets");
       setAssets(d);
     } catch {
-      notify.error("Errore caricamento asset.");
+      notify.error(tn("Errore caricamento asset."));
     }
   }
 
@@ -136,9 +138,9 @@ export default function AssetsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!nome.trim()) { notify.error("Il campo 'Nome asset' è obbligatorio."); return; }
-    if (!area.trim()) { notify.error("Il campo 'Area' è obbligatorio."); return; }
-    if (!impiantoId) { notify.error("Devi selezionare un impianto."); return; }
+    if (!nome.trim()) { notify.error(tn("Il campo 'Nome asset' è obbligatorio.")); return; }
+    if (!area.trim()) { notify.error(tn("Il campo 'Area' è obbligatorio.")); return; }
+    if (!impiantoId) { notify.error(tn("Devi selezionare un impianto.")); return; }
 
     try {
       setIsSaving(true);
@@ -244,7 +246,7 @@ export default function AssetsPage() {
         return (
           <div style={{ display: "flex", gap: 4 }}>
             {a.weather_sunny_required && (
-              <span title="Richiede Sole" style={{ fontSize: 10, background: "rgba(251,191,36,0.2)", color: "#fbbf24", padding: "1px 4px", borderRadius: 4 }}>☀️</span>
+              <span title={tr("Richiede Sole")} style={{ fontSize: 10, background: "rgba(251,191,36,0.2)", color: "#fbbf24", padding: "1px 4px", borderRadius: 4 }}>☀️</span>
             )}
             {a.weather_max_wind_kmh && (
               <span title={`Vento max ${a.weather_max_wind_kmh} km/h`} style={{ fontSize: 10, background: "rgba(59,130,246,0.2)", color: "#60a5fa", padding: "1px 4px", borderRadius: 4 }}>💨 {a.weather_max_wind_kmh}</span>
@@ -272,27 +274,27 @@ export default function AssetsPage() {
               onClick={() => startEdit(asset)}
               style={{ fontSize: 11, background: "none", color: "#818cf8", border: "1px solid #818cf8", padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}
             >
-              Modifica
+              {tr("Modifica")}
             </button>
             <button
               onClick={() => setSelectedAnalyticsAsset(asset)}
               style={{ fontSize: 11, background: "#818cf8", color: "#fff", border: "none", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
             >
-              📊 Stats
+              {tr("📊 Stats")}
             </button>
           </div>
         );
       },
     },
-  ], []);
+  ], [tr]);
 
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <div className={styles.eyebrow}>Registry</div>
-          <h1 className={styles.title}>Asset (Weather Aware)</h1>
-          <p className={styles.subtitle}>Anagrafica asset con vincoli ambientali automatici per la pianificazione.</p>
+          <div className={styles.eyebrow}>{tr("Registry")}</div>
+          <h1 className={styles.title}>{tr("Asset (Weather Aware)")}</h1>
+          <p className={styles.subtitle}>{tr("Anagrafica asset con vincoli ambientali automatici per la pianificazione.")}</p>
         </div>
       </section>
 
@@ -300,74 +302,74 @@ export default function AssetsPage() {
       <div className={styles.grid}>
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2 className={styles.cardTitle}>{editingId !== null ? `Modifica asset #${editingId}` : "Nuovo asset"}</h2>
+            <h2 className={styles.cardTitle}>{editingId !== null ? `Modifica asset #${editingId}` : tr("Nuovo asset")}</h2>
           </div>
 
           <form onSubmit={handleSubmit} className={styles.form}>
             <div className={styles.field}>
-              <label className={styles.label}>Nome asset *</label>
-              <input required className={styles.input} value={nome} onChange={e => setNome(e.target.value)} placeholder="Pompa P-01" />
+              <label className={styles.label}>{tr("Nome asset *")}</label>
+              <input required className={styles.input} value={nome} onChange={e => setNome(e.target.value)} placeholder={tr("Pompa P-01")} />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>Codice</label>
-              <input className={styles.input} value={codice} onChange={e => setCodice(e.target.value)} placeholder="ID manuale" />
+              <label className={styles.label}>{tr("Codice")}</label>
+              <input className={styles.input} value={codice} onChange={e => setCodice(e.target.value)} placeholder={tr("ID manuale")} />
             </div>
 
             <div className={`${styles.field} ${styles.span2}`}>
-              <label className={styles.label}>Descrizione</label>
+              <label className={styles.label}>{tr("Descrizione")}</label>
               <textarea className={`${styles.input} ${styles.textarea}`} value={descrizione} onChange={e => setDescrizione(e.target.value)} />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>Impianto *</label>
+              <label className={styles.label}>{tr("Impianto *")}</label>
               <select required className={styles.input} value={impiantoId} onChange={e => setImpiantoId(e.target.value)}>
-                <option value="">Seleziona...</option>
+                <option value="">{tr("Seleziona...")}</option>
                 {impianti.map(imp => <option key={imp.id} value={String(imp.id)}>{imp.nome}</option>)}
               </select>
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>Area *</label>
+              <label className={styles.label}>{tr("Area *")}</label>
               <input required className={styles.input} value={area} onChange={e => setArea(e.target.value)} />
             </div>
 
             {/* Weather Constraints */}
             <div className={`${styles.field} ${styles.span2}`} style={{ background: "rgba(59,130,246,0.05)", padding: 12, borderRadius: 8, border: "1px solid rgba(59,130,246,0.1)" }}>
-              <label className={styles.label} style={{ color: "#818cf8", marginBottom: 12, display: "block" }}>Vincoli Meteo (Auto-Scheduling)</label>
+              <label className={styles.label} style={{ color: "#818cf8", marginBottom: 12, display: "block" }}>{tr("Vincoli Meteo (Auto-Scheduling)")}</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "center" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={weatherSunnyRequired} onChange={e => setWeatherSunnyRequired(e.target.checked)} />
-                  Richiede Sole
+                  {tr("Richiede Sole")}
                 </label>
                 <div>
-                  <label style={{ fontSize: 10, color: "var(--text-muted)", display: "block" }}>Vento Max (km/h)</label>
-                  <input type="number" className={styles.input} value={weatherMaxWindKmh} onChange={e => setWeatherMaxWindKmh(e.target.value)} placeholder="es. 30" />
+                  <label style={{ fontSize: 10, color: "var(--text-muted)", display: "block" }}>{tr("Vento Max (km/h)")}</label>
+                  <input type="number" className={styles.input} value={weatherMaxWindKmh} onChange={e => setWeatherMaxWindKmh(e.target.value)} placeholder={tr("es. 30")} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 10, color: "var(--text-muted)", display: "block" }}>Pioggia Max (mm/h)</label>
-                  <input type="number" className={styles.input} value={weatherMaxRainMm} onChange={e => setWeatherMaxRainMm(e.target.value)} placeholder="es. 2" />
+                  <label style={{ fontSize: 10, color: "var(--text-muted)", display: "block" }}>{tr("Pioggia Max (mm/h)")}</label>
+                  <input type="number" className={styles.input} value={weatherMaxRainMm} onChange={e => setWeatherMaxRainMm(e.target.value)} placeholder={tr("es. 2")} />
                 </div>
               </div>
             </div>
 
             <div className={`${styles.field} ${styles.span2}`}>
-              <label className={styles.label}>Stato operativo</label>
+              <label className={styles.label}>{tr("Stato operativo")}</label>
               <select className={styles.input} value={stato} onChange={e => setStato(e.target.value)}>
-                {ASSET_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {ASSET_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{tr(s.label)}</option>)}
               </select>
             </div>
 
             <div className={`${styles.field} ${styles.span2}`}>
-              <label className={styles.label}>Limitazioni (testo)</label>
+              <label className={styles.label}>{tr("Limitazioni (testo)")}</label>
               <input className={styles.input} value={limitazioni} onChange={e => setLimitazioni(e.target.value)} />
             </div>
 
             <div className={`${styles.actions} ${styles.span2}`}>
               <button className={styles.button} type="submit" disabled={isSaving}>
-                {isSaving ? "Salvataggio..." : "Salva Asset"}
+                {isSaving ? "Salvataggio..." : tr("Salva Asset")}
               </button>
-              {editingId !== null && <button type="button" onClick={cancelEdit} className={styles.button} style={{ background: "rgba(75,85,99,0.2)", marginLeft: 8 }}>Annulla</button>}
+              {editingId !== null && <button type="button" onClick={cancelEdit} className={styles.button} style={{ background: "rgba(75,85,99,0.2)", marginLeft: 8 }}>{tr("Annulla")}</button>}
             </div>
           </form>
         </section>
@@ -378,7 +380,7 @@ export default function AssetsPage() {
               className={styles.input}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Cerca per nome, codice, sito, impianto..."
+              placeholder={tr("Cerca per nome, codice, sito, impianto...")}
               style={{ flex: 1 }}
             />
             <span style={{ fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>

@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { Activity, AlertTriangle, Clock3, Gauge, RefreshCw, Search } from "lucide-react";
 import { apiGet, apiPost } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 type ConditionTask = {
   task_id: number;
@@ -37,15 +38,16 @@ type ConditionsResponse = {
 
 function fmtDate(iso: string | null) {
   if (!iso) return "-";
-  return new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString(getLocaleTag(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function fmtHours(value: number | null | undefined) {
   if (value === null || value === undefined) return "-";
-  return `${value.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`;
+  return `${value.toLocaleString(getLocaleTag(), { maximumFractionDigits: 1 })} h`;
 }
 
 export default function CondizioniPage() {
+  const tr = useT();
   const [items, setItems] = useState<AssetCondition[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -72,14 +74,14 @@ export default function CondizioniPage() {
     const raw = editing[assetId];
     const value = Number(raw);
     if (!Number.isFinite(value) || value < 0) {
-      notify.error("Inserisci ore di funzionamento valide.");
+      notify.error(tn("Inserisci ore di funzionamento valide."));
       return;
     }
 
     setSavingId(assetId);
     try {
       await apiPost(`/conditions/running-hours/assets/${assetId}`, { value });
-      notify.success("Lettura ore registrata.");
+      notify.success(tn("Lettura ore registrata."));
       setEditing(prev => ({ ...prev, [assetId]: "" }));
       await load();
     } catch (err: unknown) {
@@ -110,17 +112,17 @@ export default function CondizioniPage() {
       <header style={{ display: "flex", justifyContent: "space-between", gap: 24, alignItems: "flex-start", marginBottom: 22 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#10d9b0", fontWeight: 800, marginBottom: 7 }}>
-            Manutenzione su condizione
+            {tr("Manutenzione su condizione")}
           </div>
           <h1 className="page-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.05 }}>
-            Dati Misure Asset
+            {tr("Dati Misure Asset")}
           </h1>
           <p className="page-subtitle" style={{ margin: "7px 0 0", maxWidth: 760 }}>
-            Registra letture reali per singolo asset. I task configurati su condizione scattano solo sulle ore del proprio asset.
+            {tr("Registra letture reali per singolo asset. I task configurati su condizione scattano solo sulle ore del proprio asset.")}
           </p>
         </div>
         <button type="button" onClick={load} disabled={loading} style={buttonStyle}>
-          <RefreshCw size={15} /> Aggiorna
+          <RefreshCw size={15} /> {tr("Aggiorna")}
         </button>
       </header>
 
@@ -134,14 +136,14 @@ export default function CondizioniPage() {
       <section style={panelStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid rgba(91,143,255,0.10)" }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
-            Letture asset
+            {tr("Letture asset")}
           </div>
           <label style={{ position: "relative", minWidth: 320 }}>
             <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Cerca asset, sito, impianto..."
+              placeholder={tr("Cerca asset, sito, impianto...")}
               style={searchStyle}
             />
           </label>
@@ -151,7 +153,7 @@ export default function CondizioniPage() {
           <table style={{ width: "100%", minWidth: 1080, borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
-                {["Asset", "Sito / Impianto", "Ore attuali", "Ultima lettura", "Nuova lettura", "Task su condizione"].map(label => (
+                {[tr("Asset"), tr("Sito / Impianto"), tr("Ore attuali"), "Ultima lettura", "Nuova lettura", tr("Task su condizione")].map(label => (
                   <th key={label} style={thStyle}>{label}</th>
                 ))}
               </tr>
@@ -196,13 +198,13 @@ export default function CondizioniPage() {
                         disabled={savingId === item.asset_id}
                         style={{ ...smallButtonStyle, opacity: savingId === item.asset_id ? 0.6 : 1 }}
                       >
-                        Salva
+                        {tr("Salva")}
                       </button>
                     </div>
                   </td>
                   <td style={tdStyle}>
                     {item.condition_tasks.length === 0 ? (
-                      <span style={{ color: "var(--text-muted)" }}>Nessun task configurato</span>
+                      <span style={{ color: "var(--text-muted)" }}>{tr("Nessun task configurato")}</span>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {item.condition_tasks.slice(0, 3).map(task => (
@@ -231,7 +233,7 @@ export default function CondizioniPage() {
               {!loading && filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ padding: "44px 18px", textAlign: "center", color: "var(--text-muted)", borderTop: "1px solid rgba(91,143,255,0.08)" }}>
-                    Nessun asset trovato.
+                    {tr("Nessun asset trovato.")}
                   </td>
                 </tr>
               )}

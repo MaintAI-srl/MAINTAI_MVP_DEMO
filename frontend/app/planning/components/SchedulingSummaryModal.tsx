@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { SchedulingSummary } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 function fmtH(minutes?: number): string {
   if (minutes == null) return "—";
@@ -25,6 +26,7 @@ export default function SchedulingSummaryModal({
   summary: SchedulingSummary;
   onClose: () => void;
 }) {
+  const tr = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -75,7 +77,7 @@ export default function SchedulingSummaryModal({
       >
         <button
           onClick={onClose}
-          aria-label="Chiudi"
+          aria-label={tr("Chiudi")}
           style={{
             position: "absolute", top: 14, right: 14, width: 28, height: 28,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -86,10 +88,10 @@ export default function SchedulingSummaryModal({
 
         <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--cobalt)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
-            Generazione piano completata
+            {tr("Generazione piano completata")}
           </div>
           <div style={{ fontSize: 18, fontWeight: 800 }}>
-            Riepilogo auto-scheduling
+            {tr("Riepilogo auto-scheduling")}
           </div>
         </div>
 
@@ -102,7 +104,7 @@ export default function SchedulingSummaryModal({
                 borderRadius: 10, padding: "12px 14px",
               }}>
                 <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>
-                  {k.label}
+                  {tr(k.label)}
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1 }}>{k.value}</div>
                 {k.sub && <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>{k.sub}</div>}
@@ -114,7 +116,7 @@ export default function SchedulingSummaryModal({
           {summary.technicians && summary.technicians.length > 0 && (
             <div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
-                Saturazione per tecnico
+                {tr("Saturazione per tecnico")}
                 {" · "}
                 <span style={{ color: "#22c55e" }}>{summary.technicians_undersaturated ?? 0} sotto-saturi</span>
                 {" / "}
@@ -148,7 +150,7 @@ export default function SchedulingSummaryModal({
               border: "none", color: "#fff", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 800,
             }}
           >
-            Chiudi
+            {tr("Chiudi")}
           </button>
         </div>
       </div>

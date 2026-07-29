@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGet } from "../lib/api";
+import { useT } from "@/app/lib/i18n";
 
 type TenantOption = {
   id: number;
@@ -29,6 +30,7 @@ export function setTenantContext(tenantId: string | null) {
  * l'header X-Tenant-Id del tenant selezionato.
  */
 export default function TenantContextSwitcher({ defaultTenantName }: { defaultTenantName?: string }) {
+  const tr = useT();
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [current, setCurrent] = useState<string>("");
   const [loadError, setLoadError] = useState(false);
@@ -62,7 +64,7 @@ export default function TenantContextSwitcher({ defaultTenantName }: { defaultTe
   return (
     <div style={{ marginBottom: 10 }}>
       <label style={{ fontSize: 8.5, color: "rgba(91,143,255,0.4)", display: "block", marginBottom: 4, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700 }}>
-        Contesto Tenant
+        {tr("Contesto Tenant")}
       </label>
       <select
         style={{
@@ -80,7 +82,7 @@ export default function TenantContextSwitcher({ defaultTenantName }: { defaultTe
         onChange={(e) => handleChange(e.target.value)}
       >
         <option value="">
-          {defaultTenantName ? `Predefinito — ${defaultTenantName}` : "Predefinito (tenant del login)"}
+          {defaultTenantName ? `Predefinito — ${defaultTenantName}` : tr("Predefinito (tenant del login)")}
         </option>
         {tenants.map((t) => (
           <option key={t.id} value={String(t.id)}>
@@ -90,13 +92,13 @@ export default function TenantContextSwitcher({ defaultTenantName }: { defaultTe
       </select>
       {loadError && (
         <div style={{ fontSize: 10, color: "#f59e0b", marginTop: 4 }}>
-          Lista clienti non disponibile — riprova più tardi.
+          {tr("Lista clienti non disponibile — riprova più tardi.")}
         </div>
       )}
       {activeTenant && (
         <div style={{ fontSize: 10, color: "#5b8fff", marginTop: 5, display: "flex", alignItems: "center", gap: 5, fontWeight: 700, letterSpacing: "0.06em" }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#5b8fff", display: "inline-block" }} />
-          <span>OPERI SU: {activeTenant.nome.toUpperCase()}</span>
+          <span>{tr("OPERI SU:")} {activeTenant.nome.toUpperCase()}</span>
         </div>
       )}
     </div>

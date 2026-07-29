@@ -5,6 +5,8 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, us
 import { apiPatch, apiGet } from "../lib/api";
 import { localDatetimeStr, localDatetimeApiStr, datetimeLocalToApi } from "../lib/datetime";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
+import { labelPriorita, labelStato } from "@/app/lib/i18n/domain";
 
 type Tecnico = { id: number; nome: string; cognome: string; specializzazione?: string | null };
 
@@ -35,6 +37,7 @@ const PRIO_COLORS: Record<string, string> = {
 };
 
 function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOverlay?: boolean }) {
+  const tr = useT();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: ticket.id });
 
   return (
@@ -71,7 +74,7 @@ function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOve
       )}
       {ticket.sito_name && (
         <div style={{ fontSize: 11, color: "#a6f6ff", display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-          <span style={{ opacity: 0.75 }}>Sito</span> {ticket.sito_name}
+          <span style={{ opacity: 0.75 }}>{tr("Sito")}</span> {ticket.sito_name}
         </div>
       )}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
@@ -81,7 +84,7 @@ function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOve
           background: `${PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)"}15`,
           border: `1px solid ${PRIO_COLORS[ticket.priorita?.toLowerCase()] ?? "var(--text-secondary)"}30`,
         }}>
-          {ticket.priorita}
+          {labelPriorita(ticket.priorita)}
         </span>
         <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "var(--border-subtle)", color: "var(--text-muted)", border: "1px solid var(--border-default)", fontWeight: 600 }}>
           {ticket.fascia_oraria}
@@ -93,12 +96,12 @@ function KanbanCard({ ticket, isOverlay = false }: { ticket: KanbanTicket; isOve
         )}
         {ticket.planned_start && (
           <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 600 }}>
-            📅 {new Date(ticket.planned_start).toLocaleDateString("it-IT", { day: '2-digit', month: 'short' })}
+            📅 {new Date(ticket.planned_start).toLocaleDateString(getLocaleTag(), { day: '2-digit', month: 'short' })}
           </span>
         )}
         {ticket.is_manual_plan && ticket.stato === "Pianificato" && (
           <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(234,179,8,0.1)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)", fontWeight: 700 }}>
-            ⚡ MANUALE
+            {tr("⚡ MANUALE")}
           </span>
         )}
       </div>
@@ -119,6 +122,7 @@ function KanbanColumn({
   search: string;
   onSearchChange: (s: string) => void;
 }) {
+  const tr = useT();
   const { setNodeRef, isOver } = useDroppable({ id: stato });
   const colors = COL_COLORS[stato];
 
@@ -148,7 +152,7 @@ function KanbanColumn({
         {/* Title row */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 9, height: 9, borderRadius: "50%", background: colors.header, boxShadow: `0 0 8px ${colors.header}50`, flexShrink: 0 }} />
-          <span style={{ fontWeight: 800, fontSize: 13, color: colors.header, textTransform: "uppercase", letterSpacing: "0.5px" }}>{stato}</span>
+          <span style={{ fontWeight: 800, fontSize: 13, color: colors.header, textTransform: "uppercase", letterSpacing: "0.5px" }}>{labelStato(stato)}</span>
           <span style={{
             marginLeft: "auto", fontSize: 11, fontWeight: 700,
             color: search && tickets.length < totalCount ? colors.header : "var(--text-muted)",
@@ -184,7 +188,7 @@ function KanbanColumn({
           background: `${colors.bg}`,
           animation: "pulse 1s ease-in-out infinite",
         }}>
-          ↓ Rilascia qui per {stato.toLowerCase()}
+          {tr("↓ Rilascia qui per")} {labelStato(stato).toLowerCase()}
         </div>
       )}
       {tickets.length === 0 && !isOver ? (
@@ -208,6 +212,7 @@ function KanbanPianificaModal({
   onConfirm: (date: string, tecnicoId: number | null) => void;
   onCancel: () => void;
 }) {
+  const tr = useT();
   const getISO = (days: number, hours: number) => {
     const d = new Date();
     d.setDate(d.getDate() + days);
@@ -244,12 +249,12 @@ function KanbanPianificaModal({
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, justifyContent: "center" }}>
           <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📅</div>
-          <div style={{ fontWeight: 900, fontSize: 19, color: "#a78bfa" }}>Pianifica intervento</div>
+          <div style={{ fontWeight: 900, fontSize: 19, color: "#a78bfa" }}>{tr("Pianifica intervento")}</div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 28, textAlign: "center" }}>Imposta data e assegna il tecnico responsabile</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 28, textAlign: "center" }}>{tr("Imposta data e assegna il tecnico responsabile")}</div>
 
         {/* Presets rapidi */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Accesso rapido</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{tr("Accesso rapido")}</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
           {presets.map(p => {
             const active = selectedPreset === p.label;
@@ -261,20 +266,20 @@ function KanbanPianificaModal({
                 border: active ? "1.5px solid #a78bfa" : "1px solid rgba(167,139,250,0.2)",
                 boxShadow: active ? "0 0 12px rgba(167,139,250,0.3)" : "none",
               }}>
-                {active ? "✓ " : ""}{p.label}
+                {active ? "✓ " : ""}{tr(p.label)}
               </button>
             );
           })}
         </div>
 
         {/* Data */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Data e ora</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{tr("Data e ora")}</div>
         <input type="datetime-local" value={date} onChange={e => handleDateChange(e.target.value)}
           style={{ width: "100%", background: "var(--surface-3)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 10, color: "var(--text-primary)", padding: "12px 16px", fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box", marginBottom: 24 }} />
 
         {/* Tecnico — OBBLIGATORIO */}
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>
-          Assegna tecnico <span style={{ color: "#f87171", fontWeight: 800 }}>*</span>
+          {tr("Assegna tecnico")} <span style={{ color: "#f87171", fontWeight: 800 }}>*</span>
         </div>
         <select
           value={tecnicoId ?? ""}
@@ -287,7 +292,7 @@ function KanbanPianificaModal({
             boxShadow: tecnicoId ? "0 0 10px rgba(167,139,250,0.15)" : "none",
           }}
         >
-          <option value="">— Seleziona tecnico —</option>
+          <option value="">{tr("— Seleziona tecnico —")}</option>
           {tecnici.map(t => (
             <option key={t.id} value={t.id}>
               {t.nome} {t.cognome}{t.specializzazione ? ` · ${t.specializzazione}` : ""}
@@ -296,7 +301,7 @@ function KanbanPianificaModal({
         </select>
         {!tecnicoId && (
           <div style={{ fontSize: 11, color: "#f87171", marginBottom: 24, display: "flex", alignItems: "center", gap: 5 }}>
-            <span>⚠</span> Il tecnico è obbligatorio per pianificare
+            <span>⚠</span> {tr("Il tecnico è obbligatorio per pianificare")}
           </div>
         )}
         {tecnicoId && <div style={{ marginBottom: 24 }} />}
@@ -305,11 +310,11 @@ function KanbanPianificaModal({
         <div style={{ display: "flex", gap: 12 }}>
           <button onClick={onCancel}
             style={{ flex: 1, padding: "13px", background: "var(--surface-3)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
-            Annulla
+            {tr("Annulla")}
           </button>
           <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(date, tecnicoId)}
             style={{ flex: 2, padding: "13px", background: canConfirm ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(167,139,250,0.1)", color: canConfirm ? "#fff" : "rgba(167,139,250,0.4)", border: "none", borderRadius: 12, cursor: canConfirm ? "pointer" : "not-allowed", fontWeight: 800, fontSize: 14, boxShadow: canConfirm ? "0 4px 20px rgba(124,58,237,0.4)" : "none", transition: "all 0.2s" }}>
-            ✓ Conferma pianificazione
+            {tr("✓ Conferma pianificazione")}
           </button>
         </div>
       </div>

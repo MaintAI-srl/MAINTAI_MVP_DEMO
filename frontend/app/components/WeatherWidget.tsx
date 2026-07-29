@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 import { 
   Sun, 
   Cloud, 
@@ -37,6 +38,7 @@ type WeatherData = {
 };
 
 export default function WeatherWidget() {
+  const tr = useT();
   const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
@@ -84,7 +86,7 @@ export default function WeatherWidget() {
           minTemps: json.daily.temperature_2m_min,
         }
       });
-      setLastUpdated(new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }));
+      setLastUpdated(new Date().toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" }));
     } catch (err) {
       console.error("Weather fetch failed:", err);
     } finally {
@@ -143,7 +145,7 @@ export default function WeatherWidget() {
 
   const getDayName = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString("it-IT", { weekday: "short" }).toUpperCase();
+    return date.toLocaleDateString(getLocaleTag(), { weekday: "short" }).toUpperCase();
   };
 
   if (loading && !data) {
@@ -206,7 +208,7 @@ export default function WeatherWidget() {
                 style={{ transform: `rotate(${data?.current.winddirection ?? 0}deg)`, color: "var(--blue-bright)" }} 
                 fill="var(--blue-bright)" 
               />
-              <span style={{ fontSize: "8px", fontWeight: 700, fontFamily: "var(--font-mono)" }}>{Math.round(data?.current.windspeed ?? 0)}<span style={{ fontSize: "7px" }}>km/h</span></span>
+              <span style={{ fontSize: "8px", fontWeight: 700, fontFamily: "var(--font-mono)" }}>{Math.round(data?.current.windspeed ?? 0)}<span style={{ fontSize: "7px" }}>{tr("km/h")}</span></span>
             </div>
           </div>
 
@@ -242,7 +244,7 @@ export default function WeatherWidget() {
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", borderBottom: "1px solid var(--border-dim)", paddingBottom: "10px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <Calendar size={13} color="var(--accent)" />
-                  <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--text-muted)" }}>PREVISIONE SETTIMANALE</span>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--text-muted)" }}>{tr("PREVISIONE SETTIMANALE")}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "var(--text-primary)", fontWeight: 700 }}>
                   <Wind size={12} color="var(--blue-bright)" /> {data.current.windspeed} km/h
@@ -254,7 +256,7 @@ export default function WeatherWidget() {
                   const ui = getWeatherUI(data.daily.codes[i], 14);
                   return (
                     <div key={date} style={{ display: "grid", gridTemplateColumns: "60px 1fr 30px 30px", alignItems: "center", gap: "10px", padding: "4px 0" }}>
-                      <span style={{ fontSize: "10px", fontWeight: 800, color: i === 0 ? "var(--accent)" : "var(--text-soft)" }}>{i === 0 ? "OGGI" : getDayName(date)}</span>
+                      <span style={{ fontSize: "10px", fontWeight: 800, color: i === 0 ? "var(--accent)" : "var(--text-soft)" }}>{i === 0 ? tr("OGGI") : getDayName(date)}</span>
                       <div style={{ display: "flex", color: ui.color }}>{ui.icon}</div>
                       <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-primary)", textAlign: "right" }}>{Math.round(data.daily.maxTemps[i])}°</span>
                       <span style={{ fontSize: "11px", fontWeight: 400, color: "var(--text-muted)", textAlign: "right" }}>{Math.round(data.daily.minTemps[i])}°</span>
@@ -265,9 +267,9 @@ export default function WeatherWidget() {
               <div style={{ marginTop: "12px", paddingTop: "8px", borderTop: "1px solid var(--border-dim)", fontSize: "9px", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <RefreshCw size={10} className={loading ? "animate-spin" : ""} />
-                  Ultimo aggiornamento: {lastUpdated}
+                  {tr("Ultimo aggiornamento:")} {lastUpdated}
                 </div>
-                <div style={{ fontSize: "8px" }}>Dati Real-Time</div>
+                <div style={{ fontSize: "8px" }}>{tr("Dati Real-Time")}</div>
               </div>
             </div>
         )}
@@ -289,17 +291,17 @@ export default function WeatherWidget() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-                 <span style={{ fontSize: "11px", fontWeight: 800 }}>IMPOSTAZIONI LOCALITÀ</span>
+                 <span style={{ fontSize: "11px", fontWeight: 800 }}>{tr("IMPOSTAZIONI LOCALITÀ")}</span>
                  <X size={14} onClick={() => setShowSettings(false)} style={{ cursor: "pointer" }} />
               </div>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                  <div>
-                    <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Cerca Città</label>
+                    <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>{tr("Cerca Città")}</label>
                     <div style={{ position: "relative", display: "flex", gap: "6px", marginTop: "4px" }}>
                         <input 
                           style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "4px", padding: "6px 30px 6px 8px", width: "100%", color: "white", fontSize: "11px" }}
-                          placeholder="es. Milano, Roma..."
+                          placeholder={tr("es. Milano, Roma...")}
                           value={editForm.name}
                           onChange={(e) => setEditForm({...editForm, name: e.target.value.toUpperCase()})}
                           onKeyDown={(e) => e.key === 'Enter' && geocodeCity()}
@@ -321,7 +323,7 @@ export default function WeatherWidget() {
 
                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", opacity: 0.6 }}>
                     <div>
-                        <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Lat</label>
+                        <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>{tr("Lat")}</label>
                         <input 
                           type="number"
                           readOnly
@@ -330,7 +332,7 @@ export default function WeatherWidget() {
                         />
                     </div>
                     <div>
-                        <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Lon</label>
+                        <label style={{ fontSize: "8px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>{tr("Lon")}</label>
                         <input 
                           type="number"
                           readOnly
@@ -345,7 +347,7 @@ export default function WeatherWidget() {
                   disabled={searching || !editForm.lat}
                   style={{ background: "var(--blue)", border: "none", color: "white", padding: "10px", borderRadius: "6px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginTop: "4px" }}
                  >
-                   <Check size={14} /> APPLICA LOCALITÀ
+                   <Check size={14} /> {tr("APPLICA LOCALITÀ")}
                  </button>
               </div>
             </div>

@@ -7,6 +7,7 @@ import { useAuth } from "../../lib/auth";
 import type { ModuleStatus, ModulesResponse } from "../../lib/modules";
 import { notify } from "@/lib/toast";
 import { getTenantContext } from "../../components/TenantContextSwitcher";
+import { useT, tn } from "@/app/lib/i18n";
 
 const CATEGORY_LABELS: Record<string, string> = {
   operazioni: "Operazioni",
@@ -24,6 +25,7 @@ function categoryLabel(category: string) {
 }
 
 export default function FunzionalitaPage() {
+  const tr = useT();
   const { reloadModules } = useAuth();
   const [modules, setModules] = useState<ModuleStatus[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -61,7 +63,7 @@ export default function FunzionalitaPage() {
       setSelected(new Set(rows.filter((module) => module.enabled).map((module) => module.id)));
       setHasOverride(Boolean(data.has_override));
       await reloadModules();
-      notify.success("Override rimosso: il cliente usa la configurazione globale");
+      notify.success(tn("Override rimosso: il cliente usa la configurazione globale"));
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Errore ripristino configurazione");
     } finally {
@@ -142,9 +144,9 @@ export default function FunzionalitaPage() {
     <main style={{ minHeight: "100vh", background: "var(--surface-1)", color: "var(--text-primary)", padding: "32px 24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)" }}>Funzionalita MaintAI</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)" }}>{tr("Funzionalita MaintAI")}</div>
           <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: 13, maxWidth: 760 }}>
-            Attiva o disattiva i moduli visibili nell&apos;applicazione. Le dipendenze vengono gestite automaticamente.
+            {tr("Attiva o disattiva i moduli visibili nell'applicazione. Le dipendenze vengono gestite automaticamente.")}
           </p>
           <div style={{
             marginTop: 10,
@@ -160,8 +162,8 @@ export default function FunzionalitaPage() {
             color: tenantContext ? "#93c5fd" : "var(--text-muted)",
           }}>
             {tenantContext
-              ? `Stai configurando il cliente del contesto attivo (tenant #${tenantContext})${hasOverride ? " — override attivo" : " — nessun override, eredita la config globale"}`
-              : "Stai configurando la configurazione GLOBALE (vale per tutti i clienti senza override)"}
+              ? `Stai configurando il cliente del contesto attivo (tenant #${tenantContext})${hasOverride ? tr(" — override attivo") : tr(" — nessun override, eredita la config globale")}`
+              : tr("Stai configurando la configurazione GLOBALE (vale per tutti i clienti senza override)")}
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -171,9 +173,9 @@ export default function FunzionalitaPage() {
               onClick={resetOverride}
               disabled={loading || saving}
               style={{ ...secondaryButton, color: "#f59e0b", borderColor: "rgba(245,158,11,.4)" }}
-              title="Rimuove l'override: il cliente torna alla configurazione globale"
+              title={tr("Rimuove l'override: il cliente torna alla configurazione globale")}
             >
-              Ripristina globale
+              {tr("Ripristina globale")}
             </button>
           )}
           <button
@@ -181,7 +183,7 @@ export default function FunzionalitaPage() {
             disabled={loading || saving}
             style={secondaryButton}
           >
-            Aggiorna
+            {tr("Aggiorna")}
           </button>
           <button
             onClick={save}
@@ -192,13 +194,13 @@ export default function FunzionalitaPage() {
               cursor: !dirty || saving ? "not-allowed" : "pointer",
             }}
           >
-            {saving ? "Salvataggio..." : "Salva modifiche"}
+            {saving ? "Salvataggio..." : tr("Salva modifiche")}
           </button>
         </div>
       </header>
 
       {loading ? (
-        <div style={panelStyle}>Caricamento moduli...</div>
+        <div style={panelStyle}>{tr("Caricamento moduli...")}</div>
       ) : (
         <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
           {Object.entries(grouped).map(([category, rows]) => (
@@ -227,7 +229,7 @@ export default function FunzionalitaPage() {
                         cursor: blocked ? "not-allowed" : "pointer",
                         opacity: blocked ? 0.6 : 1,
                       }}
-                      title={blocked ? "Spenta nella configurazione globale: attivala prima a livello globale" : undefined}
+                      title={blocked ? tr("Spenta nella configurazione globale: attivala prima a livello globale") : undefined}
                     >
                       <input
                         type="checkbox"
@@ -240,14 +242,14 @@ export default function FunzionalitaPage() {
                         <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <strong style={{ fontSize: 14 }}>{module.name}</strong>
                           <code style={codePill}>{module.id}</code>
-                          {blocked && <span style={blockedPill}>spenta globalmente</span>}
+                          {blocked && <span style={blockedPill}>{tr("spenta globalmente")}</span>}
                         </span>
                         <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45, marginTop: 5 }}>
                           {module.description}
                         </span>
                         {module.requires.length > 0 && (
                           <span style={{ display: "block", fontSize: 11, color: "#93c5fd", marginTop: 7 }}>
-                            Richiede: {module.requires.join(", ")}
+                            {tr("Richiede:")} {module.requires.join(", ")}
                           </span>
                         )}
                       </span>

@@ -23,6 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Star, Sparkles } from "lucide-react";
 import { useAuth } from "./lib/auth";
 import { getVisibleNavGroups, type NavItem } from "./lib/navigation";
+import { useT } from "@/app/lib/i18n";
 
 const TILE_ACCENTS = [
   { from: "#5b8fff", to: "#6c63ff", glow: "rgba(91,143,255,0.24)" },
@@ -103,6 +104,7 @@ function SortableAppTile({
   onOpen: (item: LaunchpadItem) => void;
   onToggleFavorite: (id: string) => void;
 }) {
+  const tr = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId });
   const Icon = item.icon;
   const accent = TILE_ACCENTS[accentIndex % TILE_ACCENTS.length];
@@ -134,7 +136,7 @@ function SortableAppTile({
         <span className="home-app-icon">
           <Icon size={compact ? 31 : 36} strokeWidth={1.75} />
         </span>
-        <span className="home-app-title">{item.label}</span>
+        <span className="home-app-title">{tr(item.label)}</span>
       </button>
       <button
         type="button"
@@ -154,6 +156,7 @@ function SortableAppTile({
 }
 
 export default function Home() {
+  const tr = useT();
   const router = useRouter();
   const { user, isModuleEnabled } = useAuth();
   const [layout, setLayout] = useState<HomeLayoutState | null>(null);
@@ -282,10 +285,10 @@ export default function Home() {
         <div className="home-hero-copy">
           <div className="home-kicker">
             <Sparkles size={14} strokeWidth={1.8} />
-            MaintAI Home
+            {tr("MaintAI Home")}
           </div>
-          <h1>Ciao, {user?.username ?? "utente"}.</h1>
-          <p>Le funzioni principali sono sempre qui: grandi, rapide e ordinate come preferisci.</p>
+          <h1>{tr("Ciao,")} {user?.username ?? tr("utente")}.</h1>
+          <p>{tr("Le funzioni principali sono sempre qui: grandi, rapide e ordinate come preferisci.")}</p>
         </div>
       </section>
 
@@ -293,7 +296,7 @@ export default function Home() {
         <section className="home-section home-favorites-section">
           <div className="home-section-heading">
             <div>
-              <h2>Preferiti</h2>
+              <h2>{tr("Preferiti")}</h2>
             </div>
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFavoritesDragEnd}>

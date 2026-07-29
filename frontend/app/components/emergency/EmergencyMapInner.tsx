@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
+import { useT } from "@/app/lib/i18n";
 
 // Fix icone marker Leaflet con webpack/Next.js
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,6 +114,7 @@ export default function EmergencyMapInner({
   onTecnicoClick,
 }: EmergencyMapInnerProps) {
   // Raccoglie tutti i punti validi per il fit dei bounds
+  const tr = useT();
   const points: [number, number][] = [];
   if (emergenza.lat !== null && emergenza.lon !== null) {
     points.push([emergenza.lat, emergenza.lon]);
@@ -144,7 +146,7 @@ export default function EmergencyMapInner({
         <Marker position={[emergenza.lat, emergenza.lon]} icon={emergenzaIcon}>
           <Popup>
             <div style={{ minWidth: "160px" }}>
-              <div style={{ fontWeight: 700, color: "#ef4444", marginBottom: "4px" }}>EMERGENZA</div>
+              <div style={{ fontWeight: 700, color: "#ef4444", marginBottom: "4px" }}>{tr("EMERGENZA")}</div>
               <div style={{ fontSize: "13px", fontWeight: 600 }}>{emergenza.sito}</div>
               {emergenza.asset_nome && <div style={{ fontSize: "11px", color: "#6b7280" }}>{emergenza.asset_nome}</div>}
               {emergenza.indirizzo && <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>{emergenza.indirizzo}</div>}
@@ -194,7 +196,7 @@ export default function EmergencyMapInner({
                   )}
                   {tec.telefono && (
                     <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
-                      Tel: {tec.telefono}
+                      {tr("Tel:")} {tec.telefono}
                     </div>
                   )}
                   {tec.indirizzo_corrente && (

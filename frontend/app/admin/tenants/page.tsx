@@ -6,6 +6,7 @@ import { useAuth } from "../../lib/auth";
 import { useRouter } from "next/navigation";
 import { notify } from "@/lib/toast";
 import { getTenantContext, setTenantContext } from "../../components/TenantContextSwitcher";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 type Tenant = {
   id: number;
@@ -94,6 +95,7 @@ const RUOLO_COLORS: Record<string, string> = {
 };
 
 export default function TenantsPage() {
+  const tr = useT();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -219,7 +221,7 @@ export default function TenantsPage() {
     setResetPwdSaving(true);
     try {
       await apiPut(`/tenants/${resetPwd.tenantId}/utenti/${resetPwd.userId}/password`, { new_password: resetPwdVal });
-      notify.success(`Password di "${resetPwd.username}" aggiornata`);
+      notify.success(tn("Password di \"{username}\" aggiornata", { username: resetPwd.username }));
       setResetPwd(null);
       setResetPwdVal("");
     } catch (err: unknown) {
@@ -236,59 +238,59 @@ export default function TenantsPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>Gestione Clienti</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>{tr("Gestione Clienti")}</h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "13px", margin: "4px 0 0" }}>
-            Ogni cliente ha dati completamente isolati — siti, impianti, asset, tecnici, ticket.
+            {tr("Ogni cliente ha dati completamente isolati — siti, impianti, asset, tecnici, ticket.")}
           </p>
         </div>
         <button style={btnPrimary} onClick={() => { setShowForm(!showForm); setFormError(""); }}>
-          {showForm ? "✕ Annulla" : "+ Nuovo Cliente"}
+          {showForm ? "✕ Annulla" : tr("+ Nuovo Cliente")}
         </button>
       </div>
 
       {/* Form nuovo tenant */}
       {showForm && (
         <div style={{ ...card, marginBottom: "24px", borderColor: "rgba(59,130,246,0.4)" }}>
-          <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "var(--blue)" }}>Nuovo Cliente</h3>
+          <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "var(--blue)" }}>{tr("Nuovo Cliente")}</h3>
           <form onSubmit={handleCreate}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
               <div>
-                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>NOME AZIENDA</label>
+                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("NOME AZIENDA")}</label>
                 <input style={inp} required value={form.nome}
                   onChange={e => setForm(f => ({ ...f, nome: e.target.value, slug: f.slug || slugify(e.target.value) }))}
-                  placeholder="Es. Industria Rossi S.p.A." />
+                  placeholder={tr("Es. Industria Rossi S.p.A.")} />
               </div>
               <div>
-                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>SLUG (univoco, solo minuscole/trattini)</label>
+                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("SLUG (univoco, solo minuscole/trattini)")}</label>
                 <input style={inp} required value={form.slug}
                   onChange={e => setForm(f => ({ ...f, slug: e.target.value }))}
                   placeholder="industria-rossi" pattern="^[a-z0-9\-]+$" />
               </div>
               <div>
-                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>USERNAME ADMIN</label>
+                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("USERNAME ADMIN")}</label>
                 <input style={inp} required value={form.admin_username}
                   onChange={e => setForm(f => ({ ...f, admin_username: e.target.value }))}
                   placeholder="admin_rossi" />
               </div>
               <div>
-                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>PASSWORD ADMIN (min 6 caratteri)</label>
+                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("PASSWORD ADMIN (min 6 caratteri)")}</label>
                 <input style={inp} required type="password" value={form.admin_password}
                   onChange={e => setForm(f => ({ ...f, admin_password: e.target.value }))}
                   placeholder="••••••••" minLength={6} />
               </div>
             </div>
             {formError && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{formError}</div>}
-            <button type="submit" style={btnPrimary} disabled={saving}>{saving ? "Creazione..." : "Crea Cliente"}</button>
+            <button type="submit" style={btnPrimary} disabled={saving}>{saving ? tr("Creazione...") : tr("Crea Cliente")}</button>
           </form>
         </div>
       )}
 
       {/* Lista tenant */}
       {loading ? (
-        <div style={{ color: "var(--text-secondary)", textAlign: "center", padding: "48px" }}>Caricamento...</div>
+        <div style={{ color: "var(--text-secondary)", textAlign: "center", padding: "48px" }}>{tr("Caricamento...")}</div>
       ) : tenants.length === 0 ? (
         <div style={{ ...card, textAlign: "center", padding: "48px", color: "var(--text-secondary)" }}>
-          Nessun cliente. Creane uno con &quot;+ Nuovo Cliente&quot;.
+          {tr("Nessun cliente. Creane uno con \"+ Nuovo Cliente\".")}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -304,19 +306,19 @@ export default function TenantsPage() {
                       {t.slug}
                     </span>
                     <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "12px", background: t.is_active ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: t.is_active ? "var(--green)" : "var(--red)" }}>
-                      {t.is_active ? "● ATTIVO" : "● SOSPESO"}
+                      {t.is_active ? tr("● ATTIVO") : "● SOSPESO"}
                     </span>
                   </div>
                   {t.created_at && (
                     <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
-                      Creato il {new Date(t.created_at).toLocaleDateString("it-IT")}
+                      {tr("Creato il")} {new Date(t.created_at).toLocaleDateString(getLocaleTag())}
                     </div>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                   {activeContext === String(t.id) ? (
                     <span style={{ ...btnGreen, cursor: "default", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      ● Contesto attivo
+                      {tr("● Contesto attivo")}
                     </span>
                   ) : (
                     <button
@@ -324,11 +326,11 @@ export default function TenantsPage() {
                       onClick={() => gestisciTenant(t)}
                       title={`Passa al contesto di ${t.nome} e gestisci le sue funzionalità`}
                     >
-                      ⇄ Gestisci
+                      {tr("⇄ Gestisci")}
                     </button>
                   )}
                   <button style={btnSm} onClick={() => { setShowAddUser(showAddUser === t.id ? null : t.id); setUserForm({ username: "", password: "", ruolo: "tecnico" }); setUserError(""); }}>
-                    + Utente
+                    {tr("+ Utente")}
                   </button>
                   <button style={t.is_active ? btnRed : btnGreen} onClick={() => toggleActive(t)}>
                     {t.is_active ? "Sospendi" : "Riattiva"}
@@ -340,13 +342,13 @@ export default function TenantsPage() {
               <div style={{ display: "flex", gap: "24px", marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--border-strong)", flexWrap: "wrap" }}>
                 {[
                   { label: "Siti", val: t.n_siti },
-                  { label: "Asset", val: t.n_asset },
-                  { label: "Tecnici", val: t.n_tecnici },
-                  { label: "Ticket", val: t.n_ticket },
+                  { label: tr("Asset"), val: t.n_asset },
+                  { label: tr("Tecnici"), val: t.n_tecnici },
+                  { label: tr("Ticket"), val: t.n_ticket },
                 ].map(s => (
                   <div key={s.label} style={{ textAlign: "center", minWidth: "50px" }}>
                     <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--blue)" }}>{s.val}</div>
-                    <div style={{ fontSize: "10px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{s.label}</div>
+                    <div style={{ fontSize: "10px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{tr(s.label)}</div>
                   </div>
                 ))}
 
@@ -355,7 +357,7 @@ export default function TenantsPage() {
                   onClick={() => loadUtenti(t.id)}
                   style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px", padding: "6px 14px", background: expandedUtenti === t.id ? "rgba(59,130,246,0.12)" : "transparent", border: "1px solid var(--border-strong)", borderRadius: "8px", cursor: "pointer", color: expandedUtenti === t.id ? "var(--blue)" : "var(--text-secondary)", fontSize: "13px" }}
                 >
-                  👤 {t.n_utenti} {t.n_utenti === 1 ? "utente" : "utenti"}
+                  👤 {t.n_utenti} {t.n_utenti === 1 ? tr("utente") : tr("utenti")}
                   <span style={{ fontSize: "10px" }}>{expandedUtenti === t.id ? "▲" : "▼"}</span>
                 </button>
               </div>
@@ -364,12 +366,12 @@ export default function TenantsPage() {
               {expandedUtenti === t.id && (
                 <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--border-strong)" }}>
                   <div style={{ fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px" }}>
-                    Utenti di {t.nome}
+                    {tr("Utenti di")} {t.nome}
                   </div>
                   {utentiLoading ? (
-                    <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>Caricamento...</div>
+                    <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>{tr("Caricamento...")}</div>
                   ) : (utentiMap[t.id] || []).length === 0 ? (
-                    <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>Nessun utente trovato.</div>
+                    <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>{tr("Nessun utente trovato.")}</div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       {(utentiMap[t.id] || []).map(u => (
@@ -385,7 +387,7 @@ export default function TenantsPage() {
                             style={{ ...btnSm, fontSize: "11px", padding: "3px 10px" }}
                             onClick={() => { setResetPwd({ tenantId: t.id, userId: u.id, username: u.username }); setResetPwdVal(""); }}
                           >
-                            🔑 Reset pwd
+                            {tr("🔑 Reset pwd")}
                           </button>
                         </div>
                       ))}
@@ -398,31 +400,31 @@ export default function TenantsPage() {
               {showAddUser === t.id && (
                 <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--border-strong)" }}>
                   <div style={{ fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px" }}>
-                    Nuovo utente per {t.nome}
+                    {tr("Nuovo utente per")} {t.nome}
                   </div>
                   <form onSubmit={handleAddUser} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end" }}>
                     <div>
-                      <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>USERNAME</label>
+                      <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("USERNAME")}</label>
                       <input style={{ ...inp, width: "170px" }} required value={userForm.username}
                         onChange={e => setUserForm(f => ({ ...f, username: e.target.value }))} placeholder="mario.rossi" />
                     </div>
                     <div>
-                      <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>PASSWORD</label>
+                      <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("PASSWORD")}</label>
                       <input style={{ ...inp, width: "150px" }} required type="password" value={userForm.password}
-                        onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} placeholder="min. 6 caratteri" minLength={6} />
+                        onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} placeholder={tr("min. 6 caratteri")} minLength={6} />
                     </div>
                     <div>
-                      <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>RUOLO</label>
+                      <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>{tr("RUOLO")}</label>
                       <select style={{ ...inp, width: "150px" }} value={userForm.ruolo}
                         onChange={e => setUserForm(f => ({ ...f, ruolo: e.target.value }))}>
-                        <option value="responsabile">Responsabile</option>
-                        <option value="tecnico">Tecnico</option>
+                        <option value="responsabile">{tr("Responsabile")}</option>
+                        <option value="tecnico">{tr("Tecnico")}</option>
                       </select>
                     </div>
                     <button type="submit" style={btnPrimary} disabled={userSaving}>
                       {userSaving ? "Salvo..." : "Aggiungi"}
                     </button>
-                    <button type="button" style={btnSm} onClick={() => setShowAddUser(null)}>Annulla</button>
+                    <button type="button" style={btnSm} onClick={() => setShowAddUser(null)}>{tr("Annulla")}</button>
                   </form>
                   {userError && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "8px" }}>{userError}</div>}
                 </div>
@@ -436,26 +438,26 @@ export default function TenantsPage() {
       {resetPwd && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
           <div style={{ background: "var(--surface-2)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "28px", width: 380, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
-            <div style={{ fontWeight: 800, fontSize: "16px", color: "#f87171", marginBottom: "6px" }}>Reset Password</div>
+            <div style={{ fontWeight: 800, fontSize: "16px", color: "#f87171", marginBottom: "6px" }}>{tr("Reset Password")}</div>
             <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "20px" }}>
-              Nuova password per <strong style={{ color: "var(--text-primary)" }}>{resetPwd.username}</strong>
+              {tr("Nuova password per")} <strong style={{ color: "var(--text-primary)" }}>{resetPwd.username}</strong>
             </div>
             <input
               type="password"
               autoFocus
               value={resetPwdVal}
               onChange={e => setResetPwdVal(e.target.value)}
-              placeholder="Min 8 char (Maiusc, minusc, num, sim)"
+              placeholder={tr("Min 8 char (Maiusc, minusc, num, sim)")}
               style={{ ...inp, marginBottom: "8px" }}
               onKeyDown={e => { if (e.key === "Enter") handleResetPwd(); if (e.key === "Escape") setResetPwd(null); }}
             />
             <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "20px", display: "flex",flexDirection: "column", gap:"2px" }}>
-              <div>• Almeno 8 caratteri</div>
-              <div>• Lettere maiuscole e minuscole</div>
-              <div>• Almeno un numero e un simbolo (@$!%*?&#^_-)</div>
+              <div>{tr("• Almeno 8 caratteri")}</div>
+              <div>{tr("• Lettere maiuscole e minuscole")}</div>
+              <div>{tr("• Almeno un numero e un simbolo (@$!%*?&#^_-)")}</div>
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
-              <button style={{ ...btnSm, flex: 1, padding: "10px" }} onClick={() => setResetPwd(null)}>Annulla</button>
+              <button style={{ ...btnSm, flex: 1, padding: "10px" }} onClick={() => setResetPwd(null)}>{tr("Annulla")}</button>
               <button
                 style={{ flex: 2, padding: "10px", background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
                 disabled={resetPwdSaving || resetPwdVal.length < 8}

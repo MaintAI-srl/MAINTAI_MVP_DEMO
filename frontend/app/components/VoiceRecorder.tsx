@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Check } from "lucide-react";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 
 type Props = {
   onTranscript: (text: string) => void;
@@ -30,6 +31,7 @@ function friendlyRecognitionError(code: string): string {
 }
 
 export default function VoiceRecorder({ onTranscript, disabled }: Props) {
+  const tr = useT();
   const [state, setState] = useState<RecordingState>("idle");
   const [error, setError] = useState("");
   const [supported, setSupported] = useState(true);
@@ -114,7 +116,7 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
     if (!ok) { setState("idle"); return; }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = "it-IT";
+    recognition.lang = getLocaleTag();
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
@@ -191,15 +193,13 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5, padding: "4px 2px" }}>
-          🎙️ Il riconoscimento vocale non è supportato da questo browser
-          (usa Chrome o Safari aggiornato). Puoi scrivere il testo qui sotto
-          — con la tastiera o il microfono della tastiera:
+          {tr("🎙️ Il riconoscimento vocale non è supportato da questo browser (usa Chrome o Safari aggiornato). Puoi scrivere il testo qui sotto — con la tastiera o il microfono della tastiera:")}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <input
             value={fallbackText}
             onChange={e => setFallbackText(e.target.value)}
-            placeholder="Scrivi o detta qui..."
+            placeholder={tr("Scrivi o detta qui...")}
             disabled={disabled}
             style={{
               flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
@@ -280,7 +280,7 @@ export default function VoiceRecorder({ onTranscript, disabled }: Props) {
         </span>
         <span style={{ zIndex: 1 }}>
           {state === "processing"
-            ? "ATTIVAZIONE MICROFONO…"
+            ? tr("ATTIVAZIONE MICROFONO…")
             : state === "recording"
               ? `STOP  ${formatTime(elapsed)}`
               : "REGISTRA NOTA VOCALE"}

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { useT } from "@/app/lib/i18n";
 
 export default function ErrorBoundary({
   error,
@@ -10,6 +11,7 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const tr = useT();
   useEffect(() => {
     // Log the error to an error reporting service
     console.error("Global Error Boundary caught an error:", error);
@@ -55,7 +57,7 @@ export default function ErrorBoundary({
           marginBottom: "12px",
           fontFamily: "'Barlow Condensed', sans-serif"
         }}>
-          Si è verificato un errore
+          {tr("Si è verificato un errore")}
         </h2>
         
         <p style={{
@@ -64,7 +66,7 @@ export default function ErrorBoundary({
           fontSize: "15px",
           lineHeight: "1.5"
         }}>
-          Ci scusiamo per l&apos;inconveniente. L&apos;applicazione ha riscontrato un problema inatteso: {error.message || "Errore sconosciuto"}.
+          {tr("Ci scusiamo per l'inconveniente. L'applicazione ha riscontrato un problema inatteso:")} {error.message || tr("Errore sconosciuto")}.
         </p>
 
         <button
@@ -89,7 +91,7 @@ export default function ErrorBoundary({
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0ea5e9'}
         >
           <RefreshCw size={18} />
-          Riprova Caricamento
+          {tr("Riprova Caricamento")}
         </button>
       </div>
     </div>

@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { apiGet } from "../../lib/api";
 import { localDateStr } from "../../lib/datetime";
 import { notify } from "@/lib/toast";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 import {
   ChevronLeft, ChevronRight, Check, CheckCircle2, Package, CalendarCheck,
   HardHat, Footprints, Hand, Glasses, Shirt, Cable, ShieldCheck, Home,
@@ -31,6 +33,7 @@ const DPI_ITEMS = [
 const DPI_ICONS = [HardHat, Footprints, Hand, Glasses, Shirt, Cable];
 
 export default function MobilePianoPage() {
+  const tr = useT();
   const router = useRouter();
   const tecnicoId = useTecnicoId();
 
@@ -39,7 +42,7 @@ export default function MobilePianoPage() {
   const [piano, setPiano] = useState<Ticket[]>([]);
   const [loadingPiano, setLoadingPiano] = useState(false);
 
-  const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "short" });
+  const todayStr = new Date().toLocaleDateString(getLocaleTag(), { weekday: "long", day: "numeric", month: "short" });
   const allDpiChecked = DPI_ITEMS.every(item => dpiChecked[item]);
 
   async function loadPiano() {
@@ -52,7 +55,7 @@ export default function MobilePianoPage() {
       const todayItems = items.filter(t => t.planned_start?.startsWith(today));
       todayItems.sort((a, b) => (a.planned_start ?? "").localeCompare(b.planned_start ?? ""));
       setPiano(todayItems);
-    } catch { notify.error("Errore caricamento piano"); }
+    } catch { notify.error(tn("Errore caricamento piano")); }
     finally { setLoadingPiano(false); }
   }
 
@@ -63,7 +66,7 @@ export default function MobilePianoPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 10px", flexShrink: 0 }}>
         <button
           className="m-press"
-          aria-label="Indietro"
+          aria-label={tr("Indietro")}
           onClick={() => {
             if (dpiConfirmed) { setDpiConfirmed(false); setDpiChecked({}); }
             else router.push("/m");
@@ -76,12 +79,12 @@ export default function MobilePianoPage() {
           <div style={{
             fontWeight: 800, fontSize: "clamp(18px, 5vw, 22px)", letterSpacing: "-0.02em",
             color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.15,
-          }}>Piano Odierno</div>
+          }}>{tr("Piano Odierno")}</div>
           <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginTop: 1 }}>
             {todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}
           </div>
         </div>
-        <button className="m-press" aria-label="Home" onClick={() => router.push("/m")} style={circleBtn}>
+        <button className="m-press" aria-label={tr("Home")} onClick={() => router.push("/m")} style={circleBtn}>
           <Home size={19} strokeWidth={2.1} />
         </button>
       </div>
@@ -97,9 +100,9 @@ export default function MobilePianoPage() {
             }}>
               <HardHat size={32} strokeWidth={1.9} />
             </div>
-            <div style={{ fontWeight: 800, fontSize: "clamp(20px, 5.6vw, 25px)", color: C.text, marginBottom: 5, letterSpacing: "-0.02em" }}>Verifica DPI</div>
+            <div style={{ fontWeight: 800, fontSize: "clamp(20px, 5.6vw, 25px)", color: C.text, marginBottom: 5, letterSpacing: "-0.02em" }}>{tr("Verifica DPI")}</div>
             <div style={{ fontSize: 14, color: C.text2, lineHeight: 1.5, maxWidth: 480, margin: "0 auto" }}>
-              Conferma di indossare tutti i dispositivi di protezione individuale
+              {tr("Conferma di indossare tutti i dispositivi di protezione individuale")}
             </div>
           </div>
 
@@ -153,7 +156,7 @@ export default function MobilePianoPage() {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}>
               {allDpiChecked
-                ? <><CheckCircle2 size={20} strokeWidth={2.3} /> ACCEDI AL PIANO</>
+                ? <><CheckCircle2 size={20} strokeWidth={2.3} /> {tr("ACCEDI AL PIANO")}</>
                 : `ACCEDI AL PIANO (${Object.values(dpiChecked).filter(Boolean).length}/${DPI_ITEMS.length})`}
             </button>
           </div>
@@ -165,7 +168,7 @@ export default function MobilePianoPage() {
         <div className="m-scroll" style={{ flex: 1, minHeight: 0, padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
 
           {loadingPiano && (
-            <div style={{ textAlign: "center", color: C.text3, padding: 40, fontSize: 15 }}>Caricamento piano...</div>
+            <div style={{ textAlign: "center", color: C.text3, padding: 40, fontSize: 15 }}>{tr("Caricamento piano...")}</div>
           )}
 
           {!loadingPiano && piano.length === 0 && (
@@ -177,15 +180,15 @@ export default function MobilePianoPage() {
               }}>
                 <CalendarCheck size={32} strokeWidth={1.8} />
               </div>
-              <div style={{ color: C.text2, fontSize: 16, fontWeight: 600 }}>Nessun intervento pianificato per oggi</div>
+              <div style={{ color: C.text2, fontSize: 16, fontWeight: 600 }}>{tr("Nessun intervento pianificato per oggi")}</div>
             </div>
           )}
 
           {!loadingPiano && piano.length > 0 && (
             <div className="m-cols">
               {piano.map((t, idx) => {
-                const startTime = t.planned_start ? new Date(t.planned_start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : null;
-                const endTime = t.planned_finish ? new Date(t.planned_finish).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : null;
+                const startTime = t.planned_start ? new Date(t.planned_start).toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" }) : null;
+                const endTime = t.planned_finish ? new Date(t.planned_finish).toLocaleTimeString(getLocaleTag(), { hour: "2-digit", minute: "2-digit" }) : null;
                 const tInfo = tipoMeta(t.tipo);
                 return (
                   <button key={t.id} className="m-press m-fade-up" onClick={() => router.push(`/m/ticket/${t.id}`)}
@@ -209,7 +212,7 @@ export default function MobilePianoPage() {
                           background: `${tInfo.color}1c`, color: tInfo.color, border: `1px solid ${tInfo.color}40`,
                         }}>{t.tipo}</span>
                         <span style={{ fontSize: 13, color: C.text3, fontWeight: 600 }}>{t.durata_stimata_ore}h</span>
-                        <span style={{ fontSize: 13, color: prioritaColor(t.priorita), fontWeight: 800 }}>{t.priorita}</span>
+                        <span style={{ fontSize: 13, color: prioritaColor(t.priorita), fontWeight: 800 }}>{labelPriorita(t.priorita)}</span>
                       </div>
                       {t.asset_name && (
                         <div style={{ fontSize: 13, color: C.text3, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>

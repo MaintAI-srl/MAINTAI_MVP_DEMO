@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import { useT } from "@/app/lib/i18n";
 
 type Props = {
   onSave: (base64: string) => void;
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export default function SignaturePad({ onSave, onCancel, title, inkColor = "#ffffff", light = false }: Props) {
+  const tr = useT();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -108,7 +110,7 @@ export default function SignaturePad({ onSave, onCancel, title, inkColor = "#fff
         textAlign: "center", fontWeight: 700, letterSpacing: "0.08em",
         textTransform: "uppercase",
       }}>
-        {title ?? "✍️ Firma tecnico per accettazione"}
+        {title ?? tr("✍️ Firma tecnico per accettazione")}
       </div>
 
       {/* Area firma — altezza fissa in CSS, width 100% */}
@@ -143,7 +145,7 @@ export default function SignaturePad({ onSave, onCancel, title, inkColor = "#fff
             fontSize: 13, color: "rgba(148,163,184,0.4)", pointerEvents: "none",
             fontWeight: 500,
           }}>
-            Firma qui
+            {tr("Firma qui")}
           </div>
         )}
       </div>
@@ -157,7 +159,7 @@ export default function SignaturePad({ onSave, onCancel, title, inkColor = "#fff
             color: "var(--text-muted)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}
         >
-          PULISCI
+          {tr("PULISCI")}
         </button>
         <button
           onClick={onCancel}
@@ -167,7 +169,7 @@ export default function SignaturePad({ onSave, onCancel, title, inkColor = "#fff
             color: "var(--text-muted)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}
         >
-          ANNULLA
+          {tr("ANNULLA")}
         </button>
         <button
           onClick={handleSave}

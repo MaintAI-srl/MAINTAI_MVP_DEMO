@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { API_BASE, apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
 import { notify } from "@/lib/toast";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Impianto = {
   id: number;
@@ -31,6 +32,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function ImpiantiPage() {
+  const tr = useT();
   const [impianti, setImpianti] = useState<Impianto[]>([]);
   const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
@@ -72,7 +74,7 @@ export default function ImpiantiPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nome.trim()) { notify.error("Il nome impianto è obbligatorio."); return; }
+    if (!nome.trim()) { notify.error(tn("Il nome impianto è obbligatorio.")); return; }
     setSaving(true);
     try {
       const path = editId !== null ? `/impianti/${editId}` : `/impianti`;
@@ -99,7 +101,7 @@ export default function ImpiantiPage() {
     try {
       await apiDelete(`/impianti/${modalDelId}`);
       await load();
-    } catch { notify.error("Errore durante l'eliminazione."); }
+    } catch { notify.error(tn("Errore durante l'eliminazione.")); }
     finally { setModalDelId(null); }
   }
 
@@ -119,12 +121,12 @@ export default function ImpiantiPage() {
         <div style={{ position: "absolute", top: -60, right: -60, width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#818cf8", marginBottom: 8 }}>Registry</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#818cf8", marginBottom: 8 }}>{tr("Registry")}</div>
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 900, fontFamily: "'Barlow Condensed', sans-serif", background: "linear-gradient(135deg, #e2e8f0 0%, #818cf8 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1, marginBottom: 6 }}>
-            Impianti
+            {tr("Impianti")}
           </h1>
           <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 13 }}>
-            Gestione degli impianti — contenitori di asset e piani di manutenzione.
+            {tr("Gestione degli impianti — contenitori di asset e piani di manutenzione.")}
           </p>
         </div>
 
@@ -132,11 +134,11 @@ export default function ImpiantiPage() {
         <div style={{ display: "flex", gap: 16, marginTop: 20, flexWrap: "wrap" }}>
           {[
             { label: "Impianti totali", value: impianti.length, color: "#818cf8" },
-            { label: "Con coordinate", value: impianti.filter(i => i.latitude).length, color: "#34d399" },
-            { label: "Senza descrizione", value: impianti.filter(i => !i.descrizione).length, color: "#fbbf24" },
+            { label: tr("Con coordinate"), value: impianti.filter(i => i.latitude).length, color: "#34d399" },
+            { label: tr("Senza descrizione"), value: impianti.filter(i => !i.descrizione).length, color: "#fbbf24" },
           ].map(k => (
             <div key={k.label} style={{ background: "var(--border-subtle)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "10px 18px", minWidth: 110 }}>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{k.label}</div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--text-muted)", marginBottom: 4 }}>{tr(k.label)}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
             </div>
           ))}
@@ -145,7 +147,7 @@ export default function ImpiantiPage() {
 
       {backendOk === false && (
         <div style={{ color: "#fbbf24", background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.3)", padding: "12px 16px", borderRadius: 8, fontSize: 13, margin: "0 32px 20px" }}>
-          ⚠️ Backend non raggiungibile su <code style={{ fontFamily: "monospace" }}>{API_BASE}</code>. Lancia: <code style={{ fontFamily: "monospace", fontSize: 12 }}>python -m uvicorn backend.main:app --reload</code>
+          {tr("⚠️ Backend non raggiungibile su")} <code style={{ fontFamily: "monospace" }}>{API_BASE}</code>. Lancia: <code style={{ fontFamily: "monospace", fontSize: 12 }}>{tr("python -m uvicorn backend.main:app --reload")}</code>
         </div>
       )}
 
@@ -153,25 +155,25 @@ export default function ImpiantiPage() {
         {/* Form */}
         <div style={{ background: "var(--bg-card)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 14, padding: "22px 24px", borderTop: "2px solid #6366f1" }}>
           <h2 style={{ margin: "0 0 18px", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", letterSpacing: ".02em" }}>
-            {editId !== null ? `Modifica impianto #${editId}` : "Nuovo impianto"}
+            {editId !== null ? `Modifica impianto #${editId}` : tr("Nuovo impianto")}
           </h2>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 13 }}>
             <div>
-              <label style={labelStyle}>Nome *</label>
-              <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Es. Stabilimento Nord" />
+              <label style={labelStyle}>{tr("Nome *")}</label>
+              <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder={tr("Es. Stabilimento Nord")} />
             </div>
             <div>
-              <label style={labelStyle}>Descrizione</label>
-              <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 70 }} value={descrizione} onChange={e => setDescrizione(e.target.value)} placeholder="Descrizione opzionale..." />
+              <label style={labelStyle}>{tr("Descrizione")}</label>
+              <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 70 }} value={descrizione} onChange={e => setDescrizione(e.target.value)} placeholder={tr("Descrizione opzionale...")} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label style={labelStyle}>Latitudine</label>
-                <input type="number" step="0.0001" style={inputStyle} value={latitude} onChange={e => setLatitude(e.target.value)} placeholder="es. 44.307" />
+                <label style={labelStyle}>{tr("Latitudine")}</label>
+                <input type="number" step="0.0001" style={inputStyle} value={latitude} onChange={e => setLatitude(e.target.value)} placeholder={tr("es. 44.307")} />
               </div>
               <div>
-                <label style={labelStyle}>Longitudine</label>
-                <input type="number" step="0.0001" style={inputStyle} value={longitude} onChange={e => setLongitude(e.target.value)} placeholder="es. 8.481" />
+                <label style={labelStyle}>{tr("Longitudine")}</label>
+                <input type="number" step="0.0001" style={inputStyle} value={longitude} onChange={e => setLongitude(e.target.value)} placeholder={tr("es. 8.481")} />
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -180,10 +182,10 @@ export default function ImpiantiPage() {
                 disabled={saving}
                 style={{ flex: 1, background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 20px", fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
               >
-                {saving ? "Salvataggio..." : editId !== null ? "Salva modifiche" : "Crea impianto"}
+                {saving ? "Salvataggio..." : editId !== null ? tr("Salva modifiche") : tr("Crea impianto")}
               </button>
               {editId !== null && (
-                <button type="button" onClick={cancelEdit} style={{ padding: "9px 16px", background: "transparent", border: "1px solid rgba(148,163,184,.2)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
+                <button type="button" onClick={cancelEdit} style={{ padding: "9px 16px", background: "transparent", border: "1px solid rgba(148,163,184,.2)", color: "var(--text-muted)", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>{tr("Annulla")}</button>
               )}
             </div>
           </form>
@@ -192,21 +194,21 @@ export default function ImpiantiPage() {
         {/* Lista */}
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: 14, padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>Impianti registrati</h2>
+            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{tr("Impianti registrati")}</h2>
             <span style={{ fontSize: 11, background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{impianti.length}</span>
           </div>
           {/* Barra di ricerca */}
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca per nome impianto..."
+            placeholder={tr("Cerca per nome impianto...")}
             style={{ width: "100%", background: "var(--border-subtle)", border: "1px solid rgba(148,163,184,0.15)", borderRadius: 8, color: "var(--text-primary)", padding: "8px 12px", fontSize: 13, outline: "none", fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box" }}
           />
           {(() => {
             const term = search.trim().toLowerCase();
             const filtered = term ? impianti.filter(i => i.nome.toLowerCase().includes(term) || (i.descrizione || "").toLowerCase().includes(term)) : impianti;
             return filtered.length === 0 ? (
-              <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>{impianti.length === 0 ? "Nessun impianto registrato." : "Nessun impianto corrisponde alla ricerca."}</div>
+              <div style={{ color: "var(--text-muted)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>{impianti.length === 0 ? tr("Nessun impianto registrato.") : tr("Nessun impianto corrisponde alla ricerca.")}</div>
             ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {filtered.map(imp => (
@@ -217,13 +219,13 @@ export default function ImpiantiPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", marginBottom: 2 }}>{imp.nome}</div>
                     <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {imp.descrizione || "Nessuna descrizione"}
+                      {imp.descrizione || tr("Nessuna descrizione")}
                       {imp.latitude && <span style={{ marginLeft: 10, color: "#34d399" }}>📍 {imp.latitude}, {imp.longitude}</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => startEdit(imp)} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid rgba(99,102,241,.35)", color: "#818cf8", background: "rgba(99,102,241,0.08)", cursor: "pointer", borderRadius: 6, fontWeight: 600 }}>Modifica</button>
-                    <button onClick={() => setModalDelId(imp.id)} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid rgba(248,113,113,.3)", color: "#f87171", background: "rgba(248,113,113,0.06)", cursor: "pointer", borderRadius: 6, fontWeight: 600 }}>Elimina</button>
+                    <button onClick={() => startEdit(imp)} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid rgba(99,102,241,.35)", color: "#818cf8", background: "rgba(99,102,241,0.08)", cursor: "pointer", borderRadius: 6, fontWeight: 600 }}>{tr("Modifica")}</button>
+                    <button onClick={() => setModalDelId(imp.id)} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid rgba(248,113,113,.3)", color: "#f87171", background: "rgba(248,113,113,0.06)", cursor: "pointer", borderRadius: 6, fontWeight: 600 }}>{tr("Elimina")}</button>
                   </div>
                 </div>
               ))}
@@ -238,13 +240,13 @@ export default function ImpiantiPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={() => setModalDelId(null)}>
           <div style={{ background: "var(--bg-surface)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 14, padding: "28px 28px 24px", width: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16 }}>⚠️</div>
-            <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 800 }}>Elimina Impianto</h2>
+            <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 800 }}>{tr("Elimina Impianto")}</h2>
             <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>
-              Sei sicuro? L&apos;operazione eliminerà a cascata <strong>tutti i dati collegati</strong> (Asset, Piani, Ticket, Documenti, Analisi). Azione irreversibile.
+              {tr("Sei sicuro? L'operazione eliminerà a cascata")} <strong>{tr("tutti i dati collegati")}</strong> {tr("(Asset, Piani, Ticket, Documenti, Analisi). Azione irreversibile.")}
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setModalDelId(null)} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Annulla</button>
-              <button onClick={handleConfirmDelete} style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.4)", color: "#f87171", padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Elimina definitivamente</button>
+              <button onClick={() => setModalDelId(null)} style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>{tr("Annulla")}</button>
+              <button onClick={handleConfirmDelete} style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.4)", color: "#f87171", padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{tr("Elimina definitivamente")}</button>
             </div>
           </div>
         </div>

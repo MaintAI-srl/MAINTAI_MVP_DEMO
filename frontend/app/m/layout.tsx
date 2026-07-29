@@ -15,6 +15,8 @@ import {
   Home, ClipboardList, Plus, CalendarCheck, Stethoscope, UserRound,
 } from "lucide-react";
 import { C, isDispatchAlertTicket, triggerEmergencyAlert, useTecnicoId, type Ticket } from "./shared";
+import { useT } from "@/app/lib/i18n";
+import LanguageSwitcher from "@/app/components/LanguageSwitcher";
 
 const TABS = [
   { href: "/m",          label: "Home",     Icon: Home },
@@ -94,6 +96,7 @@ function useMobileScale(shellRef: React.RefObject<HTMLDivElement | null>) {
 }
 
 export default function MobileAppLayout({ children }: { children: React.ReactNode }) {
+  const tr = useT();
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, user } = useAuth();
@@ -120,13 +123,15 @@ export default function MobileAppLayout({ children }: { children: React.ReactNod
           <img src="/logo.png" alt="MaintAI" style={{ width: 30, height: 30, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(10,132,255,0.45))" }} />
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: C.text, lineHeight: 1, letterSpacing: "-0.02em" }}>MaintAI</div>
-            <div style={{ fontSize: 10, color: C.blue, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", marginTop: 2 }}>Campo</div>
+            <div style={{ fontSize: 10, color: C.blue, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", marginTop: 2 }}>{tr("Campo")}</div>
           </div>
         </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <LanguageSwitcher variant="compact" />
         <Link
           href="/m/profilo"
           className="m-press"
-          aria-label="Profilo"
+          aria-label={tr("Profilo")}
           style={{
             display: "flex", alignItems: "center", gap: 8, textDecoration: "none",
             background: isActive("/m/profilo") ? "rgba(10,132,255,0.14)" : "rgba(255,255,255,0.06)",
@@ -140,6 +145,7 @@ export default function MobileAppLayout({ children }: { children: React.ReactNod
             maxWidth: 96, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>{user?.username}</span>
         </Link>
+        </div>
       </header>
 
       {/* ── Contenuto ── */}
@@ -148,16 +154,16 @@ export default function MobileAppLayout({ children }: { children: React.ReactNod
       </main>
 
       {/* ── Bottom tab bar ── */}
-      <nav className="m-tabbar" aria-label="Navigazione app">
+      <nav className="m-tabbar" aria-label={tr("Navigazione app")}>
         {TABS.map(tab => {
           const active = isActive(tab.href);
           if ("prominent" in tab && tab.prominent) {
             return (
-              <Link key={tab.href} href={tab.href} className="m-tab m-tab-fab" aria-label={tab.label} aria-current={active ? "page" : undefined}>
+              <Link key={tab.href} href={tab.href} className="m-tab m-tab-fab" aria-label={tr(tab.label)} aria-current={active ? "page" : undefined}>
                 <span className="m-tab-fab-circle">
                   <tab.Icon size={26} strokeWidth={2.4} />
                 </span>
-                <span className="m-tab-label">{tab.label}</span>
+                <span className="m-tab-label">{tr(tab.label)}</span>
               </Link>
             );
           }
@@ -169,7 +175,7 @@ export default function MobileAppLayout({ children }: { children: React.ReactNod
               aria-current={active ? "page" : undefined}
             >
               <tab.Icon size={24} strokeWidth={active ? 2.3 : 1.9} />
-              <span className="m-tab-label">{tab.label}</span>
+              <span className="m-tab-label">{tr(tab.label)}</span>
             </Link>
           );
         })}

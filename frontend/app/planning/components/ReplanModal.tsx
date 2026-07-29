@@ -4,6 +4,7 @@ import { useState } from "react";
 import { apiPost } from "../../lib/api";
 import { notify } from "@/lib/toast";
 import type { GeneratedPlan, ReplanResult } from "../types";
+import { useT } from "@/app/lib/i18n";
 
 interface ReplanModalProps {
   open: boolean;
@@ -47,6 +48,7 @@ const TRIGGER_OPTIONS: TriggerOption[] = [
 ];
 
 export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanModalProps) {
+  const tr = useT();
   const [trigger, setTrigger] = useState<Trigger>("new_breakdown");
   const [loading, setLoading] = useState(false);
 
@@ -65,7 +67,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
       const movedCount = result.moved_tickets?.length ?? 0;
       const disruption = result.disruption_cost ?? 0;
       notify.success(
-        `Ricalcolo completato — ${movedCount} ticket spostati, disruption cost: ${disruption}`
+        tr("Ricalcolo completato — {movedCount} ticket spostati, disruption cost: {disruption}", { movedCount: movedCount, disruption: disruption })
       );
       onSuccess(result);
     } catch (e: unknown) {
@@ -107,10 +109,10 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.02em" }}>
-              ↻ Ricalcola Piano
+              {tr("↻ Ricalcola Piano")}
             </div>
             <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-              Seleziona il motivo del ricalcolo
+              {tr("Seleziona il motivo del ricalcolo")}
             </div>
           </div>
           <button
@@ -163,7 +165,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
                 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: selected ? "#f9fafb" : "#9ca3af", marginBottom: 3 }}>
-                    {opt.icon} {opt.label}
+                    {opt.icon} {tr(opt.label)}
                   </div>
                   <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.5 }}>
                     {opt.description}
@@ -185,8 +187,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
           color: "var(--text-muted)",
           lineHeight: 1.6,
         }}>
-          I ticket pianificati manualmente e quelli in corso non verranno toccati dal ricalcolo.
-          Il nuovo piano viene generato come bozza e richiede conferma esplicita.
+          {tr("I ticket pianificati manualmente e quelli in corso non verranno toccati dal ricalcolo. Il nuovo piano viene generato come bozza e richiede conferma esplicita.")}
         </div>
 
         {/* Azioni */}
@@ -205,7 +206,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
               fontFamily: "inherit",
             }}
           >
-            Annulla
+            {tr("Annulla")}
           </button>
           <button
             onClick={handleReplan}
@@ -242,7 +243,7 @@ export default function ReplanModal({ open, piano, onClose, onSuccess }: ReplanM
                   borderRadius: "50%",
                   animation: "spin 0.8s linear infinite",
                 }} />
-                Ricalcolo in corso...
+                {tr("Ricalcolo in corso...")}
               </>
             ) : (
               `↻ Esegui Ricalcolo — ${selectedOption.icon} ${selectedOption.label}`

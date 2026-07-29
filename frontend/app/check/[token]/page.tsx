@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { useT } from "@/app/lib/i18n";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://maintai-v3.onrender.com";
 
@@ -23,6 +24,7 @@ interface CheckData {
 // ─── Pagina pubblica — NO sidebar, NO auth ──────────────────────────────────
 
 export default function CheckPubblicoPage() {
+  const tr = useT();
   const params = useParams();
   const token = params.token as string;
 
@@ -62,7 +64,7 @@ export default function CheckPubblicoPage() {
     return (
       <div style={pageStyle}>
         <div style={{ color: "var(--text-muted)", fontSize: "18px", textAlign: "center" }}>
-          Caricamento checklist...
+          {tr("Caricamento checklist...")}
         </div>
       </div>
     );
@@ -73,10 +75,10 @@ export default function CheckPubblicoPage() {
       <div style={pageStyle}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
-          <div style={{ fontSize: "18px", color: "#f87171", marginBottom: "8px" }}>Checklist non trovata</div>
+          <div style={{ fontSize: "18px", color: "#f87171", marginBottom: "8px" }}>{tr("Checklist non trovata")}</div>
           <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-            Il codice QR potrebbe essere scaduto o non valido.
-            <br />Contatta il responsabile manutenzione.
+            {tr("Il codice QR potrebbe essere scaduto o non valido.")}
+            <br />{tr("Contatta il responsabile manutenzione.")}
           </div>
         </div>
       </div>
@@ -98,14 +100,14 @@ export default function CheckPubblicoPage() {
         zIndex: 10,
       }}>
         <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>
-          Checklist Operatore
+          {tr("Checklist Operatore")}
         </div>
         <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)" }}>
           🔧 {data.asset_nome}
         </div>
         {tuttiCheckati && (
           <div style={{ marginTop: "8px", fontSize: "14px", color: "#22c55e", fontWeight: 700 }}>
-            ✓ Tutti i controlli completati
+            {tr("✓ Tutti i controlli completati")}
           </div>
         )}
       </div>
@@ -114,8 +116,8 @@ export default function CheckPubblicoPage() {
       <div style={{ padding: "16px" }}>
         {data.voci.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)", fontSize: "16px" }}>
-            Nessun punto di controllo configurato.
-            <br />Contatta il responsabile manutenzione.
+            {tr("Nessun punto di controllo configurato.")}
+            <br />{tr("Contatta il responsabile manutenzione.")}
           </div>
         ) : (
           <>
@@ -169,7 +171,7 @@ export default function CheckPubblicoPage() {
                     textDecoration: checkati.has(idx) ? "line-through" : "none",
                     opacity: checkati.has(idx) ? 0.8 : 1,
                   }}>
-                    {voce.label}
+                    {tr(voce.label)}
                   </div>
                   {voce.descrizione && (
                     <div style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px", lineHeight: 1.4 }}>
@@ -202,19 +204,19 @@ export default function CheckPubblicoPage() {
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                🔴 Segnala anomalia
+                {tr("🔴 Segnala anomalia")}
               </button>
             ) : (
               <div style={{ background: "var(--surface-3)", borderRadius: "12px", padding: "20px", border: "2px solid #ef4444" }}>
                 <div style={{ fontSize: "16px", fontWeight: 700, color: "#f87171", marginBottom: "12px" }}>
-                  Descrivi l&apos;anomalia riscontrata
+                  {tr("Descrivi l'anomalia riscontrata")}
                 </div>
                 {/* Campo nome operatore */}
                 <input
                   type="text"
                   value={operatoreNome}
                   onChange={e => setOperatoreNome(e.target.value)}
-                  placeholder="Il tuo nome (facoltativo)"
+                  placeholder={tr("Il tuo nome (facoltativo)")}
                   style={{
                     width: "100%",
                     background: "var(--surface-2)",
@@ -231,7 +233,7 @@ export default function CheckPubblicoPage() {
                 <textarea
                   value={descrizioneAnomalia}
                   onChange={e => setDescrizioneAnomalia(e.target.value)}
-                  placeholder="Es. Rumore anomalo, perdita d'olio, temperatura elevata..."
+                  placeholder={tr("Es. Rumore anomalo, perdita d'olio, temperatura elevata...")}
                   style={{
                     width: "100%",
                     background: "var(--surface-2)",
@@ -258,7 +260,7 @@ export default function CheckPubblicoPage() {
                     disabled={invioLoading}
                     style={{ flex: 1, background: "var(--surface-2)", color: "var(--text-muted)", border: "1px solid var(--border-default)", borderRadius: "8px", padding: "14px", fontSize: "15px", cursor: "pointer", minHeight: "50px" }}
                   >
-                    Annulla
+                    {tr("Annulla")}
                   </button>
                   <button
                     onClick={async () => {
@@ -302,7 +304,7 @@ export default function CheckPubblicoPage() {
                       minHeight: "50px",
                     }}
                   >
-                    {invioLoading ? "Invio in corso..." : "Invia segnalazione"}
+                    {invioLoading ? "Invio in corso..." : tr("Invia segnalazione")}
                   </button>
                 </div>
               </div>
@@ -315,12 +317,12 @@ export default function CheckPubblicoPage() {
           <div style={{ background: "var(--green-dim)", border: "2px solid #16a34a", borderRadius: "12px", padding: "20px", marginTop: "24px", textAlign: "center" }}>
             <div style={{ fontSize: "36px", marginBottom: "8px" }}>✅</div>
             <div style={{ fontSize: "18px", fontWeight: 700, color: "#22c55e", marginBottom: "8px" }}>
-              Segnalazione ricevuta
+              {tr("Segnalazione ricevuta")}
             </div>
             <div style={{ fontSize: "14px", color: "#86efac", lineHeight: 1.5 }}>
               {ticketCreato
-                ? <>Ticket <strong style={{ color: "#4ade80" }}>#{ticketCreato}</strong> aperto — il responsabile è stato avvisato.</>
-                : "Il responsabile manutenzione è stato avvisato."
+                ? <>{tr("Ticket")} <strong style={{ color: "#4ade80" }}>#{ticketCreato}</strong> aperto — il responsabile è stato avvisato.</>
+                : tr("Il responsabile manutenzione è stato avvisato.")
               }
               {descrizioneAnomalia && (
                 <div style={{ marginTop: "8px", fontStyle: "italic", opacity: 0.8 }}>
@@ -334,7 +336,7 @@ export default function CheckPubblicoPage() {
 
       {/* Footer */}
       <div style={{ padding: "16px", textAlign: "center", borderTop: "1px solid #1f2937", marginTop: "16px" }}>
-        <div style={{ fontSize: "11px", color: "#4b5563" }}>Powered by MaintAI · Asset #{data.asset_id}</div>
+        <div style={{ fontSize: "11px", color: "#4b5563" }}>{tr("Powered by MaintAI · Asset #")}{data.asset_id}</div>
       </div>
     </div>
   );

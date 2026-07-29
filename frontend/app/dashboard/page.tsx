@@ -29,6 +29,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line,
 } from "recharts";
 import { ASSET_STATUS_OPTIONS, assetStatusLabel, normalizeAssetStatus } from "../lib/assetStatus";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 type ChartItem = { name: string; value: number };
 type DashboardData = {
@@ -301,12 +302,13 @@ function WidgetControls({
   listeners?: DraggableSyntheticListeners;
   children: React.ReactNode;
 }) {
+  const tr = useT();
   return (
     <div style={{ position: "absolute", top: 10, right: 10, zIndex: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
       <button
         type="button"
-        aria-label="Sposta riquadro"
-        title="Sposta riquadro"
+        aria-label={tr("Sposta riquadro")}
+        title={tr("Sposta riquadro")}
         {...attributes}
         {...listeners}
         style={{
@@ -341,9 +343,10 @@ function MiniSelect({
   onChange: (value: string) => void;
   width?: number;
 }) {
+  const tr = useT();
   return (
     <select
-      aria-label={label}
+      aria-label={tr(label)}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onPointerDown={(e) => e.stopPropagation()}
@@ -361,7 +364,7 @@ function MiniSelect({
       }}
     >
       {options.map((item) => (
-        <option key={item.value} value={item.value}>{item.label}</option>
+        <option key={item.value} value={item.value}>{tr(item.label)}</option>
       ))}
     </select>
   );
@@ -436,8 +439,9 @@ function ChartCard({ title, subtitle, accent = "#5b8fff", children }: { title: s
 }
 
 function DashboardChartContent({ data, chartType, accent }: { data: ChartItem[]; chartType: ChartDisplayType; accent: string }) {
+  const tr = useT();
   if (!data.length) {
-    return <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 48, fontSize: 13 }}>Nessun dato disponibile.</div>;
+    return <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 48, fontSize: 13 }}>{tr("Nessun dato disponibile.")}</div>;
   }
 
   if (chartType === "pie") {
@@ -572,6 +576,7 @@ function AssetDetailWidget({
   onFilterChange: (key: keyof AssetColumnFilters, value: string) => void;
   onPageChange: (page: number) => void;
 }) {
+  const tr = useT();
   const filteredAssets = assets;
   const columns: { key: keyof AssetColumnFilters; label: string; width?: number }[] = [
     { key: "sito", label: "Sito", width: 140 },
@@ -608,11 +613,11 @@ function AssetDetailWidget({
             <IconActivity size={14} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--text-primary)" }}>Dettaglio KPI per Asset</div>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--text-primary)" }}>{tr("Dettaglio KPI per Asset")}</div>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{filteredAssets.length} visibili · {total} totali · MTBF · OEE · Downtime</div>
           </div>
         </div>
-        <span style={{ color: "var(--cobalt-bright)", fontSize: 12, fontWeight: 800 }}>{open ? "Comprimi" : "Apri dettaglio"}</span>
+        <span style={{ color: "var(--cobalt-bright)", fontSize: 12, fontWeight: 800 }}>{open ? "Comprimi" : tr("Apri dettaglio")}</span>
       </button>
 
       {open && (
@@ -624,11 +629,11 @@ function AssetDetailWidget({
                   {columns.map((col) => (
                     <th key={col.key} style={{ padding: "9px 10px", textAlign: "left", borderBottom: "1px solid var(--border-subtle)", minWidth: col.width }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--text-muted)" }}>{col.label}</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--text-muted)" }}>{tr(col.label)}</span>
                         <input
                           value={filters[col.key]}
                           onChange={(e) => onFilterChange(col.key, e.target.value)}
-                          placeholder="Filtra"
+                          placeholder={tr("Filtra")}
                           style={{ height: 24, borderRadius: 7, border: "1px solid var(--border-default)", background: "var(--surface-2)", color: "var(--text-primary)", fontSize: 11, padding: "0 7px", outline: "none" }}
                         />
                       </div>
@@ -655,17 +660,17 @@ function AssetDetailWidget({
                   </tr>
                 ))}
                 {!filteredAssets.length && (
-                  <tr><td colSpan={10} style={{ padding: 28, textAlign: "center", color: "var(--text-muted)" }}>Nessun asset trovato.</td></tr>
+                  <tr><td colSpan={10} style={{ padding: 28, textAlign: "center", color: "var(--text-muted)" }}>{tr("Nessun asset trovato.")}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {pages > 1 && (
             <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Pagina {page} / {pages}</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{tr("Pagina")} {page} / {pages}</div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: 12 }} disabled={page === 1} onClick={() => onPageChange(page - 1)}>Prec.</button>
-                <button className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: 12 }} disabled={page === pages} onClick={() => onPageChange(page + 1)}>Succ.</button>
+                <button className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: 12 }} disabled={page === 1} onClick={() => onPageChange(page - 1)}>{tr("Prec.")}</button>
+                <button className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: 12 }} disabled={page === pages} onClick={() => onPageChange(page + 1)}>{tr("Succ.")}</button>
               </div>
             </div>
           )}
@@ -677,6 +682,7 @@ function AssetDetailWidget({
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const tr = useT();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardData>(EMPTY_DASHBOARD);
@@ -714,7 +720,7 @@ export default function DashboardPage() {
         ...(assetColumnFilters.stato && { asset_stato: assetColumnFilters.stato }),
       });
       setKpiAsset(await apiGet<KpiAsset & { total: number; page: number; pages: number }>(`/dashboard/kpi-asset?${q.toString()}`));
-    } catch { notify.error("Errore caricamento KPI asset."); }
+    } catch { notify.error(tn("Errore caricamento KPI asset.")); }
   }
 
   useEffect(() => {
@@ -731,7 +737,7 @@ export default function DashboardPage() {
         if (trendData) setTrend(trendData);
         if (kpiAvanzatiData) setKpiAvanzati(kpiAvanzatiData);
         setLastUpdate(new Date());
-      } catch { notify.error("Errore di connessione al backend."); }
+      } catch { notify.error(tn("Errore di connessione al backend.")); }
       finally { setLoading(false); }
     }
     loadInitial();
@@ -1002,10 +1008,10 @@ export default function DashboardPage() {
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.25em", color: "var(--cobalt)", background: "var(--cobalt-dim)", border: "1px solid rgba(91,143,255,0.25)", padding: "3px 10px", borderRadius: "var(--radius-full)", flexShrink: 0 }}>
-              Overview
+              {tr("Overview")}
             </span>
             <h1 style={{ margin: 0, fontSize: 19, fontWeight: 800, fontFamily: "var(--font-display)", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.03em" }}>
-              Ciao,{" "}
+              {tr("Ciao,")}{" "}
               <span style={{ color: "var(--text-accent)" }}>
                 {user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : "Operatore"}
               </span>
@@ -1015,7 +1021,7 @@ export default function DashboardPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderRadius: "var(--radius-full)", background: "rgba(16,217,176,0.10)", border: "1px solid rgba(16,217,176,0.26)", fontSize: 15, color: "var(--cyan)", fontWeight: 800, letterSpacing: "0.01em" }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--cyan)", display: "inline-block", animation: "statusPulse 2.5s infinite", boxShadow: "0 0 9px rgba(16,217,176,0.65)" }} />
-              {lastUpdate ? `Live · ${lastUpdate.toLocaleTimeString("it-IT")}` : "Connessione..."}
+              {lastUpdate ? `Live · ${lastUpdate.toLocaleTimeString(getLocaleTag())}` : "Connessione..."}
             </div>
             {false && trendChartData.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1041,10 +1047,10 @@ export default function DashboardPage() {
       {dashboard && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 2, background: "var(--border-subtle)", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--border-default)" }}>
           {[
-            { label: "Asset Totali",   value: dashboard.assets,                               color: "var(--cobalt)" },
+            { label: tr("Asset Totali"),   value: dashboard.assets,                               color: "var(--cobalt)" },
             { label: "OPERATIVO",      value: dashboard.asset_stati?.service ?? 0,             color: "var(--cyan)" },
-            { label: "GUASTO",         value: dashboard.asset_stati?.["out of service"] ?? 0, color: "var(--red)" },
-            { label: "Ticket Aperti",  value: dashboard.ticket_aperti,                        color: "var(--amber)" },
+            { label: tr("GUASTO"),         value: dashboard.asset_stati?.["out of service"] ?? 0, color: "var(--red)" },
+            { label: tr("Ticket Aperti"),  value: dashboard.ticket_aperti,                        color: "var(--amber)" },
             { label: "In Corso",       value: dashboard.ticket_in_corso,                      color: "var(--violet)" },
           ].map((s, i) => (
             <div key={i} style={{ padding: "12px 16px", background: "var(--surface-2)", textAlign: "center", transition: "background 150ms" }}
@@ -1052,7 +1058,7 @@ export default function DashboardPage() {
               onMouseLeave={e => (e.currentTarget.style.background = "var(--surface-2)")}
             >
               <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1, letterSpacing: "-1px" }}>{s.value}</div>
-              <div style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", marginTop: 5 }}>{s.label}</div>
+              <div style={{ fontSize: 9, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", marginTop: 5 }}>{tr(s.label)}</div>
             </div>
           ))}
         </div>
@@ -1064,17 +1070,17 @@ export default function DashboardPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>Dashboard personalizzata</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>Trascina i riquadri e scegli il KPI da mostrare in ogni posizione.</div>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>{tr("Dashboard personalizzata")}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>{tr("Trascina i riquadri e scegli il KPI da mostrare in ogni posizione.")}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {isCustomizing && (
                 <>
                   <button type="button" className="btn btn-secondary" style={{ padding: "7px 12px", fontSize: 12 }} onClick={showAllWidgets}>
-                    Mostra tutti
+                    {tr("Mostra tutti")}
                   </button>
                   <button type="button" className="btn btn-secondary" style={{ padding: "7px 12px", fontSize: 12 }} onClick={resetDashboardWidgets}>
-                    Ripristina
+                    {tr("Ripristina")}
                   </button>
                 </>
               )}
@@ -1104,7 +1110,7 @@ export default function DashboardPage() {
                                   onPointerDown={e => e.stopPropagation()}
                                   style={{ height: 31, padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontSize: 11, fontWeight: 800 }}
                                 >
-                                  {widget.hidden ? "Mostra" : "Nascondi"}
+                                  {widget.hidden ? tr("Mostra") : tr("Nascondi")}
                                 </button>
                                 {widget.type === "kpi" && (
                                   <MiniSelect
@@ -1134,7 +1140,7 @@ export default function DashboardPage() {
                                 )}
                                 {widget.type === "asset_table" && (
                                   <span style={{ height: 31, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border-default)", color: "var(--text-secondary)", fontSize: 11, fontWeight: 800 }}>
-                                    Dettaglio asset
+                                    {tr("Dettaglio asset")}
                                   </span>
                                 )}
                               </WidgetControls>
@@ -1182,7 +1188,7 @@ export default function DashboardPage() {
 
             {/* Backlog per tipo */}
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 16 }}>Backlog Aperti per Tipo</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 16 }}>{tr("Backlog Aperti per Tipo")}</div>
               <div style={{ display: "flex", gap: 12, justifyContent: "space-around" }}>
                 {([["BD", "#ef4444"], ["PM", "#22c55e"], ["CM", "#f59e0b"], ["MOD-STR", "#8b5cf6"]] as [string, string][]).map(([tipo, color]) => (
                   <div key={tipo} style={{ textAlign: "center" }}>
@@ -1195,7 +1201,7 @@ export default function DashboardPage() {
 
             {/* Trend backlog 7gg */}
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 12 }}>Ticket Aperti — Ultimi 7 giorni</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 12 }}>{tr("Ticket Aperti — Ultimi 7 giorni")}</div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
                 {kpiAvanzati.trend_backlog_7gg.map((item, i) => {
                   const max = Math.max(...kpiAvanzati.trend_backlog_7gg.map(t => t.count), 1);
@@ -1214,9 +1220,9 @@ export default function DashboardPage() {
             {/* Costo fermo evitato */}
             {kpiAvanzati.costo_fermo_evitato_mese > 0 && (
               <div style={{ background: "var(--grad-card)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-                <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#22c55e", marginBottom: 8 }}>Costo Fermo Evitato (mese)</div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: "#22c55e" }}>€{kpiAvanzati.costo_fermo_evitato_mese.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Somma interventi PM/CM chiusi questo mese × costo/h asset</div>
+                <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "#22c55e", marginBottom: 8 }}>{tr("Costo Fermo Evitato (mese)")}</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: "#22c55e" }}>€{kpiAvanzati.costo_fermo_evitato_mese.toLocaleString(getLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{tr("Somma interventi PM/CM chiusi questo mese × costo/h asset")}</div>
               </div>
             )}
           </div>
@@ -1224,7 +1230,7 @@ export default function DashboardPage() {
           {/* Top 5 Asset Critici */}
           {kpiAvanzati.top_asset_critici.length > 0 && (
             <div style={{ background: "var(--grad-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-lg)", padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 14 }}>Top 5 Asset Critici — Guasti 90gg</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--text-muted)", marginBottom: 14 }}>{tr("Top 5 Asset Critici — Guasti 90gg")}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {kpiAvanzati.top_asset_critici.map((a, i) => {
                   const mapABC: Record<string, string> = { A: "#ef4444", B: "#f97316", C: "#22c55e" };
@@ -1242,7 +1248,7 @@ export default function DashboardPage() {
                         </span>
                       )}
                       <span style={{ fontSize: 13, fontWeight: 700, color: a.n_guasti > 3 ? "#ef4444" : "#f59e0b", minWidth: 60, textAlign: "right" }}>{a.n_guasti} guasti</span>
-                      <a href={`/asset?id=${a.asset_id}`} style={{ fontSize: 10, color: "#5b8fff", textDecoration: "none", border: "1px solid #5b8fff44", borderRadius: 4, padding: "2px 8px", flexShrink: 0 }}>Dettaglio</a>
+                      <a href={`/asset?id=${a.asset_id}`} style={{ fontSize: 10, color: "#5b8fff", textDecoration: "none", border: "1px solid #5b8fff44", borderRadius: 4, padding: "2px 8px", flexShrink: 0 }}>{tr("Dettaglio")}</a>
                     </div>
                   );
                 })}
@@ -1274,7 +1280,7 @@ export default function DashboardPage() {
           }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--violet), transparent)" }} />
             <div style={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, background: "rgba(155,120,255,0.07)", borderRadius: "50%", filter: "blur(28px)", pointerEvents: "none" }} />
-            <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--violet)", marginBottom: 18 }}>Mean Time Between Failures</div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--violet)", marginBottom: 18 }}>{tr("Mean Time Between Failures")}</div>
             <RingProgress value={kpiAsset.aggregati.avg_mtbf_giorni} max={90} color="#9b78ff" size={110} label={`${kpiAsset.aggregati.avg_mtbf_giorni}gg`} sublabel="MTBF Medio" />
           </div>
           <div style={{
@@ -1286,7 +1292,7 @@ export default function DashboardPage() {
           }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--cyan), transparent)" }} />
             <div style={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, background: "rgba(16,217,176,0.06)", borderRadius: "50%", filter: "blur(28px)", pointerEvents: "none" }} />
-            <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--cyan)", marginBottom: 18 }}>Overall Equipment Effectiveness · 30gg</div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--cyan)", marginBottom: 18 }}>{tr("Overall Equipment Effectiveness · 30gg")}</div>
             <RingProgress value={kpiAsset.aggregati.avg_oee_pct} max={100} color="#10d9b0" size={110} label={`${kpiAsset.aggregati.avg_oee_pct}%`} sublabel="OEE Medio" />
           </div>
         </div>
@@ -1295,7 +1301,7 @@ export default function DashboardPage() {
       {/* ── Charts Row 1 */}
       {charts && (
         <div style={{ display: "none", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <ChartCard title="Ticket per Priorità" subtitle="Distribuzione per livello di urgenza" accent="#f05252">
+          <ChartCard title={tr("Ticket per Priorità")} subtitle="Distribuzione per livello di urgenza" accent="#f05252">
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <defs>
@@ -1317,7 +1323,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Asset per stato" subtitle="Snapshot del parco macchine" accent="#10d9b0">
+          <ChartCard title={tr("Asset per stato")} subtitle="Snapshot del parco macchine" accent="#10d9b0">
             {charts.asset_by_stato?.length ? (
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -1331,7 +1337,7 @@ export default function DashboardPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 48, fontSize: 13 }}>Nessun dato asset.</div>
+              <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 48, fontSize: 13 }}>{tr("Nessun dato asset.")}</div>
             )}
           </ChartCard>
         </div>
@@ -1340,7 +1346,7 @@ export default function DashboardPage() {
       {/* ── Charts Row 2 */}
       {kpiAsset && kpiAsset.assets.length > 0 && (
         <div style={{ display: "none", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <ChartCard title="MTBF per Asset" subtitle="Mean Time Between Failures — pagina corrente" accent="#9b78ff">
+          <ChartCard title={tr("MTBF per Asset")} subtitle="Mean Time Between Failures — pagina corrente" accent="#9b78ff">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart layout="vertical" data={kpiAsset.assets.map(a => ({ name: a.asset_codice || a.asset_nome, value: a.mtbf_giorni }))} margin={{ left: 0 }}>
                 <defs>
@@ -1358,7 +1364,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="OEE per Asset" subtitle="Overall Equipment Effectiveness — 30gg" accent="#10d9b0">
+          <ChartCard title={tr("OEE per Asset")} subtitle="Overall Equipment Effectiveness — 30gg" accent="#10d9b0">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart layout="vertical" data={kpiAsset.assets.map(a => ({ name: a.asset_codice || a.asset_nome, value: a.oee_pct }))} margin={{ left: 0 }}>
                 <defs>
@@ -1393,14 +1399,14 @@ export default function DashboardPage() {
               <IconActivity size={14} />
             </div>
             <div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>Dettaglio KPI per Asset</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>MTBF · OEE · Downtime · Guasti</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>{tr("Dettaglio KPI per Asset")}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{tr("MTBF · OEE · Downtime · Guasti")}</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <input
               type="text" className="input"
-              placeholder="Cerca asset o codice..."
+              placeholder={tr("Cerca asset o codice...")}
               style={{ width: 200, fontSize: 12, height: 34 }}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -1419,7 +1425,7 @@ export default function DashboardPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "rgba(91,143,255,0.03)" }}>
-                {["Codice", "Asset", "Area", "Stato", "MTBF (gg)", "OEE", "Guasti", "Downtime", "In Corso"].map(h => (
+                {["Codice", tr("Asset"), "Area", tr("Stato"), "MTBF (gg)", "OEE", "Guasti", "Downtime", "In Corso"].map(h => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 9.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1450,7 +1456,7 @@ export default function DashboardPage() {
                 </tr>
               ))}
               {(!kpiAsset || kpiAsset.assets.length === 0) && (
-                <tr><td colSpan={9} style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>Nessun asset trovato.</td></tr>
+                <tr><td colSpan={9} style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>{tr("Nessun asset trovato.")}</td></tr>
               )}
             </tbody>
           </table>
@@ -1462,11 +1468,11 @@ export default function DashboardPage() {
               {kpiAsset.assets.length} di <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{kpiAsset.total}</span> asset
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-secondary" style={{ padding: "5px 14px", fontSize: 12 }} disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prec.</button>
+              <button className="btn btn-secondary" style={{ padding: "5px 14px", fontSize: 12 }} disabled={page === 1} onClick={() => setPage(p => p - 1)}>{tr("← Prec.")}</button>
               <span style={{ display: "flex", alignItems: "center", fontSize: 12, color: "var(--text-secondary)", padding: "0 8px" }}>
                 {page} / {kpiAsset.pages}
               </span>
-              <button className="btn btn-secondary" style={{ padding: "5px 14px", fontSize: 12 }} disabled={page === kpiAsset.pages} onClick={() => setPage(p => p + 1)}>Succ. →</button>
+              <button className="btn btn-secondary" style={{ padding: "5px 14px", fontSize: 12 }} disabled={page === kpiAsset.pages} onClick={() => setPage(p => p + 1)}>{tr("Succ. →")}</button>
             </div>
           </div>
         )}

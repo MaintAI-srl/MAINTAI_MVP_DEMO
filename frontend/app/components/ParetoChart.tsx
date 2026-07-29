@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { getLocaleTag, useT } from "@/app/lib/i18n";
 import {
   Bar,
   Cell,
@@ -30,12 +31,13 @@ const NEUTRAL = "#64748b";  // voci non dominanti — volutamente recessivo
 const COBALT = "#5b8fff";   // curva cumulata
 
 function formatNum(value: number): string {
-  return value.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  return value.toLocaleString(getLocaleTag(), { maximumFractionDigits: 2 });
 }
 
 type TooltipPayload = { payload?: { rank: number; label: string; value: number; pct: number; cum_pct: number } };
 
 function ParetoTooltip({ active, payload, unita }: { active?: boolean; payload?: TooltipPayload[]; unita: string }) {
+  const tr = useT();
   const row = active && payload && payload.length > 0 ? payload[0].payload : undefined;
   if (!row) return null;
   return (
@@ -44,11 +46,11 @@ function ParetoTooltip({ active, payload, unita }: { active?: boolean; payload?:
       borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text-primary)",
       boxShadow: "0 8px 24px rgba(0,0,0,0.35)", maxWidth: 260,
     }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>#{row.rank} — {row.label}</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>#{row.rank} — {tr(row.label)}</div>
       <div style={{ color: "var(--text-muted)" }}>
-        {formatNum(row.value)} {unita} · {row.pct}% del totale
+        {formatNum(row.value)} {unita} · {tr("{pct}% del totale", { pct: row.pct })}
       </div>
-      <div style={{ color: "var(--text-muted)" }}>Cumulata: {row.cum_pct}%</div>
+      <div style={{ color: "var(--text-muted)" }}>{tr("Cumulata:")} {row.cum_pct}%</div>
     </div>
   );
 }
@@ -56,6 +58,7 @@ function ParetoTooltip({ active, payload, unita }: { active?: boolean; payload?:
 /** Grafico di Pareto classico su un solo asse 0–100%: barre = % del totale
  *  per voce, linea = % cumulata, soglia tratteggiata all'80%. */
 export default function ParetoChart({ pareto }: { pareto: Pareto }) {
+  const tr = useT();
   const data = pareto.items.map((item, i) => ({
     rank: i + 1,
     label: item.label,
@@ -83,10 +86,10 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
     <div style={{ margin: "14px 0", border: "1px solid var(--border-default)", borderRadius: 8, overflow: "hidden" }}>
       <div style={{ padding: "10px 14px", background: "var(--surface-1)", borderBottom: "1px solid var(--border-default)" }}>
         <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)" }}>
-          Pareto — {pareto.titolo}
+          {tr("Pareto —")} {pareto.titolo}
         </div>
         <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3 }}>
-          Totale {formatNum(pareto.totale)} {pareto.unita} su {pareto.n_voci} voci
+          {tr("Totale")} {formatNum(pareto.totale)} {pareto.unita} su {pareto.n_voci} voci
         </div>
       </div>
 
@@ -98,11 +101,11 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
         color: "var(--text-primary)",
       }}>
         {pareto.concentrated ? (
-          <><strong style={{ color: RED }}>Concentrazione 80/20 rilevata:</strong>{" "}
-          {pareto.vital_count} voci su {pareto.n_voci} generano l&apos;80% del totale — concentra le azioni su queste (in rosso).</>
+          <><strong style={{ color: RED }}>{tr("Concentrazione 80/20 rilevata:")}</strong>{" "}
+          {tr("{vital} voci su {tot} generano l'80% del totale — concentra le azioni su queste (in rosso).", { vital: pareto.vital_count, tot: pareto.n_voci })}</>
         ) : (
-          <><strong>Nessuna concentrazione 80/20:</strong>{" "}
-          servono {pareto.vital_count} voci su {pareto.n_voci} per arrivare all&apos;80% — distribuzione uniforme,
+          <><strong>{tr("Nessuna concentrazione 80/20:")}</strong>{" "}
+          {tr("servono {vital} voci su {tot} per arrivare all'80% — distribuzione uniforme,", { vital: pareto.vital_count, tot: pareto.n_voci })}
           nessun asset domina. Ragiona per famiglie o cause trasversali, non sui singoli asset in testa.</>
         )}
       </div>
@@ -147,16 +150,16 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", padding: "6px 14px 10px", fontSize: 11, color: "var(--text-muted)" }}>
         {pareto.concentrated && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: RED }} /> Vital few (→ 80%)
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: RED }} /> {tr("Vital few (→ 80%)")}
           </span>
         )}
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: NEUTRAL }} /> % del totale per voce
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: NEUTRAL }} /> {tr("% del totale per voce")}
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 14, height: 2, background: COBALT, borderRadius: 1 }} /> Cumulata
+          <span style={{ width: 14, height: 2, background: COBALT, borderRadius: 1 }} /> {tr("Cumulata")}
         </span>
-        <span>┄ soglia 80%</span>
+        <span>{tr("┄ soglia 80%")}</span>
       </div>
 
       {/* Tabella compatta: mappa rank → nome asset e valori esatti */}
@@ -165,10 +168,10 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
           <thead>
             <tr style={{ color: "var(--text-muted)", fontSize: 10.5 }}>
               <th style={{ ...th, width: 34 }}>#</th>
-              <th style={{ ...th, textAlign: "left" }}>Voce</th>
+              <th style={{ ...th, textAlign: "left" }}>{tr("Voce")}</th>
               <th style={th}>{pareto.unita}</th>
               <th style={th}>%</th>
-              <th style={th}>% cum.</th>
+              <th style={th}>{tr("% cum.")}</th>
             </tr>
           </thead>
           <tbody>
@@ -180,7 +183,7 @@ export default function ParetoChart({ pareto }: { pareto: Pareto }) {
                   <td style={{ ...td, color: "var(--text-muted)", borderLeft: highlight ? `2px solid ${RED}` : "2px solid transparent" }}>
                     {row.isOthers ? "—" : row.rank}
                   </td>
-                  <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 700 : 400, ...muted }}>{row.label}</td>
+                  <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 700 : 400, ...muted }}>{tr(row.label)}</td>
                   <td style={{ ...td, ...muted }}>{formatNum(row.value)}</td>
                   <td style={{ ...td, ...muted }}>{row.pct}%</td>
                   <td style={{ ...td, ...muted }}>{row.cum_pct}%</td>

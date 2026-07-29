@@ -5,6 +5,7 @@ import SignaturePad from "./SignaturePad";
 import { apiPost } from "../lib/api";
 import { consegnaRapportino } from "../lib/rapportino";
 import { notify } from "@/lib/toast";
+import { useT } from "@/app/lib/i18n";
 
 type Props = {
   ticketId: number;
@@ -27,6 +28,7 @@ type Props = {
  * sul ticket (POST /tickets/{id}/firma con nome) → si genera e consegna il PDF.
  */
 export default function FirmaRapportinoModal({ ticketId, mode, onClose, onDone, defaultName, onSkip, skipLabel }: Props) {
+  const tr = useT();
   const [nome, setNome] = useState(defaultName ?? "");
   const [busy, setBusy] = useState(false);
 
@@ -74,13 +76,13 @@ export default function FirmaRapportinoModal({ ticketId, mode, onClose, onDone, 
         {/* Nome firmatario */}
         <div style={{ background: "var(--surface-2)", borderRadius: 16, border: "1px solid var(--border-default)", padding: 16 }}>
           <label style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
-            Nome del cliente / firmatario
+            {tr("Nome del cliente / firmatario")}
           </label>
           <input
             autoFocus
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            placeholder="Es. Mario Bianchi"
+            placeholder={tr("Es. Mario Bianchi")}
             style={{
               width: "100%", padding: "10px 12px", boxSizing: "border-box",
               background: "var(--bg-base)", border: "1px solid var(--border-strong)",
@@ -91,7 +93,7 @@ export default function FirmaRapportinoModal({ ticketId, mode, onClose, onDone, 
 
         {/* Pad di firma su sfondo chiaro (leggibile nel PDF) */}
         <SignaturePad
-          title="✍️ Firma di accettazione del cliente"
+          title={tr("✍️ Firma di accettazione del cliente")}
           inkColor="#111827"
           light
           onSave={handleSave}
@@ -115,7 +117,7 @@ export default function FirmaRapportinoModal({ ticketId, mode, onClose, onDone, 
 
         {busy && (
           <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-            Operazione in corso…
+            {tr("Operazione in corso…")}
           </div>
         )}
       </div>

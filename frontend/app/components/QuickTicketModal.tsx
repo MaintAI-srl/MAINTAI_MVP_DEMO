@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { apiPost, apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import Link from "next/link";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Asset = { id: number; name: string; nome: string; codice?: string; sito_id?: number | null; sito_nome?: string | null };
 
@@ -22,6 +23,7 @@ interface QuickTicketResponse {
 }
 
 export default function QuickTicketModal() {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoaded, setAssetsLoaded] = useState(false);
@@ -84,8 +86,8 @@ export default function QuickTicketModal() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!assetId) { notify.error("Seleziona un asset."); return; }
-    if (!descrizione.trim()) { notify.error("Inserisci una descrizione."); return; }
+    if (!assetId) { notify.error(tn("Seleziona un asset.")); return; }
+    if (!descrizione.trim()) { notify.error(tn("Inserisci una descrizione.")); return; }
 
     setLoading(true);
     try {
@@ -95,7 +97,7 @@ export default function QuickTicketModal() {
         tipo,
       });
       setLastCreated(ticket);
-      notify.success(`Ticket #${ticket.id} creato`);
+      notify.success(tn("Ticket #{id} creato", { id: ticket.id }));
       reset();
       setLastCreated(ticket);
     } catch (err: unknown) {
@@ -150,8 +152,8 @@ export default function QuickTicketModal() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 12px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-1)" }}>
           <div>
-            <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#3b82f6", marginBottom: 2 }}>Ticket Rapido</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)" }}>Nuovo Intervento</div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#3b82f6", marginBottom: 2 }}>{tr("Ticket Rapido")}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)" }}>{tr("Nuovo Intervento")}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 9.5, background: "var(--surface-3)", color: "#64748b", border: "1px solid var(--border-default)", borderRadius: 4, padding: "2px 6px", fontFamily: "monospace" }}>N</span>
@@ -163,9 +165,9 @@ export default function QuickTicketModal() {
         {lastCreated && (
           <div style={{ padding: "14px 20px", background: "rgba(34,197,94,0.08)", borderBottom: "1px solid rgba(34,197,94,0.2)" }}>
             <div style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>
-              Ticket #{lastCreated.id} creato
+              {tr("Ticket #")}{lastCreated.id} creato
               {" "}
-              <Link href="/ticket" onClick={handleClose} style={{ color: "#60a5fa", fontSize: 12 }}>Vai ai ticket →</Link>
+              <Link href="/ticket" onClick={handleClose} style={{ color: "#60a5fa", fontSize: 12 }}>{tr("Vai ai ticket →")}</Link>
             </div>
           </div>
         )}
@@ -174,7 +176,7 @@ export default function QuickTicketModal() {
 
           {/* Tipo */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Tipo intervento</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{tr("Tipo intervento")}</div>
             <div style={{ display: "flex", gap: 6 }}>
               {(["BD", "PM", "CM"] as const).map(t => (
                 <button
@@ -192,13 +194,13 @@ export default function QuickTicketModal() {
               ))}
             </div>
             <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
-              {tipo === "BD" ? "Guasto — ferma la macchina" : tipo === "PM" ? "Preventiva — programmata" : "Correttiva — non urgente"}
+              {tipo === "BD" ? tr("Guasto — ferma la macchina") : tipo === "PM" ? tr("Preventiva — programmata") : tr("Correttiva — non urgente")}
             </div>
           </div>
 
           {/* Sito */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Sito</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{tr("Sito")}</div>
             <select
               value={sitoFiltro}
               onChange={e => {
@@ -209,7 +211,7 @@ export default function QuickTicketModal() {
               }}
               style={{ width: "100%", background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-default)", borderRadius: 6, padding: "8px 12px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
             >
-              <option value="">— Tutti i siti —</option>
+              <option value="">{tr("— Tutti i siti —")}</option>
               {siti.map(([id, nome]) => (
                 <option key={id} value={id}>{nome}</option>
               ))}
@@ -218,12 +220,12 @@ export default function QuickTicketModal() {
 
           {/* Asset */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Asset *</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{tr("Asset *")}</div>
             <input
               type="text"
               value={assetSearch}
               onChange={e => setAssetSearch(e.target.value)}
-              placeholder="Cerca per nome o codice..."
+              placeholder={tr("Cerca per nome o codice...")}
               style={{ width: "100%", background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-default)", borderRadius: "6px 6px 0 0", padding: "8px 12px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
             />
             <select
@@ -233,7 +235,7 @@ export default function QuickTicketModal() {
               size={Math.min(filteredAssets.length + 1, 5)}
               style={{ width: "100%", background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-default)", borderTop: "none", borderRadius: "0 0 6px 6px", padding: "4px 0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
             >
-              <option value="">— Seleziona asset —</option>
+              <option value="">{tr("— Seleziona asset —")}</option>
               {filteredAssets.map(a => (
                 <option key={a.id} value={String(a.id)}>
                   {a.codice ? `[${a.codice}] ` : ""}{a.nome || a.name}{a.sito_nome ? ` — ${a.sito_nome}` : ""}
@@ -244,14 +246,14 @@ export default function QuickTicketModal() {
 
           {/* Descrizione */}
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Descrizione *</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{tr("Descrizione *")}</div>
             <textarea
               ref={descRef}
               value={descrizione}
               onChange={e => setDescrizione(e.target.value)}
               required
               rows={3}
-              placeholder="Es: Pompa P-01 — perdita olio dal premistoppa, vibrazione anomala..."
+              placeholder={tr("Es: Pompa P-01 — perdita olio dal premistoppa, vibrazione anomala...")}
               style={{ width: "100%", background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-default)", borderRadius: 6, padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
             />
           </div>
@@ -259,7 +261,7 @@ export default function QuickTicketModal() {
           {/* Actions */}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
             <button type="button" onClick={handleClose} style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-default)", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13 }}>
-              Annulla
+              {tr("Annulla")}
             </button>
             <button
               type="submit"
@@ -272,7 +274,7 @@ export default function QuickTicketModal() {
                 opacity: (!assetId || !descrizione.trim()) ? 0.5 : 1,
               }}
             >
-              {loading ? "Creazione..." : "Apri Ticket"}
+              {loading ? tr("Creazione...") : tr("Apri Ticket")}
             </button>
           </div>
         </form>

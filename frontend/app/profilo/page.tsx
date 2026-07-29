@@ -2,8 +2,10 @@
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiPost } from "../lib/api";
+import { useT } from "@/app/lib/i18n";
 
 export default function ProfiloPage() {
+  const tr = useT();
   const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -39,37 +41,37 @@ export default function ProfiloPage() {
     <div style={{ maxWidth: "600px", margin: "0 auto", padding: "40px 20px" }}>
       <div className="card" style={{ padding: "32px" }}>
         <div style={{ marginBottom: "32px", borderBottom: "1px solid var(--border-dim)", paddingBottom: "24px" }}>
-          <h1 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "8px" }}>MIO PROFILO</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Gestisci le tue credenziali e le impostazioni account</p>
+          <h1 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "8px" }}>{tr("MIO PROFILO")}</h1>
+          <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>{tr("Gestisci le tue credenziali e le impostazioni account")}</p>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "40px" }}>
           <div>
-            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>Username</label>
+            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>{tr("Username")}</label>
             <div style={{ padding: "12px", background: "var(--bg-base)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-secondary)" }}>
               {user?.username}
             </div>
           </div>
           <div>
-            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>Ruolo</label>
+            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>{tr("Ruolo")}</label>
             <div style={{ padding: "12px", background: "var(--bg-base)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-secondary)", textTransform: "capitalize" }}>
               {user?.ruolo}
             </div>
           </div>
           <div style={{ gridColumn: "span 2" }}>
-            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>Tenant / Azienda</label>
+            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase" }}>{tr("Tenant / Azienda")}</label>
             <div style={{ padding: "12px", background: "var(--bg-base)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontWeight: 600 }}>
-              ◈ {user?.tenant_nome || "Nessun Tenant"}
+              ◈ {user?.tenant_nome || tr("Nessun Tenant")}
             </div>
           </div>
         </div>
 
         <form onSubmit={handlePasswordChange} style={{ borderTop: "1px solid var(--border-dim)", paddingTop: "32px" }}>
-          <h2 style={{ fontSize: "14px", fontWeight: 700, marginBottom: "24px", letterSpacing: "1px" }}>🔒 CAMBIA PASSWORD</h2>
+          <h2 style={{ fontSize: "14px", fontWeight: 700, marginBottom: "24px", letterSpacing: "1px" }}>{tr("🔒 CAMBIA PASSWORD")}</h2>
           
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div>
-              <label style={{ display: "block", fontSize: "11px", marginBottom: "8px" }}>Password Attuale</label>
+              <label style={{ display: "block", fontSize: "11px", marginBottom: "8px" }}>{tr("Password Attuale")}</label>
               <input
                 type="password"
                 className="input"
@@ -82,25 +84,25 @@ export default function ProfiloPage() {
             
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
               <div>
-                <label style={{ display: "block", fontSize: "11px", marginBottom: "8px" }}>Nuova Password</label>
+                <label style={{ display: "block", fontSize: "11px", marginBottom: "8px" }}>{tr("Nuova Password")}</label>
                 <input
                   type="password"
                   className="input"
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min. 8 caratteri"
+                  placeholder={tr("Min. 8 caratteri")}
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: "11px", marginBottom: "8px" }}>Conferma Password</label>
+                <label style={{ display: "block", fontSize: "11px", marginBottom: "8px" }}>{tr("Conferma Password")}</label>
                 <input
                   type="password"
                   className="input"
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Ripeti password"
+                  placeholder={tr("Ripeti password")}
                 />
               </div>
             </div>
@@ -126,7 +128,7 @@ export default function ProfiloPage() {
               style={{ marginTop: "12px", width: "100%" }}
               disabled={loading}
             >
-              {loading ? "Aggiornamento in corso..." : "AGGIORNA PASSWORD"}
+              {loading ? tr("Aggiornamento in corso...") : "AGGIORNA PASSWORD"}
             </button>
           </div>
         </form>

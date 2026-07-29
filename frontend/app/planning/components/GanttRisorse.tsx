@@ -18,6 +18,8 @@ import { format, addDays, subDays, parseISO, startOfWeek, isToday } from "date-f
 import { it } from "date-fns/locale";
 
 import { createContext, useContext } from "react";
+import { useT, tn } from "@/app/lib/i18n";
+import { labelPriorita } from "@/app/lib/i18n/domain";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -185,7 +187,7 @@ function UnscheduledItem({ ticket, onClick }: { ticket: TicketData; onClick: () 
         <span style={{ fontSize: 9, color: s.text, letterSpacing: "0.1em", background: `${s.border}20`, padding: "1px 5px", borderRadius: 2 }}>
           {ticket.tipo}
         </span>
-        <span style={{ fontSize: 9, color: prioColor }}>● {ticket.priorita}</span>
+        <span style={{ fontSize: 9, color: prioColor }}>● {labelPriorita(ticket.priorita)}</span>
       </div>
       <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>
         {ticket.titolo}
@@ -494,6 +496,7 @@ function TicketDetailDrawer({ ticket, onClose }: { ticket: TicketData; onClose: 
 // ─── GanttRisorse (componente principale, self-contained) ─────────────────────
 
 export default function GanttRisorse() {
+  const tr = useT();
   const [view, setView] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [tecnici, setTecnici] = useState<TecnicoData[]>([]);
@@ -583,7 +586,7 @@ export default function GanttRisorse() {
         new_start_minute: newMinute,
         tecnico_id: dropData.tecnico_id,
       });
-      notify.success(`Ticket #${ticket.id} spostato`);
+      notify.success(tn("Ticket #{id} spostato", { id: ticket.id }));
       await loadData();
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : "Errore spostamento ticket");
@@ -675,7 +678,7 @@ export default function GanttRisorse() {
             onClick={() => setCurrentDate(new Date())}
             style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", padding: "4px 10px", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
           >
-            OGGI
+            {tr("OGGI")}
           </button>
           <button
             onClick={() => navigate(1)}
@@ -690,7 +693,7 @@ export default function GanttRisorse() {
           <button
             onClick={() => setZoom(z => Math.max(0.6, z - 0.2))}
             style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", width: 24, height: 24, cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
-            title="Zoom Out"
+            title={tr("Zoom Out")}
           >
             -
           </button>
@@ -700,7 +703,7 @@ export default function GanttRisorse() {
           <button
             onClick={() => setZoom(z => Math.min(2.0, z + 0.2))}
             style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", width: 24, height: 24, cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
-            title="Zoom In"
+            title={tr("Zoom In")}
           >
             +
           </button>
@@ -713,13 +716,13 @@ export default function GanttRisorse() {
         <div style={{ flex: 1 }} />
 
         <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-          {tecnici.length} tecnici · {scheduledTickets.length} pianificati
+          {tr("{tecnici} tecnici · {pianificati} pianificati", { tecnici: tecnici.length, pianificati: scheduledTickets.length })}
         </span>
 
         <button
           onClick={loadData}
           disabled={loading}
-          title="Aggiorna"
+          title={tr("Aggiorna")}
           style={{ background: "transparent", border: "1px solid var(--border-strong)", color: "var(--text-secondary)", width: 28, height: 28, cursor: "pointer", fontSize: 14, opacity: loading ? 0.5 : 1 }}
         >
           ↻
@@ -744,7 +747,7 @@ export default function GanttRisorse() {
           >
             <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
               <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", marginBottom: 8 }}>
-                NON PIANIFICATI
+                {tr("NON PIANIFICATI")}
               </div>
 
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
@@ -767,25 +770,25 @@ export default function GanttRisorse() {
                         fontFamily: "inherit",
                       }}
                     >
-                      {tipo || "TUTTI"} ({cnt})
+                      {tipo || tr("TUTTI")} ({cnt})
                     </button>
                   );
                 })}
               </div>
 
               <div style={{ fontSize: 11, color: "var(--text-disabled)" }}>
-                Trascina sulla timeline →
+                {tr("Trascina sulla timeline →")}
               </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
               {loading ? (
                 <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", paddingTop: 24 }}>
-                  Caricamento...
+                  {tr("Caricamento...")}
                 </div>
               ) : filteredUnscheduled.length === 0 ? (
                 <div style={{ color: "var(--text-disabled)", fontSize: 12, textAlign: "center", paddingTop: 24 }}>
-                  Nessun ticket da pianificare
+                  {tr("Nessun ticket da pianificare")}
                 </div>
               ) : (
                 filteredUnscheduled.map((t) => (
@@ -799,7 +802,7 @@ export default function GanttRisorse() {
           <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: 13 }}>
-                Caricamento dati...
+                {tr("Caricamento dati...")}
               </div>
             ) : (
               <div style={{ minWidth: timelineMinW }}>
@@ -833,7 +836,7 @@ export default function GanttRisorse() {
                       zIndex: 11,
                     }}
                   >
-                    TECNICO
+                    {tr("TECNICO")}
                   </div>
 
                   {view === "day"
@@ -884,7 +887,7 @@ export default function GanttRisorse() {
                 {/* Righe tecnici */}
                 {tecnici.length === 0 ? (
                   <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-                    Nessun tecnico attivo trovato
+                    {tr("Nessun tecnico attivo trovato")}
                   </div>
                 ) : (
                   tecnici.map((tecnico) => {

@@ -12,6 +12,7 @@ import { apiGet } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useAuth } from "../lib/auth";
 import Skeleton from "../components/Skeleton";
+import { useT, tn } from "@/app/lib/i18n";
 import {
   Mic, ClipboardList, ChevronRight, RefreshCw, AlertTriangle, Package, Stethoscope,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
 } from "./shared";
 
 export default function MobileHomePage() {
+  const tr = useT();
   const { user } = useAuth();
   const router = useRouter();
   const tecnicoId = useTecnicoId();
@@ -35,7 +37,7 @@ export default function MobileHomePage() {
       const d = await apiGet<{ items?: Ticket[] }>(`/tickets?tecnico_id=${tecnicoId}&limit=50`);
       setTickets(d.items ?? []);
     } catch {
-      notify.error("Errore nel caricamento degli interventi.", "MOBILE");
+      notify.error(tn("Errore nel caricamento degli interventi."), "MOBILE");
     }
     setLoading(false);
   }, [tecnicoId]);
@@ -74,7 +76,7 @@ export default function MobileHomePage() {
       <div className="m-fade-up" style={{ padding: "16px 0 12px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: "clamp(22px, 6vw, 28px)", color: C.text, letterSpacing: "-0.025em", lineHeight: 1.15 }}>
-            Ciao, {user?.username ?? "Tecnico"}
+            {tr("Ciao,")} {user?.username ?? tr("Tecnico")}
           </div>
           <div style={{ fontSize: 14, color: C.text3, marginTop: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -89,7 +91,7 @@ export default function MobileHomePage() {
         </div>
         <button
           className="m-press"
-          aria-label="Aggiorna"
+          aria-label={tr("Aggiorna")}
           onClick={async () => { setRefreshing(true); await loadTickets(); setRefreshing(false); }}
           disabled={refreshing}
           style={{ ...circleBtn, color: C.text2, cursor: refreshing ? "wait" : "pointer" }}
@@ -106,8 +108,8 @@ export default function MobileHomePage() {
         }}>
           <IconBadge Icon={AlertTriangle} color={C.yellow} size={44} iconSize={21} />
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: C.yellow, marginBottom: 2 }}>Profilo tecnico non collegato</div>
-            <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.45 }}>Contatta il responsabile per associare l&apos;account.</div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: C.yellow, marginBottom: 2 }}>{tr("Profilo tecnico non collegato")}</div>
+            <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.45 }}>{tr("Contatta il responsabile per associare l'account.")}</div>
           </div>
         </div>
       )}
@@ -132,7 +134,7 @@ export default function MobileHomePage() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 12, color: C.red, textTransform: "uppercase", letterSpacing: "0.1em", animation: "mBreath 1.4s ease-in-out infinite" }}>
-              BD / emergenza assegnata
+              {tr("BD / emergenza assegnata")}
             </div>
             <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {t.titolo}
@@ -147,7 +149,7 @@ export default function MobileHomePage() {
       {inCorsoList.length > 0 && (
         <div className="m-fade-up" style={{ marginBottom: 12, flexShrink: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: C.text3, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
-            In corso ora
+            {tr("In corso ora")}
           </div>
           {inCorsoList.map(t => {
             const tInfo = tipoMeta(t.tipo);
@@ -164,7 +166,7 @@ export default function MobileHomePage() {
                   <div style={{ fontSize: 13, color: C.text2, marginTop: 2 }}>{t.asset_name}</div>
                 </div>
                 <span style={{ fontSize: 13, color: C.orange, fontWeight: 800, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                  APRI <ChevronRight size={15} strokeWidth={2.5} />
+                  {tr("APRI")} <ChevronRight size={15} strokeWidth={2.5} />
                 </span>
               </button>
             );
@@ -195,9 +197,9 @@ export default function MobileHomePage() {
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontWeight: 800, fontSize: "clamp(21px, 5.6vw, 26px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-              Apri Ticket <span style={{ color: "#A5A1FF" }}>Vocale</span>
+              {tr("Apri Ticket")} <span style={{ color: "#A5A1FF" }}>{tr("Vocale")}</span>
             </div>
-            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>Riconosce l&apos;asset dalla voce o dal QR</div>
+            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>{tr("Riconosce l'asset dalla voce o dal QR")}</div>
           </div>
         </Link>
 
@@ -222,9 +224,9 @@ export default function MobileHomePage() {
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontWeight: 800, fontSize: "clamp(21px, 5.6vw, 26px)", color: C.text, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-              Piano <span style={{ color: C.teal }}>Odierno</span>
+              {tr("Piano")} <span style={{ color: C.teal }}>{tr("Odierno")}</span>
             </div>
-            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>Verifica DPI e accedi al piano</div>
+            <div style={{ fontSize: "clamp(13px, 3.4vw, 15px)", color: C.text3, marginTop: 6, fontWeight: 500, lineHeight: 1.35 }}>{tr("Verifica DPI e accedi al piano")}</div>
           </div>
         </Link>
       </div>
@@ -240,8 +242,8 @@ export default function MobileHomePage() {
       >
         <IconBadge Icon={Stethoscope} color={C.purple} size={44} iconSize={21} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>Diagnosi guasti AI</div>
-          <div style={{ fontSize: 13, color: C.text3, marginTop: 2 }}>Analisi guidata del guasto sul campo</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>{tr("Diagnosi guasti AI")}</div>
+          <div style={{ fontSize: 13, color: C.text3, marginTop: 2 }}>{tr("Analisi guidata del guasto sul campo")}</div>
         </div>
         <ChevronRight size={19} color={C.text3 as string} />
       </Link>
@@ -257,8 +259,8 @@ export default function MobileHomePage() {
       >
         <IconBadge Icon={Package} color={C.blue} size={44} iconSize={21} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>I miei ticket</div>
-          <div style={{ fontSize: 13, color: C.text3, marginTop: 2 }}>{tickets.length} interventi assegnati</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>{tr("I miei ticket")}</div>
+          <div style={{ fontSize: 13, color: C.text3, marginTop: 2 }}>{tr("{n} interventi assegnati", { n: tickets.length })}</div>
         </div>
         <ChevronRight size={19} color={C.text3 as string} />
       </Link>

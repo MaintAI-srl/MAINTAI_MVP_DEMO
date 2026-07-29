@@ -7,6 +7,7 @@ import { apiGet, apiPost } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { Bot, Loader2, X } from "lucide-react";
 import type { Pareto } from "./ParetoChart";
+import { getLocaleTag, useT, tn } from "@/app/lib/i18n";
 
 // Recharts entra nel bundle solo quando un report con Pareto viene mostrato
 const ParetoChart = dynamic(() => import("./ParetoChart"), {
@@ -52,7 +53,7 @@ type AgentRunRow = {
 type UsageSummary = { totale_eur: number; mese_eur: number; oggi_eur: number; runs: number };
 
 function formatEur(value: number): string {
-  return value.toLocaleString("it-IT", {
+  return value.toLocaleString(getLocaleTag(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: value < 1 ? 4 : 2,
   });
@@ -195,6 +196,7 @@ function MarkdownLite({ text }: { text: string }) {
 /* ── Barra agenti in topbar ──────────────────────────────────────────────── */
 
 export default function AgentsBar() {
+  const tr = useT();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [openAgent, setOpenAgent] = useState<AgentInfo | null>(null);
@@ -236,7 +238,7 @@ export default function AgentsBar() {
       setResult(res);
       setLastRun(null);
       loadUsage();
-      notify.success(`${openAgent.nome} — report generato (€ ${formatEur(res.cost_eur)})`);
+      notify.success(tn("{nome} — report generato (€ {valore})", { nome: openAgent.nome, valore: formatEur(res.cost_eur) }));
     } catch (err: unknown) {
       notify.error(err instanceof Error ? err.message : "Errore esecuzione agente");
     } finally {
@@ -267,7 +269,7 @@ export default function AgentsBar() {
             className="topbar-ai-cost"
             title={`Consumo AI — oggi: € ${formatEur(usage.oggi_eur)} · mese: € ${formatEur(usage.mese_eur)} · totale: € ${formatEur(usage.totale_eur)} (${usage.runs} run)`}
           >
-            AI € {formatEur(usage.mese_eur)}
+            {tr("AI €")} {formatEur(usage.mese_eur)}
           </span>
         )}
       </div>
@@ -301,7 +303,7 @@ export default function AgentsBar() {
                 <Bot size={19} strokeWidth={2} style={{ color: openAgent.colore }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, letterSpacing: "0.14em", fontWeight: 800, textTransform: "uppercase", color: openAgent.colore }}>Agente AI · trigger manuale</div>
+                <div style={{ fontSize: 10, letterSpacing: "0.14em", fontWeight: 800, textTransform: "uppercase", color: openAgent.colore }}>{tr("Agente AI · trigger manuale")}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.25 }}>{openAgent.nome}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{openAgent.descrizione}</div>
               </div>
@@ -309,7 +311,7 @@ export default function AgentsBar() {
                 type="button"
                 onClick={() => setOpenAgent(null)}
                 disabled={running}
-                aria-label="Chiudi"
+                aria-label={tr("Chiudi")}
                 style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--surface-3)", color: "var(--text-muted)", cursor: running ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X size={15} />
@@ -321,8 +323,8 @@ export default function AgentsBar() {
               {running ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "48px 0", color: "var(--text-muted)" }}>
                   <Loader2 size={30} className="animate-spin" style={{ color: openAgent.colore }} />
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>L&apos;agente sta analizzando i dati dell&apos;impianto…</div>
-                  <div style={{ fontSize: 11.5 }}>Analisi di Pareto, logiche lean e report esperto: può richiedere fino a 2 minuti.</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{tr("L'agente sta analizzando i dati dell'impianto…")}</div>
+                  <div style={{ fontSize: 11.5 }}>{tr("Analisi di Pareto, logiche lean e report esperto: può richiedere fino a 2 minuti.")}</div>
                 </div>
               ) : result ? (
                 <>
@@ -332,15 +334,15 @@ export default function AgentsBar() {
               ) : lastRun?.output_md ? (
                 <>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 10, padding: "6px 10px", background: "var(--surface-1)", border: "1px solid var(--border-default)", borderRadius: 6 }}>
-                    Ultimo report del {lastRun.created_at ? new Date(lastRun.created_at).toLocaleString("it-IT") : "n/d"}
+                    {tr("Ultimo report del")} {lastRun.created_at ? new Date(lastRun.created_at).toLocaleString(getLocaleTag()) : "n/d"}
                     {lastRun.created_by ? ` — eseguito da ${lastRun.created_by}` : ""}. Premi &quot;Esegui agente&quot; per un&apos;analisi aggiornata.
                   </div>
                   <MarkdownLite text={lastRun.output_md} />
                 </>
               ) : (
                 <div style={{ padding: "36px 12px", textAlign: "center", color: "var(--text-muted)", fontSize: 13, lineHeight: 1.7 }}>
-                  Nessun report precedente per questo agente.<br />
-                  Premi <strong style={{ color: "var(--text-primary)" }}>Esegui agente</strong> per lanciare l&apos;analisi sui dati attuali.
+                  {tr("Nessun report precedente per questo agente.")}<br />
+                  {tr("Premi")} <strong style={{ color: "var(--text-primary)" }}>{tr("Esegui agente")}</strong> per lanciare l&apos;analisi sui dati attuali.
                 </div>
               )}
             </div>
@@ -359,7 +361,7 @@ export default function AgentsBar() {
                   disabled={running}
                   style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--surface-3)", color: "var(--text-muted)", fontSize: 13, fontWeight: 600, cursor: running ? "not-allowed" : "pointer" }}
                 >
-                  Chiudi
+                  {tr("Chiudi")}
                 </button>
                 <button
                   type="button"
@@ -381,7 +383,7 @@ export default function AgentsBar() {
                   }}
                 >
                   {running ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} strokeWidth={2.2} />}
-                  {running ? "In esecuzione…" : "Esegui agente"}
+                  {running ? tr("In esecuzione…") : "Esegui agente"}
                 </button>
               </div>
             </div>

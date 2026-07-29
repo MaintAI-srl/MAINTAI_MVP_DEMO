@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PlannedWO, TicketData } from "../types";
 import { tipoStyle, MESI } from "../types";
 import { localDateStr } from "../../lib/datetime";
+import { useT } from "@/app/lib/i18n";
 
 interface Props {
   wos: PlannedWO[];
@@ -49,6 +50,7 @@ const DOT_COLOR: Record<string, string> = {
 };
 
 export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, onDayClick }: Props) {
+  const tr = useT();
   const [panelDay, setPanelDay] = useState<string | null>(null);
   const today = localDateStr();
 
@@ -249,7 +251,7 @@ export default function CalendarioMensile({ wos, ticketMap, mese, onMeseChange, 
           <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", maxHeight: 500 }}>
             {panelWOs.length === 0 ? (
               <div style={{ color: "#4b5563", fontSize: 12, padding: "20px", textAlign: "center" }}>
-                Nessun intervento
+                {tr("Nessun intervento")}
               </div>
             ) : (
               panelWOs.map((wo, i) => {

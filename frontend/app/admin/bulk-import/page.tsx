@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiGet, apiUpload, getTauriToken, isTauri } from "../../lib/api";
 import { notify } from "@/lib/toast";
+import { useT, tn } from "@/app/lib/i18n";
 
 type Tenant = {
   id: number;
@@ -43,6 +44,7 @@ const FALLBACK_TEMPLATES: TemplateInfo[] = [
 ];
 
 export default function BulkImportPage() {
+  const tr = useT();
   const [templates, setTemplates] = useState<TemplateInfo[]>(FALLBACK_TEMPLATES);
   const [selectedType, setSelectedType] = useState("gerarchia");
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -109,7 +111,7 @@ export default function BulkImportPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      notify.success("Template scaricato");
+      notify.success(tn("Template scaricato"));
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Download template non riuscito");
     }
@@ -128,7 +130,7 @@ export default function BulkImportPage() {
       const data = await apiUpload<PreviewResult>("/admin/bulk-import/preview", fd);
       setPreview(data);
       if (data.valid) notify.success("File valido. Controlla l'anteprima e conferma l'import.");
-      else notify.warning("File da correggere prima dell'import");
+      else notify.warning(tn("File da correggere prima dell'import"));
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Errore anteprima");
     } finally {
@@ -157,15 +159,15 @@ export default function BulkImportPage() {
   return (
     <main style={{ minHeight: "100vh", background: "var(--surface-1)", color: "var(--text-primary)", padding: "32px 24px" }}>
       <header style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>Import Massivo</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>{tr("Import Massivo")}</div>
         <p style={{ margin: "6px 0 0", maxWidth: 820, color: "var(--text-muted)", fontSize: 13, lineHeight: 1.5 }}>
-          Scarica il template Excel per la tipologia dati, compilalo e caricalo con validazione preventiva.
+          {tr("Scarica il template Excel per la tipologia dati, compilalo e caricalo con validazione preventiva.")}
         </p>
       </header>
 
       <section style={{ display: "grid", gridTemplateColumns: "minmax(280px, 390px) minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
         <aside style={panelStyle}>
-          <div style={sectionTitle}>Template disponibili</div>
+          <div style={sectionTitle}>{tr("Template disponibili")}</div>
           <div style={{ display: "grid", gap: 10 }}>
             {templates.map((template) => {
               const active = selectedType === template.id;
@@ -186,7 +188,7 @@ export default function BulkImportPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <strong style={{ display: "block", fontSize: 14 }}>{template.label}</strong>
+                  <strong style={{ display: "block", fontSize: 14 }}>{tr(template.label)}</strong>
                   <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.35 }}>
                     {template.description}
                   </span>
@@ -199,24 +201,24 @@ export default function BulkImportPage() {
         <section style={panelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
             <div>
-              <div style={sectionTitle}>{selectedTemplate?.label}</div>
+              <div style={sectionTitle}>{tr(selectedTemplate?.label)}</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedTemplate?.description}</div>
             </div>
             <button onClick={() => selectedTemplate && downloadTemplate(selectedTemplate)} style={primaryButton}>
-              Scarica template Excel
+              {tr("Scarica template Excel")}
             </button>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, marginBottom: 18 }}>
             <label>
-              <span style={labelStyle}>Tenant destinatario</span>
+              <span style={labelStyle}>{tr("Tenant destinatario")}</span>
               <select
                 value={tenantId ?? ""}
                 disabled={loading}
                 onChange={(event) => setTenantId(Number(event.target.value) || null)}
                 style={inputStyle}
               >
-                <option value="">Seleziona tenant</option>
+                <option value="">{tr("Seleziona tenant")}</option>
                 {tenants.map((tenant) => (
                   <option key={tenant.id} value={tenant.id}>
                     {tenant.nome} ({tenant.slug}){tenant.is_active ? "" : " - inattivo"}
@@ -226,7 +228,7 @@ export default function BulkImportPage() {
             </label>
 
             <label>
-              <span style={labelStyle}>File Excel compilato</span>
+              <span style={labelStyle}>{tr("File Excel compilato")}</span>
               <input
                 ref={fileRef}
                 type="file"
@@ -245,7 +247,7 @@ export default function BulkImportPage() {
           {file && (
             <div style={{ marginBottom: 18, padding: 12, border: "1px solid var(--border-default)", borderRadius: 8, background: "var(--surface-2)" }}>
               <strong style={{ fontSize: 13 }}>{file.name}</strong>
-              <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-muted)" }}>{(file.size / 1024).toFixed(1)} KB</span>
+              <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-muted)" }}>{(file.size / 1024).toFixed(1)} {tr("KB")}</span>
             </div>
           )}
 
@@ -255,7 +257,7 @@ export default function BulkImportPage() {
               disabled={!file || !tenantId || previewing}
               style={{ ...secondaryButton, opacity: !file || !tenantId || previewing ? 0.55 : 1 }}
             >
-              {previewing ? "Validazione..." : "Valida e mostra anteprima"}
+              {previewing ? tr("Validazione...") : tr("Valida e mostra anteprima")}
             </button>
             <button
               onClick={runImport}
@@ -265,7 +267,7 @@ export default function BulkImportPage() {
               {importing ? "Import in corso..." : "Conferma import"}
             </button>
             {(file || preview || result) && (
-              <button onClick={resetFileState} style={secondaryButton}>Nuovo file</button>
+              <button onClick={resetFileState} style={secondaryButton}>{tr("Nuovo file")}</button>
             )}
           </div>
 
@@ -278,6 +280,7 @@ export default function BulkImportPage() {
 }
 
 function PreviewPanel({ preview }: { preview: PreviewResult }) {
+  const tr = useT();
   const total = Object.values(preview.counts).reduce((sum, count) => sum + count, 0);
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -287,8 +290,8 @@ function PreviewPanel({ preview }: { preview: PreviewResult }) {
         borderRadius: 8,
         padding: 14,
       }}>
-        <strong>{preview.valid ? "File valido" : "File non valido"}</strong>
-        <span style={{ marginLeft: 8, color: "var(--text-muted)", fontSize: 12 }}>{total} righe dati rilevate</span>
+        <strong>{preview.valid ? "File valido" : tr("File non valido")}</strong>
+        <span style={{ marginLeft: 8, color: "var(--text-muted)", fontSize: 12 }}>{tr("{total} righe dati rilevate", { total })}</span>
         {!preview.valid && (
           <div style={{ marginTop: 10, display: "grid", gap: 4 }}>
             {preview.errors.map((error, index) => (
@@ -306,12 +309,13 @@ function PreviewPanel({ preview }: { preview: PreviewResult }) {
 }
 
 function PreviewTable({ title, rows }: { title: string; rows: Record<string, string>[] }) {
+  const tr = useT();
   if (!rows.length) return null;
   const columns = Object.keys(rows[0]);
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 800, color: "#93c5fd", textTransform: "uppercase", marginBottom: 8 }}>
-        Anteprima {title}
+        {tr("Anteprima")} {title}
       </div>
       <div style={{ overflowX: "auto", border: "1px solid var(--border-default)", borderRadius: 8 }}>
         <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 620, fontSize: 12 }}>
@@ -338,9 +342,10 @@ function PreviewTable({ title, rows }: { title: string; rows: Record<string, str
 }
 
 function ResultPanel({ result }: { result: ImportResult }) {
+  const tr = useT();
   return (
     <div style={{ marginTop: 16, border: "1px solid rgba(34,197,94,.45)", background: "rgba(5,46,22,.28)", borderRadius: 8, padding: 16 }}>
-      <strong style={{ color: "#86efac" }}>Import completato</strong>
+      <strong style={{ color: "#86efac" }}>{tr("Import completato")}</strong>
       <div style={{ marginTop: 5, color: "var(--text-muted)", fontSize: 13 }}>{result.message}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
         {Object.entries(result.stats).map(([key, value]) => (
