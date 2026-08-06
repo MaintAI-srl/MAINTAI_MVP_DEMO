@@ -12,6 +12,7 @@ import AgentsBar from "./components/AgentsBar";
 import QuickTicketModal from "./components/QuickTicketModal";
 import GuideBot from "./components/GuideBot";
 import InstallPrompt from "./components/InstallPrompt";
+import PlanBanner from "./components/PlanBanner";
 import TenantContextSwitcher from "./components/TenantContextSwitcher";
 import { VERSION } from "./lib/version";
 import { getVisibleNavGroups, PAGE_LABELS } from "./lib/navigation";
@@ -216,8 +217,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [localeTag]);
 
-  // Pagine pubbliche (nessun redirect al login)
-  const isPublicPage = pathname === "/login" || pathname.startsWith("/check/");
+  // Pagine pubbliche (nessun redirect al login).
+  // Il percorso self-service (prezzi → registrazione → verifica → reset) vive
+  // fuori dalla sessione per definizione: chi lo attraversa un account non ce
+  // l'ha ancora, o non riesce più ad accedervi.
+  const PUBLIC_PATHS = ["/login", "/pricing", "/register", "/verify-email", "/forgot-password", "/reset-password"];
+  const isPublicPage =
+    PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith("/check/") ||
+    // Il checkout simulato richiede la sessione (il token è legato al tenant),
+    // ma non la shell: è una pagina di pagamento, non una pagina dell'app.
+    pathname.startsWith("/billing/checkout");
 
   useEffect(() => {
     if (!isAuthenticated && !isPublicPage) {
@@ -491,6 +501,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
+
+        {/* Stato commerciale: compare solo quando c'è qualcosa da fare
+            (prova in scadenza, pagamento fallito, sola lettura). */}
+        <PlanBanner />
 
         {/* Page content */}
         <main className="app-content">

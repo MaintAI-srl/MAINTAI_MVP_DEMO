@@ -418,6 +418,73 @@ Le righe nel vecchio formato (lista nuda) sono ancora lette: i moduli assenti ri
 default, perché non è possibile distinguere "spento per scelta" da "non esisteva ancora".
 Uno spegnimento voluto va rifatto una volta e dal salvataggio successivo persiste.
 
+## Livello commerciale SaaS (piani, quote, abbonamenti)
+
+Studio completo e istruzioni di prova: [`docs/SAAS_SELF_SERVICE.md`](docs/SAAS_SELF_SERVICE.md).
+Prova rapida senza avviare nulla: `python scripts/demo_saas.py`.
+
+**Dove sta cosa.** Il *catalogo* (quali piani esistono, cosa includono, quanto costano)
+è nel codice — `backend/core/plans.py`, come le `MODULE_DEFINITIONS`. Il DB conserva solo
+ciò che è dato del cliente: `subscriptions` (piano, stato, periodo, add-on),
+`subscription_events`, `usage_counters`, `auth_tokens`, `onboarding_progress`.
+Mai mettere un piano in tabella: è una decisione di prodotto, deve passare dalla code review.
+
+**Chi decide.** Solo `backend/services/billing/entitlement_service.py`. Ogni endpoint che
+crea una risorsa a quota chiama `require_capacity(db, tenant_id, METRIC, 1)` **prima** di
+scrivere; il frontend può anticipare lo stato per non far compilare form destinati a
+fallire, ma non decide nulla.
+
+| Concetto | Dove |
+|---|---|
+| Piano, quote, add-on del tenant | `resolve_entitlements(db, tenant_id)` |
+| Verifica capienza | `require_capacity(...)` → 402 con metrica/consumo/limite |
+| Diritto di scrittura | `require_write_access(...)` / dependency `enforce_write_access` |
+| Consumo AI (metrica di flusso) | `record_usage(db, tid, METRIC_AI_CALLS, 1)` |
+| Transizioni di stato | solo `subscription_service.py` |
+| Eventi dal provider | solo `webhook_service.process_event` |
+
+**Metriche: stock vs flow.** Utenti, siti e asset si misurano con una `COUNT` sulla tabella
+e non vanno mai memorizzati in `usage_counters`: un contatore per un dato derivabile è una
+seconda verità che prima o poi diverge. `usage_counters` serve solo alle metriche di flusso
+(chiamate AI/mese), che non sono ricostruibili dallo stato corrente.
+
+**Il piano è il terzo livello del gate moduli**, non un sistema parallelo:
+
+```
+moduli effettivi = (globale ∩ piano) + decisioni tenant, il tutto intersecato col tetto
+```
+
+Aggiungere un secondo meccanismo di feature flag produrrebbe clienti che pagano una
+funzione e non la vedono, senza che nessuna pagina di amministrazione sappia spiegare
+perché. Vedi `effective_enabled_ids()` in `backend/core/modules.py`.
+
+**Retrocompatibilità — regola da non violare.** Un tenant **senza riga in `subscriptions`**
+è *grandfathered*: nessun limite, nessun tetto sui moduli, accesso pieno. Vale per tutti i
+clienti creati a mano dal superadmin. Tutti i gate commerciali sono **fail-open**: se lo
+stato non è leggibile, la richiesta passa. Bloccare un cliente pagante costa molto più che
+lasciar passare una richiesta di troppo.
+
+**Sola lettura, mai blocco.** Nessuno stato dell'abbonamento toglie l'accesso ai dati: il
+peggio è la sola lettura, che lascia intatti letture, export, fatture e `/billing`. Un
+cliente moroso deve poter rientrare in regola e portare via i propri dati.
+
+**Provider di pagamento.** `BILLING_PROVIDER=local` (default) usa un checkout simulato che
+produce eventi con la stessa forma di quelli Stripe e li fa passare per lo stesso
+`process_event`: ciò che si prova in locale è la strada del pagamento vero.
+`BILLING_PROVIDER=stripe` richiede `pip install stripe` e i price id in env; da lì Stripe è
+autoritativo e le colonne locali sono solo uno specchio aggiornato dai webhook.
+
+**Idempotenza dei webhook.** La garanzia è il vincolo `UNIQUE(provider_event_id)` su
+`subscription_events`, non un lock applicativo. Rimuoverlo significa riapplicare pagamenti e
+disdette quando il provider ritenta la consegna (Stripe garantisce *at-least-once*).
+
+**Registrazione pubblica.** `SELF_SERVICE_SIGNUP_ENABLED` è **spento di default in
+produzione**: aprire la creazione di tenant a chiunque è una decisione commerciale. Fuori
+produzione i token di verifica tornano nella risposta (`dev_verification_token`) per poter
+provare senza SMTP — mai in produzione.
+
+---
+
 ## Migrazioni DB
 
 Alembic è configurato con `batch_alter_table` per compatibilità SQLite.

@@ -4,6 +4,8 @@ from backend.core.dependencies import get_db
 from backend.core.security import get_current_tenant_id, require_roles
 from backend.repositories.sito_repository import sito_repository
 from backend.schemas.siti import SitoCreate, SitoUpdate
+from backend.core.plans import METRIC_SITES
+from backend.services.billing.entitlement_service import require_capacity
 
 router = APIRouter()
 
@@ -15,6 +17,9 @@ def get_siti(db: Session = Depends(get_db), tenant_id: int = Depends(get_current
 
 @router.post("/siti", status_code=201)
 def create_sito(data: SitoCreate, db: Session = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id), _: dict = Depends(require_roles("responsabile"))):
+    # Il numero di siti è la leva di prezzo principale: la quota si verifica qui,
+    # non nel frontend, perché la creazione passa anche da import massivo e API.
+    require_capacity(db, tenant_id, METRIC_SITES, increment=1)
     return sito_repository.create(db, data, tenant_id)
 
 

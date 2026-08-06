@@ -24,6 +24,25 @@ export function clearTauriToken() {
 
 type RequestOptions = Omit<RequestInit, "method" | "body">;
 
+/**
+ * Errore HTTP che conserva stato e `detail` strutturato.
+ *
+ * Serve al livello commerciale: un 402 di quota superata porta con sé metrica,
+ * consumo e limite, e la UI deve poterli mostrare invece di ridurli a una
+ * stringa. Chi legge solo `error.message` continua a funzionare come prima.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: unknown;
+
+  constructor(message: string, status: number, detail?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 // Endpoint che chiamano AI (OpenAI) — timeout lungo
@@ -116,14 +135,28 @@ async function request<T>(
         }
       }
       let message = `HTTP ${res.status}: ${res.statusText}`;
+      let detail: unknown = undefined;
       try {
         const err = await res.json();
-        if (err?.detail) message = Array.isArray(err.detail) ? err.detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join("; ") : String(err.detail);
-        else if (err?.message) message = String(err.message);
+        detail = err?.detail;
+        if (err?.detail) {
+          if (Array.isArray(err.detail)) {
+            message = err.detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join("; ");
+          } else if (typeof err.detail === "object") {
+            // detail strutturato (es. quota di piano superata): il messaggio
+            // leggibile sta dentro l'oggetto. Senza questo ramo l'utente
+            // leggerebbe "[object Object]" al posto di cosa fare.
+            message = String((err.detail as { message?: string }).message ?? JSON.stringify(err.detail));
+          } else {
+            message = String(err.detail);
+          }
+        } else if (err?.message) {
+          message = String(err.message);
+        }
       } catch {
         // ignora errori di parsing del body
       }
-      throw new Error(message);
+      throw new ApiError(message, res.status, detail);
     }
 
     dispatchDataChanged(method, path);

@@ -9,6 +9,8 @@ from backend.core.security import (
     STRONG_PWD_REGEX, PASSWORD_POLICY_MESSAGE,
 )
 from backend.core.logger_db import db_info
+from backend.core.plans import METRIC_USERS
+from backend.services.billing.entitlement_service import require_capacity
 from backend.db.modelli import Utente, Tecnico
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,11 @@ def create_utente(
     existing = db.query(Utente).filter(Utente.username == username).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Username '{username}' già in uso.")
+
+    # Quota licenze: verificata prima di scrivere, così il 402 non lascia dietro
+    # un utente a metà. Il messaggio dice quante licenze sono usate e quante ne
+    # dà il piano — «operazione non consentita» genererebbe solo un ticket.
+    require_capacity(db, tenant_id, METRIC_USERS, increment=1)
 
     user = Utente(
         username=username,

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, LargeBinary, event, Table
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, Boolean, DateTime, Date, Time, JSON, LargeBinary, event, Table, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
@@ -27,9 +27,27 @@ class Tenant(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=_utcnow)
 
+    # ── Dati anagrafici/fiscali raccolti in registrazione e onboarding ────────
+    # Servono alla fatturazione e ai documenti legali; restano nullable perché i
+    # tenant creati a mano dal superadmin (tutti quelli esistenti) non li hanno.
+    legal_name = Column(String, nullable=True)
+    vat_number = Column(String, nullable=True)
+    billing_email = Column(String, nullable=True)
+    country = Column(String, nullable=True)
+    # pending | in_progress | completed — stato del wizard di attivazione.
+    onboarding_status = Column(String, default="pending")
+    onboarding_completed_at = Column(DateTime, nullable=True)
+    # Richiesta di cancellazione account: la finestra di ripensamento è la
+    # differenza fra questo istante e ACCOUNT_RETENTION_DAYS.
+    deletion_requested_at = Column(DateTime, nullable=True)
+
     utenti = relationship("Utente", back_populates="tenant")
     siti = relationship("Sito", back_populates="tenant")
     tecnici = relationship("Tecnico", back_populates="tenant")
+    subscription = relationship(
+        "Subscription", back_populates="tenant", uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class Utente(Base):
@@ -42,6 +60,14 @@ class Utente(Base):
     is_active = Column(Boolean, default=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     token_version = Column(Integer, default=1, nullable=False)
+
+    # Registrazione self-service: l'email è il canale di verifica e di recupero
+    # password. Resta separata da `username` perché gli utenti storici hanno uno
+    # username che non è un indirizzo (es. "admin").
+    email = Column(String, nullable=True, index=True)
+    email_verified_at = Column(DateTime, nullable=True)
+    # Chi ha aperto l'account: unico autorizzato a disdire e a cancellare i dati.
+    is_tenant_owner = Column(Boolean, default=False)
 
     tenant = relationship("Tenant", back_populates="utenti")
 
@@ -802,4 +828,153 @@ class GlobalModuleConfig(Base):
 
     id = Column(Integer, primary_key=True)
     config = Column(Text, nullable=False, default="{}")  # JSON: decisioni moduli
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Livello commerciale (SaaS self-service)
+# ═══════════════════════════════════════════════════════════════════════════
+# Regola di separazione applicata qui: il *catalogo* (quali piani esistono, cosa
+# includono, quanto costano) sta nel codice — `backend/core/plans.py`; il DB
+# conserva solo ciò che è dato del cliente: quale piano ha, quante licenze extra
+# ha comprato, fino a quando ha pagato.
+
+
+class Subscription(Base):
+    """Abbonamento di un tenant. Una riga per tenant (il piano è uno solo).
+
+    `provider` distingue la sorgente di verità dello stato:
+      - "local"  → nessun pagamento reale, lo stato lo muove MaintAI (trial,
+                   demo, clienti gestiti a contratto fuori piattaforma);
+      - "stripe" → Stripe è autoritativo. Le colonne qui sono uno *specchio*
+                   tenuto aggiornato dai webhook, non la verità: servono a
+                   rispondere in millisecondi senza chiamare l'API a ogni
+                   richiesta. In caso di divergenza vince il provider.
+    """
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, unique=True, index=True)
+
+    provider = Column(String, nullable=False, default="local")  # local | stripe
+    provider_customer_id = Column(String, nullable=True, index=True)
+    provider_subscription_id = Column(String, nullable=True, index=True)
+
+    plan_code = Column(String, nullable=False, default="trial")
+    # trialing | active | past_due | unpaid | paused | cancelled |
+    # incomplete | incomplete_expired  (stessa nomenclatura di Stripe)
+    status = Column(String, nullable=False, default="trialing", index=True)
+    billing_interval = Column(String, nullable=False, default="monthly")  # monthly | yearly
+    currency = Column(String, nullable=False, default="EUR")
+
+    # Add-on acquistati: si SOMMANO alle quote incluse nel piano.
+    extra_users = Column(Integer, nullable=False, default=0)
+    extra_sites = Column(Integer, nullable=False, default=0)
+
+    trial_ends_at = Column(DateTime, nullable=True)
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    cancelled_at = Column(DateTime, nullable=True)
+    # Fine tolleranza su pagamento fallito: entro questa data l'accesso resta
+    # pieno con banner; dopo si degrada a sola lettura.
+    grace_period_ends_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    tenant = relationship("Tenant", back_populates="subscription")
+
+
+class SubscriptionEvent(Base):
+    """Log degli eventi di billing ricevuti dal provider — garanzia di idempotenza.
+
+    Stripe *ritenta* i webhook e non promette una consegna sola: senza questa
+    tabella un `invoice.paid` consegnato due volte prolungherebbe il periodo due
+    volte. `provider_event_id` è UNIQUE: l'INSERT fallisce sul duplicato e la
+    seconda consegna diventa un no-op, senza dipendere da un lock applicativo.
+
+    `payload_hash` non è decorativo: se lo stesso event_id arriva con un corpo
+    diverso, la firma è valida ma i dati no — è un segnale da guardare.
+    """
+    __tablename__ = "subscription_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=True, index=True)
+
+    provider = Column(String, nullable=False, default="local")
+    provider_event_id = Column(String, nullable=False, unique=True, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    payload_hash = Column(String, nullable=True)
+
+    # received | processed | ignored | error
+    processing_status = Column(String, nullable=False, default="received", index=True)
+    processed_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+
+
+class UsageCounter(Base):
+    """Contatore di consumo per metriche *di flusso* (chiamate AI, export…).
+
+    Volutamente NON usato per utenti/siti/asset: quelle sono metriche di stato e
+    si misurano con una COUNT sulla tabella, che non può andare fuori sincrono.
+    Un contatore per un dato già derivabile è solo una seconda verità da
+    riconciliare. Vedi `backend/core/plans.py` (STOCK_METRICS vs FLOW_METRICS).
+    """
+    __tablename__ = "usage_counters"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "metric_code", "period_start", name="uq_usage_tenant_metric_period"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    metric_code = Column(String, nullable=False, index=True)
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    used_value = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class AuthToken(Base):
+    """Token monouso per verifica email e reset password.
+
+    Si conserva solo l'HASH (SHA-256) del token, mai il valore in chiaro: un
+    dump del DB non deve permettere di prendere possesso di un account. Stessa
+    logica per cui le password sono in bcrypt.
+    """
+    __tablename__ = "auth_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("utenti.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    purpose = Column(String, nullable=False, index=True)  # email_verify | password_reset
+    token_hash = Column(String, nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+
+class OnboardingProgress(Base):
+    """Avanzamento del wizard di attivazione, per tenant e per step.
+
+    Riprendibile: il wizard non è una sequenza di schermate ma una macchina a
+    stati persistente. `data_json` conserva ciò che l'utente ha compilato anche
+    quando lo step non è stato completato, così tornando indietro non riparte da
+    zero.
+    """
+    __tablename__ = "onboarding_progress"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "step_code", name="uq_onboarding_tenant_step"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    step_code = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")  # pending | in_progress | completed | skipped
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    skipped_at = Column(DateTime, nullable=True)
+    data_json = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
