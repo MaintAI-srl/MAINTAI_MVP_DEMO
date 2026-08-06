@@ -13,6 +13,8 @@ from backend.repositories.asset_repository import asset_repository
 from backend.schemas.schemas import AssetCreate, AssetUpdate, GeneraAssetMultipliRequest
 from backend.db.modelli import Ticket, Asset
 from backend.core.logger_db import db_info
+from backend.core.plans import METRIC_ASSETS
+from backend.services.billing.entitlement_service import require_capacity
 
 router = APIRouter()
 
@@ -71,6 +73,7 @@ def create_asset(asset: AssetCreate, db: Session = Depends(get_db), tenant_id: i
         raise HTTPException(status_code=422, detail="Il campo 'nome' e' obbligatorio")
     if not asset.area or not asset.area.strip():
         raise HTTPException(status_code=422, detail="Il campo 'area' e' obbligatorio")
+    require_capacity(db, tenant_id, METRIC_ASSETS, increment=1)
     return asset_repository.create(db, asset, tenant_id)
 
 

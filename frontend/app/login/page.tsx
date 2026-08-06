@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { API_BASE, isTauri, saveTauriToken } from "../lib/api";
 import { notify } from "@/lib/toast";
 import { useT, tn } from "@/app/lib/i18n";
 import LanguageSwitcher from "@/app/components/LanguageSwitcher";
+import { getSignupStatus } from "../lib/billing";
 
 /** Tenta una fetch con timeout esplicito in ms. */
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
@@ -27,9 +29,17 @@ export default function LoginPage() {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [wakeSeconds, setWakeSeconds] = useState(0);
+  const [signupOpen, setSignupOpen] = useState(false);
 
   const auth   = useAuth();
   const router = useRouter();
+
+  // Registrazione pubblica attiva? Determina se mostrare «Prova gratis».
+  useEffect(() => {
+    getSignupStatus()
+      .then((status) => setSignupOpen(status.enabled))
+      .catch(() => setSignupOpen(false));
+  }, []);
 
   // Al mount: sveglia aggressiva del backend — pinga ogni 4s finché non risponde
   useEffect(() => {
@@ -245,6 +255,21 @@ export default function LoginPage() {
             {loading ? tr("Connessione in corso...") : tr("ACCEDI")}
           </button>
         </form>
+
+        {/* Percorso self-service: registrazione e recupero password.
+            Il link «Prova gratis» compare solo se il backend ha la
+            registrazione pubblica attiva (SELF_SERVICE_SIGNUP_ENABLED). */}
+        <div style={{ marginTop: 22, textAlign: "center", fontSize: 13, display: "flex", flexDirection: "column", gap: 8 }}>
+          <Link href="/forgot-password" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>
+            {tr("Password dimenticata?")}
+          </Link>
+          {signupOpen && (
+            <span style={{ color: "var(--text-muted)" }}>
+              {tr("Non hai un account?")}{" "}
+              <Link href="/register" style={{ color: "#3b82f6", fontWeight: 700 }}>{tr("Prova MaintAI gratis")}</Link>
+            </span>
+          )}
+        </div>
 
         {/* Indicatore stato backend */}
         <div style={{ marginTop: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 11 }}>

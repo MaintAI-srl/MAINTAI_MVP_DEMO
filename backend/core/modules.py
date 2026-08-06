@@ -499,6 +499,7 @@ def _payload_from_enabled(
     scope: str,
     tenant_id: int | None,
     has_override: bool,
+    plan_allowed: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     global_enabled = enabled_module_ids()
     modules = []
@@ -510,6 +511,9 @@ def _payload_from_enabled(
         # UI deve poterlo dire, invece di far "tornare indietro" l'interruttore
         # dopo un salvataggio andato a buon fine.
         item["blocked_by_global"] = module_id not in global_enabled
+        # Stesso ragionamento per il tetto commerciale: se il modulo non è nel
+        # piano, l'interruttore non deve promettere qualcosa che non accadrà.
+        item["blocked_by_plan"] = plan_allowed is not None and module_id not in plan_allowed
         modules.append(item)
 
     return {
@@ -521,6 +525,10 @@ def _payload_from_enabled(
         "has_override": has_override,
         "global_enabled": sorted(global_enabled),
         "blocked_by_global": sorted(set(MODULE_DEFINITIONS) - set(global_enabled)),
+        "plan_allowed": sorted(plan_allowed) if plan_allowed is not None else None,
+        "blocked_by_plan": (
+            sorted(set(MODULE_DEFINITIONS) - set(plan_allowed)) if plan_allowed is not None else []
+        ),
     }
 
 
@@ -616,16 +624,43 @@ def get_tenant_decisions(db, tenant_id: int) -> ModuleDecisions | None:
     return decisions
 
 
+def _plan_allowed_ids(db, tenant_id: int) -> frozenset[str] | None:
+    """Moduli concessi dal piano commerciale, o None se non c'è restrizione.
+
+    Il livello commerciale è il **terzo** livello di risoluzione, non un sistema
+    parallelo di feature flag: si inserisce fra il kill-switch globale e le
+    decisioni del tenant. La scelta è deliberata — due meccanismi di gating
+    indipendenti sullo stesso modulo produrrebbero, prima o poi, un cliente che
+    paga una funzione e non la vede, senza che nessuna delle due pagine di
+    amministrazione sappia spiegare perché.
+
+    Fail-open: se il livello commerciale non è leggibile, nessuna restrizione.
+    """
+    try:
+        from backend.services.billing.entitlement_service import resolve_entitlements
+
+        return resolve_entitlements(db, tenant_id).allowed_module_ids()
+    except Exception:
+        return None
+
+
 def effective_enabled_ids(db, tenant_id: int | None) -> frozenset[str]:
     global_enabled = enabled_module_ids()
     if tenant_id is None:
         return global_enabled
+
+    # Tetto commerciale: globale ∩ piano. È il massimo che il tenant può avere,
+    # e resta il riferimento anche dopo le sue decisioni.
+    plan_allowed = _plan_allowed_ids(db, tenant_id)
+    ceiling = global_enabled if plan_allowed is None else frozenset(global_enabled & plan_allowed)
+
     decisions = get_tenant_decisions(db, tenant_id)
     if decisions is None:
-        return global_enabled
-    wanted = _apply_decisions(set(global_enabled), decisions)
-    # Kill-switch globale: il tenant non può accendere ciò che è spento in globale.
-    return frozenset(_resolve_dependencies(wanted & set(global_enabled)))
+        return frozenset(_resolve_dependencies(set(ceiling)))
+    wanted = _apply_decisions(set(ceiling), decisions)
+    # Kill-switch globale + tetto di piano: il tenant non può accendere né ciò
+    # che è spento in globale né ciò che il suo piano non comprende.
+    return frozenset(_resolve_dependencies(wanted & set(ceiling)))
 
 
 def is_module_enabled_for_tenant(db, module_id: str, tenant_id: int | None) -> bool:
@@ -641,6 +676,7 @@ def modules_payload_for(db, tenant_id: int | None) -> dict[str, Any]:
         "tenant" if has_override else "global",
         tenant_id,
         has_override,
+        plan_allowed=_plan_allowed_ids(db, tenant_id),
     )
 
 

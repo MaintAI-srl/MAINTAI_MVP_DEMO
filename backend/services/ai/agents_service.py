@@ -656,6 +656,16 @@ def _log_usage(
         created_by=username,
     )
     db.add(row)
+    # Metrica di flusso: la chiamata AI si conta qui, dove è appena avvenuta, e
+    # nella stessa transazione del log. Contarla altrove (nella route, nel
+    # frontend) significherebbe contare le intenzioni invece dei consumi.
+    try:
+        from backend.services.billing.entitlement_service import record_usage
+        from backend.core.plans import METRIC_AI_CALLS
+
+        record_usage(db, tenant_id, METRIC_AI_CALLS, 1)
+    except Exception:
+        logger.warning("billing: consumo AI non registrato per tenant %s", tenant_id, exc_info=True)
     db.commit()
     db.refresh(row)
     return row

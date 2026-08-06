@@ -8,6 +8,18 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/).
 ## [Unreleased]
 
 ### Aggiunto
+- **Livello commerciale SaaS self-service** — la base che rende gestibile in autonomia un abbonamento MaintAI (studio completo e istruzioni di prova in [`docs/SAAS_SELF_SERVICE.md`](docs/SAAS_SELF_SERVICE.md)):
+  - **catalogo piani nel codice** (`backend/core/plans.py`): Start / Professional / Enterprise + prova gratuita, add-on utenti e siti, metriche a quota. Il DB conserva solo ciò che è dato del cliente (`subscriptions`), non il listino
+  - **entitlement service** (`backend/services/billing/entitlement_service.py`): unico punto che decide piano, capienza e diritto di scrittura. Quote applicate prima della scrittura su `POST /utenti`, `POST /siti`, `POST /assets` e sulle chiamate AI
+  - **modalità sola lettura** per abbonamenti non in regola: le letture e gli export restano sempre consentiti, così come `/billing` — un cliente moroso deve poter rientrare e portare via i propri dati
+  - **provider di pagamento intercambiabili** (`providers.py`): `LocalBillingProvider` con checkout simulato (nessuna rete, nessuna chiave) e `StripeBillingProvider` pronto, attivabile con `BILLING_PROVIDER=stripe` e `pip install stripe`
+  - **webhook idempotenti** (`webhook_service.py`): `UNIQUE(provider_event_id)` su `subscription_events`, così una consegna ritentata dal provider non riapplica pagamenti o disdette
+  - **registrazione pubblica** (`/public/signup`), verifica email e reset password con token monouso conservati come hash SHA-256, protezione dall'enumerazione degli indirizzi, consensi versionati
+  - **pagine frontend**: `/pricing`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`, `/billing/checkout` (pagamento simulato, dichiarato tale) e `/settings/billing` (stato, consumo, cambio piano, licenze, dati di fatturazione, disdetta e riattivazione)
+  - **banner di stato** in cima all'app: compare solo quando c'è qualcosa da fare (prova in scadenza, pagamento fallito, sola lettura)
+  - `scripts/demo_saas.py`: percorre l'intero ciclo commerciale su un DB temporaneo e stampa ogni passaggio — nessun server da avviare
+  - 56 test nuovi (`test_billing_entitlements.py`, `test_billing_webhooks.py`, `test_saas_api.py`)
+- Nuove variabili d'ambiente: `BILLING_PROVIDER`, `BILLING_WEBHOOK_SECRET`, `BILLING_GRACE_DAYS`, `TRIAL_DAYS`, `SELF_SERVICE_SIGNUP_ENABLED`, `APP_PUBLIC_URL`, `SMTP_URL`, `EMAIL_FROM`, `TERMS_VERSION`, `PRIVACY_VERSION`, `ACCOUNT_RETENTION_DAYS` e i price id Stripe
 - **Centro di Controllo** (`/controllo`) — vista geografica di supervisione trasferita e adattata da MaintAI Alpha e potenziata con **Google Maps JS API**:
   - nuovo endpoint `GET /control-center/overview` (router `backend/api/routes/control_center.py`): per ogni sito del tenant restituisce posizione (media coordinate impianti, fallback geocoding Nominatim dell'indirizzo), stato aggregato asset (operativi/fermi/guasti), work order attivi (aperti/in corso/pianificati, breakdown) e riepilogo globale
   - nuovo modulo attivabile `control_center` (backend + frontend), voce di menu "Centro di Controllo" nella sezione Dashboard
@@ -16,7 +28,14 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/).
   - KPI strip (siti critici, asset guasti, WO attivi, breakdown, tecnici disponibili), lista siti ordinata per criticità con pan/zoom su selezione, auto-refresh 60s
 - Nuova variabile d'ambiente frontend opzionale: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (limitare la key per referrer HTTP nella console Google Cloud)
 
+### Retrocompatibilità
+- Nessun cliente esistente cambia comportamento: un tenant **senza riga in `subscriptions`** resta senza limiti, senza tetto sui moduli e senza sola lettura. Il livello commerciale si attiva sottoscrivendo, non si subisce al primo deploy
+- Tutti i gate commerciali sono **fail-open**: se lo stato non è leggibile (tabella non ancora migrata, DB lento) la richiesta passa — il costo di bloccare un cliente pagante è più alto di quello di lasciar passare una richiesta di troppo
+- La migrazione `20260806001` non aggiunge colonne NOT NULL senza default e non tocca dati esistenti
+
 ### Modificato
+- **Gate dei moduli a tre livelli**: il piano commerciale diventa un tetto fra il kill-switch globale e le decisioni del tenant (`globale ∩ piano`, poi override del cliente). Non un secondo sistema di feature flag in parallelo a quello esistente: due meccanismi indipendenti sullo stesso modulo avrebbero prodotto clienti che pagano una funzione e non la vedono. La pagina Funzionalità riceve `blocked_by_plan` accanto a `blocked_by_global`
+- `frontend/app/lib/api.ts`: gli errori HTTP sono ora `ApiError` con `status` e `detail` strutturato — un 402 di quota superata porta con sé metrica, consumo e limite, invece di ridursi a `[object Object]`
 - CSP frontend (`next.config.ts`): consentiti i domini Google Maps (`maps.googleapis.com`, `maps.gstatic.com`, `fonts.gstatic.com`) in `script-src`/`connect-src`/`font-src`
 
 ---

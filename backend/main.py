@@ -54,6 +54,8 @@ try:
     from backend.api.routes.asset_documenti import router as asset_documenti_router
     from backend.api.routes.agents import router as agents_router
     from backend.api.routes.ricambi import router as ricambi_router
+    from backend.api.routes.billing import router as billing_router
+    from backend.api.routes.public_signup import router as public_signup_router
     from backend.core.config import init_backend
     from backend.core.security import IS_PRODUCTION
     from backend.core.exceptions import AppError, app_error_handler, generic_error_handler
@@ -62,6 +64,7 @@ try:
     from backend.core.logger_db import db_warn
     from backend.core.modules import is_module_enabled, is_module_enabled_for_tenant
     from backend.core.security import decode_payload_leniently, resolve_tenant_id_leniently
+    from backend.services.billing.access_guard import enforce_write_access
     from backend.core.dependencies import get_db
     from backend.services.email_poller import check_all_mailboxes
     from backend.services.retention_service import run_retention_job
@@ -369,6 +372,19 @@ def _ensure_columns() -> None:
         #  'type datetime does not exist' / 'boolean ... default expression is of type integer')
         ("check_primo_livello", "token_active",     "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_active BOOLEAN NOT NULL DEFAULT TRUE"),
         ("check_primo_livello", "token_expires_at", "ALTER TABLE check_primo_livello ADD COLUMN {ifne}token_expires_at TIMESTAMP"),
+        # Livello commerciale SaaS (migrazione 20260806001). Qui stanno solo le
+        # colonne su tabelle preesistenti: le tabelle nuove (subscriptions,
+        # usage_counters…) le crea `init_db`/Alembic, non questo fallback.
+        ("tenants", "legal_name",              "ALTER TABLE tenants ADD COLUMN {ifne}legal_name VARCHAR"),
+        ("tenants", "vat_number",              "ALTER TABLE tenants ADD COLUMN {ifne}vat_number VARCHAR"),
+        ("tenants", "billing_email",           "ALTER TABLE tenants ADD COLUMN {ifne}billing_email VARCHAR"),
+        ("tenants", "country",                 "ALTER TABLE tenants ADD COLUMN {ifne}country VARCHAR"),
+        ("tenants", "onboarding_status",       "ALTER TABLE tenants ADD COLUMN {ifne}onboarding_status VARCHAR DEFAULT 'pending'"),
+        ("tenants", "onboarding_completed_at", "ALTER TABLE tenants ADD COLUMN {ifne}onboarding_completed_at TIMESTAMP"),
+        ("tenants", "deletion_requested_at",   "ALTER TABLE tenants ADD COLUMN {ifne}deletion_requested_at TIMESTAMP"),
+        ("utenti",  "email",                   "ALTER TABLE utenti ADD COLUMN {ifne}email VARCHAR"),
+        ("utenti",  "email_verified_at",       "ALTER TABLE utenti ADD COLUMN {ifne}email_verified_at TIMESTAMP"),
+        ("utenti",  "is_tenant_owner",         "ALTER TABLE utenti ADD COLUMN {ifne}is_tenant_owner BOOLEAN DEFAULT FALSE"),
     ]
 
     # M4 / M5 — nuove tabelle (CREATE TABLE IF NOT EXISTS — idempotente)
@@ -1066,6 +1082,13 @@ _CORE_ROUTERS = [
     health_router,
     auth_router,
     modules_router,
+    # Livello commerciale: mai gateato.
+    # - `billing` deve restare raggiungibile anche ad abbonamento scaduto, se no
+    #   si chiude fuori proprio chi sta cercando di rimettersi in regola;
+    # - `public_signup` non ha tenant né sessione, quindi non ha un modulo da
+    #   consultare; è l'env SELF_SERVICE_SIGNUP_ENABLED a deciderne l'attivazione.
+    billing_router,
+    public_signup_router,
     # Agenti AI: il gating è per singolo agente (5 moduli categoria "agenti"),
     # verificato dentro gli endpoint con is_module_enabled_for_tenant.
     agents_router,
@@ -1104,7 +1127,16 @@ def _require_module_enabled(module_id: str):
 
 
 def _include_module_router(router, module_id: str) -> None:
-    app.include_router(router, dependencies=[Depends(_require_module_enabled(module_id))])
+    # Due gate, in quest'ordine: il modulo è attivo per il cliente? e
+    # l'abbonamento consente di scrivere? Il secondo lascia passare tutte le
+    # GET, quindi un cliente in sola lettura continua a vedere e a esportare.
+    app.include_router(
+        router,
+        dependencies=[
+            Depends(_require_module_enabled(module_id)),
+            Depends(enforce_write_access),
+        ],
+    )
 
 
 # ── Routers legacy (senza prefisso) — mantenuti per retrocompatibilità frontend ──
@@ -1173,7 +1205,10 @@ for _router, _module_id in _V1_ROUTERS:
         app.include_router(
             _router,
             prefix="/v1",
-            dependencies=[Depends(_require_module_enabled(_module_id))],
+            dependencies=[
+                Depends(_require_module_enabled(_module_id)),
+                Depends(enforce_write_access),
+            ],
         )
 
 # Mount cartella statica solo in sviluppo locale (in cloud i file sono su Supabase Storage).

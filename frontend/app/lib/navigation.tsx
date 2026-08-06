@@ -19,6 +19,7 @@ import {
   UserCheck,
   UserCog,
   Users,
+  CreditCard,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -77,6 +78,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/bulk-import", label: "Import Massivo", icon: UploadCloud, module: "bulk_import", adminOnly: true },
       { href: "/admin/logs", label: "Log di Sistema", icon: ScrollText, module: "system_logs", adminOnly: true },
       { href: "/admin/email", label: "Email to Ticket", icon: Mail, module: "email_to_ticket", adminOnly: true },
+      // L'abbonamento non ha `module`: deve restare raggiungibile anche quando
+      // il piano è scaduto e i moduli di prodotto sono chiusi. È la via d'uscita.
+      { href: "/settings/billing", label: "Abbonamento", icon: CreditCard, adminOnly: true },
       { href: "/profilo", label: "Mio Profilo", icon: UserCheck },
       { href: "/admin/utenti", label: "Gestione Utenti", icon: UserCog, module: "user_admin", adminOnly: true },
     ],
@@ -106,6 +110,7 @@ export const PAGE_LABELS: Record<string, string> = {
   "/admin/logs": "Log di Sistema",
   "/admin/email": "Email to Ticket",
   "/admin/utenti": "Gestione Utenti",
+  "/settings/billing": "Abbonamento",
   "/profilo": "Mio Profilo",
   "/compliance": "Scadenzario Attestati",
   "/report/economico": "Report Economico",
